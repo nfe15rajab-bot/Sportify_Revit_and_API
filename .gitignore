@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Local secrets — copy appsettings.Development.json.example and fill in real values
+appsettings.Development.json
