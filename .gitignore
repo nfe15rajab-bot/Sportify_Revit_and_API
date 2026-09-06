@@ -9,3 +9,8 @@ obj/
 
 # Local secrets — copy appsettings.Development.json.example and fill in real values
 appsettings.Development.json
+
+# Reference-data SQLite DB — reproducible from ReferenceDataSeeder.cs, not checked in
+*.db
+*.db-shm
+*.db-wal

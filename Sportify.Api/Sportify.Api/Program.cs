@@ -9,6 +9,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Reference catalog (sports/norms/materials/providers, plant palettes) —
+// deliberately separate from AppDbContext: SQLite, zero external server,
+// so it actually runs without anyone standing up Postgres first.
+var refDbPath = Path.Combine(builder.Environment.ContentRootPath, "reference.db");
+builder.Services.AddDbContext<ReferenceDbContext>(options =>
+    options.UseSqlite($"Data Source={refDbPath}"));
+
+const string FrontendCorsPolicy = "FrontendDev";
+builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy =>
+    policy.WithOrigins("http://localhost:8123").AllowAnyHeader().AllowAnyMethod()));
+
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 
@@ -44,9 +55,18 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors(FrontendCorsPolicy);
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var refDb = scope.ServiceProvider.GetRequiredService<ReferenceDbContext>();
+    refDb.Database.EnsureCreated();
+    ReferenceDataSeeder.Seed(refDb);
+}
 
 app.Run();
