@@ -9,17 +9,20 @@ namespace SportfyRevit
     /// (not a panel tucked under Add-Ins), so "Sportify" is what you
     /// actually see in the ribbon.
     ///
-    /// Three panels, matching the project's own scope split rather than
+    /// Four panels, matching the project's own scope split rather than
     /// "whatever's been built so far": App & Data Import (getting a layout
-    /// into Revit), Analysis (checking it), Data Export / Deliverables
-    /// (getting results back out). Most Analysis/Export buttons are
-    /// placeholders for features that don't exist yet (see
-    /// PlaceholderCommand) — wired into the ribbon anyway so the tab shows
-    /// the project's full intended shape, not just what's been built.
-    /// Toggle Auto Import and Set Sun + Location, from the previous
-    /// Import/Sun & Site panels, aren't part of this ribbon shape and were
-    /// dropped from here — their command classes are untouched and still
-    /// work, just not wired to a button right now.
+    /// into Revit), Analysis (rule/geometry checks — no engine involved),
+    /// Unity Based Analysis (checks that specifically need a physics/
+    /// rendering engine — real rigidbody/particle simulation, not just a
+    /// calculation), and Data Export / Deliverables (getting results back
+    /// out). Most Analysis/Unity/Export buttons are placeholders for
+    /// features that don't exist yet (see PlaceholderCommand) — wired into
+    /// the ribbon anyway so the tab shows the project's full intended
+    /// shape, not just what's been built. Toggle Auto Import and Set Sun +
+    /// Location, from the previous Import/Sun & Site panels, aren't part
+    /// of this ribbon shape and were dropped from here — their command
+    /// classes are untouched and still work, just not wired to a button
+    /// right now.
     /// </summary>
     public class SportfyRevitApp : IExternalApplication
     {
@@ -42,8 +45,6 @@ namespace SportfyRevit
                 "Placeholder — will import a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry.");
 
             var analysisPanel = application.CreateRibbonPanel(TabName, "Analysis");
-            AddButton(analysisPanel, "SimulateCrowds", "Simulate\nCrowds", typeof(SimulateCrowdsCommand),
-                "Placeholder — will simulate spectator/participant flow using the circulation paths and entry points from the Combine layout.");
             AddButton(analysisPanel, "AnalyzeFireSafety", "Fire Safety\nAnalysis", typeof(AnalyzeFireSafetyCommand),
                 "Placeholder — will check evacuation routes, travel distances and exit counts against fire-safety norms.");
             AddButton(analysisPanel, "AnalyzeWaterManagement", "Water Mgmt\nAnalysis", typeof(AnalyzeWaterManagementCommand),
@@ -56,16 +57,25 @@ namespace SportfyRevit
                 "Placeholder — will analyze shading across the layout using the site's sun position data from the web app's Site tab.");
             AddButton(analysisPanel, "AnalyzeLca", "LCA\nAnalysis", typeof(AnalyzeLcaCommand),
                 "Placeholder — will run a Life Cycle Assessment (phases A-D) using material/provider data from the Sportify reference database.");
-            AddButton(analysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
-                "Placeholder — will simulate real ball trajectories (shots, serves, kicks) with rigidbody physics to validate FIBA/DIN clearance buffers against neighboring courts, the roof edge and circulation space.");
-            AddButton(analysisPanel, "AnalyzeStructuralResonance", "Structural\nResonance", typeof(AnalyzeStructuralResonanceCommand),
-                "Placeholder — will simulate synchronized crowd movement and visualize the resulting vibration/load pattern across the existing structure's grid.");
-            AddButton(analysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
-                "Placeholder — will apply a simplified wind force field, stronger at roof edges/corners, to flag wind-uplift stress on tall vegetation and erosion/scour risk on exposed growing medium.");
-            AddButton(analysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
-                "Placeholder — will show water filtering down through a garden buildup's actual substrate/drainage layers in cross-section, complementing the Water Management surface animation.");
             AddButton(analysisPanel, "AnalyzeAccessibility", "Accessibility\nAnalysis", typeof(AnalyzeAccessibilityCommand),
                 "Placeholder — will check circulation width/turning radius for wheelchair users, tactile/contrast guidance for blind users, and child-scaled equipment + fall-safety surfacing for children.");
+
+            // Adjacent to Analysis on purpose: everything here specifically needs a
+            // physics/rendering engine (real rigidbody or particle simulation) rather
+            // than a rule check or calculation, which is what sets it apart from the
+            // plain Analysis panel — see the project notes on why each of these was
+            // judged a genuine Unity fit and the rest weren't.
+            var unityAnalysisPanel = application.CreateRibbonPanel(TabName, "Unity Based Analysis");
+            AddButton(unityAnalysisPanel, "SimulateCrowds", "Simulate\nCrowds", typeof(SimulateCrowdsCommand),
+                "Placeholder — will simulate spectator/participant flow using the circulation paths and entry points from the Combine layout.");
+            AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
+                "Placeholder — will simulate real ball trajectories (shots, serves, kicks) with rigidbody physics to validate FIBA/DIN clearance buffers against neighboring courts, the roof edge and circulation space.");
+            AddButton(unityAnalysisPanel, "AnalyzeStructuralResonance", "Structural\nResonance", typeof(AnalyzeStructuralResonanceCommand),
+                "Placeholder — will simulate synchronized crowd movement and visualize the resulting vibration/load pattern across the existing structure's grid.");
+            AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
+                "Placeholder — will apply a simplified wind force field, stronger at roof edges/corners, to flag wind-uplift stress on tall vegetation and erosion/scour risk on exposed growing medium.");
+            AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
+                "Placeholder — will show water filtering down through a garden buildup's actual substrate/drainage layers in cross-section, complementing the Water Management surface animation.");
 
             var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
             AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport", typeof(GenerateAnalysisReportCommand),
