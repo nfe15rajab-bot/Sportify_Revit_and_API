@@ -29,6 +29,8 @@ namespace Sportify.Api.Controllers
             var palettes = await _db.PlantPalettes
                 .Include(p => p.Plants)
                 .Include(p => p.Norms)
+                .Include(p => p.Materials)
+                .Include(p => p.Providers)
                 .AsNoTracking()
                 .ToListAsync();
             return Ok(palettes);
@@ -40,6 +42,8 @@ namespace Sportify.Api.Controllers
             var palette = await _db.PlantPalettes
                 .Include(p => p.Plants)
                 .Include(p => p.Norms)
+                .Include(p => p.Materials)
+                .Include(p => p.Providers)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == id);
             return palette is null ? NotFound() : Ok(palette);
