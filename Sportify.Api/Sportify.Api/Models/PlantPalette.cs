@@ -9,5 +9,7 @@ namespace Sportify.Api.Models
 
         public List<Plant> Plants { get; set; } = new();
         public List<Norm> Norms { get; set; } = new();
+        public List<Material> Materials { get; set; } = new();
+        public List<Provider> Providers { get; set; } = new();
     }
 }
