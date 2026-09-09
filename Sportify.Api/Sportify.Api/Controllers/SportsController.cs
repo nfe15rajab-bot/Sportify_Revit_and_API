@@ -23,6 +23,7 @@ namespace Sportify.Api.Controllers
                 .Include(s => s.Norms)
                 .Include(s => s.Materials)
                 .Include(s => s.Providers)
+                .Include(s => s.Variants)
                 .AsNoTracking()
                 .ToListAsync();
             return Ok(sports);
@@ -35,6 +36,7 @@ namespace Sportify.Api.Controllers
                 .Include(s => s.Norms)
                 .Include(s => s.Materials)
                 .Include(s => s.Providers)
+                .Include(s => s.Variants)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == id);
             return sport is null ? NotFound() : Ok(sport);

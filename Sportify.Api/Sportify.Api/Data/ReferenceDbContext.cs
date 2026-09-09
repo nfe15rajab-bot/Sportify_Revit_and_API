@@ -19,5 +19,8 @@ namespace Sportify.Api.Data
         public DbSet<Provider> Providers => Set<Provider>();
         public DbSet<Plant> Plants => Set<Plant>();
         public DbSet<PlantPalette> PlantPalettes => Set<PlantPalette>();
+        public DbSet<FieldVariant> FieldVariants => Set<FieldVariant>();
+        public DbSet<FacilityGuideline> FacilityGuidelines => Set<FacilityGuideline>();
+        public DbSet<AnalysisParameter> AnalysisParameters => Set<AnalysisParameter>();
     }
 }
