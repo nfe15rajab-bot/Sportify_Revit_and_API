@@ -1,23 +1,25 @@
-using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Structure;
 
 namespace SportfyRevit
 {
     internal record ImportSummary(int PieceCount, int PathCount, int EntryCount, List<ElementId> CreatedIds);
 
     /// <summary>
-    /// The actual "turn a Combine export into Revit geometry" logic, shared
-    /// by the manual Import command and AutoImportSync's live-sync path so
-    /// there's exactly one place that knows how a placement/boundary/path/
-    /// entry turns into elements. Must be called from inside an already-open
+    /// The sync/orchestration half of "turn a Combine export into Revit
+    /// geometry" — shared by the manual Import command and AutoImportSync's
+    /// live-sync path so there's exactly one place that knows how a layout
+    /// turns into elements: worksets/worksharing, the roof boundary/setback
+    /// outline, circulation paths, and entry markers. Per-placement family
+    /// matching/instantiation is deliberately NOT here — see
+    /// FamilyPlacementBuilder, which this class only calls into — so the
+    /// sync-pipeline work and the family-implementation work stay in
+    /// separate files. Must be called from inside an already-open
     /// transaction — this class never starts or commits one itself, since
     /// the auto-sync path needs to delete last cycle's elements first, in
     /// the SAME transaction as the rebuild.
     /// </summary>
     internal static class SportifyLayoutBuilder
     {
-        private const double ThicknessM = 0.1;
         private const double EntryMarkerRadiusM = 0.4;
 
         public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout)
@@ -49,7 +51,8 @@ namespace SportfyRevit
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
         }
 
-        private static double FeetFromMeters(double m) => UnitUtils.ConvertToInternalUnits(m, UnitTypeId.Meters);
+        /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
+        internal static double FeetFromMeters(double m) => UnitUtils.ConvertToInternalUnits(m, UnitTypeId.Meters);
 
         private static void EnsureWorksharing(Document doc)
         {
@@ -80,7 +83,8 @@ namespace SportfyRevit
             return result;
         }
 
-        private static void SetWorkset(Element el, WorksetId worksetId)
+        /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
+        internal static void SetWorkset(Element el, WorksetId worksetId)
         {
             var p = el.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM);
             if (p != null && !p.IsReadOnly)
@@ -109,13 +113,10 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// Per component: place a real FamilySymbol already loaded in this
-        /// project if one matches well enough (PlaceFamilyInstance), else
-        /// fall back to the placeholder DirectShape box (PlacePlaceholderBox)
-        /// — this repo ships no .rfa content of its own, so "assign a
-        /// family" can only mean matching against whatever the user has
-        /// already loaded into their Revit template. Either path also drops
-        /// a TextNote naming what was actually placed.
+        /// Per component: figure out its category/workset, then hand off to
+        /// FamilyPlacementBuilder for the actual family-matching/placeholder
+        /// decision — this class doesn't know or care how a placement
+        /// becomes an element, only that it does.
         /// </summary>
         private static bool CreatePlacementGeometry(
             Document doc, PlacementDto p, double originXFt, double originYFt,
@@ -128,191 +129,8 @@ namespace SportfyRevit
             bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase);
             var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
 
-            var symbol = FindMatchingFamilySymbol(doc, GetPlacementKeywords(p));
-            if (symbol != null)
-                PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds);
-            else
-                PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
-
+            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
             return true;
-        }
-
-        /// <summary>
-        /// Words split out of a placement's category/label/quality_key,
-        /// used to score every loaded FamilySymbol's family name and pick
-        /// the closest match. quality_key (e.g. "BASKETBALL_STANDARD_HIGH",
-        /// "GARDEN_ROOF_TREES_JAPANESE_HIGH") is included because it's
-        /// already the frontend's own designed-for-lookup identifier (see
-        /// ParametersDto) — label alone is free text a human wrote for the
-        /// sidebar, not a stable key.
-        /// </summary>
-        private static HashSet<string> GetPlacementKeywords(PlacementDto p)
-        {
-            var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            words.UnionWith(ExtractWords(p.Category));
-            words.UnionWith(ExtractWords(p.Label));
-            words.UnionWith(ExtractWords(p.Parameters?.QualityKey));
-            return words;
-        }
-
-        private static readonly Regex WordSplitter = new(@"[^A-Za-z0-9]+", RegexOptions.Compiled);
-
-        private static IEnumerable<string> ExtractWords(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) yield break;
-            foreach (var word in WordSplitter.Split(text))
-            {
-                if (word.Length >= 2)
-                    yield return word;
-            }
-        }
-
-        /// <summary>
-        /// Best-effort match, not an exact lookup: scores every FamilySymbol
-        /// currently loaded in the document by how many keywords its
-        /// family name shares with this placement, and returns the top
-        /// scorer (null if nothing shares even one word). Deliberately
-        /// generic rather than a hardcoded sport-name table, since this
-        /// project has no bundled family content — it has to work with
-        /// whatever family names the user loads in, whatever they're called.
-        /// </summary>
-        private static FamilySymbol? FindMatchingFamilySymbol(Document doc, HashSet<string> keywords)
-        {
-            if (keywords.Count == 0) return null;
-
-            FamilySymbol? best = null;
-            int bestScore = 0;
-            var symbols = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>();
-            foreach (var symbol in symbols)
-            {
-                var familyName = symbol.Family?.Name;
-                if (string.IsNullOrWhiteSpace(familyName)) continue;
-
-                int score = ExtractWords(familyName).Count(w => keywords.Contains(w));
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = symbol;
-                }
-            }
-            return best;
-        }
-
-        /// <summary>
-        /// The real-family path: places an instance of a FamilySymbol the
-        /// user already loaded, at the frontend's purpose-built center
-        /// point (falling back to the bounding box's center for exports
-        /// from before insertion_point existed), rotates it to match the
-        /// Combine layout, and labels it with the family's own name — the
-        /// "assign a family + name annotation" behavior this replaces the
-        /// placeholder box with.
-        /// </summary>
-        private static void PlaceFamilyInstance(
-            Document doc, PlacementDto p, BoundingBoxDto bb, FamilySymbol symbol,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
-        {
-            if (!symbol.IsActive)
-            {
-                symbol.Activate();
-                doc.Regenerate();
-            }
-
-            double centerXFt, centerYFt;
-            if (p.InsertionPoint != null)
-            {
-                centerXFt = originXFt + FeetFromMeters(p.InsertionPoint.CenterXM);
-                centerYFt = originYFt + FeetFromMeters(p.InsertionPoint.CenterYM);
-            }
-            else
-            {
-                centerXFt = originXFt + FeetFromMeters(bb.TopLeftXM + bb.WidthM / 2.0);
-                centerYFt = originYFt + FeetFromMeters(bb.TopLeftYM + bb.HeightM / 2.0);
-            }
-            var center = new XYZ(centerXFt, centerYFt, 0);
-
-            var instance = doc.Create.NewFamilyInstance(center, symbol, StructuralType.NonStructural);
-            SetWorkset(instance, worksetId);
-            createdIds.Add(instance.Id);
-
-            double rotationDeg = p.Transform?.RotationDeg ?? 0;
-            if (Math.Abs(rotationDeg) > 1e-6)
-            {
-                // Every other coordinate in this file maps x_m/y_m straight
-                // onto Revit X/Y with no screen-to-world Y flip, so
-                // rotation_deg is applied here the same unflipped way (CCW
-                // about +Z for a positive angle). Untested against a real
-                // rotated family in an actual Revit view — if a placed
-                // instance comes in mirrored, negate rotationRad below.
-                double rotationRad = rotationDeg * Math.PI / 180.0;
-                var axis = Line.CreateBound(center, center + XYZ.BasisZ);
-                ElementTransformUtils.RotateElement(doc, instance.Id, axis, rotationRad);
-            }
-
-            string familyName = symbol.Family?.Name ?? symbol.Name;
-            var textOrigin = new XYZ(centerXFt, centerYFt, FeetFromMeters(ThicknessM));
-            CreateLabelText(doc, familyName, textOrigin, textTypeId, worksetId, createdIds);
-        }
-
-        /// <summary>
-        /// bounding_box.width_m/height_m from the frontend already reflect
-        /// the item's final on-roof orientation (Combine's getFootprint()
-        /// swaps width/height itself for a 90°-rotated item before export)
-        /// — so a plain axis-aligned rectangle built straight from those
-        /// dimensions is already correctly oriented. Applying transform.
-        /// rotation_deg on top would rotate it a second time, so — unlike
-        /// PlaceFamilyInstance, which needs it — that field stays unused
-        /// here. This is the fallback for whatever PlaceFamilyInstance has
-        /// no loaded family to match: still just a labeled box standing in
-        /// for a real, non-square family with its own "front".
-        /// </summary>
-        private static void PlacePlaceholderBox(
-            Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
-        {
-            double xFt = originXFt + FeetFromMeters(bb.TopLeftXM);
-            double yFt = originYFt + FeetFromMeters(bb.TopLeftYM);
-            double wFt = FeetFromMeters(bb.WidthM);
-            double hFt = FeetFromMeters(bb.HeightM);
-            double thickFt = FeetFromMeters(ThicknessM);
-
-            var loop = new CurveLoop();
-            var c0 = new XYZ(xFt, yFt, 0);
-            var c1 = new XYZ(xFt + wFt, yFt, 0);
-            var c2 = new XYZ(xFt + wFt, yFt + hFt, 0);
-            var c3 = new XYZ(xFt, yFt + hFt, 0);
-            loop.Append(Line.CreateBound(c0, c1));
-            loop.Append(Line.CreateBound(c1, c2));
-            loop.Append(Line.CreateBound(c2, c3));
-            loop.Append(Line.CreateBound(c3, c0));
-
-            var solid = GeometryCreationUtilities.CreateExtrusionGeometry(new List<CurveLoop> { loop }, XYZ.BasisZ, thickFt);
-
-            var categoryId = new ElementId(isGarden ? BuiltInCategory.OST_Planting : BuiltInCategory.OST_GenericModel);
-
-            var ds = DirectShape.CreateElement(doc, categoryId);
-            ds.SetShape(new GeometryObject[] { solid });
-
-            string label = BuildLabel(p.Label ?? p.Category ?? "item", bb.WidthM, bb.HeightM);
-            ds.Name = label;
-
-            SetWorkset(ds, worksetId);
-            createdIds.Add(ds.Id);
-
-            var textOrigin = new XYZ(xFt + wFt / 2.0, yFt + hFt / 2.0, thickFt);
-            CreateLabelText(doc, label, textOrigin, textTypeId, worksetId, createdIds);
-        }
-
-        private static string BuildLabel(string name, double widthM, double heightM)
-        {
-            var safe = name.Trim().Replace(' ', '_');
-            return $"{safe}_{widthM:0.#}x{heightM:0.#}";
-        }
-
-        private static void CreateLabelText(Document doc, string text, XYZ origin, ElementId textTypeId, WorksetId worksetId, List<ElementId> createdIds)
-        {
-            var textNote = TextNote.Create(doc, doc.ActiveView.Id, origin, text, textTypeId);
-            SetWorkset(textNote, worksetId);
-            createdIds.Add(textNote.Id);
         }
 
         private static void CreateModelLine(Document doc, XYZ a, XYZ b, WorksetId worksetId, List<ElementId> createdIds)
