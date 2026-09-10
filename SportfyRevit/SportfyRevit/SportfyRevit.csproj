@@ -4,6 +4,9 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Needed for the OpenSportifyApp dockable pane's XAML UserControl
+         (SportifyBrowserPane) — nothing else in this project uses WPF. -->
+    <UseWPF>true</UseWPF>
     <!-- Revit 2025 add-ins target net8.0-windows; Revit itself supplies
          RevitAPI(UI).dll at load time, so these are compile-only references
          (Private=false) and must never end up copied into bin/. -->
@@ -21,16 +24,25 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
   <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points
        at a DLL copy in that same folder, not at bin\ — Revit never reads
        bin\ directly. Without this, a build can succeed while Revit keeps
        loading yesterday's behavior with no error anywhere. Harmless on a
-       machine with no such folder: Copy creates it. -->
+       machine with no such folder: Copy creates it.
+       Copies the WHOLE output tree (not just SportfyRevit.dll/.pdb) since
+       WebView2 pulls in its own managed DLLs plus a runtimes\<rid>\native\
+       WebView2Loader.dll — %(RecursiveDir) preserves that subfolder
+       structure at the destination, which is where the native loader
+       actually gets probed for. -->
   <Target Name="DeployToRevitAddins" AfterTargets="Build">
     <ItemGroup>
-      <RevitAddinFiles Include="$(OutDir)SportfyRevit.dll;$(OutDir)SportfyRevit.pdb" />
+      <RevitAddinFiles Include="$(OutDir)**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(RevitAddinFiles)" DestinationFolder="$(APPDATA)\Autodesk\Revit\Addins\2025\" />
+    <Copy SourceFiles="@(RevitAddinFiles)" DestinationFolder="$(APPDATA)\Autodesk\Revit\Addins\2025\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
