@@ -33,17 +33,23 @@ namespace SportfyRevit
         {
             RoofBoundaryServer.Start();
 
+            // Must happen in OnStartup, before any document is open — see
+            // SportifyDockablePaneProvider's own notes on the GUID needing
+            // to stay constant across builds.
+            application.RegisterDockablePane(SportifyDockablePaneProvider.PaneId, "Sportify App",
+                new SportifyDockablePaneProvider());
+
             application.CreateRibbonTab(TabName);
 
             var importPanel = application.CreateRibbonPanel(TabName, "App & Data Import");
             AddButton(importPanel, "OpenSportifyApp", "Open\nSportify App", typeof(OpenSportifyAppCommand),
-                "Opens the Sportify web app inside Revit. Placeholder for now — needs a browser pane docked inside Revit.");
+                $"Opens the Sportify web app in a docked pane inside Revit ({SportifyBrowserPane.DefaultUrl}).");
             AddButton(importPanel, "PushRoofBoundary", "Push Roof\nto Sportify", typeof(PushRoofBoundaryCommand),
                 "Select a roof or floor and send its footprint to the Sportify web app's Combine tab.");
             AddButton(importPanel, "ImportSportifyLayout", "Import\nConfiguration", typeof(ImportSportifyLayoutCommand),
                 "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.");
             AddButton(importPanel, "ImportDxf", "Import\nDXF", typeof(ImportDxfCommand),
-                "Placeholder — will import a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry.");
+                "Imports a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry, placed in meters at the origin.");
             AddButton(importPanel, "SetSunAndLocation", "Set Sun +\nLocation", typeof(SetSunAndLocationCommand),
                 "Sets this project's real Site Location and Sun Settings from the web app's Site tab data.");
             AutoImportSync.ToggleButton = AddButton(importPanel, "ToggleAutoImport", "Auto Import:\nOFF", typeof(ToggleAutoImportCommand),
