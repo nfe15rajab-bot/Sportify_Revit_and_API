@@ -6,11 +6,15 @@ namespace SportfyRevit
     /// <summary>
     /// Tiny loopback HTTP server handling both directions of the
     /// frontend/Revit round trip on one port:
-    /// - GET  /roof-boundary    — last roof pushed via PushRoofBoundaryCommand,
+    /// - GET  /roof-boundary     — last roof pushed via PushRoofBoundaryCommand,
     ///   in the shape the frontend's pollRevitBoundary() (main.js) polls every 2s.
-    /// - POST /combined-layout  — the frontend's "Export Combined JSON" payload,
+    /// - POST /combined-layout   — the frontend's "Export Combined JSON" payload,
     ///   pushed automatically on every export so AutoImportSync can pick it up
     ///   without anyone opening a file picker.
+    /// - GET  /analysis-results  — latest results published by an Analyze*
+    ///   command (AnalysisResultPublisher), for a future frontend poll loop
+    ///   to show real Revit-computed numbers instead of only its own
+    ///   lightweight web estimate.
     /// Binding to "localhost" specifically (not a wildcard host) means Windows
     /// doesn't require a URL ACL reservation or admin rights to start it.
     /// Started/stopped by SportfyRevitApp alongside Revit's own lifecycle, so
@@ -26,6 +30,9 @@ namespace SportfyRevit
         private static readonly object CombinedLayoutLock = new();
         private static string? _combinedLayoutJson;
         private static int _combinedLayoutVersion;
+
+        private static readonly object AnalysisResultsLock = new();
+        private static string? _analysisResultsJson;
 
         public static void Start()
         {
@@ -76,6 +83,23 @@ namespace SportfyRevit
             return json != null;
         }
 
+        /// <summary>
+        /// Called in-process by each Analyze* command right after it
+        /// computes a real result — no HTTP hop needed since the caller
+        /// lives in the same process as this server, same as how
+        /// PushRoofBoundaryCommand calls SetPayload directly above.
+        /// </summary>
+        public static void PublishAnalysisResults(string json)
+        {
+            lock (AnalysisResultsLock) { _analysisResultsJson = json; }
+        }
+
+        public static bool TryGetLatestAnalysisResults(out string? json)
+        {
+            lock (AnalysisResultsLock) { json = _analysisResultsJson; }
+            return json != null;
+        }
+
         private static async Task ListenLoop()
         {
             var listener = _listener;
@@ -114,6 +138,26 @@ namespace SportfyRevit
                         var body = await reader.ReadToEndAsync();
                         SetCombinedLayoutPayload(body);
                         ctx.Response.StatusCode = 204;
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (path == "/analysis-results" && ctx.Request.HttpMethod == "GET")
+                    {
+                        string? resultsJson;
+                        lock (AnalysisResultsLock) { resultsJson = _analysisResultsJson; }
+
+                        if (resultsJson == null)
+                        {
+                            ctx.Response.StatusCode = 404;
+                            ctx.Response.Close();
+                            continue;
+                        }
+
+                        var resultsBytes = Encoding.UTF8.GetBytes(resultsJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = resultsBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(resultsBytes);
                         ctx.Response.Close();
                         continue;
                     }
