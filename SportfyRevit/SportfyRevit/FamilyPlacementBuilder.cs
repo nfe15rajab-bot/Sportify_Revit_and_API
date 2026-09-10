@@ -28,11 +28,27 @@ namespace SportfyRevit
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
             double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
         {
-            var symbol = FindMatchingFamilySymbol(doc, GetPlacementKeywords(p));
-            if (symbol != null)
-                PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds);
-            else
-                PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
+            var symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p));
+            Element placed = symbol != null
+                ? PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds)
+                : PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
+
+            // Stamps the same unified parameter set on whatever got placed —
+            // real family instance or placeholder box alike — so Revit's own
+            // Properties panel/Schedules can already query category/quality/
+            // material data today, without waiting on real "sportified"
+            // families to exist. Defensive: EnsureBound returns false (and
+            // SetValues is then a no-op) if the shared-parameter file/binding
+            // fails for any reason — geometry placement above must never be
+            // broken by this.
+            if (SportifySharedParameters.EnsureBound(doc))
+            {
+                var (typeId, variant, norm, lengthM, widthM) = PlacementDataHelpers.GetUnifiedFields(p);
+                SportifySharedParameters.SetValues(placed, p.Category, typeId, variant,
+                    PlacementDataHelpers.GetQualityLevel(p), norm, lengthM, widthM,
+                    PlacementDataHelpers.GetReferenceMaterialName(p), PlacementDataHelpers.GetReferenceProviderName(p),
+                    p.Parameters?.QualityKey);
+            }
         }
 
         /// <summary>
@@ -66,18 +82,27 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// Best-effort match, not an exact lookup: scores every FamilySymbol
-        /// currently loaded in the document by how many keywords its
-        /// family name shares with this placement, and returns the top
-        /// scorer (null if nothing shares even one word). Deliberately
-        /// generic rather than a hardcoded sport-name table, since this
-        /// project has no bundled family content — it has to work with
-        /// whatever family names the user loads in, whatever they're called.
-        /// This is the matching logic to replace with something more
-        /// explicit (e.g. a lookup table) once a real family library exists.
+        /// Checks FamilyMatchRules.Lookup for an exact quality_key match
+        /// first (empty today, so this is a no-op until Moamen fills it in —
+        /// see that file's own TODO), then falls back to best-effort keyword
+        /// scoring: scores every FamilySymbol currently loaded in the
+        /// document by how many keywords its family name shares with this
+        /// placement, and returns the top scorer (null if nothing shares
+        /// even one word). Deliberately generic rather than a hardcoded
+        /// sport-name table, since this project has no bundled family
+        /// content — it has to work with whatever family names the user
+        /// loads in, whatever they're called.
         /// </summary>
-        private static FamilySymbol? FindMatchingFamilySymbol(Document doc, HashSet<string> keywords)
+        private static FamilySymbol? FindMatchingFamilySymbol(Document doc, PlacementDto p, HashSet<string> keywords)
         {
+            var qualityKey = p.Parameters?.QualityKey;
+            if (!string.IsNullOrWhiteSpace(qualityKey) && FamilyMatchRules.Lookup.TryGetValue(qualityKey, out var exactFamilyName))
+            {
+                var exact = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
+                    .FirstOrDefault(s => string.Equals(s.Family?.Name, exactFamilyName, StringComparison.OrdinalIgnoreCase));
+                if (exact != null) return exact;
+            }
+
             if (keywords.Count == 0) return null;
 
             FamilySymbol? best = null;
@@ -107,7 +132,7 @@ namespace SportfyRevit
         /// "assign a family + name annotation" behavior this replaces the
         /// placeholder box with.
         /// </summary>
-        private static void PlaceFamilyInstance(
+        private static Element PlaceFamilyInstance(
             Document doc, PlacementDto p, BoundingBoxDto bb, FamilySymbol symbol,
             double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
         {
@@ -151,6 +176,8 @@ namespace SportfyRevit
             string familyName = symbol.Family?.Name ?? symbol.Name;
             var textOrigin = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.FeetFromMeters(ThicknessM));
             CreateLabelText(doc, familyName, textOrigin, textTypeId, worksetId, createdIds);
+
+            return instance;
         }
 
         /// <summary>
@@ -165,7 +192,7 @@ namespace SportfyRevit
         /// loaded family to match: still just a labeled box standing in
         /// for a real, non-square family with its own "front".
         /// </summary>
-        private static void PlacePlaceholderBox(
+        private static Element PlacePlaceholderBox(
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
             double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
         {
@@ -200,6 +227,8 @@ namespace SportfyRevit
 
             var textOrigin = new XYZ(xFt + wFt / 2.0, yFt + hFt / 2.0, thickFt);
             CreateLabelText(doc, label, textOrigin, textTypeId, worksetId, createdIds);
+
+            return ds;
         }
 
         private static string BuildLabel(string name, double widthM, double heightM)
