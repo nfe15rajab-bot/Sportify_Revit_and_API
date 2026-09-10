@@ -15,14 +15,15 @@ namespace SportfyRevit
     /// Unity Based Analysis (checks that specifically need a physics/
     /// rendering engine — real rigidbody/particle simulation, not just a
     /// calculation), and Data Export / Deliverables (getting results back
-    /// out). Most Analysis/Unity/Export buttons are placeholders for
-    /// features that don't exist yet (see PlaceholderCommand) — wired into
-    /// the ribbon anyway so the tab shows the project's full intended
-    /// shape, not just what's been built. Toggle Auto Import and Set Sun +
-    /// Location, from the previous Import/Sun & Site panels, aren't part
-    /// of this ribbon shape and were dropped from here — their command
-    /// classes are untouched and still work, just not wired to a button
-    /// right now.
+    /// out). Most Unity/Export buttons are still placeholders for features
+    /// that don't exist yet (see PlaceholderCommand) — wired into the
+    /// ribbon anyway so the tab shows the project's full intended shape,
+    /// not just what's been built. Toggle Auto Import and Set Sun +
+    /// Location, from the previous Import/Sun & Site panels, dropped out
+    /// of this ribbon shape during the restructure even though their
+    /// command classes kept working — both are back in App & Data Import
+    /// below now that they're needed again (Set Sun + Location as a plain
+    /// setup action; Auto Import as the live-sync toggle).
     /// </summary>
     public class SportfyRevitApp : IExternalApplication
     {
@@ -43,22 +44,26 @@ namespace SportfyRevit
                 "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.");
             AddButton(importPanel, "ImportDxf", "Import\nDXF", typeof(ImportDxfCommand),
                 "Placeholder — will import a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry.");
+            AddButton(importPanel, "SetSunAndLocation", "Set Sun +\nLocation", typeof(SetSunAndLocationCommand),
+                "Sets this project's real Site Location and Sun Settings from the web app's Site tab data.");
+            AutoImportSync.ToggleButton = AddButton(importPanel, "ToggleAutoImport", "Auto Import:\nOFF", typeof(ToggleAutoImportCommand),
+                "Automatically apply every Combine export pushed from the web app, without opening a file picker. Click to turn on.");
 
             var analysisPanel = application.CreateRibbonPanel(TabName, "Analysis");
             AddButton(analysisPanel, "AnalyzeFireSafety", "Fire Safety\nAnalysis", typeof(AnalyzeFireSafetyCommand),
-                "Placeholder — will check evacuation routes, travel distances and exit counts against fire-safety norms.");
+                "Checks evacuation travel distance from every piece to its nearest entry point against a reference figure from Sportify.Api.");
             AddButton(analysisPanel, "AnalyzeWaterManagement", "Water Mgmt\nAnalysis", typeof(AnalyzeWaterManagementCommand),
-                "Placeholder — will estimate rainwater absorption/retention across the roof's garden coverage and the runoff the drainage design would need to handle.");
+                "Estimates rainwater retention from garden coverage and buildup depth in the synced layout.");
             AddButton(analysisPanel, "AnalyzeLiveLoads", "Live Loads\nAnalysis", typeof(AnalyzeLiveLoadsCommand),
-                "Placeholder — live-load analysis against the existing building's structural constraints; scope still being defined.");
+                "Illustrative estimate: converts each field's spectator capacity into a distributed load and compares it to a generic DIN EN 1991-1-1 reference value.");
             AddButton(analysisPanel, "AnalyzeCarbonImpact", "Carbon Impact\nAnalysis", typeof(AnalyzeCarbonImpactCommand),
-                "Placeholder — will estimate the kinetic-to-electrical energy generation potential of a configuration from player activity and the materials assigned to each family.");
+                "Illustrative kinetic-to-electrical energy-harvesting ceiling across active playing surface, assuming piezoelectric-capable flooring.");
             AddButton(analysisPanel, "AnalyzeSunAndShading", "Sun & Shading\nAnalysis", typeof(AnalyzeSunAndShadingCommand),
-                "Placeholder — will analyze shading across the layout using the site's sun position data from the web app's Site tab.");
+                "Confirms Site Location matches the synced layout, then points at Revit's own Sun Path/Shadows for the real render.");
             AddButton(analysisPanel, "AnalyzeLca", "LCA\nAnalysis", typeof(AnalyzeLcaCommand),
-                "Placeholder — will run a Life Cycle Assessment (phases A-D) using material/provider data from the Sportify reference database.");
+                "Sums embodied carbon from each piece's picked reference material, using Sportify.Api's Materials table.");
             AddButton(analysisPanel, "AnalyzeAccessibility", "Accessibility\nAnalysis", typeof(AnalyzeAccessibilityCommand),
-                "Placeholder — will check circulation width/turning radius for wheelchair users, tactile/contrast guidance for blind users, and child-scaled equipment + fall-safety surfacing for children.");
+                "Checks circulation width against a wheelchair two-way reference and whether every piece is reachable from an entry point.");
 
             // Adjacent to Analysis on purpose: everything here specifically needs a
             // physics/rendering engine (real rigidbody or particle simulation) rather
@@ -79,11 +84,11 @@ namespace SportfyRevit
 
             var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
             AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport", typeof(GenerateAnalysisReportCommand),
-                "Placeholder — will generate a report from the analyses above, letting the user toggle which sections to include.");
+                "Places a text summary of every Analysis check run this session, plus an optional chart image, on the active view.");
             AddButton(exportPanel, "GenerateFunctionalDiagrams", "Functional\nDiagrams", typeof(GenerateFunctionalDiagramsCommand),
-                "Placeholder — will generate template-based diagrams: circulation, bubble diagram, and a box-like 3D axonometric.");
-            AddButton(exportPanel, "GenerateSchedules", "Schedules\n(XLS)", typeof(GenerateSchedulesCommand),
-                "Placeholder — will export an XLS schedule of the families in the model (materials, provider, quality, quantity, description), letting the user toggle which components to include.");
+                "Generates a circulation-only floor plan and a 3D massing axonometric. Bubble diagram not built yet.");
+            AddButton(exportPanel, "GenerateSchedules", "Schedules\n(CSV)", typeof(GenerateSchedulesCommand),
+                "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area).");
 
             application.Idling += AutoImportSync.OnIdling;
 
@@ -97,13 +102,13 @@ namespace SportfyRevit
             return Result.Succeeded;
         }
 
-        private static void AddButton(RibbonPanel panel, string internalName, string text, Type commandType, string tooltip)
+        private static PushButton AddButton(RibbonPanel panel, string internalName, string text, Type commandType, string tooltip)
         {
             var data = new PushButtonData(internalName, text, typeof(SportfyRevitApp).Assembly.Location, commandType.FullName)
             {
                 ToolTip = tooltip,
             };
-            panel.AddItem(data);
+            return (PushButton)panel.AddItem(data);
         }
     }
 }
