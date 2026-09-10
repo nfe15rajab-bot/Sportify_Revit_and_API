@@ -63,6 +63,10 @@ namespace Sportify.Api.Controllers
                     "PlantPalette" => JsonSerializer.Deserialize<PlantPalette>(raw, JsonOpts)!,
                     "FacilityGuideline" => JsonSerializer.Deserialize<FacilityGuideline>(raw, JsonOpts)!,
                     "FieldVariant" => JsonSerializer.Deserialize<FieldVariant>(raw, JsonOpts)!,
+                    // Was already in AllowedEntityTypes above but had no case
+                    // here — CreateRecord fell through to "unreachable" for
+                    // every AnalysisParameter create attempt.
+                    "AnalysisParameter" => JsonSerializer.Deserialize<AnalysisParameter>(raw, JsonOpts)!,
                     _ => throw new InvalidOperationException("unreachable"),
                 };
 
