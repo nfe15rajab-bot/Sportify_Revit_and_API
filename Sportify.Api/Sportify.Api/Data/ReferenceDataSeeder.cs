@@ -92,13 +92,17 @@ namespace Sportify.Api.Data
             {
                 Name = "Extensive substrate (mineral, lightweight)", Category = "Green roof build-up",
                 NormCode = "FLL Guideline",
-                Notes = "Shallow (typically 6–15 cm) mineral substrate for low-maintenance extensive roofs — light enough to skip major structural reinforcement in most retrofit cases."
+                Notes = "Shallow (typically 6–15 cm) mineral substrate for low-maintenance extensive roofs — light enough to skip major structural reinforcement in most retrofit cases.",
+                EmbodiedCarbonValue = 5.2, EmbodiedCarbonUnit = "kg CO2e/m2",
+                EmbodiedCarbonSource = "Illustrative order-of-magnitude estimate for a typical 6-15cm extensive substrate depth - not a single verified product EPD."
             };
             var intensiveSubstrate = new Material
             {
                 Name = "Intensive substrate (deep, high water-capacity)", Category = "Green roof build-up",
                 NormCode = "FLL Guideline",
-                Notes = "Deeper (25 cm+) substrate for walkable roof gardens with shrubs/lawn — carries a materially higher dead load than an extensive system, which the roof structure must be designed for."
+                Notes = "Deeper (25 cm+) substrate for walkable roof gardens with shrubs/lawn — carries a materially higher dead load than an extensive system, which the roof structure must be designed for.",
+                EmbodiedCarbonValue = 19.5, EmbodiedCarbonUnit = "kg CO2e/m2",
+                EmbodiedCarbonSource = "Illustrative order-of-magnitude estimate for a typical 25cm+ intensive substrate depth - not a single verified product EPD."
             };
             var rootBarrier = new Material
             {
