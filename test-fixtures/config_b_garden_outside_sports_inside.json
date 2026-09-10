@@ -1,0 +1,105 @@
+{
+  "version": "1.3",
+  "generator": "Sportify-Combine",
+  "_design_note": "Config B - narrow planted buffers run the full depth of the two long edges (screening/stormwater/aesthetic edge treatment, common on real rooftop schemes), giving the central court the widest possible unbroken span plus a wind-sheltered ball-play zone. Same roof/site as Config A, for side-by-side comparison in the Compare tab.",
+  "roof_context": {
+    "length_m": 30,
+    "width_m": 20,
+    "source_boundary_polygon": null,
+    "world_origin_x_m": 0,
+    "world_origin_y_m": 0
+  },
+  "design_rules": {
+    "clearance_m": 1.0,
+    "boundary_setback_m": 1.5,
+    "circulation_width_m": 1.6,
+    "min_entry_points": 1
+  },
+  "entry_points": [
+    { "x_m": 15, "y_m": 0, "edge": "top" },
+    { "x_m": 15, "y_m": 20, "edge": "bottom" }
+  ],
+  "circulation_paths": [
+    { "item_id": "b2", "points_m": [{ "x_m": 15, "y_m": 0 }, { "x_m": 15, "y_m": 5 }] },
+    { "item_id": "b2", "points_m": [{ "x_m": 15, "y_m": 20 }, { "x_m": 15, "y_m": 14 }] },
+    { "item_id": "b1", "points_m": [{ "x_m": 15, "y_m": 2 }, { "x_m": 4, "y_m": 2 }] },
+    { "item_id": "b3", "points_m": [{ "x_m": 15, "y_m": 18 }, { "x_m": 27, "y_m": 18 }] }
+  ],
+  "site_location": {
+    "latitude_deg": 52.52,
+    "longitude_deg": 13.405,
+    "place_name": "Berlin, Germany",
+    "date": "2026-06-15",
+    "time": "14:00"
+  },
+  "placements": [
+    {
+      "id": "b1",
+      "category": "garden",
+      "label": "West Edge Buffer - Zen Planting (Japanese)",
+      "insertion_point": { "center_x_m": 2.75, "center_y_m": 10 },
+      "bounding_box": { "top_left_x_m": 1.5, "top_left_y_m": 1.5, "width_m": 2.5, "height_m": 17 },
+      "transform": { "rotation_deg": 0 },
+      "parameters": {
+        "quality_key": "GARDEN_DECORATIVE_EXOTIC_JAPANESE_HIGH",
+        "garden": {
+          "type_id": "decorative_exotic", "category": "vegetation", "theme": "japanese",
+          "dimensions": { "length_m": 2.5, "width_m": 17 },
+          "layers": [
+            { "layer_name": "decorative_sand", "thickness_m": 0.05, "material": "Fine Shirakawa Gravel Matrix" },
+            { "layer_name": "substrate", "thickness_m": 0.20, "material": "Acidic Organo-Mineral Soil" },
+            { "layer_name": "drainage", "thickness_m": 0.06, "material": "High-Capacity Reservoir Board" }
+          ],
+          "materials": {
+            "waterproofing": "Reinforced TPO membrane", "drainage": "HDPE board + reservoir cups",
+            "quality_level": "high", "reference_material": "Extensive substrate (mineral, lightweight)", "reference_provider": "Fernost Gartenkultur GmbH"
+          }
+        }
+      }
+    },
+    {
+      "id": "b2",
+      "category": "field",
+      "label": "Multi-Purpose Court (Volleyball, Standard) - Central",
+      "insertion_point": { "center_x_m": 15, "center_y_m": 9.5 },
+      "bounding_box": { "top_left_x_m": 6, "top_left_y_m": 5, "width_m": 18, "height_m": 9 },
+      "transform": { "rotation_deg": 0 },
+      "parameters": {
+        "quality_key": "VOLLEYBALL_STANDARD_HIGH",
+        "field": {
+          "sport": "volleyball", "variant": "standard", "norm": "FIVB / DIN 18032",
+          "dimensions": { "length_m": 18, "width_m": 9, "runoff_m": 3, "min_height_m": 7 },
+          "capacity": { "seats": 150, "side_stands": true }
+        },
+        "materials": {
+          "floor_surface": "Hardwood parquet", "line_marking": "Inlay wood", "gradin_type": "Aluminum seating",
+          "quality_level": "high", "reference_material": "Wood sprung floor / parquet", "reference_provider": "Bielefeld Parkett und Sportboeden GmbH"
+        }
+      }
+    },
+    {
+      "id": "b3",
+      "category": "garden",
+      "label": "East Edge Buffer - Zen Planting (Japanese)",
+      "insertion_point": { "center_x_m": 27.25, "center_y_m": 10 },
+      "bounding_box": { "top_left_x_m": 26, "top_left_y_m": 1.5, "width_m": 2.5, "height_m": 17 },
+      "transform": { "rotation_deg": 0 },
+      "parameters": {
+        "quality_key": "GARDEN_DECORATIVE_EXOTIC_JAPANESE_HIGH",
+        "garden": {
+          "type_id": "decorative_exotic", "category": "vegetation", "theme": "japanese",
+          "dimensions": { "length_m": 2.5, "width_m": 17 },
+          "layers": [
+            { "layer_name": "decorative_sand", "thickness_m": 0.05, "material": "Fine Shirakawa Gravel Matrix" },
+            { "layer_name": "substrate", "thickness_m": 0.20, "material": "Acidic Organo-Mineral Soil" },
+            { "layer_name": "drainage", "thickness_m": 0.06, "material": "High-Capacity Reservoir Board" }
+          ],
+          "materials": {
+            "waterproofing": "Reinforced TPO membrane", "drainage": "HDPE board + reservoir cups",
+            "quality_level": "high", "reference_material": "Extensive substrate (mineral, lightweight)", "reference_provider": "Fernost Gartenkultur GmbH"
+          }
+        }
+      }
+    }
+  ]
+}
