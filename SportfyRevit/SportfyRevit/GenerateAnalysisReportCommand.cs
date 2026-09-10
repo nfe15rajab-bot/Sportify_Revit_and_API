@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -5,69 +6,106 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// First real prototype of the report command, not the final version —
-    /// proves the "a chart the web app generates ends up embedded in the
-    /// Revit deliverable" pipeline end to end, before Sukriti's automated
-    /// sync channel exists to carry it across automatically. Today: pick
-    /// the PNG the web app's Analysis tab exported (e.g. the Sun Path
-    /// chart's "Download Chart" button), place it on the active view.
-    /// Once a real sync exists, this file-picker step is exactly what
-    /// gets replaced by an automated fetch — the embedding logic below
-    /// (ImageType + ImageInstance) stays the same either way, since that
-    /// part is a Revit API question, not a sync question.
+    /// Builds a text summary from whatever Analyze* commands have actually
+    /// published this session (RoofBoundaryServer's analysis-results
+    /// state — the same channel a future web-app poll loop would read),
+    /// plus an optional chart image hand-off. The image step predates the
+    /// text summary (first real prototype of this command, proving "a
+    /// chart the web app generates ends up embedded in the Revit
+    /// deliverable" end to end) and is now optional rather than required —
+    /// Cancel skips it instead of aborting the whole report. No per-
+    /// section toggle UI yet (the placeholder's own text mentions one) —
+    /// this includes everything published, which is the honest baseline
+    /// before building a custom picker dialog.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class GenerateAnalysisReportCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            var uidoc = commandData.Application.ActiveUIDocument;
-            var doc = uidoc.Document;
+            const string title = "Sportify — Generate Analysis Report";
+            var doc = commandData.Application.ActiveUIDocument.Document;
 
-            var fod = new FileOpenDialog("Chart image (*.png)|*.png");
-            fod.Title = "Pick a chart exported from the Sportify web app (Analysis tab → Download Chart)";
-            if (fod.Show() != ItemSelectionDialogResult.Confirmed)
-                return Result.Cancelled;
+            string? imagePath = TryPickChartImage();
 
-            string imagePath;
-            try
+            AnalysisResultPayload? results = null;
+            if (RoofBoundaryServer.TryGetLatestAnalysisResults(out var resultsJson) && resultsJson != null)
             {
-                imagePath = ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath());
-            }
-            catch (Exception ex)
-            {
-                message = "Couldn't resolve the selected file: " + ex.Message;
-                return Result.Failed;
+                try { results = JsonSerializer.Deserialize<AnalysisResultPayload>(resultsJson); }
+                catch (Exception) { /* malformed — report without it below */ }
             }
 
-            using (var t = new Transaction(doc, "Generate Analysis Report (prototype)"))
+            string reportText = BuildReportText(results);
+
+            using (var t = new Transaction(doc, "Generate Sportify analysis report"))
             {
                 t.Start();
                 try
                 {
-                    var options = new ImageTypeOptions(imagePath, false, ImageTypeSource.Import);
-                    var imageType = ImageType.Create(doc, options);
+                    var textTypeId = new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).FirstOrDefault()?.Id;
+                    if (textTypeId != null)
+                        TextNote.Create(doc, doc.ActiveView.Id, new XYZ(-20, 0, 0), reportText, textTypeId);
 
-                    var placement = new ImagePlacementOptions(XYZ.Zero, BoxPlacement.Center);
-                    ImageInstance.Create(doc, doc.ActiveView, imageType.Id, placement);
+                    if (imagePath != null)
+                    {
+                        var options = new ImageTypeOptions(imagePath, false, ImageTypeSource.Import);
+                        var imageType = ImageType.Create(doc, options);
+                        var placement = new ImagePlacementOptions(XYZ.Zero, BoxPlacement.Center);
+                        ImageInstance.Create(doc, doc.ActiveView, imageType.Id, placement);
+                    }
 
                     t.Commit();
                 }
                 catch (Exception ex)
                 {
                     t.RollBack();
-                    message = "Couldn't place the chart image: " + ex.Message;
+                    message = "Couldn't assemble the report: " + ex.Message;
                     return Result.Failed;
                 }
             }
 
-            TaskDialog.Show("Sportify",
-                "Placed the chart on the active view.\n\n" +
-                "This is a prototype hand-off, not the final Deliverables report — " +
-                "once the web app can push chart data directly (Sukriti's sync work), " +
-                "this file-picker step goes away and the report assembles automatically.");
+            TaskDialog.Show(title,
+                "Placed a text summary" + (imagePath != null ? " and chart image" : "") + " on the active view.\n\n" +
+                (results == null
+                    ? "No Analysis panel checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
+                    : "Includes every check that's been run so far this session — run more Analysis commands and regenerate to add them."));
 
             return Result.Succeeded;
+        }
+
+        private static string? TryPickChartImage()
+        {
+            var fod = new FileOpenDialog("Chart image (*.png)|*.png");
+            fod.Title = "Optionally pick a chart exported from the Sportify web app (Cancel to skip)";
+            if (fod.Show() != ItemSelectionDialogResult.Confirmed) return null;
+
+            try { return ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath()); }
+            catch (Exception) { return null; }
+        }
+
+        private static string BuildReportText(AnalysisResultPayload? results)
+        {
+            var lines = new List<string> { "Sportify Analysis Report" };
+
+            if (results?.FireSafety is { } fs)
+                lines.Add($"Fire Safety: {(fs.WithinLimit ? "within limit" : "OVER LIMIT")} — {fs.MaxDistM:0.0} m (ref {fs.MaxTravelDistanceM:0.#} m), {fs.UnreachableCount} unreachable");
+            if (results?.Accessibility is { } ac)
+                lines.Add($"Accessibility: width {ac.CurrentWidthM:0.0} m (min {ac.MinWidthM:0.#} m) — {(ac.WidthOk ? "meets" : "below")} minimum, reachable: {(ac.ReachOk ? "yes" : "no")}");
+            if (results?.WaterManagement is { } wm)
+                lines.Add($"Water Management: {wm.TotalAreaM2:0.#} m², {wm.AvgDepthCm:0} cm depth, ~{wm.RetentionPercent:0}% retention");
+            if (results?.Lca is { } lca)
+                lines.Add($"LCA: ~{lca.TotalKg:0.#} kg CO2e ({lca.CoveredCount}/{lca.TotalCount} pieces covered)");
+            if (results?.LiveLoads is { } ll)
+                lines.Add($"Live Loads: {ll.WorstCaseKnPerM2:0.00} kN/m² ({(ll.WithinReference ? "within" : "OVER")} reference {ll.ReferenceKnPerM2:0.#} kN/m²)");
+            if (results?.CarbonImpact is { } ci)
+                lines.Add($"Carbon Impact: ~{ci.EstimatedDailyWh:0.#} Wh/day over {ci.ActiveSurfaceAreaM2:0.#} m²");
+            if (results?.SunAndShading is { } ss)
+                lines.Add($"Sun & Shading: location confirmed, configured for {ss.ConfiguredForDateTime}");
+
+            if (lines.Count == 1)
+                lines.Add("(No checks run yet this session.)");
+
+            return string.Join("\n", lines);
         }
     }
 }
