@@ -135,12 +135,18 @@ namespace SportfyRevit
         /// </summary>
         [JsonPropertyName("materials")] public MaterialsRefDto? Materials { get; set; }
 
-        /// <summary>Only present for sport ("field") placements — Live Loads reads capacity.seats from here.</summary>
+        /// <summary>Only present for sport ("field") placements.</summary>
         [JsonPropertyName("field")] public FieldParametersDto? Field { get; set; }
+
+        /// <summary>Only present for activity placements (buildActivityPayload() in sportController.js).</summary>
+        [JsonPropertyName("activity")] public ActivityParametersDto? Activity { get; set; }
     }
 
     internal class GardenParametersDto
     {
+        [JsonPropertyName("type_id")] public string? TypeId { get; set; }
+        [JsonPropertyName("theme")] public string? Theme { get; set; }
+        [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
         [JsonPropertyName("layers")] public List<GardenLayerDto>? Layers { get; set; }
         [JsonPropertyName("materials")] public MaterialsRefDto? Materials { get; set; }
     }
@@ -159,7 +165,25 @@ namespace SportfyRevit
 
     internal class FieldParametersDto
     {
+        [JsonPropertyName("sport")] public string? Sport { get; set; }
+        [JsonPropertyName("variant")] public string? Variant { get; set; }
+        [JsonPropertyName("norm")] public string? Norm { get; set; }
+        [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
         [JsonPropertyName("capacity")] public CapacityDto? Capacity { get; set; }
+    }
+
+    internal class ActivityParametersDto
+    {
+        [JsonPropertyName("type_id")] public string? TypeId { get; set; }
+        [JsonPropertyName("category")] public string? Category { get; set; }
+        [JsonPropertyName("norm")] public string? Norm { get; set; }
+        [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
+    }
+
+    internal class DimensionsDto
+    {
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
     }
 
     internal class CapacityDto
