@@ -115,5 +115,55 @@ namespace SportfyRevit
     internal class ParametersDto
     {
         [JsonPropertyName("quality_key")] public string? QualityKey { get; set; }
+
+        /// <summary>
+        /// Only present for garden placements — buildGardenPayload() (web
+        /// app's gardenController.js) already resolves the active theme's
+        /// layer thicknesses into this array before export, so Water
+        /// Management can sum buildup depth directly from the synced
+        /// layout instead of needing GARDEN_THEMES reference data on the
+        /// Revit side at all.
+        /// </summary>
+        [JsonPropertyName("garden")] public GardenParametersDto? Garden { get; set; }
+
+        /// <summary>
+        /// Sport and Activity both put their materials block at this top
+        /// level (buildSportPayload()/buildActivityPayload() in
+        /// sportController.js) — Garden nests its own copy one level
+        /// deeper instead (see GardenParametersDto.Materials), so LCA has
+        /// to check both places for reference_material.
+        /// </summary>
+        [JsonPropertyName("materials")] public MaterialsRefDto? Materials { get; set; }
+
+        /// <summary>Only present for sport ("field") placements — Live Loads reads capacity.seats from here.</summary>
+        [JsonPropertyName("field")] public FieldParametersDto? Field { get; set; }
+    }
+
+    internal class GardenParametersDto
+    {
+        [JsonPropertyName("layers")] public List<GardenLayerDto>? Layers { get; set; }
+        [JsonPropertyName("materials")] public MaterialsRefDto? Materials { get; set; }
+    }
+
+    internal class GardenLayerDto
+    {
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+    }
+
+    internal class MaterialsRefDto
+    {
+        [JsonPropertyName("quality_level")] public string? QualityLevel { get; set; }
+        [JsonPropertyName("reference_material")] public string? ReferenceMaterial { get; set; }
+        [JsonPropertyName("reference_provider")] public string? ReferenceProvider { get; set; }
+    }
+
+    internal class FieldParametersDto
+    {
+        [JsonPropertyName("capacity")] public CapacityDto? Capacity { get; set; }
+    }
+
+    internal class CapacityDto
+    {
+        [JsonPropertyName("seats")] public int Seats { get; set; }
     }
 }
