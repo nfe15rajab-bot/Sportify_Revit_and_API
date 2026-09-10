@@ -21,4 +21,16 @@
     </Reference>
   </ItemGroup>
 
+  <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points
+       at a DLL copy in that same folder, not at bin\ — Revit never reads
+       bin\ directly. Without this, a build can succeed while Revit keeps
+       loading yesterday's behavior with no error anywhere. Harmless on a
+       machine with no such folder: Copy creates it. -->
+  <Target Name="DeployToRevitAddins" AfterTargets="Build">
+    <ItemGroup>
+      <RevitAddinFiles Include="$(OutDir)SportfyRevit.dll;$(OutDir)SportfyRevit.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(RevitAddinFiles)" DestinationFolder="$(APPDATA)\Autodesk\Revit\Addins\2025\" />
+  </Target>
+
 </Project>
