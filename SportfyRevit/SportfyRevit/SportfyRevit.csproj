@@ -28,6 +28,27 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <SportifyWebAppDir>$(MSBuildProjectDirectory)\..\..\..\sportfify_goldbeck\</SportifyWebAppDir>
+  </PropertyGroup>
+
+  <!-- Bundles the sibling web app's static files (plain HTML/CSS/JS, no
+       build step) into $(OutDir)web\, which DeployToRevitAddins below then
+       sweeps into the Addins folder alongside everything else — this is
+       what lets StaticWebServer.cs serve the app directly with no
+       Node.js/npx "serve" dependency, the thing that makes a packaged
+       installer actually seamless. Conditioned on the sibling repo really
+       being checked out next to this one (true on this dev machine, not
+       guaranteed for someone cloning only this repo) — silently skipped
+       otherwise, exactly like DeployToRevitAddins skips a machine with no
+       Revit Addins folder. -->
+  <Target Name="BundleWebApp" AfterTargets="Build" Condition="Exists('$(SportifyWebAppDir)index.html')">
+    <ItemGroup>
+      <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
+  </Target>
+
   <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points
        at a DLL copy in that same folder, not at bin\ — Revit never reads
        bin\ directly. Without this, a build can succeed while Revit keeps

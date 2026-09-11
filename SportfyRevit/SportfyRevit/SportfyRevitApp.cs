@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using Autodesk.Revit.UI;
 
 namespace SportfyRevit
@@ -32,6 +35,8 @@ namespace SportfyRevit
         public Result OnStartup(UIControlledApplication application)
         {
             RoofBoundaryServer.Start();
+            StaticWebServer.Start();
+            EnsureApiRunning();
 
             // Must happen in OnStartup, before any document is open — see
             // SportifyDockablePaneProvider's own notes on the GUID needing
@@ -105,7 +110,51 @@ namespace SportfyRevit
         {
             application.Idling -= AutoImportSync.OnIdling;
             RoofBoundaryServer.Stop();
+            StaticWebServer.Stop();
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// Best-effort: if Sportify.Api is already reachable (dev workflow —
+        /// someone ran "dotnet run" themselves, exactly as done all session),
+        /// this is a no-op. Otherwise looks for a bundled Sportify.Api.exe
+        /// next to this add-in and launches it — the piece that makes a
+        /// packaged installer "seamless" instead of needing a separate
+        /// manual step. In this dev checkout no such exe is bundled yet, so
+        /// this quietly does nothing and every Analyze* command keeps
+        /// working off its own offline fallback defaults, same as always.
+        /// </summary>
+        private static void EnsureApiRunning()
+        {
+            try
+            {
+                using var client = new HttpClient { Timeout = System.TimeSpan.FromSeconds(1) };
+                var response = client.GetAsync("http://localhost:5107/api/AnalysisParameters").GetAwaiter().GetResult();
+                if (response.IsSuccessStatusCode) return;
+            }
+            catch (System.Exception)
+            {
+                // Not reachable — fall through and try to launch a bundled copy below.
+            }
+
+            var assemblyDir = Path.GetDirectoryName(typeof(SportfyRevitApp).Assembly.Location);
+            var apiExePath = assemblyDir != null ? Path.Combine(assemblyDir, "api", "Sportify.Api.exe") : null;
+            if (apiExePath == null || !File.Exists(apiExePath)) return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = apiExePath,
+                    WorkingDirectory = Path.GetDirectoryName(apiExePath),
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+            }
+            catch (System.Exception)
+            {
+                // Best-effort — Analyze* commands already degrade gracefully if the API stays unreachable.
+            }
         }
 
         private static PushButton AddButton(RibbonPanel panel, string internalName, string text, Type commandType, string tooltip)

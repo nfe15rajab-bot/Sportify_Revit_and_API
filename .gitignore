@@ -14,3 +14,7 @@ appsettings.Development.json
 *.db
 *.db-shm
 *.db-wal
+
+# Self-contained publish output (e.g. Sportify.Api/publish/) — a ~100MB
+# built artifact, not source; a real release/installer step regenerates it
+publish/
