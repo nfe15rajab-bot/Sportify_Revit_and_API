@@ -26,19 +26,31 @@ namespace SportfyRevit
         {
             var createdIds = new List<ElementId>();
 
-            EnsureWorksharing(doc);
+            // EnsureWorksharing is NOT called here on purpose — Document.EnableWorksharing
+            // throws ("Operation is not permitted when there is any open sub-transaction,
+            // transaction, or transaction group") if called while a transaction is open, and
+            // this method must be called from inside one (see the class doc comment above).
+            // Callers (ImportSportifyLayoutCommand, AutoImportSync) call EnsureWorksharing
+            // themselves, before opening their transaction.
             var worksets = EnsureWorksets(doc);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
             double originYFt = FeetFromMeters(layout.RoofContext?.WorldOriginYM ?? 0);
 
+            // Computed once for the whole layout (a BFS pass, not a per-placement
+            // lookup) and threaded down to FamilyPlacementBuilder, which stamps
+            // Revit's own freshly-computed distance onto each instance rather than
+            // trusting the JSON's own web-app estimate — same reasoning
+            // AnalyzeFireSafetyCommand already applies at the layout-summary level.
+            var (fireSafetyDistancesM, _) = CirculationEngine.ComputeTravelDistances(layout);
+
             int pieceCount = 0;
             if (layout.Placements != null)
             {
                 foreach (var p in layout.Placements)
                 {
-                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds))
+                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds, fireSafetyDistancesM))
                         pieceCount++;
                 }
             }
@@ -54,7 +66,12 @@ namespace SportfyRevit
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
         internal static double FeetFromMeters(double m) => UnitUtils.ConvertToInternalUnits(m, UnitTypeId.Meters);
 
-        private static void EnsureWorksharing(Document doc)
+        /// <summary>
+        /// internal, not private: must be called by ImportSportifyLayoutCommand/AutoImportSync
+        /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
+        /// transaction internally and throws if called while one is already open.
+        /// </summary>
+        internal static void EnsureWorksharing(Document doc)
         {
             if (!doc.IsWorkshared)
                 doc.EnableWorksharing("Sports", "Combine");
@@ -120,7 +137,8 @@ namespace SportfyRevit
         /// </summary>
         private static bool CreatePlacementGeometry(
             Document doc, PlacementDto p, double originXFt, double originYFt,
-            Dictionary<string, WorksetId> worksets, ElementId textTypeId, List<ElementId> createdIds)
+            Dictionary<string, WorksetId> worksets, ElementId textTypeId, List<ElementId> createdIds,
+            Dictionary<string, double> fireSafetyDistancesM)
         {
             var bb = p.BoundingBox;
             if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0)
@@ -129,7 +147,8 @@ namespace SportfyRevit
             bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase);
             var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
 
-            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
+            double? fireSafetyDistanceM = (p.Id != null && fireSafetyDistancesM.TryGetValue(p.Id, out var dist)) ? dist : (double?)null;
+            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds, fireSafetyDistanceM);
             return true;
         }
 

@@ -26,9 +26,15 @@ namespace SportfyRevit
         /// </summary>
         public static void PlaceComponent(
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
+            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds,
+            double? fireSafetyDistanceM)
         {
-            var symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p));
+            // Priority: an already-loaded family a human curated/named well
+            // enough to match, wins outright (FindMatchingFamilySymbol's own
+            // exact-quality_key-then-keyword-scoring order, unchanged) —
+            // then a real SportifyFamilyGenerator-built family — and only if
+            // that itself fails does this fall back to the placeholder box.
+            var symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p)) ?? TryGenerateSymbol(doc, p);
             Element placed = symbol != null
                 ? PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds)
                 : PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
@@ -48,6 +54,32 @@ namespace SportfyRevit
                     PlacementDataHelpers.GetQualityLevel(p), norm, lengthM, widthM,
                     PlacementDataHelpers.GetReferenceMaterialName(p), PlacementDataHelpers.GetReferenceProviderName(p),
                     p.Parameters?.QualityKey);
+            }
+
+            // The richer generalities/materials(+LCA+provider)/analysis set —
+            // safe no-op wherever these Sportify_* parameters don't exist (a
+            // matched family that isn't one of ours, or the placeholder box);
+            // only actually populates on a SportifyFamilyGenerator instance.
+            SportifyFamilyParameters.SetInstanceValues(placed, p, fireSafetyDistanceM);
+        }
+
+        /// <summary>
+        /// Best-effort: family generation is a real Revit document mutation
+        /// (new family document, geometry, ~28 parameters, save, load) with
+        /// no dry-run and genuine failure modes (template truly
+        /// unresolvable, disk/permissions) — any failure here must fall
+        /// through to the placeholder box rather than abort the whole
+        /// placement, same defensive posture as SportifySharedParameters.
+        /// </summary>
+        private static FamilySymbol? TryGenerateSymbol(Document doc, PlacementDto p)
+        {
+            try
+            {
+                return SportifyFamilyGenerator.GetOrCreateSymbol(doc, p);
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 
@@ -173,9 +205,14 @@ namespace SportfyRevit
                 ElementTransformUtils.RotateElement(doc, instance.Id, axis, rotationRad);
             }
 
-            string familyName = symbol.Family?.Name ?? symbol.Name;
+            // Prefer the placement's own human label (matches PlacePlaceholderBox's
+            // BuildLabel, which already reads p.Label first) — a generated family's
+            // Family Name is the raw quality_key (e.g. "BASKETBALL_STANDARD_HIGH"),
+            // already available as the Sportify_QualityKey parameter, so the on-model
+            // annotation is more useful showing what the web app itself calls this piece.
+            string labelText = !string.IsNullOrWhiteSpace(p.Label) ? p.Label! : (symbol.Family?.Name ?? symbol.Name);
             var textOrigin = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.FeetFromMeters(ThicknessM));
-            CreateLabelText(doc, familyName, textOrigin, textTypeId, worksetId, createdIds);
+            CreateLabelText(doc, labelText, textOrigin, textTypeId, worksetId, createdIds);
 
             return instance;
         }

@@ -78,6 +78,10 @@ namespace SportfyRevit
             }
             if (layout?.Placements == null) return;
 
+            // Must run before the transaction opens — see ImportSportifyLayoutCommand's
+            // identical call for why (EnableWorksharing throws inside an open transaction).
+            SportifyLayoutBuilder.EnsureWorksharing(doc);
+
             using (var t = new Transaction(doc, "Sportify auto-import"))
             {
                 t.Start();

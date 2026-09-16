@@ -56,6 +56,10 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
+            // Must run before the transaction opens — EnableWorksharing (inside this,
+            // only on a not-yet-workshared document) throws if called from within one.
+            SportifyLayoutBuilder.EnsureWorksharing(doc);
+
             using (var t = new Transaction(doc, "Import Sportify layout"))
             {
                 t.Start();

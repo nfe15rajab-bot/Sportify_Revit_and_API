@@ -55,7 +55,23 @@ namespace SportfyRevit
     internal class CirculationPathDto
     {
         [JsonPropertyName("item_id")] public string? ItemId { get; set; }
+
+        /// <summary>
+        /// "auto" (rule-engine BFS path, tied to ItemId) or "manual"
+        /// (combineField.js's user-drawn, draggable circulation axis, no
+        /// ItemId) — added in export v1.5; older exports have neither
+        /// field. SportifyLayoutBuilder.CreateCirculationPaths draws either
+        /// kind identically (it only ever reads PointsM), so this isn't
+        /// required for the geometry to appear — it's here so a consumer
+        /// that DOES want to tell them apart (e.g. a future line-style
+        /// override, a schedule) can.
+        /// </summary>
+        [JsonPropertyName("source")] public string? Source { get; set; }
+
         [JsonPropertyName("points_m")] public List<PointDto>? PointsM { get; set; }
+
+        /// <summary>Manual axes only — the curve's original draggable midpoint, alongside the already-sampled PointsM polyline every consumer already reads.</summary>
+        [JsonPropertyName("control_point_m")] public PointDto? ControlPointM { get; set; }
     }
 
     internal class PointDto
@@ -73,6 +89,14 @@ namespace SportfyRevit
         [JsonPropertyName("bounding_box")] public BoundingBoxDto? BoundingBox { get; set; }
         [JsonPropertyName("transform")] public TransformDto? Transform { get; set; }
         [JsonPropertyName("parameters")] public ParametersDto? Parameters { get; set; }
+
+        /// <summary>
+        /// buildAnalysisForItem() (combineController.js) — the same per-item
+        /// math the Analysis tab's component explorer shows, computed once
+        /// more at export time so this file is self-contained. A sibling of
+        /// Parameters, not nested inside it, mirroring the export's own shape.
+        /// </summary>
+        [JsonPropertyName("analysis")] public PlacementAnalysisDto? Analysis { get; set; }
     }
 
     /// <summary>
@@ -115,6 +139,14 @@ namespace SportfyRevit
     internal class ParametersDto
     {
         [JsonPropertyName("quality_key")] public string? QualityKey { get; set; }
+
+        /// <summary>
+        /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
+        /// buildGardenPayload in the frontend) — one uniform place to read "how
+        /// big is this" regardless of category, alongside the category-specific
+        /// nested dimensions below (Field/Garden/Activity), which stay as-is.
+        /// </summary>
+        [JsonPropertyName("generalities")] public GeneralitiesDto? Generalities { get; set; }
 
         /// <summary>
         /// Only present for garden placements — buildGardenPayload() (web
@@ -161,6 +193,58 @@ namespace SportfyRevit
         [JsonPropertyName("quality_level")] public string? QualityLevel { get; set; }
         [JsonPropertyName("reference_material")] public string? ReferenceMaterial { get; set; }
         [JsonPropertyName("reference_provider")] public string? ReferenceProvider { get; set; }
+
+        /// <summary>
+        /// The full matched Sportify.Api Material/Provider record (readReferenceSelectionDetail()
+        /// in dataTab.js), not just its name — null for manual-text entries or nothing picked,
+        /// same as the plain name fields above being null in that case.
+        /// </summary>
+        [JsonPropertyName("reference_material_detail")] public MaterialDetailDto? ReferenceMaterialDetail { get; set; }
+        [JsonPropertyName("reference_provider_detail")] public ProviderDetailDto? ReferenceProviderDetail { get; set; }
+    }
+
+    /// <summary>
+    /// Mirrors Sportify.Api.Models.Material field-for-field. Deserialized
+    /// straight from that controller's own JSON response (ASP.NET Core's
+    /// default camelCase naming policy) with no snake_case translation on
+    /// the way through the frontend — so, deliberately unlike every other
+    /// DTO in this file, these property names are camelCase on the wire,
+    /// not snake_case. Leave as-is; this isn't an inconsistency to "fix".
+    /// </summary>
+    internal class MaterialDetailDto
+    {
+        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("category")] public string? Category { get; set; }
+        [JsonPropertyName("normCode")] public string? NormCode { get; set; }
+        [JsonPropertyName("performanceClass")] public string? PerformanceClass { get; set; }
+        [JsonPropertyName("forceReduction")] public string? ForceReduction { get; set; }
+        [JsonPropertyName("notes")] public string? Notes { get; set; }
+        [JsonPropertyName("embodiedCarbonValue")] public double? EmbodiedCarbonValue { get; set; }
+        [JsonPropertyName("embodiedCarbonUnit")] public string? EmbodiedCarbonUnit { get; set; }
+        [JsonPropertyName("embodiedCarbonSource")] public string? EmbodiedCarbonSource { get; set; }
+    }
+
+    /// <summary>Mirrors Sportify.Api.Models.Provider field-for-field — see MaterialDetailDto's own note on camelCase.</summary>
+    internal class ProviderDetailDto
+    {
+        [JsonPropertyName("id")] public int Id { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("country")] public string? Country { get; set; }
+        [JsonPropertyName("specialty")] public string? Specialty { get; set; }
+        [JsonPropertyName("website")] public string? Website { get; set; }
+        [JsonPropertyName("category")] public string? Category { get; set; }
+    }
+
+    internal class GeneralitiesDto
+    {
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        /// <summary>Fields/activities only.</summary>
+        [JsonPropertyName("min_height_m")] public double? MinHeightM { get; set; }
+        /// <summary>Gardens only — sum of the active theme's layer thicknesses.</summary>
+        [JsonPropertyName("buildup_depth_m")] public double? BuildupDepthM { get; set; }
     }
 
     internal class FieldParametersDto
@@ -189,5 +273,71 @@ namespace SportfyRevit
     internal class CapacityDto
     {
         [JsonPropertyName("seats")] public int Seats { get; set; }
+    }
+
+    /// <summary>
+    /// Mirrors buildAnalysisForItem() (combineController.js) exactly — the
+    /// web app's own per-item analysis estimate at export time. Revit
+    /// recomputes fire safety (CirculationEngine) and live loads
+    /// (AnalysisReferenceData) itself rather than trusting these numbers
+    /// blindly, same "full-BIM-fidelity port, must never disagree"
+    /// philosophy as every Analyze* command — these are kept as the export's
+    /// own self-contained record and as a fallback.
+    /// </summary>
+    internal class PlacementAnalysisDto
+    {
+        [JsonPropertyName("fire_safety")] public FireSafetyPlacementDto? FireSafety { get; set; }
+        [JsonPropertyName("accessibility")] public AccessibilityPlacementDto? Accessibility { get; set; }
+        [JsonPropertyName("wind_exposure")] public WindExposurePlacementDto? WindExposure { get; set; }
+        [JsonPropertyName("water_management")] public WaterManagementPlacementDto? WaterManagement { get; set; }
+        [JsonPropertyName("lca")] public LcaPlacementDto? Lca { get; set; }
+        [JsonPropertyName("live_load")] public LiveLoadPlacementDto? LiveLoad { get; set; }
+    }
+
+    internal class FireSafetyPlacementDto
+    {
+        [JsonPropertyName("unreachable")] public bool Unreachable { get; set; }
+        [JsonPropertyName("distance_to_nearest_entry_m")] public double? DistanceToNearestEntryM { get; set; }
+        [JsonPropertyName("within_limit")] public bool WithinLimit { get; set; }
+        [JsonPropertyName("max_travel_distance_m")] public double MaxTravelDistanceM { get; set; }
+    }
+
+    internal class AccessibilityPlacementDto
+    {
+        [JsonPropertyName("reachable")] public bool Reachable { get; set; }
+    }
+
+    internal class WindExposurePlacementDto
+    {
+        [JsonPropertyName("out_of_bounds")] public bool OutOfBounds { get; set; }
+        [JsonPropertyName("distance_to_edge_m")] public double? DistanceToEdgeM { get; set; }
+        [JsonPropertyName("exposed")] public bool? Exposed { get; set; }
+        [JsonPropertyName("exposure_zone_m")] public double ExposureZoneM { get; set; }
+    }
+
+    /// <summary>Garden placements only.</summary>
+    internal class WaterManagementPlacementDto
+    {
+        [JsonPropertyName("buildup_depth_cm")] public double BuildupDepthCm { get; set; }
+        [JsonPropertyName("retention_percent")] public double RetentionPercent { get; set; }
+    }
+
+    internal class LcaPlacementDto
+    {
+        [JsonPropertyName("reference_material")] public string? ReferenceMaterial { get; set; }
+        [JsonPropertyName("embodied_carbon_value_per_m2")] public double EmbodiedCarbonValuePerM2 { get; set; }
+        [JsonPropertyName("embodied_carbon_unit")] public string? EmbodiedCarbonUnit { get; set; }
+        [JsonPropertyName("embodied_carbon_source")] public string? EmbodiedCarbonSource { get; set; }
+        [JsonPropertyName("total_kg")] public double TotalKg { get; set; }
+    }
+
+    /// <summary>Fields with a set spectator capacity only.</summary>
+    internal class LiveLoadPlacementDto
+    {
+        [JsonPropertyName("seats")] public int Seats { get; set; }
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        [JsonPropertyName("kn_per_m2")] public double KnPerM2 { get; set; }
+        [JsonPropertyName("reference_kn_per_m2")] public double ReferenceKnPerM2 { get; set; }
+        [JsonPropertyName("within_reference")] public bool WithinReference { get; set; }
     }
 }

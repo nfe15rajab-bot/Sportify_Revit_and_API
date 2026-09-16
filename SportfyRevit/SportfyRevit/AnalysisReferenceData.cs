@@ -46,6 +46,10 @@ namespace SportfyRevit
                 ["retention_max_percent"] = 90,
             },
             ["Wind Exposure"] = new() { ["edge_exposure_zone_m"] = 2.0 },
+            // Same figures seeded in Sportify.Api's AnalysisParameter table (ReferenceDataSeeder) —
+            // AnalyzeLiveLoadsCommand and SportifyFamilyParameters.ComputeLiveLoad both read these
+            // via GetParam, so without a default here they'd silently compute 0/0 offline.
+            ["Live Loads"] = new() { ["assumed_load_per_person_kg"] = 90, ["reference_capacity_kn_per_m2"] = 4.0 },
         };
 
         public static double GetParam(string category, string key)
