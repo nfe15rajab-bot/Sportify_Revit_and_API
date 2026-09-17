@@ -18,3 +18,19 @@ appsettings.Development.json
 # Self-contained publish output (e.g. Sportify.Api/publish/) — a ~100MB
 # built artifact, not source; a real release/installer step regenerates it
 publish/
+
+# Unity (Sportify.Simulation) — local cache/build output, and IDE project
+# files Unity regenerates itself; scoped to this folder so it doesn't
+# touch SportfyRevit's/Sportify.Api's own real .csproj/.slnx files
+Sportify.Simulation/Library/
+Sportify.Simulation/Temp/
+Sportify.Simulation/Obj/
+Sportify.Simulation/Logs/
+Sportify.Simulation/UserSettings/
+Sportify.Simulation/MemoryCaptures/
+Sportify.Simulation/Recordings/
+Sportify.Simulation/*.csproj
+Sportify.Simulation/*.sln
+Sportify.Simulation/*.userprefs
+Sportify.Simulation/[Bb]uild/
+Sportify.Simulation/[Bb]uilds/
