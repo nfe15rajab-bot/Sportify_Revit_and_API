@@ -41,7 +41,7 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            var boundary = ExtractTopFaceBoundary(element);
+            var boundary = ExtractTopFaceBoundary(element, out double? topFaceZFt);
 
             double ToMeters(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
             double originXFt = bbox.Min.X, originYFt = bbox.Min.Y;
@@ -55,10 +55,24 @@ namespace SportfyRevit
                     boundary_m = boundary?.Select(p => new
                     {
                         x_m = Math.Round(ToMeters(p.X - originXFt), 2),
+                        // NOT flipped, unlike every other Y in this pipeline. The
+                        // web app draws the boundary with its own flip built in
+                        // (roofShapeSvg: "roof.width - p.y_m"), so this polygon
+                        // alone travels in Revit's convention — Y up from the
+                        // roof's minimum. Placements, circulation and entry points
+                        // use the canvas convention instead (Y down from the top
+                        // edge) and are flipped on import. Two conventions in one
+                        // payload is a trap, but it is the app's existing contract.
                         y_m = Math.Round(ToMeters(p.Y - originYFt), 2),
                     }).ToArray(),
                     origin_x_m = Math.Round(ToMeters(originXFt), 2),
                     origin_y_m = Math.Round(ToMeters(originYFt), 2),
+                    // The roof's actual height in the project. Without this every
+                    // imported piece landed at Z=0 — on the ground, under the
+                    // building, instead of on the roof it was designed for.
+                    // Prefer the top face (what you'd stand on); fall back to the
+                    // bounding box top for a shape with no flat upward face.
+                    origin_z_m = Math.Round(ToMeters(topFaceZFt ?? bbox.Max.Z), 3),
                     source_element_name = element.Name,
                 },
             };
@@ -80,8 +94,14 @@ namespace SportfyRevit
         /// works the same for a FootPrintRoof, a Floor, or anything else
         /// with a roughly horizontal top face.
         /// </summary>
-        private static List<XYZ>? ExtractTopFaceBoundary(Element element)
+        /// <summary>
+        /// Also reports the elevation of the face it found (topFaceZFt), since
+        /// that's the height an imported layout has to sit at — it was already
+        /// being computed here to pick the face and then discarded.
+        /// </summary>
+        private static List<XYZ>? ExtractTopFaceBoundary(Element element, out double? topFaceZFt)
         {
+            topFaceZFt = null;
             var options = new Options { ComputeReferences = false, DetailLevel = ViewDetailLevel.Fine };
             var geomElem = element.get_Geometry(options);
             if (geomElem == null) return null;
@@ -102,6 +122,7 @@ namespace SportfyRevit
                 }
             }
             if (topFace == null) return null;
+            topFaceZFt = maxZ;
 
             var loops = topFace.GetEdgesAsCurveLoops();
             if (loops == null || loops.Count == 0) return null;

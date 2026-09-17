@@ -31,7 +31,30 @@ namespace SportfyRevit
             try
             {
                 await Browser.EnsureCoreWebView2Async();
-                Browser.CoreWebView2.Navigate(DefaultUrl);
+
+                // Clear the disk cache before every load. The add-in's build
+                // copies fresh web files into the served folder on each rebuild,
+                // and WebView2 otherwise keeps running the previous build's
+                // JavaScript — silently, so a deployed fix appears not to work
+                // and the exported JSON is missing fields whose code is sitting
+                // right there on disk. Ctrl+F5 does not reliably reach this
+                // control, so it cannot be left to the user.
+                // These files are local; there is nothing to gain from caching.
+                try
+                {
+                    await Browser.CoreWebView2.Profile.ClearBrowsingDataAsync(
+                        Microsoft.Web.WebView2.Core.CoreWebView2BrowsingDataKinds.DiskCache);
+                }
+                catch (System.Exception)
+                {
+                    // Older WebView2 runtimes lack Profile/ClearBrowsingDataAsync.
+                    // The cache-busting query below still forces a fresh page.
+                }
+
+                // Belt and braces: a URL that changes every load can't be served
+                // from cache even if the clear above was unavailable.
+                Browser.CoreWebView2.Navigate(
+                    $"{DefaultUrl}/?v={System.DateTime.UtcNow.Ticks}");
             }
             catch (System.Exception ex)
             {

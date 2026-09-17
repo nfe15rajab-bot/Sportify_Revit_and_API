@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SportfyRevit
@@ -35,6 +36,13 @@ namespace SportfyRevit
         [JsonPropertyName("source_boundary_polygon")] public List<PointDto>? SourceBoundaryPolygon { get; set; }
         [JsonPropertyName("world_origin_x_m")] public double WorldOriginXM { get; set; }
         [JsonPropertyName("world_origin_y_m")] public double WorldOriginYM { get; set; }
+
+        /// <summary>
+        /// Elevation of the pushed roof's top face. Absent (0) for a roof typed
+        /// in by hand, which correctly means ground level — so an older export
+        /// without this field behaves exactly as it did before.
+        /// </summary>
+        [JsonPropertyName("world_origin_z_m")] public double WorldOriginZM { get; set; }
     }
 
     internal class DesignRulesDto
@@ -141,6 +149,15 @@ namespace SportfyRevit
         [JsonPropertyName("quality_key")] public string? QualityKey { get; set; }
 
         /// <summary>
+        /// Present only for pieces pushed from the web app's Revit Families
+        /// tab — the user's OWN loaded content rather than one of the app's
+        /// built-in catalog presets. When set it names the exact family and
+        /// type to place, so there is nothing to match or guess: quality_key
+        /// matching and family generation are both bypassed.
+        /// </summary>
+        [JsonPropertyName("revit_family")] public RevitFamilyRefDto? RevitFamily { get; set; }
+
+        /// <summary>
         /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
         /// buildGardenPayload in the frontend) — one uniform place to read "how
         /// big is this" regardless of category, alongside the category-specific
@@ -172,6 +189,27 @@ namespace SportfyRevit
 
         /// <summary>Only present for activity placements (buildActivityPayload() in sportController.js).</summary>
         [JsonPropertyName("activity")] public ActivityParametersDto? Activity { get; set; }
+    }
+
+    /// <summary>
+    /// A direct reference to a family already loaded in this document, as
+    /// published by LoadFamiliesCommand and configured in the web app's
+    /// Families tab.
+    ///
+    /// Parameters is deliberately untyped (JsonElement): the names and value
+    /// shapes come from whatever family the customer loaded, so there is no
+    /// fixed schema to model — a number is a length in meters, an object with
+    /// material_id is a material assignment. Anything else is ignored rather
+    /// than rejected, since a family can expose parameters this app has no
+    /// opinion about.
+    /// </summary>
+    internal class RevitFamilyRefDto
+    {
+        [JsonPropertyName("family_name")] public string? FamilyName { get; set; }
+        [JsonPropertyName("type_name")] public string? TypeName { get; set; }
+        [JsonPropertyName("category")] public string? Category { get; set; }
+        [JsonPropertyName("is_resizable")] public bool IsResizable { get; set; }
+        [JsonPropertyName("parameters")] public Dictionary<string, JsonElement>? Parameters { get; set; }
     }
 
     internal class GardenParametersDto

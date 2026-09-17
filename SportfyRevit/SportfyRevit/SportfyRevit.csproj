@@ -7,6 +7,12 @@
     <!-- Needed for the OpenSportifyApp dockable pane's XAML UserControl
          (SportifyBrowserPane) — nothing else in this project uses WPF. -->
     <UseWPF>true</UseWPF>
+    <!-- LoadFamiliesCommand's multi-select file dialog. WinForms' OpenFileDialog
+         is used rather than WPF's because it takes an owner window: a modal shown
+         from an add-in with no owner leaves Revit's main window disabled after it
+         closes — the window stops accepting input while the process still reports
+         itself responsive and idle, which reads as a total freeze. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <!-- Revit 2025 add-ins target net8.0-windows; Revit itself supplies
          RevitAPI(UI).dll at load time, so these are compile-only references
          (Private=false) and must never end up copied into bin/. -->
@@ -26,6 +32,22 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
+  <!-- UseWindowsForms adds a global "using System.Windows.Forms", which collides
+       with Autodesk.Revit.ApplicationServices.Application and WPF's UserControl.
+       Only one file needs WinForms and it fully qualifies the two types it uses,
+       so drop the global import and keep the assembly reference. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <!-- The manifest Revit actually reads to discover this add-in. Copied into
+       $(OutDir) so DeployToRevitAddins below sweeps it into the Addins folder
+       with the rest of the output — otherwise the DLL deploys but Revit never
+       learns it's there, and the ribbon tab silently fails to appear. -->
+  <ItemGroup>
+    <None Include="SportfyRevit.addin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

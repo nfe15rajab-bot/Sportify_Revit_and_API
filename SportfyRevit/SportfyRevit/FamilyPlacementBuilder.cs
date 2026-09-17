@@ -34,7 +34,24 @@ namespace SportfyRevit
             // exact-quality_key-then-keyword-scoring order, unchanged) —
             // then a real SportifyFamilyGenerator-built family — and only if
             // that itself fails does this fall back to the placeholder box.
-            var symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p)) ?? TryGenerateSymbol(doc, p);
+            // An explicit revit_family reference outranks everything: the user
+            // picked that family in the Families tab and configured it there,
+            // so there is nothing left to infer. Only a reference that can't be
+            // honored (family not loaded in this document) falls through to
+            // keyword matching and generation.
+            var symbol = TryResolveExplicitFamily(doc, p);
+            if (symbol != null) { /* diagnostics recorded inside the resolver */ }
+            else
+            {
+                symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p));
+                if (symbol != null) ImportDiagnostics.KeywordMatched(p.Label ?? p.Id ?? "(piece)");
+                else
+                {
+                    symbol = TryGenerateSymbol(doc, p);
+                    if (symbol != null) ImportDiagnostics.Generated(p.Label ?? p.Id ?? "(piece)");
+                    else ImportDiagnostics.Placeholder(p.Label ?? p.Id ?? "(piece)");
+                }
+            }
             Element placed = symbol != null
                 ? PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds)
                 : PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
@@ -71,6 +88,33 @@ namespace SportfyRevit
         /// through to the placeholder box rather than abort the whole
         /// placement, same defensive posture as SportifySharedParameters.
         /// </summary>
+        /// <summary>
+        /// Best-effort, same defensive posture as TryGenerateSymbol: resolving
+        /// a reference can duplicate a family type and write parameters, both
+        /// real document mutations with genuine failure modes. A failure here
+        /// must degrade to the normal matching path rather than abort the
+        /// placement — the piece still belongs on the roof either way.
+        /// </summary>
+        private static FamilySymbol? TryResolveExplicitFamily(Document doc, PlacementDto p)
+        {
+            var reference = p.Parameters?.RevitFamily;
+            if (reference == null) return null;
+
+            try
+            {
+                return RevitFamilyResolver.Resolve(doc, reference);
+            }
+            catch (Exception ex)
+            {
+                // Still non-fatal — but recorded, not swallowed. A silently
+                // discarded exception here is indistinguishable from "the user
+                // didn't ask for a family", which cost an evening of guessing.
+                ImportDiagnostics.ExplicitFailed(reference.FamilyName ?? "(unnamed)",
+                    $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
         private static FamilySymbol? TryGenerateSymbol(Document doc, PlacementDto p)
         {
             try
@@ -178,29 +222,41 @@ namespace SportfyRevit
             if (p.InsertionPoint != null)
             {
                 centerXFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(p.InsertionPoint.CenterXM);
-                centerYFt = originYFt + SportifyLayoutBuilder.FeetFromMeters(p.InsertionPoint.CenterYM);
+                centerYFt = SportifyLayoutBuilder.WorldYFt(originYFt, p.InsertionPoint.CenterYM);
             }
             else
             {
                 centerXFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM + bb.WidthM / 2.0);
-                centerYFt = originYFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftYM + bb.HeightM / 2.0);
+                centerYFt = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM / 2.0);
             }
-            var center = new XYZ(centerXFt, centerYFt, 0);
+            var center = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.CurrentOriginZFt);
 
             var instance = doc.Create.NewFamilyInstance(center, symbol, StructuralType.NonStructural);
             SportifyLayoutBuilder.SetWorkset(instance, worksetId);
             createdIds.Add(instance.Id);
 
+            // NewFamilyInstance does NOT honor the Z of the point it is given:
+            // a family instance is anchored to a level, and its height comes from
+            // that level plus an offset parameter, so Revit quietly drops the
+            // instance onto the active level. Explicit geometry (the roof outline,
+            // setback, circulation lines) landed at the right elevation while every
+            // court sat on the ground — the difference is exactly this.
+            //
+            // Rather than guess which parameter governs height for an arbitrary
+            // customer family (Offset from Level, Elevation from Level, Height
+            // Offset, or none at all), place it, measure where Revit actually put
+            // it, and move it the remaining distance. Works for any family.
+            MoveToElevation(doc, instance, center.Z);
+
             double rotationDeg = p.Transform?.RotationDeg ?? 0;
             if (Math.Abs(rotationDeg) > 1e-6)
             {
-                // Every other coordinate in this file maps x_m/y_m straight
-                // onto Revit X/Y with no screen-to-world Y flip, so
-                // rotation_deg is applied here the same unflipped way (CCW
-                // about +Z for a positive angle). Untested against a real
-                // rotated family in an actual Revit view — if a placed
-                // instance comes in mirrored, negate rotationRad below.
-                double rotationRad = rotationDeg * Math.PI / 180.0;
+                // Negated because the Y axis is flipped on the way in (see
+                // SportifyLayoutBuilder.WorldYFt). Mirroring a plan reverses the
+                // sense of rotation, so a clockwise turn on the web canvas is a
+                // counter-clockwise turn in Revit — applying the angle unchanged
+                // would leave every rotated piece turned the wrong way.
+                double rotationRad = -rotationDeg * Math.PI / 180.0;
                 var axis = Line.CreateBound(center, center + XYZ.BasisZ);
                 ElementTransformUtils.RotateElement(doc, instance.Id, axis, rotationRad);
             }
@@ -211,10 +267,39 @@ namespace SportfyRevit
             // already available as the Sportify_QualityKey parameter, so the on-model
             // annotation is more useful showing what the web app itself calls this piece.
             string labelText = !string.IsNullOrWhiteSpace(p.Label) ? p.Label! : (symbol.Family?.Name ?? symbol.Name);
-            var textOrigin = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.FeetFromMeters(ThicknessM));
+            var textOrigin = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.CurrentOriginZFt + SportifyLayoutBuilder.FeetFromMeters(ThicknessM));
             CreateLabelText(doc, labelText, textOrigin, textTypeId, worksetId, createdIds);
 
             return instance;
+        }
+
+        /// <summary>
+        /// Nudges a just-placed instance so its insertion point sits at
+        /// targetZFt, whatever level Revit anchored it to.
+        ///
+        /// Regenerate first: a freshly created element's Location is not
+        /// resolved until the document catches up, so reading it before that
+        /// gives the point it was requested at rather than where it ended up —
+        /// and the correction would compute a delta of zero.
+        /// </summary>
+        private static void MoveToElevation(Document doc, Element instance, double targetZFt)
+        {
+            try
+            {
+                doc.Regenerate();
+                if (instance.Location is not LocationPoint locationPoint) return;
+
+                double deltaZ = targetZFt - locationPoint.Point.Z;
+                if (Math.Abs(deltaZ) < 1e-9) return;
+
+                ElementTransformUtils.MoveElement(doc, instance.Id, new XYZ(0, 0, deltaZ));
+            }
+            catch (Exception)
+            {
+                // A pinned or otherwise immovable instance still belongs on the
+                // roof plan — leave it where Revit put it rather than failing the
+                // whole import over one piece.
+            }
         }
 
         /// <summary>
@@ -234,16 +319,18 @@ namespace SportfyRevit
             double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
         {
             double xFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM);
-            double yFt = originYFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftYM);
+            // The canvas box's TOP edge is its LOWEST Y once flipped, so the
+            // corner this rectangle is built from is the bottom-left in Revit.
+            double yFt = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM);
             double wFt = SportifyLayoutBuilder.FeetFromMeters(bb.WidthM);
             double hFt = SportifyLayoutBuilder.FeetFromMeters(bb.HeightM);
             double thickFt = SportifyLayoutBuilder.FeetFromMeters(ThicknessM);
 
             var loop = new CurveLoop();
-            var c0 = new XYZ(xFt, yFt, 0);
-            var c1 = new XYZ(xFt + wFt, yFt, 0);
-            var c2 = new XYZ(xFt + wFt, yFt + hFt, 0);
-            var c3 = new XYZ(xFt, yFt + hFt, 0);
+            var c0 = new XYZ(xFt, yFt, SportifyLayoutBuilder.CurrentOriginZFt);
+            var c1 = new XYZ(xFt + wFt, yFt, SportifyLayoutBuilder.CurrentOriginZFt);
+            var c2 = new XYZ(xFt + wFt, yFt + hFt, SportifyLayoutBuilder.CurrentOriginZFt);
+            var c3 = new XYZ(xFt, yFt + hFt, SportifyLayoutBuilder.CurrentOriginZFt);
             loop.Append(Line.CreateBound(c0, c1));
             loop.Append(Line.CreateBound(c1, c2));
             loop.Append(Line.CreateBound(c2, c3));
@@ -262,7 +349,7 @@ namespace SportfyRevit
             SportifyLayoutBuilder.SetWorkset(ds, worksetId);
             createdIds.Add(ds.Id);
 
-            var textOrigin = new XYZ(xFt + wFt / 2.0, yFt + hFt / 2.0, thickFt);
+            var textOrigin = new XYZ(xFt + wFt / 2.0, yFt + hFt / 2.0, SportifyLayoutBuilder.CurrentOriginZFt + thickFt);
             CreateLabelText(doc, label, textOrigin, textTypeId, worksetId, createdIds);
 
             return ds;

@@ -63,6 +63,7 @@ namespace SportfyRevit
             using (var t = new Transaction(doc, "Import Sportify layout"))
             {
                 t.Start();
+                ImportDiagnostics.Begin();
                 var summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
                 t.Commit();
 
@@ -71,7 +72,11 @@ namespace SportfyRevit
                     $"Imported {summary.PieceCount} placement(s), roof boundary, setback line, " +
                     $"{summary.PathCount} circulation path(s) and {summary.EntryCount} entrance marker(s).\n\n" +
                     "Pieces went to the Sports/Gardens worksets; boundary, setback, circulation " +
-                    "and entrances went to the Combine workset.");
+                    "and entrances went to the Combine workset.\n\n" +
+                    // How each piece was actually placed. Without this, an import
+                    // that quietly used the wrong family type looks exactly like
+                    // one that worked.
+                    ImportDiagnostics.Report());
             }
 
             return Result.Succeeded;
