@@ -103,6 +103,23 @@ namespace SportfyRevit
 
             application.Idling += AutoImportSync.OnIdling;
 
+            // Auto-opens the docked Sportify pane the first time Revit goes
+            // idle after startup, so a freshly-installed add-in shows the web
+            // app immediately instead of waiting for someone to find the
+            // ribbon button. Calling pane.Show() directly here in OnStartup is
+            // unreliable (Revit's UI frame isn't fully constructed that
+            // early) — Idling is the same "safe to touch the UI now" signal
+            // AutoImportSync already relies on. Unsubscribes itself so this
+            // only ever fires once per Revit session.
+            void ShowPaneOnce(object? sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
+            {
+                application.Idling -= ShowPaneOnce;
+                if (sender is not UIApplication uiApp) return;
+                var pane = uiApp.GetDockablePane(SportifyDockablePaneProvider.PaneId);
+                if (!pane.IsShown()) pane.Show();
+            }
+            application.Idling += ShowPaneOnce;
+
             return Result.Succeeded;
         }
 
