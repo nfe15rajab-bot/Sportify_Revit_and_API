@@ -39,7 +39,10 @@ namespace SportfyRevit
             // so there is nothing left to infer. Only a reference that can't be
             // honored (family not loaded in this document) falls through to
             // keyword matching and generation.
-            var symbol = TryResolveExplicitFamily(doc, p);
+            // A plant resolves to its species family before anything else: the
+            // species IS the answer, so keyword matching and the generic
+            // extrusion generator have nothing to contribute.
+            var symbol = TryResolvePlantFamily(doc, p) ?? TryResolveExplicitFamily(doc, p);
             if (symbol != null) { /* diagnostics recorded inside the resolver */ }
             else
             {
@@ -95,6 +98,32 @@ namespace SportfyRevit
         /// must degrade to the normal matching path rather than abort the
         /// placement — the piece still belongs on the roof either way.
         /// </summary>
+        /// <summary>
+        /// Best-effort, same posture as the other resolvers: generating a family
+        /// document is real work with real failure modes, and a plant that
+        /// cannot be built should still reach the roof as something rather than
+        /// stopping the import.
+        /// </summary>
+        private static FamilySymbol? TryResolvePlantFamily(Document doc, PlacementDto p)
+        {
+            var plant = p.Parameters?.Vegetation;
+            if (plant == null) return null;
+
+            try
+            {
+                var symbol = SportifyPlantFamilyBuilder.GetOrCreateSymbol(doc, plant);
+                if (symbol != null)
+                    ImportDiagnostics.PlantPlaced(plant.BotanicalName ?? "(plant)", plant.CrownM, plant.HeightM);
+                return symbol;
+            }
+            catch (Exception ex)
+            {
+                ImportDiagnostics.ExplicitFailed(plant.BotanicalName ?? "(plant)",
+                    $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
         private static FamilySymbol? TryResolveExplicitFamily(Document doc, PlacementDto p)
         {
             var reference = p.Parameters?.RevitFamily;

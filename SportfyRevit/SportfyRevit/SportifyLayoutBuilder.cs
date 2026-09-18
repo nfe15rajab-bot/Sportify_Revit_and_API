@@ -260,7 +260,10 @@ namespace SportfyRevit
             if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0)
                 return false;
 
-            bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase);
+            // Planting goes to the Gardens workset alongside the ground it stands in,
+            // not to Sports with the courts.
+            bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(p.Category, "vegetation", StringComparison.OrdinalIgnoreCase);
             var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
 
             double? fireSafetyDistanceM = (p.Id != null && fireSafetyDistancesM.TryGetValue(p.Id, out var dist)) ? dist : (double?)null;

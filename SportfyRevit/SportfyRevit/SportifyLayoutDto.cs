@@ -174,6 +174,12 @@ namespace SportfyRevit
         [JsonPropertyName("revit_family")] public RevitFamilyRefDto? RevitFamily { get; set; }
 
         /// <summary>
+        /// Present for placed plants. A tree is a family, not a build-up — this
+        /// is what a family gets generated from, one per species.
+        /// </summary>
+        [JsonPropertyName("vegetation")] public VegetationDto? Vegetation { get; set; }
+
+        /// <summary>
         /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
         /// buildGardenPayload in the frontend) — one uniform place to read "how
         /// big is this" regardless of category, alongside the category-specific
@@ -267,6 +273,34 @@ namespace SportfyRevit
         [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
         /// <summary>"published" or "typical" — whether the provider printed this figure.</summary>
         [JsonPropertyName("thickness_source")] public string? ThicknessSource { get; set; }
+    }
+
+    /// <summary>
+    /// One plant, as a species rather than a size category: Cornus mas, not
+    /// "small tree". Dimensions come with the species because they are
+    /// properties of the plant.
+    /// </summary>
+    internal class VegetationDto
+    {
+        [JsonPropertyName("species_key")] public string? SpeciesKey { get; set; }
+        [JsonPropertyName("botanical_name")] public string? BotanicalName { get; set; }
+        [JsonPropertyName("common_name")] public string? CommonName { get; set; }
+        [JsonPropertyName("form")] public string? Form { get; set; }
+        [JsonPropertyName("crown_m")] public double CrownM { get; set; }
+
+        /// <summary>
+        /// Mature height. Carried specifically so a shading, wind or clearance
+        /// study has it — none of that can be recovered from a plan footprint.
+        /// </summary>
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("height_range")] public string? HeightRange { get; set; }
+
+        /// <summary>What decides whether the roof build-up can actually carry this planting.</summary>
+        [JsonPropertyName("min_substrate_mm")] public double MinSubstrateMm { get; set; }
+
+        [JsonPropertyName("revit_family_name")] public string? RevitFamilyName { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+        [JsonPropertyName("source_url")] public string? SourceUrl { get; set; }
     }
 
     internal class GardenParametersDto
