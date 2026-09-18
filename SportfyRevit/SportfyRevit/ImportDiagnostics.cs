@@ -25,12 +25,13 @@ namespace SportfyRevit
         private static int _placeholder;
         private static int _floorTypesCreated;
         private static int _floorTypesReused;
+        private static int _floorsDrawn;
 
         public static void Begin()
         {
             Lines.Clear();
             _explicitResolved = _keywordMatched = _generated = _placeholder = 0;
-            _floorTypesCreated = _floorTypesReused = 0;
+            _floorTypesCreated = _floorTypesReused = _floorsDrawn = 0;
         }
 
         public static void ExplicitResolved(string family, string type) { _explicitResolved++; Lines.Add($"OK   {family} → type \"{type}\""); }
@@ -46,6 +47,14 @@ namespace SportfyRevit
 
         public static void FloorTypeReused(string name) { _floorTypesReused++; }
 
+        public static void FloorCreated(string label, string typeName, double areaM2)
+        {
+            _floorsDrawn++;
+            Lines.Add($"FLR  {label} → floor \"{typeName}\", {areaM2:0} m2");
+        }
+
+        public static void FloorFailed(string label, string reason) => Lines.Add($"FAIL floor for {label} → {reason}");
+
         public static void FloorTypeFailed(string name, string reason) => Lines.Add($"FAIL floor type \"{name}\" → {reason}");
 
         /// <summary>The important one: an explicit reference the user made, that could not be honored.</summary>
@@ -56,7 +65,7 @@ namespace SportfyRevit
             var sb = new StringBuilder();
             sb.AppendLine($"Placed: {_explicitResolved} by family reference, {_keywordMatched} by keyword, {_generated} generated, {_placeholder} placeholder.");
             if (_floorTypesCreated + _floorTypesReused > 0)
-                sb.AppendLine($"Build-up systems: {_floorTypesCreated} floor type(s) created, {_floorTypesReused} reused.");
+                sb.AppendLine($"Build-up systems: {_floorTypesCreated} floor type(s) created, {_floorTypesReused} reused, {_floorsDrawn} floor(s) drawn.");
             if (Lines.Count > 0)
             {
                 sb.AppendLine();

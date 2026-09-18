@@ -258,6 +258,12 @@ namespace SportfyRevit
         [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
         [JsonPropertyName("layers")] public List<GardenLayerDto>? Layers { get; set; }
         [JsonPropertyName("materials")] public MaterialsRefDto? Materials { get; set; }
+
+        /// <summary>
+        /// The provider build-up this parcel is made of — what turns it into a
+        /// real Floor rather than a placeholder box.
+        /// </summary>
+        [JsonPropertyName("assembly")] public AssemblyDto? Assembly { get; set; }
     }
 
     internal class GardenLayerDto

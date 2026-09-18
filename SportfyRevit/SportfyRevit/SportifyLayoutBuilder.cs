@@ -38,6 +38,13 @@ namespace SportfyRevit
         private static double CurrentRoofWidthFt;
 
         /// <summary>
+        /// Floor types built for this import, by assembly key — so a parcel can
+        /// find the type its build-up produced without searching the document
+        /// again for every placement.
+        /// </summary>
+        private static readonly Dictionary<string, FloorType> CurrentFloorTypes = new();
+
+        /// <summary>
         /// Converts a web-canvas Y (meters, measured DOWN from the roof's top
         /// edge, as SVG does) into a Revit world Y (feet, measured UP).
         ///
@@ -112,10 +119,15 @@ namespace SportfyRevit
         /// </summary>
         private static void CreateAssemblyFloorTypes(Document doc, SportifyLayout layout)
         {
+            CurrentFloorTypes.Clear();
             if (layout.Assemblies == null) return;
             foreach (var assembly in layout.Assemblies)
             {
-                try { SportifyFloorTypeBuilder.GetOrCreate(doc, assembly); }
+                try
+                {
+                    var ft = SportifyFloorTypeBuilder.GetOrCreate(doc, assembly);
+                    if (ft != null && assembly.Key != null) CurrentFloorTypes[assembly.Key] = ft;
+                }
                 catch (Exception ex)
                 {
                     ImportDiagnostics.FloorTypeFailed(
@@ -210,7 +222,44 @@ namespace SportfyRevit
             var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
 
             double? fireSafetyDistanceM = (p.Id != null && fireSafetyDistancesM.TryGetValue(p.Id, out var dist)) ? dist : (double?)null;
+
+            // A parcel built from a provider system is a Floor, not a family:
+            // that is what gives it real layers, real depth and quantities a
+            // schedule can total. Only a parcel with no build-up falls through
+            // to the family/placeholder path below.
+            if (TryCreateAssemblyFloor(doc, p, bb, originXFt, originYFt, worksetId, createdIds))
+                return true;
+
             FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds, fireSafetyDistanceM);
+            return true;
+        }
+
+        /// <summary>
+        /// Draws the Floor for a placement whose parameters name a provider
+        /// build-up. Returns false when there is nothing to draw — no assembly,
+        /// or no floor type was built for it — so the caller falls back rather
+        /// than the parcel disappearing.
+        /// </summary>
+        private static bool TryCreateAssemblyFloor(Document doc, PlacementDto p, BoundingBoxDto bb,
+                                                   double originXFt, double originYFt,
+                                                   WorksetId worksetId, List<ElementId> createdIds)
+        {
+            var assembly = p.Parameters?.Garden?.Assembly;
+            if (assembly?.Key == null) return false;
+            if (!CurrentFloorTypes.TryGetValue(assembly.Key, out var floorType)) return false;
+
+            var floor = SportifyFloorTypeBuilder.CreateFloor(
+                doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out string failure);
+
+            if (floor == null)
+            {
+                ImportDiagnostics.FloorFailed(p.Label ?? p.Id ?? "(parcel)", failure);
+                return false;
+            }
+
+            SetWorkset(floor, worksetId);
+            createdIds.Add(floor.Id);
+            ImportDiagnostics.FloorCreated(p.Label ?? p.Id ?? "(parcel)", floorType.Name, bb.WidthM * bb.HeightM);
             return true;
         }
 

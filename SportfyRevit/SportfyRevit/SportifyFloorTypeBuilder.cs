@@ -34,15 +34,26 @@ namespace SportfyRevit
         /// the load. Revit requires exactly one Structure layer in a compound
         /// structure, which the caller guarantees below.
         /// </summary>
+        /// <summary>
+        /// Membrane is deliberately never used, even though a filter fleece or a
+        /// root barrier is exactly what Revit means by one: a Membrane layer must
+        /// have ZERO thickness, and Revit rejects the entire compound structure
+        /// if it doesn't. Those layers are real millimetres of real product and
+        /// have to appear in the build-up depth, so they are mapped to Substrate
+        /// instead and keep their thickness.
+        ///
+        /// The trade is a slightly less idiomatic layer role in exchange for a
+        /// build-up that measures correctly — and depth is what the model is for.
+        /// </summary>
         private static MaterialFunctionAssignment FunctionFor(string? webFunction) => webFunction switch
         {
             "vegetation" => MaterialFunctionAssignment.Finish1,
             "substrate" => MaterialFunctionAssignment.Finish2,
             "wearing" => MaterialFunctionAssignment.Finish1,
             "bedding" => MaterialFunctionAssignment.Finish2,
-            "filter" => MaterialFunctionAssignment.Membrane,
-            "root_barrier" => MaterialFunctionAssignment.Membrane,
-            "waterproofing" => MaterialFunctionAssignment.Membrane,
+            "filter" => MaterialFunctionAssignment.Substrate,
+            "root_barrier" => MaterialFunctionAssignment.Substrate,
+            "waterproofing" => MaterialFunctionAssignment.Substrate,
             "drainage" => MaterialFunctionAssignment.Substrate,
             "protection" => MaterialFunctionAssignment.Substrate,
             _ => MaterialFunctionAssignment.Structure,
@@ -69,8 +80,8 @@ namespace SportfyRevit
                 // Reused, but refreshed: a build-up edited in the web app should
                 // reach a type that already exists, or the second import would
                 // silently keep the first import's thicknesses.
-                if (!MatchesAssembly(doc, existing, assembly))
-                    ApplyStructure(doc, existing, assembly);
+                if (!MatchesAssembly(doc, existing, assembly) && !ApplyStructure(doc, existing, assembly, out string refreshFailure))
+                    ImportDiagnostics.FloorTypeFailed(name, "could not refresh layers — " + refreshFailure);
                 ImportDiagnostics.FloorTypeReused(name);
                 return existing;
             }
@@ -94,9 +105,9 @@ namespace SportfyRevit
                 return null;
             }
 
-            if (!ApplyStructure(doc, created, assembly))
+            if (!ApplyStructure(doc, created, assembly, out string failure))
             {
-                ImportDiagnostics.FloorTypeFailed(name, "layers could not be applied");
+                ImportDiagnostics.FloorTypeFailed(name, failure);
                 return created;
             }
 
@@ -112,10 +123,11 @@ namespace SportfyRevit
         /// which is both the deepest layer and the one actually bearing the
         /// build-up above it.
         /// </summary>
-        private static bool ApplyStructure(Document doc, FloorType floorType, AssemblyDto assembly)
+        private static bool ApplyStructure(Document doc, FloorType floorType, AssemblyDto assembly, out string failure)
         {
+            failure = "";
             var source = assembly.Layers;
-            if (source == null || source.Count == 0) return false;
+            if (source == null || source.Count == 0) { failure = "the assembly has no layers"; return false; }
 
             var ordered = source.OrderBy(l => l.Order).ToList();
             int structuralIndex = IndexOfThickest(ordered);
@@ -145,8 +157,12 @@ namespace SportfyRevit
                 StampIdentity(floorType, assembly);
                 return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Recorded, not swallowed. The first version of this reported only
+                // "layers could not be applied", which was true, useless, and hid
+                // a plain Revit rule (a Membrane layer must be zero thickness).
+                failure = $"{ex.GetType().Name}: {ex.Message}";
                 return false;
             }
         }
@@ -251,6 +267,78 @@ namespace SportfyRevit
                 if (p != null && !p.IsReadOnly && p.StorageType == StorageType.String) p.Set(value);
             }
             catch (Exception) { /* identity data is a nice-to-have, never worth failing over */ }
+        }
+
+        /// <summary>
+        /// Draws the actual Floor for a parcel, from the rectangle the web app
+        /// already exports for it.
+        ///
+        /// Creating the floor TYPE is only half the job — a type that nothing
+        /// uses is a line in a browser tree, not a roof. This is the half that
+        /// puts real geometry on the building, with real layers and real
+        /// quantities a schedule can total.
+        ///
+        /// The parcel's bounding box is the boundary: no drawn-surface tooling
+        /// is needed for a rectangle, since every placement already carries one.
+        /// </summary>
+        public static Floor? CreateFloor(Document doc, FloorType floorType, BoundingBoxDto bb,
+                                         double originXFt, double originYFt, double elevationFt,
+                                         out string failure)
+        {
+            failure = "";
+            try
+            {
+                double x0 = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM);
+                double x1 = x0 + SportifyLayoutBuilder.FeetFromMeters(bb.WidthM);
+                // The canvas measures Y downward and Revit upward, so the box's
+                // top edge is its lower Y here — the same flip every other
+                // coordinate in this import goes through.
+                double y0 = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM);
+                double y1 = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM);
+
+                var level = NearestLevel(doc, elevationFt);
+                if (level == null) { failure = "this project has no level to host a floor on"; return null; }
+
+                // Floors are drawn flat on their level and lifted by an offset
+                // parameter — the sketch itself is planar at the level's own
+                // elevation, so the loop is built there and raised afterwards.
+                double z = level.Elevation;
+                var loop = CurveLoop.Create(new List<Curve>
+                {
+                    Line.CreateBound(new XYZ(x0, y0, z), new XYZ(x1, y0, z)),
+                    Line.CreateBound(new XYZ(x1, y0, z), new XYZ(x1, y1, z)),
+                    Line.CreateBound(new XYZ(x1, y1, z), new XYZ(x0, y1, z)),
+                    Line.CreateBound(new XYZ(x0, y1, z), new XYZ(x0, y0, z)),
+                });
+
+                var floor = Floor.Create(doc, new List<CurveLoop> { loop }, floorType.Id, level.Id);
+                if (floor == null) { failure = "Revit returned no floor"; return null; }
+
+                var offset = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
+                if (offset != null && !offset.IsReadOnly) offset.Set(elevationFt - level.Elevation);
+
+                return floor;
+            }
+            catch (Exception ex)
+            {
+                failure = $"{ex.GetType().Name}: {ex.Message}";
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The level closest to the roof, so the floor's offset stays small and
+        /// the element reads sensibly in a project browser — a parcel 14 m up
+        /// listed against Level 0 with a 14 m offset is technically correct and
+        /// unhelpful to everyone who opens the model afterwards.
+        /// </summary>
+        private static Level? NearestLevel(Document doc, double elevationFt)
+        {
+            return new FilteredElementCollector(doc)
+                .OfClass(typeof(Level))
+                .Cast<Level>()
+                .OrderBy(l => Math.Abs(l.Elevation - elevationFt))
+                .FirstOrDefault();
         }
 
         private static string SanitizeName(string name)
