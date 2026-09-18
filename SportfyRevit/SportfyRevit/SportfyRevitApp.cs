@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using Autodesk.Revit.UI;
@@ -53,6 +53,8 @@ namespace SportfyRevit
                 "Select a roof or floor and send its footprint to the Sportify web app's Combine tab.");
             AddButton(importPanel, "ImportSportifyLayout", "Import\nConfiguration", typeof(ImportSportifyLayoutCommand),
                 "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.");
+            AddButton(importPanel, "LoadFamilies", "Load\nFamilies", typeof(LoadFamiliesCommand),
+                "Pick your own .rfa families, load them into this project, and publish their types and writable parameters to the Sportify web app so they can be placed from the Combine tab.");
             AddButton(importPanel, "ImportDxf", "Import\nDXF", typeof(ImportDxfCommand),
                 "Imports a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry, placed in meters at the origin.");
             AddButton(importPanel, "SetSunAndLocation", "Set Sun +\nLocation", typeof(SetSunAndLocationCommand),

@@ -116,6 +116,15 @@ namespace SportfyRevit
             var ext = Path.GetExtension(fullPath);
             ctx.Response.ContentType = ContentTypes.TryGetValue(ext, out var ct) ? ct : "application/octet-stream";
 
+            // WebView2 caches aggressively by default, and the build copies fresh
+            // web files into this folder on every rebuild — so without this the
+            // pane keeps running the previous build's JavaScript indefinitely. It
+            // cost an evening once: a fix was deployed, verified present on disk,
+            // and the pane went on producing exports from the old code.
+            // These files are served from the local disk, so there is nothing to
+            // gain from caching them anyway.
+            ctx.Response.Headers.Add("Cache-Control", "no-store, must-revalidate");
+
             var bytes = await File.ReadAllBytesAsync(fullPath);
             ctx.Response.ContentLength64 = bytes.Length;
             await ctx.Response.OutputStream.WriteAsync(bytes);

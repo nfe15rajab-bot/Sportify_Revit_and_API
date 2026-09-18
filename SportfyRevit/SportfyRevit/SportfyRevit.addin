@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tells Revit this add-in exists and how to start it. Revit reads every
+  .addin file in its Addins\2025\ folder at launch — it never scans for
+  DLLs on its own, so without this file the built assembly sits in that
+  folder and is silently ignored.
+
+  Type is "Application" (not "Command") because SportfyRevitApp implements
+  IExternalApplication: it runs once at Revit startup to build the Sportify
+  ribbon tab and start RoofBoundaryServer/StaticWebServer, rather than being
+  a single button the user invokes.
+
+  Assembly is a bare filename, not a path, so Revit resolves it next to this
+  manifest — which is exactly where SportfyRevit.csproj's DeployToRevitAddins
+  target copies the build output.
+-->
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Sportify</Name>
+    <Assembly>SportfyRevit.dll</Assembly>
+    <FullClassName>SportfyRevit.SportfyRevitApp</FullClassName>
+    <AddInId>b7c46fc3-f9d9-4b51-8323-24632d2b42db</AddInId>
+    <VendorId>GBCK</VendorId>
+    <VendorDescription>Goldbeck</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -17,6 +17,13 @@ namespace SportfyRevit
         public static string? GetReferenceProviderName(PlacementDto p) => GetMaterials(p)?.ReferenceProvider;
         public static string? GetQualityLevel(PlacementDto p) => GetMaterials(p)?.QualityLevel;
 
+        /// <summary>Cross-category dimensions/area — see ParametersDto.Generalities.</summary>
+        public static GeneralitiesDto? GetGeneralities(PlacementDto p) => p.Parameters?.Generalities;
+
+        /// <summary>Full matched Material/Provider record, not just the name — null for manual-text entries. See MaterialsRefDto.</summary>
+        public static MaterialDetailDto? GetReferenceMaterialDetail(PlacementDto p) => GetMaterials(p)?.ReferenceMaterialDetail;
+        public static ProviderDetailDto? GetReferenceProviderDetail(PlacementDto p) => GetMaterials(p)?.ReferenceProviderDetail;
+
         /// <summary>
         /// The "unified parameter contract" fields (TypeId/Variant/Norm/
         /// dimensions) worked out for Moamen's eventual sportified

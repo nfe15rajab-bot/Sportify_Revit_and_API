@@ -35,6 +35,9 @@ namespace SportfyRevit
         private static readonly object AnalysisResultsLock = new();
         private static string? _analysisResultsJson;
 
+        private static readonly object FamiliesLock = new();
+        private static string? _familiesJson;
+
         public static void Start()
         {
             if (_listener != null) return;
@@ -101,6 +104,19 @@ namespace SportfyRevit
             return json != null;
         }
 
+        /// <summary>
+        /// Called in-process by LoadFamiliesCommand after the user picks .rfa
+        /// files: publishes the firm's OWN loaded families — names, types and
+        /// writable dimension parameters — for the web app to offer as
+        /// placeable pieces alongside its built-in catalog. Same direct
+        /// in-process call as PushRoofBoundaryCommand's SetPayload, no HTTP
+        /// hop needed to reach a server living in this same process.
+        /// </summary>
+        public static void PublishFamilies(string json)
+        {
+            lock (FamiliesLock) { _familiesJson = json; }
+        }
+
         private static async Task ListenLoop()
         {
             var listener = _listener;
@@ -159,6 +175,28 @@ namespace SportfyRevit
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.ContentLength64 = resultsBytes.Length;
                         await ctx.Response.OutputStream.WriteAsync(resultsBytes);
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (path == "/families" && ctx.Request.HttpMethod == "GET")
+                    {
+                        string? familiesJson;
+                        lock (FamiliesLock) { familiesJson = _familiesJson; }
+
+                        if (familiesJson == null)
+                        {
+                            // Nothing loaded yet — same "connected, nothing pushed"
+                            // shape the roof-boundary poll below already uses.
+                            ctx.Response.StatusCode = 404;
+                            ctx.Response.Close();
+                            continue;
+                        }
+
+                        var familiesBytes = Encoding.UTF8.GetBytes(familiesJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = familiesBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(familiesBytes);
                         ctx.Response.Close();
                         continue;
                     }

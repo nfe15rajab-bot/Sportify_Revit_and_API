@@ -22,23 +22,71 @@ namespace SportfyRevit
     {
         private const double EntryMarkerRadiusM = 0.4;
 
+        /// <summary>
+        /// Elevation (feet) everything in the current import is built at — set
+        /// once per BuildGeometry call from roof_context.world_origin_z_m.
+        /// A field rather than another parameter on eight private helpers:
+        /// Revit API work is single-threaded inside one transaction, and both
+        /// import paths set it before building anything.
+        /// </summary>
+        internal static double CurrentOriginZFt { get; private set; }
+
+        /// <summary>
+        /// Roof width (feet) for the import in progress — the mirror line for
+        /// the Y flip below.
+        /// </summary>
+        private static double CurrentRoofWidthFt;
+
+        /// <summary>
+        /// Converts a web-canvas Y (meters, measured DOWN from the roof's top
+        /// edge, as SVG does) into a Revit world Y (feet, measured UP).
+        ///
+        /// Without this every piece lands mirrored about the roof's horizontal
+        /// centre line: a court drawn near the top of the canvas appears at the
+        /// bottom of the roof in Revit. The two coordinate systems simply
+        /// disagree about which way Y grows, and nothing else in the pipeline
+        /// reconciles them.
+        /// </summary>
+        internal static double WorldYFt(double originYFt, double webYM)
+        {
+            return originYFt + CurrentRoofWidthFt - FeetFromMeters(webYM);
+        }
+
         public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout)
         {
             var createdIds = new List<ElementId>();
 
-            EnsureWorksharing(doc);
+            // EnsureWorksharing is NOT called here on purpose — Document.EnableWorksharing
+            // throws ("Operation is not permitted when there is any open sub-transaction,
+            // transaction, or transaction group") if called while a transaction is open, and
+            // this method must be called from inside one (see the class doc comment above).
+            // Callers (ImportSportifyLayoutCommand, AutoImportSync) call EnsureWorksharing
+            // themselves, before opening their transaction.
             var worksets = EnsureWorksets(doc);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
             double originYFt = FeetFromMeters(layout.RoofContext?.WorldOriginYM ?? 0);
+            // Height of the roof this layout was designed on. Everything built
+            // below sits at this elevation instead of Z=0, which put the whole
+            // layout on the ground under the building.
+            double originZFt = FeetFromMeters(layout.RoofContext?.WorldOriginZM ?? 0);
+            SportifyLayoutBuilder.CurrentOriginZFt = originZFt;
+            CurrentRoofWidthFt = FeetFromMeters(layout.RoofContext?.WidthM ?? 0);
+
+            // Computed once for the whole layout (a BFS pass, not a per-placement
+            // lookup) and threaded down to FamilyPlacementBuilder, which stamps
+            // Revit's own freshly-computed distance onto each instance rather than
+            // trusting the JSON's own web-app estimate — same reasoning
+            // AnalyzeFireSafetyCommand already applies at the layout-summary level.
+            var (fireSafetyDistancesM, _) = CirculationEngine.ComputeTravelDistances(layout);
 
             int pieceCount = 0;
             if (layout.Placements != null)
             {
                 foreach (var p in layout.Placements)
                 {
-                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds))
+                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds, fireSafetyDistancesM))
                         pieceCount++;
                 }
             }
@@ -54,7 +102,12 @@ namespace SportfyRevit
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
         internal static double FeetFromMeters(double m) => UnitUtils.ConvertToInternalUnits(m, UnitTypeId.Meters);
 
-        private static void EnsureWorksharing(Document doc)
+        /// <summary>
+        /// internal, not private: must be called by ImportSportifyLayoutCommand/AutoImportSync
+        /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
+        /// transaction internally and throws if called while one is already open.
+        /// </summary>
+        internal static void EnsureWorksharing(Document doc)
         {
             if (!doc.IsWorkshared)
                 doc.EnableWorksharing("Sports", "Combine");
@@ -120,7 +173,8 @@ namespace SportfyRevit
         /// </summary>
         private static bool CreatePlacementGeometry(
             Document doc, PlacementDto p, double originXFt, double originYFt,
-            Dictionary<string, WorksetId> worksets, ElementId textTypeId, List<ElementId> createdIds)
+            Dictionary<string, WorksetId> worksets, ElementId textTypeId, List<ElementId> createdIds,
+            Dictionary<string, double> fireSafetyDistancesM)
         {
             var bb = p.BoundingBox;
             if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0)
@@ -129,7 +183,8 @@ namespace SportfyRevit
             bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase);
             var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
 
-            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
+            double? fireSafetyDistanceM = (p.Id != null && fireSafetyDistancesM.TryGetValue(p.Id, out var dist)) ? dist : (double?)null;
+            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds, fireSafetyDistanceM);
             return true;
         }
 
@@ -149,10 +204,10 @@ namespace SportfyRevit
             double widthFt = FeetFromMeters(layout.RoofContext?.WidthM ?? 0);
             return new List<XYZ>
             {
-                new XYZ(originXFt, originYFt, 0),
-                new XYZ(originXFt + lengthFt, originYFt, 0),
-                new XYZ(originXFt + lengthFt, originYFt + widthFt, 0),
-                new XYZ(originXFt, originYFt + widthFt, 0),
+                new XYZ(originXFt, originYFt, CurrentOriginZFt),
+                new XYZ(originXFt + lengthFt, originYFt, CurrentOriginZFt),
+                new XYZ(originXFt + lengthFt, originYFt + widthFt, CurrentOriginZFt),
+                new XYZ(originXFt, originYFt + widthFt, CurrentOriginZFt),
             };
         }
 
@@ -162,7 +217,12 @@ namespace SportfyRevit
             var poly = layout.RoofContext?.SourceBoundaryPolygon;
             if (poly != null && poly.Count >= 3)
             {
-                pts = poly.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), originYFt + FeetFromMeters(pt.YM), 0)).ToList();
+                // The one Y in this payload that is NOT flipped: the web app's
+                // roofShapeSvg draws this polygon with its own flip, so it is
+                // stored in Revit's convention already. Flipping it here mirrored
+                // the roof outline while every placement landed correctly — the
+                // two conventions have to be honored separately.
+                pts = poly.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), originYFt + FeetFromMeters(pt.YM), CurrentOriginZFt)).ToList();
             }
             else
             {
@@ -192,10 +252,10 @@ namespace SportfyRevit
 
             var pts = new List<XYZ>
             {
-                new XYZ(minX, minY, 0),
-                new XYZ(maxX, minY, 0),
-                new XYZ(maxX, maxY, 0),
-                new XYZ(minX, maxY, 0),
+                new XYZ(minX, minY, CurrentOriginZFt),
+                new XYZ(maxX, minY, CurrentOriginZFt),
+                new XYZ(maxX, maxY, CurrentOriginZFt),
+                new XYZ(minX, maxY, CurrentOriginZFt),
             };
             for (int i = 0; i < pts.Count; i++)
                 CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds);
@@ -211,7 +271,7 @@ namespace SportfyRevit
                 var points = path.PointsM;
                 if (points == null || points.Count < 2) continue;
 
-                var pts = points.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), originYFt + FeetFromMeters(pt.YM), 0)).ToList();
+                var pts = points.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), WorldYFt(originYFt, pt.YM), CurrentOriginZFt)).ToList();
                 for (int i = 0; i < pts.Count - 1; i++)
                     CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds);
                 count++;
@@ -227,7 +287,7 @@ namespace SportfyRevit
             double rFt = FeetFromMeters(EntryMarkerRadiusM);
             foreach (var ep in layout.EntryPoints)
             {
-                var center = new XYZ(originXFt + FeetFromMeters(ep.XM), originYFt + FeetFromMeters(ep.YM), 0);
+                var center = new XYZ(originXFt + FeetFromMeters(ep.XM), WorldYFt(originYFt, ep.YM), CurrentOriginZFt);
                 var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
                 var sketchPlane = SketchPlane.Create(doc, plane);
                 var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
