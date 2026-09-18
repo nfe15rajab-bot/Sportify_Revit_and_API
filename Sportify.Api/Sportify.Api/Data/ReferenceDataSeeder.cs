@@ -321,6 +321,146 @@ namespace Sportify.Api.Data
                 }
             );
 
+
+            // ── Roof build-up systems ──
+            // Real manufacturer systems, not categories: a designer specifies
+            // "ZinCo Roof Garden", and that name is what a contractor orders.
+            // System-level figures are the manufacturer's published values;
+            // where one does not publish them they stay null rather than
+            // carrying a guess, since these are exactly the numbers an engineer
+            // checks a deck against.
+            //
+            // Layer thicknesses are marked published or typical. Every layer
+            // needs a thickness because geometry needs one, but manufacturers
+            // publish them inconsistently — growing-medium depth almost always,
+            // drainage and filter layers rarely. Someone writing a tender has to
+            // know which is which.
+            RoofAssembly Assembly(string key, string provider, string system, string category,
+                                  string description, double? buildUpMm, double? saturated,
+                                  double? storage, string? sourceUrl,
+                                  params (string name, string fn, double mm, string src)[] layers)
+            {
+                var a = new RoofAssembly
+                {
+                    Key = key, Provider = provider, ProviderCountry = "Germany",
+                    SystemName = system, Category = category, Description = description,
+                    BuildUpMm = buildUpMm, SaturatedKgM2 = saturated, WaterStorageLM2 = storage,
+                    SourceUrl = sourceUrl,
+                };
+                for (int i = 0; i < layers.Length; i++)
+                {
+                    a.Layers.Add(new RoofAssemblyLayer
+                    {
+                        LayerOrder = i, Name = layers[i].name, Function = layers[i].fn,
+                        ThicknessMm = layers[i].mm, ThicknessSource = layers[i].src,
+                    });
+                }
+                return a;
+            }
+
+            db.RoofAssemblies.AddRange(
+                // Published: build-up "from 12.5 in", saturated "from 87 lbs/sq ft",
+                // storage "from 3.5 gal/sq ft" — converted to metric.
+                Assembly("zinco_roof_garden", "ZinCo", "Roof Garden", "intensive",
+                    "Intensive build-up for planted roof gardens with shrubs and small trees.",
+                    318, 425, 143, "https://zinco-usa.com/systems/roof-garden",
+                    ("Plant layer per plant list", "vegetation", 100, "typical"),
+                    ("Growing media Zincoblend I", "substrate", 250, "published"),
+                    ("Filter Sheet SF", "filter", 2, "typical"),
+                    ("Floradrain FD 60 neo, filled with Zincoblend M", "drainage", 60, "typical"),
+                    ("Protection Mat ISM 50", "protection", 5, "typical"),
+                    ("Root Barrier WSB 100-PO", "root_barrier", 1, "typical")),
+
+                Assembly("zinco_sloped_sedum", "ZinCo", "Sloped Sedum", "extensive",
+                    "Extensive sedum for pitched roofs, 20-35 degrees. Low weight, no access.",
+                    127, 171, 57, "https://zinco-usa.com/systems/sloped-sedum",
+                    ("Plant community Sloped Sedum", "vegetation", 20, "typical"),
+                    ("Growing media Zincoblend E", "substrate", 110, "published"),
+                    ("Georaster Elements", "drainage", 40, "typical"),
+                    ("Protection Mat WSM 150", "protection", 5, "typical")),
+
+                // Bauder's site blocks automated access (HTTP 403), so only the
+                // substrate depth from their published product summary is confirmed.
+                Assembly("bauder_extensive_sedum", "Bauder", "BauderEXTENSIVE Lightweight Sedum", "extensive",
+                    "Bauder's lightest all-in-one system: mature sedum blanket on a thin substrate.",
+                    null, null, null, "https://www.bauder.co.uk/green-and-blue-roofs/green-roofs/extensive-lightweight-sedum",
+                    ("Mature sedum blanket", "vegetation", 25, "typical"),
+                    ("Extensive substrate", "substrate", 20, "published"),
+                    ("Water retention and filter layer", "drainage", 20, "typical"),
+                    ("Root-resistant waterproofing", "waterproofing", 4, "typical")),
+
+                Assembly("optigruen_nature_roof", "Optigruen", "Naturdach", "extensive",
+                    "Extensive nature roof for biodiversity, varied substrate depth.",
+                    null, null, null, "https://www.optigruen.de/systemloesungen",
+                    ("Seed mix / plug planting", "vegetation", 20, "typical"),
+                    ("Extensive substrate", "substrate", 100, "typical"),
+                    ("Filter fleece 105", "filter", 2, "typical"),
+                    ("Drainage element FKD 25", "drainage", 25, "typical"),
+                    ("Protection mat RMS 500", "protection", 5, "typical")),
+
+                // Not a green roof: the build-up leftover circulation ground gets
+                // once the app decides what the negative space is made of.
+                Assembly("zinco_paved_walkway", "ZinCo", "Paved Walkway on Pedestals", "walkway",
+                    "Pedestrian paving on adjustable pedestals, drained beneath.",
+                    null, null, null, "https://zinco-greenroof.com/green-roof-systems",
+                    ("Concrete paving slab", "wearing", 40, "typical"),
+                    ("Adjustable pedestal", "bedding", 50, "typical"),
+                    ("Protection mat", "protection", 5, "typical"))
+            );
+
+            // ── Roof planting species ──
+            // The trees are the ones Van den Berk specifically recommends for
+            // roof gardens, with their own published mature dimensions. Their
+            // roof guidance is also where the substrate figure comes from: at
+            // least 70-80 cm of root space for trees.
+            db.Plants.AddRange(
+                new Plant { CommonName = "Cornelian cherry", ScientificName = "Cornus mas", Category = "Tree",
+                    Form = "tree", SunRequirement = "Sun to part shade", DroughtTolerance = "Moderate",
+                    MatureHeightM = 6, HeightRange = "5-6 m", CrownM = 5.5, CrownMinM = 5, CrownMaxM = 6,
+                    MinSubstrateMm = 800, DimensionsPublished = true,
+                    Notes = "Multi-stemmed small tree, dense round crown. Slow growing.",
+                    Source = "Van den Berk", SourceUrl = "https://www.vdberk.com/trees/cornus-mas/" },
+
+                new Plant { CommonName = "Weeping willow-leaved pear", ScientificName = "Pyrus salicifolia Pendula", Category = "Tree",
+                    Form = "tree", SunRequirement = "Sun", DroughtTolerance = "High",
+                    MatureHeightM = 6, HeightRange = "5-6 m", CrownM = 5.5, CrownMinM = 5, CrownMaxM = 6,
+                    MinSubstrateMm = 800, DimensionsPublished = true,
+                    Notes = "Broad weeping crown. Withstands wind and dry soil, tolerates paving.",
+                    Source = "Van den Berk", SourceUrl = "https://www.vdberk.com/trees/pyrus-salicifolia-pendula/" },
+
+                new Plant { CommonName = "Japanese white pine", ScientificName = "Pinus parviflora Glauca", Category = "Tree",
+                    Form = "tree", SunRequirement = "Sun", DroughtTolerance = "Moderate",
+                    MatureHeightM = 9, HeightRange = "6-12 m", CrownM = 8, CrownMinM = 6, CrownMaxM = 10,
+                    MinSubstrateMm = 800, DimensionsPublished = true,
+                    Notes = "Evergreen, broad pyramidal. Withstands sea wind but tolerates no paving.",
+                    Source = "Van den Berk", SourceUrl = "https://www.vdberk.com/trees/pinus-parviflora-glauca/" },
+
+                new Plant { CommonName = "Japanese hornbeam", ScientificName = "Carpinus japonica", Category = "Tree",
+                    Form = "tree", SunRequirement = "Sun to part shade", DroughtTolerance = "High",
+                    MatureHeightM = 11, HeightRange = "8-15 m", CrownM = 7, CrownMinM = 6, CrownMaxM = 8,
+                    MinSubstrateMm = 800, DimensionsPublished = true,
+                    Notes = "Vase-shaped becoming rounded. The largest here - check the structure.",
+                    Source = "Van den Berk", SourceUrl = "https://www.vdberk.com/trees/carpinus-japonica/" },
+
+                new Plant { CommonName = "Lavender", ScientificName = "Lavandula angustifolia", Category = "Shrub",
+                    Form = "shrub", SunRequirement = "Full sun", DroughtTolerance = "High",
+                    MatureHeightM = 0.6, HeightRange = "0.4-0.8 m", CrownM = 0.8, CrownMinM = 0.6, CrownMaxM = 1.0,
+                    MinSubstrateMm = 200, DimensionsPublished = false,
+                    Notes = "Drought-tolerant sub-shrub, a green roof staple.", Source = "Horticultural norm" },
+
+                new Plant { CommonName = "Blue fescue", ScientificName = "Festuca glauca", Category = "Grass",
+                    Form = "grass", SunRequirement = "Full sun", DroughtTolerance = "High",
+                    MatureHeightM = 0.3, HeightRange = "0.2-0.4 m", CrownM = 0.4, CrownMinM = 0.3, CrownMaxM = 0.5,
+                    MinSubstrateMm = 150, DimensionsPublished = false,
+                    Notes = "Ornamental grass, clump forming. Tolerates thin substrate.", Source = "Horticultural norm" },
+
+                new Plant { CommonName = "Stonecrop mat", ScientificName = "Sedum mix", Category = "Ground cover",
+                    Form = "groundcover", SunRequirement = "Full sun", DroughtTolerance = "Very high",
+                    MatureHeightM = 0.15, HeightRange = "0.05-0.2 m", CrownM = 1.0, CrownMinM = 0.5, CrownMaxM = 2.0,
+                    MinSubstrateMm = 60, DimensionsPublished = false,
+                    Notes = "The extensive green roof default - survives the thinnest build-ups.", Source = "Horticultural norm" }
+            );
+
             db.SaveChanges();
         }
     }

@@ -18,7 +18,13 @@ builder.Services.AddDbContext<ReferenceDbContext>(options =>
 
 const string FrontendCorsPolicy = "FrontendDev";
 builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy =>
-    policy.WithOrigins("http://localhost:8123").AllowAnyHeader().AllowAnyMethod()));
+    // 8123 is where the add-in's own StaticWebServer serves the app, and where
+    // it runs inside Revit. 8124 is the plain dev server used when Revit has
+    // 8123 — without it the Data tab reports "backend not reachable" while the
+    // API is running perfectly well, which reads as a dead backend rather than
+    // a blocked origin.
+    policy.WithOrigins("http://localhost:8123", "http://localhost:8124")
+          .AllowAnyHeader().AllowAnyMethod()));
 
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];

@@ -22,5 +22,9 @@ namespace Sportify.Api.Data
         public DbSet<FieldVariant> FieldVariants => Set<FieldVariant>();
         public DbSet<FacilityGuideline> FacilityGuidelines => Set<FacilityGuideline>();
         public DbSet<AnalysisParameter> AnalysisParameters => Set<AnalysisParameter>();
+
+        /// <summary>Provider roof build-ups and their ordered layers — what a drawn green roof zone is made of.</summary>
+        public DbSet<RoofAssembly> RoofAssemblies => Set<RoofAssembly>();
+        public DbSet<RoofAssemblyLayer> RoofAssemblyLayers => Set<RoofAssemblyLayer>();
     }
 }
