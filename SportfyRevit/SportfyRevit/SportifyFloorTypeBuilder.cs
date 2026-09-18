@@ -147,7 +147,7 @@ namespace SportfyRevit
                     ? MaterialFunctionAssignment.Structure
                     : FunctionFor(l.Function);
 
-                layers.Add(new CompoundStructureLayer(widthFt, function, FindOrCreateMaterial(doc, l.Name)));
+                layers.Add(new CompoundStructureLayer(widthFt, function, FindOrCreateMaterial(doc, l.Name, l.Function)));
             }
 
             try
@@ -245,7 +245,7 @@ namespace SportfyRevit
         /// layer blank: an unnamed layer schedules as nothing, and the product
         /// name is the only thing a contractor can order against.
         /// </summary>
-        private static ElementId FindOrCreateMaterial(Document doc, string? name)
+        private static ElementId FindOrCreateMaterial(Document doc, string? name, string? layerFunction)
         {
             if (string.IsNullOrWhiteSpace(name)) return ElementId.InvalidElementId;
 
@@ -259,7 +259,9 @@ namespace SportfyRevit
             {
                 // Revit rejects the same characters in a material name as in a
                 // type name, and these come from a provider's own product naming.
-                return Material.Create(doc, SanitizeName(name!));
+                var id = Material.Create(doc, SanitizeName(name!));
+                if (doc.GetElement(id) is Material created) ApplyLayerAppearance(doc, created, layerFunction);
+                return id;
             }
             catch (Exception)
             {
@@ -372,6 +374,77 @@ namespace SportfyRevit
                 .Cast<Level>()
                 .OrderBy(l => Math.Abs(l.Elevation - elevationFt))
                 .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// Colours a newly created material by what the layer does.
+        ///
+        /// Without this every generated material takes Revit's default grey, and
+        /// a six-layer green roof cuts as one undifferentiated black band — the
+        /// build-up is there in the data and invisible in the drawing, which is
+        /// the only place anyone checks it. The palette matches the layer stack
+        /// the web app draws, so a section reads like the panel the designer
+        /// chose it from.
+        ///
+        /// Both the shaded colour and the cut pattern are set: shaded carries 3D
+        /// views, the cut pattern is what actually shows in a section, and a
+        /// section is where a build-up is read.
+        /// </summary>
+        private static void ApplyLayerAppearance(Document doc, Material material, string? layerFunction)
+        {
+            var (r, g, b) = layerFunction switch
+            {
+                "vegetation"    => (0x3F, 0x8F, 0x4F),  // planting green
+                "substrate"     => (0x8A, 0x6A, 0x43),  // soil brown
+                "filter"        => (0xC7, 0xB8, 0x9A),  // fleece buff
+                "drainage"      => (0x5B, 0x8D, 0xB8),  // water blue
+                "protection"    => (0x9A, 0xA0, 0xA6),  // mat grey
+                "root_barrier"  => (0x6B, 0x6F, 0x76),  // dark grey
+                "waterproofing" => (0x4A, 0x4E, 0x55),  // near-black membrane
+                "wearing"       => (0xA8, 0xA2, 0x9A),  // paving stone
+                "bedding"       => (0xB8, 0xAB, 0x93),  // bedding sand
+                _               => (0x9E, 0x9E, 0x9E),
+            };
+
+            try
+            {
+                // Fully qualified: UseWindowsForms (for the family file dialog)
+                // pulls System.Drawing.Color into scope and makes a bare Color ambiguous.
+                var colour = new Autodesk.Revit.DB.Color((byte)r, (byte)g, (byte)b);
+                material.Color = colour;
+
+                // A cut pattern only renders with a fill pattern assigned, and
+                // solid fill is the one every template ships with.
+                var solid = FindSolidFillPattern(doc);
+                if (solid != ElementId.InvalidElementId)
+                {
+                    material.CutForegroundPatternId = solid;
+                    material.CutForegroundPatternColor = colour;
+                    material.SurfaceForegroundPatternId = solid;
+                    material.SurfaceForegroundPatternColor = colour;
+                }
+            }
+            catch (Exception)
+            {
+                // Appearance is a readability nicety — never worth failing a
+                // build-up over.
+            }
+        }
+
+        private static ElementId FindSolidFillPattern(Document doc)
+        {
+            try
+            {
+                var pattern = new FilteredElementCollector(doc)
+                    .OfClass(typeof(FillPatternElement))
+                    .Cast<FillPatternElement>()
+                    .FirstOrDefault(f => f.GetFillPattern().IsSolidFill);
+                return pattern?.Id ?? ElementId.InvalidElementId;
+            }
+            catch (Exception)
+            {
+                return ElementId.InvalidElementId;
+            }
         }
 
         private static string SanitizeName(string name)
