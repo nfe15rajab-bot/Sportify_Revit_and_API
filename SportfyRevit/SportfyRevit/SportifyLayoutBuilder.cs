@@ -81,6 +81,12 @@ namespace SportfyRevit
             // AnalyzeFireSafetyCommand already applies at the layout-summary level.
             var (fireSafetyDistancesM, _) = CirculationEngine.ComputeTravelDistances(layout);
 
+            // Build-up systems first: a floor type must exist before anything
+            // can reference it, and creating them once per import (rather than
+            // once per parcel) is the whole reason the export sends them at the
+            // top level.
+            CreateAssemblyFloorTypes(doc, layout);
+
             int pieceCount = 0;
             if (layout.Placements != null)
             {
@@ -97,6 +103,26 @@ namespace SportfyRevit
             int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
 
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
+        }
+
+        /// <summary>
+        /// Turns every provider build-up in the layout into a real Revit floor
+        /// type. Failures are recorded rather than thrown: a missing floor type
+        /// must not stop the courts and boundaries from being built.
+        /// </summary>
+        private static void CreateAssemblyFloorTypes(Document doc, SportifyLayout layout)
+        {
+            if (layout.Assemblies == null) return;
+            foreach (var assembly in layout.Assemblies)
+            {
+                try { SportifyFloorTypeBuilder.GetOrCreate(doc, assembly); }
+                catch (Exception ex)
+                {
+                    ImportDiagnostics.FloorTypeFailed(
+                        assembly.RevitTypeName ?? assembly.SystemName ?? "(unnamed)",
+                        $"{ex.GetType().Name}: {ex.Message}");
+                }
+            }
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>

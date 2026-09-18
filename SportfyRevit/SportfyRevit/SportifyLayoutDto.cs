@@ -18,6 +18,14 @@ namespace SportfyRevit
         [JsonPropertyName("circulation_paths")] public List<CirculationPathDto>? CirculationPaths { get; set; }
         [JsonPropertyName("site_location")] public SiteLocationDto? SiteLocation { get; set; }
         [JsonPropertyName("placements")] public List<PlacementDto>? Placements { get; set; }
+
+        /// <summary>
+        /// Distinct provider build-up systems used anywhere in this layout —
+        /// sent once at the top level rather than repeated inside every garden
+        /// parcel, because Revit creates one floor type per system, not one per
+        /// parcel.
+        /// </summary>
+        [JsonPropertyName("assemblies")] public List<AssemblyDto>? Assemblies { get; set; }
     }
 
     internal class SiteLocationDto
@@ -210,6 +218,37 @@ namespace SportfyRevit
         [JsonPropertyName("category")] public string? Category { get; set; }
         [JsonPropertyName("is_resizable")] public bool IsResizable { get; set; }
         [JsonPropertyName("parameters")] public Dictionary<string, JsonElement>? Parameters { get; set; }
+    }
+
+    /// <summary>
+    /// One provider's named roof build-up — ZinCo Roof Garden, Bauder
+    /// EXTENSIVE Lightweight Sedum. Carries the whole layer stack rather than a
+    /// key, so the import needs no catalog of its own and an older export keeps
+    /// working after the web app's catalog changes.
+    /// </summary>
+    internal class AssemblyDto
+    {
+        [JsonPropertyName("key")] public string? Key { get; set; }
+        [JsonPropertyName("provider")] public string? Provider { get; set; }
+        [JsonPropertyName("system_name")] public string? SystemName { get; set; }
+        [JsonPropertyName("category")] public string? Category { get; set; }
+        [JsonPropertyName("revit_type_name")] public string? RevitTypeName { get; set; }
+        [JsonPropertyName("build_up_mm")] public double? BuildUpMm { get; set; }
+        [JsonPropertyName("saturated_kg_m2")] public double? SaturatedKgM2 { get; set; }
+        [JsonPropertyName("water_storage_l_m2")] public double? WaterStorageLM2 { get; set; }
+        [JsonPropertyName("source_url")] public string? SourceUrl { get; set; }
+        [JsonPropertyName("total_thickness_m")] public double TotalThicknessM { get; set; }
+        [JsonPropertyName("layers")] public List<AssemblyLayerDto>? Layers { get; set; }
+    }
+
+    internal class AssemblyLayerDto
+    {
+        [JsonPropertyName("order")] public int Order { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("function")] public string? Function { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+        /// <summary>"published" or "typical" — whether the provider printed this figure.</summary>
+        [JsonPropertyName("thickness_source")] public string? ThicknessSource { get; set; }
     }
 
     internal class GardenParametersDto

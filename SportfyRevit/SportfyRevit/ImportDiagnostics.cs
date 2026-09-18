@@ -23,17 +23,30 @@ namespace SportfyRevit
         private static int _keywordMatched;
         private static int _generated;
         private static int _placeholder;
+        private static int _floorTypesCreated;
+        private static int _floorTypesReused;
 
         public static void Begin()
         {
             Lines.Clear();
             _explicitResolved = _keywordMatched = _generated = _placeholder = 0;
+            _floorTypesCreated = _floorTypesReused = 0;
         }
 
         public static void ExplicitResolved(string family, string type) { _explicitResolved++; Lines.Add($"OK   {family} → type \"{type}\""); }
         public static void KeywordMatched(string label) { _keywordMatched++; Lines.Add($"~    {label} → matched by keyword (no explicit family reference)"); }
         public static void Generated(string label) { _generated++; Lines.Add($"GEN  {label} → generated family"); }
         public static void Placeholder(string label) { _placeholder++; Lines.Add($"BOX  {label} → placeholder box"); }
+
+        public static void FloorTypeCreated(string name, int layerCount, double totalThicknessM)
+        {
+            _floorTypesCreated++;
+            Lines.Add($"NEW  floor type \"{name}\" — {layerCount} layers, {totalThicknessM * 1000:0} mm");
+        }
+
+        public static void FloorTypeReused(string name) { _floorTypesReused++; }
+
+        public static void FloorTypeFailed(string name, string reason) => Lines.Add($"FAIL floor type \"{name}\" → {reason}");
 
         /// <summary>The important one: an explicit reference the user made, that could not be honored.</summary>
         public static void ExplicitFailed(string family, string reason) => Lines.Add($"FAIL {family} → {reason}");
@@ -42,6 +55,8 @@ namespace SportfyRevit
         {
             var sb = new StringBuilder();
             sb.AppendLine($"Placed: {_explicitResolved} by family reference, {_keywordMatched} by keyword, {_generated} generated, {_placeholder} placeholder.");
+            if (_floorTypesCreated + _floorTypesReused > 0)
+                sb.AppendLine($"Build-up systems: {_floorTypesCreated} floor type(s) created, {_floorTypesReused} reused.");
             if (Lines.Count > 0)
             {
                 sb.AppendLine();
