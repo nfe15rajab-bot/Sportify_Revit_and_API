@@ -94,6 +94,11 @@ namespace SportfyRevit
             // top level.
             CreateAssemblyFloorTypes(doc, layout);
 
+            // Ground zones become real floors — the build-up the designer chose,
+            // at the area they drew. Done before the pieces so a court sits
+            // visually on top of the ground rather than under it.
+            int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds);
+
             int pieceCount = 0;
             if (layout.Placements != null)
             {
@@ -135,6 +140,43 @@ namespace SportfyRevit
                         $"{ex.GetType().Name}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Draws a Floor for every ground zone, using the floor type built from
+        /// its assembly. A zone whose build-up produced no type is reported and
+        /// skipped rather than drawn as something the designer did not choose.
+        /// </summary>
+        private static int CreateZoneFloors(Document doc, SportifyLayout layout,
+                                            double originXFt, double originYFt,
+                                            WorksetId worksetId, List<ElementId> createdIds)
+        {
+            if (layout.Zones == null) return 0;
+            int drawn = 0;
+
+            foreach (var zone in layout.Zones)
+            {
+                var bb = zone.BoundingBox;
+                if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0) continue;
+
+                var label = zone.Label ?? zone.Kind ?? "(zone)";
+                if (zone.AssemblyKey == null || !CurrentFloorTypes.TryGetValue(zone.AssemblyKey, out var floorType))
+                {
+                    ImportDiagnostics.FloorFailed(label, "no floor type was built for its build-up system");
+                    continue;
+                }
+
+                var floor = SportifyFloorTypeBuilder.CreateFloor(
+                    doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out string failure);
+
+                if (floor == null) { ImportDiagnostics.FloorFailed(label, failure); continue; }
+
+                SetWorkset(floor, worksetId);
+                createdIds.Add(floor.Id);
+                ImportDiagnostics.FloorCreated(label, floorType.Name, zone.AreaM2);
+                drawn++;
+            }
+            return drawn;
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>

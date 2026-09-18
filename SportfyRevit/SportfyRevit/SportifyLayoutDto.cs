@@ -26,6 +26,14 @@ namespace SportfyRevit
         /// parcel.
         /// </summary>
         [JsonPropertyName("assemblies")] public List<AssemblyDto>? Assemblies { get; set; }
+
+        /// <summary>
+        /// Ground zones drawn on the roof — planting, lawn, walkways. A
+        /// rectangle and a build-up is everything needed to draw a real layered
+        /// floor, which is why these are their own list rather than pretending
+        /// to be placements: a zone has no fixed size and is not an object.
+        /// </summary>
+        [JsonPropertyName("zones")] public List<ZoneDto>? Zones { get; set; }
     }
 
     internal class SiteLocationDto
@@ -239,6 +247,16 @@ namespace SportfyRevit
         [JsonPropertyName("source_url")] public string? SourceUrl { get; set; }
         [JsonPropertyName("total_thickness_m")] public double TotalThicknessM { get; set; }
         [JsonPropertyName("layers")] public List<AssemblyLayerDto>? Layers { get; set; }
+    }
+
+    internal class ZoneDto
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("kind")] public string? Kind { get; set; }
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("bounding_box")] public BoundingBoxDto? BoundingBox { get; set; }
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
     }
 
     internal class AssemblyLayerDto
