@@ -152,7 +152,40 @@ namespace SportfyRevit
 
             try
             {
-                var structure = CompoundStructure.CreateSimpleCompoundStructure(layers);
+                // Modify the structure the duplicated type already has, rather than
+                // building one with CreateSimpleCompoundStructure. That factory
+                // validates layer ordering against Revit's own exterior-to-interior
+                // rules and rejects the whole thing silently on a mismatch — which
+                // is how a type ended up carrying its template's single 300 mm
+                // foundation-slab layer while reporting success.
+                var structure = floorType.GetCompoundStructure()
+                                ?? CompoundStructure.CreateSingleLayerCompoundStructure(
+                                       MaterialFunctionAssignment.Structure,
+                                       layers[structuralIndex].Width,
+                                       layers[structuralIndex].MaterialId);
+
+                structure.SetLayers(layers);
+                structure.StructuralMaterialIndex = structuralIndex;
+
+                // Ask Revit whether it will accept this BEFORE writing it, and say
+                // which layer it objects to. A structure that fails validation is
+                // the difference between a real build-up and a slab pretending to
+                // be one.
+                if (!structure.IsValid(doc, out IDictionary<int, CompoundStructureError> errors, out _))
+                {
+                    // Revit hands back a layer index per problem, so the report can
+                    // name the offending product and its thickness rather than
+                    // leaving someone to bisect a six-layer build-up by hand.
+                    failure = "Revit rejected the structure — " + string.Join("; ", errors.Select(kv =>
+                    {
+                        var l = kv.Key >= 0 && kv.Key < ordered.Count ? ordered[kv.Key] : null;
+                        return l == null
+                            ? $"layer {kv.Key}: {kv.Value}"
+                            : $"layer {kv.Key + 1} \"{l.Name}\" ({l.ThicknessM * 1000:0} mm, {l.Function}): {kv.Value}";
+                    }));
+                    return false;
+                }
+
                 floorType.SetCompoundStructure(structure);
                 StampIdentity(floorType, assembly);
                 return true;
