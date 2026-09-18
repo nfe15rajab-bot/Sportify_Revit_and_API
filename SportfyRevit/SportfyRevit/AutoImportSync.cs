@@ -65,7 +65,7 @@ namespace SportfyRevit
 
             var uiApp = sender as UIApplication;
             var doc = uiApp?.ActiveUIDocument?.Document;
-            if (doc == null) return;
+            if (doc == null || doc.IsFamilyDocument) return;
 
             SportifyLayout? layout;
             try
@@ -90,8 +90,20 @@ namespace SportfyRevit
                 if (stillValid.Count > 0)
                     doc.Delete(stillValid);
 
-                var summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
-                _lastCreatedIds = summary.CreatedIds;
+                try
+                {
+                    var summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
+                    _lastCreatedIds = summary.CreatedIds;
+                }
+                catch (Exception)
+                {
+                    // Best-effort, like every other step here: a bad build on this
+                    // tick shouldn't take down the Idling loop or leave it retrying
+                    // the same broken push every 2s — wait for the next real push instead.
+                    t.RollBack();
+                    _lastAppliedVersion = version;
+                    return;
+                }
 
                 t.Commit();
             }

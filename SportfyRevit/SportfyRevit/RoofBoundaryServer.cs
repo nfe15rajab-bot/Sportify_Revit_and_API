@@ -60,8 +60,14 @@ namespace SportfyRevit
             lock (PayloadLock) { _payloadJson = json; }
         }
 
-        /// <summary>Called when the frontend POSTs its Combine export to /combined-layout.</summary>
-        private static void SetCombinedLayoutPayload(string json)
+        /// <summary>
+        /// Called when the frontend POSTs its Combine export to /combined-layout —
+        /// and also by ImportSportifyLayoutCommand after a manual file-picker
+        /// import, so a manually-imported layout is just as visible to
+        /// TryGetLatestCombinedLayout's callers (e.g. SimulateBallTrajectoriesCommand)
+        /// as a live Combine push, with no separate cache needed.
+        /// </summary>
+        public static void SetCombinedLayoutPayload(string json)
         {
             lock (CombinedLayoutLock)
             {

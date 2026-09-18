@@ -87,7 +87,7 @@ namespace SportfyRevit
             AddButton(unityAnalysisPanel, "SimulateCrowds", "Simulate\nCrowds", typeof(SimulateCrowdsCommand),
                 "Placeholder — will simulate spectator/participant flow using the circulation paths and entry points from the Combine layout.");
             AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
-                "Placeholder — will simulate real ball trajectories (shots, serves, kicks) with rigidbody physics to validate FIBA/DIN clearance buffers against neighboring courts, the roof edge and circulation space.");
+                "Runs the current layout through Sportify.Simulation (Unity): real rigidbody trajectories per placed court, checking crossings into neighboring courts, the roof edge and circulation space. Takes ~15-30s — Revit will be unresponsive while it runs.");
             AddButton(unityAnalysisPanel, "AnalyzeStructuralResonance", "Structural\nResonance", typeof(AnalyzeStructuralResonanceCommand),
                 "Placeholder — will simulate synchronized crowd movement and visualize the resulting vibration/load pattern across the existing structure's grid.");
             AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
@@ -96,8 +96,8 @@ namespace SportfyRevit
                 "Placeholder — will show water filtering down through a garden buildup's actual substrate/drainage layers in cross-section, complementing the Water Management surface animation.");
 
             var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
-            AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport", typeof(GenerateAnalysisReportCommand),
-                "Places a text summary of every Analysis check run this session, plus an optional chart image, on the active view.");
+            AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport\n(PDF)", typeof(GenerateAnalysisReportCommand),
+                "Generates and opens a PDF report: every Analysis check run this session, the component schedule, and the circulation/axonometric diagrams — auto-exported, no manual picking.");
             AddButton(exportPanel, "GenerateFunctionalDiagrams", "Functional\nDiagrams", typeof(GenerateFunctionalDiagramsCommand),
                 "Generates a circulation-only floor plan and a 3D massing axonometric. Bubble diagram not built yet.");
             AddButton(exportPanel, "GenerateSchedules", "Schedules\n(CSV)", typeof(GenerateSchedulesCommand),

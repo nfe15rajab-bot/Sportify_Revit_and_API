@@ -28,6 +28,7 @@ namespace Sportify.Simulation
             public string caseStudy = "Goldbeck default - Garden Boundary, Sports Core";
             public int shotsSimulated;
             public List<ViolationRecord> violations = new List<ViolationRecord>();
+            public string error;
         }
 
         readonly ResultsReport _report = new ResultsReport();
@@ -50,23 +51,41 @@ namespace Sportify.Simulation
         {
             _simStartTime = Time.time;
 
-            var payload = LayoutLoader.Load();
-            var courts = LayoutLoader.ExtractCourts(payload);
+            // Everything here must funnel into WriteReport (success, empty-input,
+            // or exception) so a headless -executeMethod run always exits instead
+            // of leaving an orphaned Unity process behind for the caller to time out on.
+            try
+            {
+                var payload = LayoutLoader.Load();
+                var courts = LayoutLoader.ExtractCourts(payload);
 
-            SceneBuilder.BuildRoof(payload.roof_context);
-            SceneBuilder.BuildEntryPoints(payload.entry_points);
-            SceneBuilder.BuildCourts(courts);
-            SceneBuilder.BuildCirculationZones(courts, payload.roof_context);
-            SceneBuilder.BuildRoofEdgeWalls(payload.roof_context);
-            SceneBuilder.BuildCamera(payload.roof_context);
-            SceneBuilder.BuildLight();
+                SceneBuilder.BuildRoof(payload.roof_context);
+                SceneBuilder.BuildEntryPoints(payload.entry_points);
+                SceneBuilder.BuildCourts(courts);
+                SceneBuilder.BuildCirculationZones(courts, payload.roof_context);
+                SceneBuilder.BuildRoofEdgeWalls(payload.roof_context);
+                SceneBuilder.BuildCamera(payload.roof_context);
+                SceneBuilder.BuildLight();
 
-            var shots = ShotScenario.BuildDefaultBadmintonShots(courts);
-            foreach (var shot in shots)
-                LaunchShot(shot);
+                var shots = ShotScenario.BuildDefaultBadmintonShots(courts);
+                foreach (var shot in shots)
+                    LaunchShot(shot);
 
-            _report.shotsSimulated = shots.Count;
-            Debug.Log($"[Collision] Loaded {courts.Count} court(s) from {payload.roof_context.length_m}x{payload.roof_context.width_m}m roof; launched {shots.Count} shot(s).");
+                _report.shotsSimulated = shots.Count;
+                Debug.Log($"[Collision] Loaded {courts.Count} court(s) from {payload.roof_context.length_m}x{payload.roof_context.width_m}m roof; launched {shots.Count} shot(s).");
+
+                if (shots.Count == 0)
+                {
+                    Debug.LogWarning("[Collision] No field placements in the layout — nothing to simulate.");
+                    WriteReport(0);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Collision] Failed to start: {ex}");
+                _report.error = ex.Message;
+                WriteReport(1);
+            }
         }
 
         void LaunchShot(ShotScenario shot)
@@ -107,15 +126,15 @@ namespace Sportify.Simulation
             _active.Remove(proj);
             Destroy(proj.gameObject);
 
-            if (_active.Count == 0 && !_reportWritten)
-            {
-                _reportWritten = true;
-                WriteReport();
-            }
+            if (_active.Count == 0)
+                WriteReport(0);
         }
 
-        void WriteReport()
+        void WriteReport(int exitCode)
         {
+            if (_reportWritten) return;
+            _reportWritten = true;
+
             var dir = Path.Combine(Application.dataPath, "..", "Recordings");
             Directory.CreateDirectory(dir);
             var path = Path.Combine(dir, "collision_results.json");
@@ -124,7 +143,7 @@ namespace Sportify.Simulation
 
 #if UNITY_EDITOR
             if (Application.isBatchMode)
-                UnityEditor.EditorApplication.Exit(0);
+                UnityEditor.EditorApplication.Exit(exitCode);
 #endif
         }
     }

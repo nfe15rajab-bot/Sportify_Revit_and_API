@@ -22,6 +22,14 @@ namespace SportfyRevit
             var uidoc = commandData.Application.ActiveUIDocument;
             var doc = uidoc.Document;
 
+            if (doc.IsFamilyDocument)
+            {
+                message = "Import Configuration builds a project layout (worksets, roof boundary, placed " +
+                           "components) and only works in a Revit project (.rvt) — not while editing a family " +
+                           "(.rfa). Open or switch to a project document, then run this again.";
+                return Result.Failed;
+            }
+
             var fod = new FileOpenDialog("Sportify layout JSON (*.json)|*.json");
             fod.Title = "Select the Sportify Combine export (sportify_combined_revit.json)";
             if (fod.Show() != ItemSelectionDialogResult.Confirmed)
@@ -38,10 +46,11 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
+            string text;
             SportifyLayout? layout;
             try
             {
-                var text = File.ReadAllText(jsonPath);
+                text = File.ReadAllText(jsonPath);
                 layout = JsonSerializer.Deserialize<SportifyLayout>(text);
             }
             catch (Exception ex)
@@ -56,6 +65,13 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
+            // Makes this manually-imported layout visible to RoofBoundaryServer's
+            // TryGetLatestCombinedLayout the same way a live Combine-tab push would
+            // be — so SimulateBallTrajectoriesCommand (and anything else that wants
+            // "the current layout") works right after a file-picker import too, not
+            // only after a live push from the web app.
+            RoofBoundaryServer.SetCombinedLayoutPayload(text);
+
             // Must run before the transaction opens — EnableWorksharing (inside this,
             // only on a not-yet-workshared document) throws if called from within one.
             SportifyLayoutBuilder.EnsureWorksharing(doc);
@@ -64,7 +80,18 @@ namespace SportfyRevit
             {
                 t.Start();
                 ImportDiagnostics.Begin();
-                var summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
+                ImportSummary summary;
+                try
+                {
+                    summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
+                }
+                catch (Exception ex)
+                {
+                    t.RollBack();
+                    message = "Import failed while building geometry: " + ex.Message;
+                    return Result.Failed;
+                }
+
                 t.Commit();
 
                 TaskDialog.Show(

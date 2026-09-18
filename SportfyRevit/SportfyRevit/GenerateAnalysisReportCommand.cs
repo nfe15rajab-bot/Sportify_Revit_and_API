@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Text.Json;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
@@ -6,17 +11,15 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Builds a text summary from whatever Analyze* commands have actually
-    /// published this session (RoofBoundaryServer's analysis-results
-    /// state — the same channel a future web-app poll loop would read),
-    /// plus an optional chart image hand-off. The image step predates the
-    /// text summary (first real prototype of this command, proving "a
-    /// chart the web app generates ends up embedded in the Revit
-    /// deliverable" end to end) and is now optional rather than required —
-    /// Cancel skips it instead of aborting the whole report. No per-
-    /// section toggle UI yet (the placeholder's own text mentions one) —
-    /// this includes everything published, which is the honest baseline
-    /// before building a custom picker dialog.
+    /// One-click PDF deliverable: pulls together whatever Analyze* commands
+    /// have published this session (AnalysisResultDto/RoofBoundaryServer),
+    /// the current layout's placements table, and the circulation/axonometric
+    /// diagrams (auto-created via GenerateFunctionalDiagramsCommand's own
+    /// view logic if they don't already exist, then exported to PNG — no
+    /// manual "pick a chart image" step anymore, see AnalysisReportPdfBuilder
+    /// for the actual template), then renders it all with QuestPDF and opens
+    /// the result. Every input is optional — a fresh session with nothing run
+    /// yet still produces a (short) valid PDF rather than failing.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class GenerateAnalysisReportCommand : IExternalCommand
@@ -26,7 +29,7 @@ namespace SportfyRevit
             const string title = "Sportify — Generate Analysis Report";
             var doc = commandData.Application.ActiveUIDocument.Document;
 
-            string? imagePath = TryPickChartImage();
+            var layout = AnalysisLayoutSource.GetLayout("Generate Analysis Report");
 
             AnalysisResultPayload? results = null;
             if (RoofBoundaryServer.TryGetLatestAnalysisResults(out var resultsJson) && resultsJson != null)
@@ -35,77 +38,106 @@ namespace SportfyRevit
                 catch (Exception) { /* malformed — report without it below */ }
             }
 
-            string reportText = BuildReportText(results);
+            var (circulationImagePath, axoImagePath) = TryExportDiagramImages(doc);
 
-            using (var t = new Transaction(doc, "Generate Sportify analysis report"))
+            string outputPath;
+            try
             {
-                t.Start();
-                try
-                {
-                    var textTypeId = new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).FirstOrDefault()?.Id;
-                    if (textTypeId != null)
-                        TextNote.Create(doc, doc.ActiveView.Id, new XYZ(-20, 0, 0), reportText, textTypeId);
+                var reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sportify Reports");
+                Directory.CreateDirectory(reportsDir);
+                outputPath = Path.Combine(reportsDir, $"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                AnalysisReportPdfBuilder.Generate(outputPath, layout, results, circulationImagePath, axoImagePath);
+            }
+            catch (Exception ex)
+            {
+                message = "Couldn't generate the PDF report: " + ex.Message;
+                return Result.Failed;
+            }
 
-                    if (imagePath != null)
-                    {
-                        var options = new ImageTypeOptions(imagePath, false, ImageTypeSource.Import);
-                        var imageType = ImageType.Create(doc, options);
-                        var placement = new ImagePlacementOptions(XYZ.Zero, BoxPlacement.Center);
-                        ImageInstance.Create(doc, doc.ActiveView, imageType.Id, placement);
-                    }
-
-                    t.Commit();
-                }
-                catch (Exception ex)
-                {
-                    t.RollBack();
-                    message = "Couldn't assemble the report: " + ex.Message;
-                    return Result.Failed;
-                }
+            try
+            {
+                Process.Start(new ProcessStartInfo(outputPath) { UseShellExecute = true });
+            }
+            catch (Exception)
+            {
+                // Best-effort — the PDF exists on disk either way.
             }
 
             TaskDialog.Show(title,
-                "Placed a text summary" + (imagePath != null ? " and chart image" : "") + " on the active view.\n\n" +
+                $"Report saved and opened:\n{outputPath}" +
                 (results == null
-                    ? "No Analysis panel checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
-                    : "Includes every check that's been run so far this session — run more Analysis commands and regenerate to add them."));
+                    ? "\n\nNo Analysis panel checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
+                    : "\n\nIncludes every check that's been run so far this session — run more Analysis commands and regenerate to add them."));
 
             return Result.Succeeded;
         }
 
-        private static string? TryPickChartImage()
+        /// <summary>
+        /// Best-effort, never blocks the report: creates the circulation/axo
+        /// views (reusing GenerateFunctionalDiagramsCommand's own logic) if a
+        /// Sportify layout has actually been imported into this project, then
+        /// exports each to a PNG in a per-run temp folder for the PDF to embed.
+        /// </summary>
+        private static (string? Circulation, string? Axo) TryExportDiagramImages(Document doc)
         {
-            var fod = new FileOpenDialog("Chart image (*.png)|*.png");
-            fod.Title = "Optionally pick a chart exported from the Sportify web app (Cancel to skip)";
-            if (fod.Show() != ItemSelectionDialogResult.Confirmed) return null;
+            if (!doc.IsWorkshared) return (null, null);
 
-            try { return ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath()); }
-            catch (Exception) { return null; }
+            try
+            {
+                var worksets = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset)
+                    .ToDictionary(w => w.Name, w => w.Id);
+                if (!worksets.ContainsKey("Combine")) return (null, null);
+
+                ViewPlan circulationView;
+                View3D axoView;
+                using (var t = new Transaction(doc, "Sportify report: ensure diagram views"))
+                {
+                    t.Start();
+                    circulationView = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc, worksets);
+                    axoView = GenerateFunctionalDiagramsCommand.CreateOrReuseAxonometricView(doc, worksets);
+                    t.Commit();
+                }
+
+                var tempDir = Path.Combine(Path.GetTempPath(), "Sportify", "ReportImages");
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                Directory.CreateDirectory(tempDir);
+
+                var circulationPath = ExportViewImage(doc, circulationView.Id, Path.Combine(tempDir, "circulation"));
+                var axoPath = ExportViewImage(doc, axoView.Id, Path.Combine(tempDir, "axonometric"));
+                return (circulationPath, axoPath);
+            }
+            catch (Exception)
+            {
+                return (null, null);
+            }
         }
 
-        private static string BuildReportText(AnalysisResultPayload? results)
+        /// <summary>
+        /// Revit's multi-view image export appends its own suffix to the given
+        /// base path rather than writing exactly to it (so exporting several
+        /// views in one call never collides) — search for whatever it actually
+        /// produced instead of assuming an exact filename.
+        /// </summary>
+        private static string? ExportViewImage(Document doc, ElementId viewId, string outputBasePath)
         {
-            var lines = new List<string> { "Sportify Analysis Report" };
+            var options = new ImageExportOptions
+            {
+                FilePath = outputBasePath,
+                ExportRange = ExportRange.SetOfViews,
+                ZoomType = ZoomFitType.FitToPage,
+                PixelSize = 1600,
+                ImageResolution = ImageResolution.DPI_150,
+                HLRandWFViewsFileType = ImageFileType.PNG,
+            };
+            options.SetViewsAndSheets(new List<ElementId> { viewId });
 
-            if (results?.FireSafety is { } fs)
-                lines.Add($"Fire Safety: {(fs.WithinLimit ? "within limit" : "OVER LIMIT")} — {fs.MaxDistM:0.0} m (ref {fs.MaxTravelDistanceM:0.#} m), {fs.UnreachableCount} unreachable");
-            if (results?.Accessibility is { } ac)
-                lines.Add($"Accessibility: width {ac.CurrentWidthM:0.0} m (min {ac.MinWidthM:0.#} m) — {(ac.WidthOk ? "meets" : "below")} minimum, reachable: {(ac.ReachOk ? "yes" : "no")}");
-            if (results?.WaterManagement is { } wm)
-                lines.Add($"Water Management: {wm.TotalAreaM2:0.#} m², {wm.AvgDepthCm:0} cm depth, ~{wm.RetentionPercent:0}% retention");
-            if (results?.Lca is { } lca)
-                lines.Add($"LCA: ~{lca.TotalKg:0.#} kg CO2e ({lca.CoveredCount}/{lca.TotalCount} pieces covered)");
-            if (results?.LiveLoads is { } ll)
-                lines.Add($"Live Loads: {ll.WorstCaseKnPerM2:0.00} kN/m² ({(ll.WithinReference ? "within" : "OVER")} reference {ll.ReferenceKnPerM2:0.#} kN/m²)");
-            if (results?.CarbonImpact is { } ci)
-                lines.Add($"Carbon Impact: ~{ci.EstimatedDailyWh:0.#} Wh/day over {ci.ActiveSurfaceAreaM2:0.#} m²");
-            if (results?.SunAndShading is { } ss)
-                lines.Add($"Sun & Shading: location confirmed, configured for {ss.ConfiguredForDateTime}");
+            doc.ExportImage(options);
 
-            if (lines.Count == 1)
-                lines.Add("(No checks run yet this session.)");
-
-            return string.Join("\n", lines);
+            var dir = Path.GetDirectoryName(outputBasePath)!;
+            var baseName = Path.GetFileName(outputBasePath);
+            return Directory.GetFiles(dir, baseName + "*.png")
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
         }
     }
 }

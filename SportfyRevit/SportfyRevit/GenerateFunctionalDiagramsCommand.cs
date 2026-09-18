@@ -67,7 +67,8 @@ namespace SportfyRevit
             return Result.Succeeded;
         }
 
-        private static ViewPlan CreateOrReuseCirculationView(Document doc, Dictionary<string, WorksetId> worksets)
+        /// <summary>internal, not private: GenerateAnalysisReportCommand reuses this so the PDF report's diagram images always have a source view, creating one if needed rather than requiring this command to be run first.</summary>
+        internal static ViewPlan CreateOrReuseCirculationView(Document doc, Dictionary<string, WorksetId> worksets)
         {
             var existing = new FilteredElementCollector(doc).OfClass(typeof(ViewPlan)).Cast<ViewPlan>()
                 .FirstOrDefault(v => !v.IsTemplate && v.Name == CirculationViewName);
@@ -84,7 +85,8 @@ namespace SportfyRevit
             return view;
         }
 
-        private static View3D CreateOrReuseAxonometricView(Document doc, Dictionary<string, WorksetId> worksets)
+        /// <summary>internal, not private: see CreateOrReuseCirculationView's note.</summary>
+        internal static View3D CreateOrReuseAxonometricView(Document doc, Dictionary<string, WorksetId> worksets)
         {
             var existing = new FilteredElementCollector(doc).OfClass(typeof(View3D)).Cast<View3D>()
                 .FirstOrDefault(v => !v.IsTemplate && v.Name == AxonometricViewName);
