@@ -3,43 +3,19 @@
 Revit add-in and reference API. The web app half is in `sportfify_goldbeck` on
 the same branch name.
 
----
-
-## 1. Firms load their own families
-
-The add-in previously had no way to use a firm's own content. Shipping families
-with the tool is the wrong shape: a firm that has invested years in its Revit
-library does not want ours, and the geometry is the least interesting part —
-their families carry their material standards, their parameters and their
-detail level.
-
-**Revit → Sportify → Load Families** opens a file picker. Pick .rfa files; the
-add-in loads them and publishes what it found to the web app.
-
-**Why a picker and not "read what's loaded":** the first version read every
-family in the document and returned **1327**, of which ~880 were furniture. A
-project model is full of families that have nothing to do with a sports roof.
-The firm knows which ones matter; nothing in the model says so.
-
-### Parameters are discovered, not configured
-
-The add-in does not look for parameters called `Length` or `Width`. It reads
-each type parameter's **storage type and spec** and keeps the ones that are
-lengths. A firm calling its parameter `Spielfeld_Laenge` works with no mapping
-file, because the question asked is "is this a length?" — not "is this called
-what we expect?"
-
-Size is measured by **placing a temporary instance 1 km from the model,
-regenerating, reading its bounding box, then deleting it**. Type parameters
-often do not describe the real extent, and geometry cannot lie.
+**Builds on the family-loading work already merged** (`368845f`, *Load a firm's
+own Revit families and place them from the web app*). Nothing here changes it —
+this PR is what happens *after* a layout comes back from the web app: the ground
+it sits on, and the planting on top.
 
 ---
 
-## 2. Floor types and floors from the web app's build-ups
+## 1. Floor types and floors from the web app's build-ups
 
 The web app now specifies real provider build-ups — ZinCo Roof Garden, Bauder
 EXTENSIVE Lightweight Sedum — each with ordered layers. Those map one-to-one
-onto a Revit **floor type**, which is the same idea Revit already has.
+onto a Revit **floor type**, which is the same idea Revit already has: a layered
+assembly with a material and thickness per layer.
 
 On import the add-in creates a floor type per build-up, then **draws the actual
 Floor** for every zone the designer drew. A type with nobody using it is an
@@ -55,18 +31,18 @@ appearing as grey bands.
    1 mm is rejected. Real thin layers are mapped to `Substrate` instead, which
    is the function that permits a thickness.
 2. **Exactly one layer may be structural**, and it cannot be the top or bottom.
-3. Type names reject `{ } [ ] | ; < > ? \` ~`. Generated types are named in the
-   family's own convention (`26000 x 14000 mm`).
+3. Type names reject `{ } [ ] | ; < > ? \` ~`.
 
-> **A silent failure fixed:** `CreateSimpleCompoundStructure` validates layer
-> ordering and, when it disagrees, **returns without applying anything** — the
-> type silently kept the template's single 300 mm layer and the import reported
-> success. Now the type's own structure is edited and `IsValid` is called
-> explicitly, so a rejected build-up is reported with the offending layer named.
+> **A silent failure fixed along the way:** `CreateSimpleCompoundStructure`
+> validates layer ordering and, when it disagrees, **returns without applying
+> anything** — the type silently kept the template's single 300 mm layer while
+> the import reported success. Now the type's own structure is edited and
+> `IsValid` is called explicitly, so a rejected build-up is reported with the
+> offending layer named.
 
 ---
 
-## 3. A Revit family per plant species
+## 2. A Revit family per plant species
 
 A tree is not an assembly and not a floor — it is a family, and the web app now
 names real species rather than size categories.
@@ -74,7 +50,7 @@ names real species rather than size categories.
 The add-in **generates a family per species** it receives: trunk and crown as
 extruded circles, sized from that species' own published dimensions.
 
-Each family carries its botanical data as shared-style parameters:
+Each family carries its botanical data as parameters:
 
 | Parameter | Why |
 |---|---|
@@ -92,7 +68,7 @@ single curve in a profile loop.
 
 ---
 
-## 4. Reference API: the catalogs live in the database
+## 3. Reference API: the catalogs live in the database
 
 Build-ups and species were constants in the web app's JavaScript, so adding a
 ZinCo product meant a code change and a deploy.
@@ -128,48 +104,20 @@ guess. Those are the numbers an engineer checks a deck against.
 
 ---
 
-## 5. The add-in had no manifest
+## 4. Import diagnostics
 
-`SportfyRevit.addin` did not exist. Revit finds add-ins through that manifest
-file, not by scanning for DLLs, so the compiled add-in was being **silently
-ignored** — no error, no ribbon tab, nothing to debug. Added, and the build now
-copies it to the output folder automatically.
-
----
-
-## 6. Bugs fixed
-
-**Revit froze completely, twice.** A WPF dialog shown with no owner window left
-the main Revit window disabled behind it; the process reported *Responding =
-True* at 2% CPU, so it looked healthy while being unusable. Dialogs are now
-WinForms, owned by `MainWindowHandle`.
-
-**The layout landed at ground level** instead of on the roof — three separate
-causes: the roof elevation was never sent, the import hardcoded Z to 0, and
-`NewFamilyInstance` **ignores the Z of its placement point**. Fixed by sending
-`origin_z_m` from the pushed roof face and moving each instance to elevation
-after `doc.Regenerate()`.
-
-**The layout came in mirrored.** Canvas Y runs downward, Revit Y runs upward.
-Items, circulation and entries are flipped; the **boundary polygon deliberately
-is not**, because the web app already flips it when drawing. Both halves now
-agree.
-
-**`LoadFamily` returns false when the family is already loaded**, which was
-being read as failure. Now uses an overwrite handler and falls back to a name
-lookup.
-
-**`Color` became ambiguous** once WinForms was enabled — `System.Drawing.Color`
-and `Autodesk.Revit.DB.Color`. Fully qualified.
+Every new piece reports its own outcome — floor type created, floor drawn, plant
+placed, or the specific reason it failed. A summary that says "imported
+successfully" while three zones silently came in without their build-up is worse
+than no summary.
 
 ---
 
-## 7. Import diagnostics
+## 5. One build break
 
-Every piece reports its own outcome — family resolved, type duplicated, floor
-type created, floor drawn, plant placed, or the specific reason it failed.
-A summary that says "imported successfully" while three courts silently came in
-at the wrong size is worse than no summary.
+`Color` became ambiguous once WinForms was in the project —
+`System.Drawing.Color` and `Autodesk.Revit.DB.Color` both resolve. Fully
+qualified in the layer-colouring code.
 
 ---
 
@@ -177,6 +125,18 @@ at the wrong size is worse than no summary.
 
 1. Start the API (above).
 2. Serve the web app, open the Sportify pane.
-3. **Load Families** → pick a firm .rfa.
-4. **Push Roof to Sportify** → configure → export.
-5. **Import Configuration** → read the diagnostics.
+3. **Push Roof to Sportify** → draw zones, place plants → export.
+4. **Import Configuration** → floors with layered build-ups, plants as generated
+   species families.
+
+---
+
+## Two things still open
+
+- **No catalogued system can currently carry a tree.** Trees need 800 mm (Van
+  den Berk's roof guidance); ZinCo's deepest intensive system gives 250 mm. The
+  web app flags every tree placement as a result — a real constraint, not a bug.
+- **ZinCo publishes 318 mm for Roof Garden, but the seeded layers sum to 418 mm.**
+  They state only the substrate depth; the typical values fill past their stated
+  total. **Revit builds the 418 mm version.** Those values want checking against
+  a datasheet.
