@@ -75,5 +75,30 @@ namespace Sportify.Api.Models
         /// someone writing a tender knows which numbers came from the supplier.
         /// </summary>
         public string ThicknessSource { get; set; } = "typical";
+
+        // ── Cost ──
+        // Same posture as the embodied-carbon fields above and the published
+        // /typical rule the build-up thicknesses already follow: a price is
+        // either QUOTED by a supplier or ESTIMATED, and which one it is has to
+        // travel with the number. Nullable, so a missing price stays visibly
+        // missing instead of costing nothing.
+        //
+        // PriceUnit also decides how the quantity is measured — "EUR/m3" means
+        // the layer is taken off by volume, "EUR/m2" by area. One field for
+        // both so the two can never disagree.
+        public double? PriceValue { get; set; }
+        public string? PriceUnit { get; set; }        // "EUR/m2" | "EUR/m3" | "EUR/each"
+        public string? PriceSource { get; set; }
+        public bool PriceIsQuoted { get; set; }
+
+        /// <summary>
+        /// DIN 276 cost group, e.g. "570" for planted areas or "363" for roof
+        /// coverings. A German cost estimate has to arrive sorted into these;
+        /// a bare total cannot be compared, benchmarked, or used to derive a
+        /// fee. TO BE CONFIRMED against a Kostenplaner — these are reasonable
+        /// classifications, not authoritative ones.
+        /// </summary>
+        public string? CostGroupDin276 { get; set; }
+
     }
 }

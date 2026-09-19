@@ -110,6 +110,11 @@ namespace Sportify.Api.Controllers
             {
                 LayerOrder = l.LayerOrder, Name = l.Name, Function = l.Function,
                 ThicknessMm = l.ThicknessMm, ThicknessSource = l.ThicknessSource,
+                // Carried explicitly: this replaces the layer set wholesale, so
+                // a field left out here is a field silently erased on every edit.
+                PriceValue = l.PriceValue, PriceUnit = l.PriceUnit,
+                PriceSource = l.PriceSource, PriceIsQuoted = l.PriceIsQuoted,
+                CostGroupDin276 = l.CostGroupDin276,
             }).ToList();
 
             await _db.SaveChangesAsync();
