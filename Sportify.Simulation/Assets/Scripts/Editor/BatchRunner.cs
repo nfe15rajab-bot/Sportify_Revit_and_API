@@ -24,6 +24,15 @@ namespace Sportify.Simulation.Editor
 
         // Same, for the garden analysis (wind uplift and erosion): -executeMethod
         // Sportify.Simulation.Editor.BatchRunner.RunWindAnalysis. Writes Recordings/wind_results.json.
+        // Same, for the rain and percolation analysis: -executeMethod
+        // Sportify.Simulation.Editor.BatchRunner.RunPercolationAnalysis. Writes Recordings/percolation_results.json.
+        public static void RunPercolationAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Percolation);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
         public static void RunWindAnalysis()
         {
             Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Wind);

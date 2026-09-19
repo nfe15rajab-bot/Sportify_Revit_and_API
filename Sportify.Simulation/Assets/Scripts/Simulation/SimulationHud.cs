@@ -164,6 +164,19 @@ namespace Sportify.Simulation
             _counts.text = text;
         }
 
+        /// <summary>Changes the words of a label made by WorldLabel, including its dark outline copy.</summary>
+        public static void SetLabelText(TextMesh label, string text)
+        {
+            if (label == null) return;
+            label.text = text;
+            var outline = label.transform.Find("Outline");
+            if (outline != null)
+            {
+                var shadow = outline.GetComponent<TextMesh>();
+                if (shadow != null) shadow.text = text;
+            }
+        }
+
         public static string Tint(string text, Color color)
         {
             return "<color=#" + ColorUtility.ToHtmlStringRGB(color) + ">" + text + "</color>";

@@ -63,6 +63,18 @@ namespace Sportify.Simulation.Wind
             _colors[v] = _colors[v + 1] = _colors[v + 2] = _colors[v + 3] = color;
         }
 
+        /// <summary>A streak from top to bottom facing the camera (its width runs along x), for rain and drops in a front view.</summary>
+        public void SetVertical(int i, Vector3 top, Vector3 bottom, float width, Color32 color)
+        {
+            var side = new Vector3(width * 0.5f, 0f, 0f);
+            var v = i * 4;
+            _vertices[v] = top - side;
+            _vertices[v + 1] = top + side;
+            _vertices[v + 2] = bottom - side;
+            _vertices[v + 3] = bottom + side;
+            _colors[v] = _colors[v + 1] = _colors[v + 2] = _colors[v + 3] = color;
+        }
+
         public void Hide(int i)
         {
             var v = i * 4;

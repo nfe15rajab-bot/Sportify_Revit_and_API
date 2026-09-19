@@ -163,7 +163,7 @@ namespace Sportify.Simulation
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Bootstrap()
         {
-            if (AnalysisMode.IsWind) return;   // the wind and erosion analysis owns this session
+            if (!AnalysisMode.IsBallSimulation) return;   // another analysis owns this session
             new GameObject("CollisionAnalysisRunner").AddComponent<CollisionAnalysisRunner>();
         }
 
