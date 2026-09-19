@@ -614,7 +614,8 @@ namespace Sportify.Simulation.Water
             return f;
         }
 
-        static double StorageAt(ColumnSpec spec, double theta)
+        /// <summary>Water held per m2 (mm = kg/m2) when the substrate is at the given content, plus the drainage layer's cups and overflow. The structural analysis reads the saturated weight from it.</summary>
+        public static double StorageAt(ColumnSpec spec, double theta)
         {
             if (!spec.HasSubstrate) return 0;
             var drainage = DrainageCupsMm(spec.DrainageMm) + (spec.DrainageMm > 0 ? DrainageOverflowMm : 0);

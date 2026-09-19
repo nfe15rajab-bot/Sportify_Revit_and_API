@@ -56,10 +56,15 @@ namespace SportfyRevit
                 new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                     .Select(l => new RoofHeightAboveGround.LevelInfo(l.Name, ToMeters(l.Elevation))).ToList());
 
+            // The structural grid and columns that lie under the roof, for the structural load analysis.
+            var structure = TryCollectStructure(doc, bbox, out var structureNote);
+
             var payload = new
             {
                 roof = new
                 {
+                    // Already in the canvas convention (roof-local x right, y down): see StructureGeometry.
+                    structure,
                     length_m = Math.Round(ToMeters(bbox.Max.X - bbox.Min.X), 2),
                     width_m = Math.Round(ToMeters(bbox.Max.Y - bbox.Min.Y), 2),
                     boundary_m = boundary?.Select(p => new
@@ -98,9 +103,72 @@ namespace SportfyRevit
                 (heightAboveGround != null
                     ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
                       "Check it: the wind analysis uses it, and the Site tab lets you override it."
-                    : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab."));
+                    : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
+                structureNote);
 
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// The model's straight grid lines and structural columns that lie under the roof, in the roof's own plan coordinates, or null when
+        /// there are none. Best-effort like the ground lookup: a failure only means the structural analysis assumes a regular grid.
+        /// Curved and multi-segment grids and bearing walls are not read; the note says so.
+        /// </summary>
+        private static StructureDto? TryCollectStructure(Document doc, BoundingBoxXYZ bbox, out string note)
+        {
+            note = "";
+            try
+            {
+                double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+
+                var grids = new List<StructureGeometry.GridSegment>();
+                var curved = 0;
+                foreach (var g in new FilteredElementCollector(doc).OfClass(typeof(Grid)).Cast<Grid>())
+                {
+                    if (g.Curve is Line line)
+                    {
+                        var a = line.GetEndPoint(0);
+                        var b = line.GetEndPoint(1);
+                        grids.Add(new StructureGeometry.GridSegment(g.Name, M(a.X), M(a.Y), M(b.X), M(b.Y)));
+                    }
+                    else curved++;
+                }
+                var multiSegment = new FilteredElementCollector(doc).OfClass(typeof(MultiSegmentGrid)).GetElementCount();
+
+                var columns = new List<StructureGeometry.ColumnPoint>();
+                foreach (var fi in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralColumns).WhereElementIsNotElementType().OfType<FamilyInstance>())
+                {
+                    XYZ? p = fi.Location switch
+                    {
+                        LocationPoint lp => lp.Point,
+                        LocationCurve lc => lc.Curve.GetEndPoint(0),
+                        _ => null,
+                    };
+                    if (p == null) continue;
+                    columns.Add(new StructureGeometry.ColumnPoint(fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "", M(p.X), M(p.Y)));
+                }
+
+                var dto = StructureGeometry.ToRoofLocal(grids, columns,
+                    new StructureGeometry.RoofRect(M(bbox.Min.X), M(bbox.Min.Y), M(bbox.Max.X), M(bbox.Max.Y)));
+
+                var skipped = curved + multiSegment;
+                if ((dto.GridLines?.Count ?? 0) == 0 && (dto.Columns?.Count ?? 0) == 0)
+                {
+                    note = "\n\nStructure: no grid lines or structural columns found under this roof, so the structural analysis will assume a regular grid." +
+                           (skipped > 0 ? $" ({skipped} curved or multi-segment grid(s) are not read.)" : "");
+                    return null;
+                }
+
+                note = $"\n\nStructure: {dto.GridLines!.Count} grid line(s) and {dto.Columns!.Count} column(s) under the roof pulled for the structural load analysis." +
+                       (skipped > 0 ? $" {skipped} curved or multi-segment grid(s) were not read." : "") +
+                       " Bearing walls are not read.";
+                return dto;
+            }
+            catch (Exception ex)
+            {
+                note = $"\n\nStructure: couldn't read the grids and columns ({ex.Message}); the structural analysis will assume a regular grid.";
+                return null;
+            }
         }
 
         /// <summary>

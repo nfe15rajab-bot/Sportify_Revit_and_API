@@ -14,11 +14,13 @@ namespace Sportify.Simulation
         public const string EnvVar = "SPORTIFY_ANALYSIS";
         public const string Wind = "wind";
         public const string Percolation = "percolation";
+        public const string Structural = "structural";
 
         public static string Current => Environment.GetEnvironmentVariable(EnvVar);
 
         public static bool IsWind => string.Equals(Current, Wind, StringComparison.OrdinalIgnoreCase);
         public static bool IsPercolation => string.Equals(Current, Percolation, StringComparison.OrdinalIgnoreCase);
+        public static bool IsStructural => string.Equals(Current, Structural, StringComparison.OrdinalIgnoreCase);
         public static bool IsBallSimulation => string.IsNullOrEmpty(Current);
     }
 }

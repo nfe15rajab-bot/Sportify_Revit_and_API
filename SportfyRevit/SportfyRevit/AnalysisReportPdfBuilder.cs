@@ -168,6 +168,23 @@ namespace SportfyRevit
                     rows.Add(new ResultRow("Rain & Percolation Assumptions", string.Join(" ", sp.Assumptions), null));
             }
 
+            if (r.StructuralLoads is { } sl)
+            {
+                rows.Add(new ResultRow("Structural Loads",
+                    $"{sl.PermanentLoadKn:0} kN permanent + {sl.ImposedLoadKn:0} kN imposed on {sl.RoofAreaM2:0} m² ({sl.MeanLoadKnM2:0.0} kN/m² mean); " +
+                    $"most loaded bay {sl.WorstBay} at {sl.PeakUtilisationPercent:0}% of the {sl.DeckCapacityKnM2:0.#} kN/m² deck capacity" + (sl.DeckCapacityAssumed ? " (placeholder capacity)" : "") + "; " +
+                    $"{sl.BaysOverCapacity} of {sl.BaysChecked} bays over, {sl.BaysMarginal} marginal; load centre {Math.Abs(sl.LoadCentreOffsetXPercent):0.#}% (length) / {Math.Abs(sl.LoadCentreOffsetYPercent):0.#}% (width) off the structure's centre: {sl.BalanceStatus}" +
+                    (string.IsNullOrEmpty(sl.HeavySide) ? "" : $", heavy side {sl.HeavySide}") +
+                    (string.IsNullOrEmpty(sl.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(sl.VideoPath)}"),
+                    sl.BaysOverCapacity == 0 && sl.BalanceStatus == "balanced"));
+
+                if (sl.Findings is { Count: > 0 })
+                    rows.Add(new ResultRow("Structural Loads Advice", string.Join(" ", sl.Findings.Where(f => f.Kind != "grid").Take(5).Select(f => f.Text)) + " Screening estimate, not a structural verification.", null));
+
+                if (sl.Assumptions is { Count: > 0 })
+                    rows.Add(new ResultRow("Structural Loads Assumptions", string.Join(" ", sl.Assumptions), null));
+            }
+
             return rows;
         }
 

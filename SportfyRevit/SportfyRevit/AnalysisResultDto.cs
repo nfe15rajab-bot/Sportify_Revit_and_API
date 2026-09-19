@@ -25,6 +25,7 @@ namespace SportfyRevit
         [JsonPropertyName("ball_trajectory")] public BallTrajectoryResultDto? BallTrajectory { get; set; }
         [JsonPropertyName("wind_erosion")] public WindErosionResultDto? WindErosion { get; set; }
         [JsonPropertyName("soil_percolation")] public SoilPercolationResultDto? SoilPercolation { get; set; }
+        [JsonPropertyName("structural_loads")] public StructuralLoadsResultDto? StructuralLoads { get; set; }
     }
 
     internal class FireSafetyResultDto
@@ -165,6 +166,50 @@ namespace SportfyRevit
         [JsonPropertyName("retained_cloudburst_percent")] public double RetainedCloudburstPercent { get; set; }
     }
 
+    /// <summary>
+    /// What the static structural load screening found (StructuralLoadCore.cs, computed in-process by this add-in): where the weight and
+    /// the people are, which bays of the structural grid are most loaded against the deck capacity, and whether the load sits to one side.
+    /// </summary>
+    internal class StructuralLoadsResultDto
+    {
+        [JsonPropertyName("case_study")] public string? CaseStudy { get; set; }
+        [JsonPropertyName("video_path")] public string? VideoPath { get; set; }
+        [JsonPropertyName("grid_source")] public string? GridSource { get; set; }
+        [JsonPropertyName("grid_assumed")] public bool GridAssumed { get; set; }
+        [JsonPropertyName("deck_capacity_kn_m2")] public double DeckCapacityKnM2 { get; set; }
+        [JsonPropertyName("deck_capacity_assumed")] public bool DeckCapacityAssumed { get; set; }
+        [JsonPropertyName("roof_area_m2")] public double RoofAreaM2 { get; set; }
+        [JsonPropertyName("permanent_load_kn")] public double PermanentLoadKn { get; set; }
+        [JsonPropertyName("imposed_load_kn")] public double ImposedLoadKn { get; set; }
+        [JsonPropertyName("mean_load_kn_m2")] public double MeanLoadKnM2 { get; set; }
+        [JsonPropertyName("peak_bay_load_kn_m2")] public double PeakBayLoadKnM2 { get; set; }
+        [JsonPropertyName("peak_utilisation_percent")] public double PeakUtilisationPercent { get; set; }
+        [JsonPropertyName("worst_bay")] public string? WorstBay { get; set; }
+        [JsonPropertyName("bays_checked")] public int BaysChecked { get; set; }
+        [JsonPropertyName("bays_over_capacity")] public int BaysOverCapacity { get; set; }
+        [JsonPropertyName("bays_marginal")] public int BaysMarginal { get; set; }
+        [JsonPropertyName("columns_checked")] public int ColumnsChecked { get; set; }
+        [JsonPropertyName("columns_high")] public int ColumnsHigh { get; set; }
+        [JsonPropertyName("expected_persons")] public double ExpectedPersons { get; set; }
+        [JsonPropertyName("balance_status")] public string? BalanceStatus { get; set; }
+        [JsonPropertyName("heavy_side")] public string? HeavySide { get; set; }
+        [JsonPropertyName("load_centre_offset_x_percent")] public double LoadCentreOffsetXPercent { get; set; }
+        [JsonPropertyName("load_centre_offset_y_percent")] public double LoadCentreOffsetYPercent { get; set; }
+        [JsonPropertyName("bays")] public List<StructuralBayDto>? Bays { get; set; }
+        [JsonPropertyName("findings")] public List<WindFindingDto>? Findings { get; set; }
+        [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
+    }
+
+    internal class StructuralBayDto
+    {
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("grid_names")] public string? GridNames { get; set; }
+        [JsonPropertyName("load_kn_m2")] public double LoadKnM2 { get; set; }
+        [JsonPropertyName("utilisation_percent")] public double UtilisationPercent { get; set; }
+        [JsonPropertyName("status")] public string? Status { get; set; }
+        [JsonPropertyName("persons")] public double Persons { get; set; }
+    }
+
     /// <summary>One thing to change: ballast, a heavier build-up, anchoring or moving a tree, protecting the substrate.</summary>
     internal class WindFindingDto
     {
@@ -204,6 +249,7 @@ namespace SportfyRevit
         public static void PublishBallTrajectory(BallTrajectoryResultDto result) => Publish(p => p.BallTrajectory = result);
         public static void PublishWindErosion(WindErosionResultDto result) => Publish(p => p.WindErosion = result);
         public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish(p => p.SoilPercolation = result);
+        public static void PublishStructuralLoads(StructuralLoadsResultDto result) => Publish(p => p.StructuralLoads = result);
 
         private static void Publish(Action<AnalysisResultPayload> apply)
         {

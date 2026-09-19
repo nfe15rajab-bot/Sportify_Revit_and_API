@@ -15,7 +15,8 @@ function walk(a, b, path) {
   }
   if (a && typeof a === "object") { for (const k of Object.keys(b)) walk(a[k], b[k], path + "." + k); return; }
   n++;
-  if (a !== b) { bad++; if (bad < 15) console.log("  DIFF", path, JSON.stringify(a), JSON.stringify(b)); }
+  // Unity's JsonUtility writes a string that was null as "": the same thing.
+  if ((a === undefined || a === null ? "" : a) !== (b === undefined || b === null ? "" : b)) { bad++; if (bad < 15) console.log("  DIFF", path, JSON.stringify(a), JSON.stringify(b)); }
 }
 walk(u, h, "analysis");
 console.log(bad === 0 ? "UNITY == ADD-IN SIDE: " + n + " values identical" : "MISMATCHES: " + bad + " of " + n);

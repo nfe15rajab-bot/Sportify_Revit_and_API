@@ -33,6 +33,15 @@ namespace Sportify.Simulation.Editor
             EditorApplication.isPlaying = true;
         }
 
+        // Same, for the static structural load analysis: -executeMethod
+        // Sportify.Simulation.Editor.BatchRunner.RunStructuralAnalysis. Writes Recordings/structure_results.json.
+        public static void RunStructuralAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Structural);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
         public static void RunWindAnalysis()
         {
             Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Wind);

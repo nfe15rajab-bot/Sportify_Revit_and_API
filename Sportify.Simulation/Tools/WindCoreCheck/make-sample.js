@@ -123,6 +123,13 @@ const plants = [
   plant("sedum", 6.0, 5.0), plant("sedum", 12.0, 12.0), plant("sedum", 17.0, 16.0), plant("sedum", 35.0, 17.0),
 ];
 
+// Structural grid of the sample: lines 1-9 across the length (x), A-C across the width (y).
+const gridLines = [];
+for (let i = 0; i < 9; i++) { const x = Math.round(i * 8.45 * 100) / 100; gridLines.push({ name: String(i + 1), start_m: { x_m: x, y_m: 0 }, end_m: { x_m: x, y_m: 21.0 } }); }
+["A", "B", "C"].forEach((name, j) => { const y = j * 10.5; gridLines.push({ name, start_m: { x_m: 0, y_m: y }, end_m: { x_m: 67.6, y_m: y } }); });
+const columns = [];
+for (let i = 0; i < 9; i++) for (let j = 0; j < 3; j++) columns.push({ label: "C" + (i + 1) + "-" + "ABC"[j], x_m: Math.round(i * 8.45 * 100) / 100, y_m: j * 10.5 });
+
 const layout = {
   version: "1.3", generator: "Sportify-Combine",
   roof_context: { length_m: 67.6, width_m: 21.0, source_boundary_polygon: null, world_origin_x_m: 0, world_origin_y_m: 0, world_origin_z_m: 11.0, height_above_ground_m: 11.0, height_source: "ground floor level \"EG\"" },
@@ -138,6 +145,9 @@ const layout = {
                      wind_zone_source: "Hamburg (the whole state) (DIBt list, 2022-06-02)", north_deg: 20, north_set: true },
   assemblies, zones,
   placements: [court(1, 24.0), court(2, 38.4), ...plants],
+  // The structural grid the way the Revit push sends it (canvas coordinates, y down): nine grid lines every 8.45 m along the length,
+  // three across, and a column at every crossing. No deck capacity: the structural analysis then uses its placeholder and says so.
+  structure: { source: "revit", deck_capacity_kn_m2: null, grid_lines: gridLines, columns },
 };
 
 fs.writeFileSync(path, JSON.stringify(layout, null, 2) + "\n");

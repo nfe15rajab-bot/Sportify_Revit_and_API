@@ -40,6 +40,40 @@ namespace SportfyRevit
         /// to be placements: a zone has no fixed size and is not an object.
         /// </summary>
         [JsonPropertyName("zones")] public List<ZoneDto>? Zones { get; set; }
+
+        /// <summary>
+        /// The roof's structural grid and columns, pulled from the Revit model by the push (or drawn by hand in the Combine tab),
+        /// and the deck capacity when the structural engineer's figure has been entered. Absent in older exports and when the
+        /// push found no grids: the structural analysis then assumes a regular grid and says so.
+        /// </summary>
+        [JsonPropertyName("structure")] public StructureDto? Structure { get; set; }
+    }
+
+    internal class StructureDto
+    {
+        /// <summary>"revit" (pulled from the model) or "manual" (drawn in the app).</summary>
+        [JsonPropertyName("source")] public string? Source { get; set; }
+
+        /// <summary>Characteristic G + Q the roof deck can carry, kN/m2. Null = not given.</summary>
+        [JsonPropertyName("deck_capacity_kn_m2")] public double? DeckCapacityKnM2 { get; set; }
+
+        [JsonPropertyName("grid_lines")] public List<GridLineDto>? GridLines { get; set; }
+        [JsonPropertyName("columns")] public List<StructuralColumnDto>? Columns { get; set; }
+    }
+
+    /// <summary>A grid line as a segment in the roof's own plan coordinates (x right, y down, metres), with its name from the model ("A", "1"...).</summary>
+    internal class GridLineDto
+    {
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("start_m")] public PointDto? StartM { get; set; }
+        [JsonPropertyName("end_m")] public PointDto? EndM { get; set; }
+    }
+
+    internal class StructuralColumnDto
+    {
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
     }
 
     internal class SiteLocationDto

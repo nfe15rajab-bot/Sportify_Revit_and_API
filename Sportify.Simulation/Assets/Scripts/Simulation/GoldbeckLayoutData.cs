@@ -80,6 +80,53 @@ namespace Sportify.Simulation
         public string variant;
         public string norm;
         public FieldDimensions dimensions;
+        public FieldCapacity capacity;
+    }
+
+    [Serializable]
+    public class FieldCapacity
+    {
+        public int seats;
+    }
+
+    [Serializable]
+    public class PointM
+    {
+        public float x_m;
+        public float y_m;
+    }
+
+    [Serializable]
+    public class CirculationPathData
+    {
+        public PointM[] points_m;
+    }
+
+    /// <summary>A grid line of the roof's structure: a segment in the roof's own plan coordinates (x right, y down), named as in the Revit model.</summary>
+    [Serializable]
+    public class GridLineData
+    {
+        public string name;
+        public PointM start_m;
+        public PointM end_m;
+    }
+
+    [Serializable]
+    public class StructuralColumnData
+    {
+        public string label;
+        public float x_m;
+        public float y_m;
+    }
+
+    /// <summary>The roof's structural grid and columns, and the deck capacity when the engineer's figure has been entered (0 = not given).</summary>
+    [Serializable]
+    public class StructureData
+    {
+        public string source;
+        public float deck_capacity_kn_m2;
+        public GridLineData[] grid_lines;
+        public StructuralColumnData[] columns;
     }
 
     [Serializable]
@@ -169,6 +216,7 @@ namespace Sportify.Simulation
         public RoofContext roof_context;
         public DesignRules design_rules;
         public EntryPoint[] entry_points;
+        public CirculationPathData[] circulation_paths;
         public Placement[] placements;
 
         // Green-roof ground zones and the build-ups they use (newer exports only).
@@ -176,5 +224,8 @@ namespace Sportify.Simulation
         public AssemblyData[] assemblies;
 
         public SiteConditions site_conditions;
+
+        // The structural grid and columns (pushed from Revit or drawn in the app); absent in older exports.
+        public StructureData structure;
     }
 }
