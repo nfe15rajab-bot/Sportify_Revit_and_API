@@ -49,6 +49,7 @@ namespace Sportify.Api.Data
         // ── Sport, playground and roofing materials ──
         private static readonly Dictionary<string, (double Value, string Unit, string Kg)> MaterialPrices = new()
         {
+            ["PVC sheet, single-layer (economy)"]                        = (32,  "EUR/m2", "530"),
             ["Sports vinyl / PVC flooring"]                              = (55,  "EUR/m2", "530"),
             ["Wood sprung floor / parquet"]                              = (95,  "EUR/m2", "530"),
             ["Poured polyurethane / synthetic rubber flooring"]          = (70,  "EUR/m2", "530"),
@@ -157,9 +158,32 @@ namespace Sportify.Api.Data
             }
         }
 
+        /// <summary>
+        /// The app offers three quality tiers — Economy, Standard, Premium —
+        /// but the catalog only had a surface for two of them, so Economy and
+        /// Standard had to share a material and therefore a price. This adds
+        /// the missing economy row rather than mapping two tiers onto one
+        /// product, which would have made the tier choice free.
+        /// </summary>
+        private static void EnsureEconomyFlooring(ReferenceDbContext db)
+        {
+            const string name = "PVC sheet, single-layer (economy)";
+            if (db.Materials.Any(m => m.Name == name)) return;
+            db.Materials.Add(new Material
+            {
+                Name = name,
+                Category = "Flooring",
+                NormCode = "EN 14904",
+                PerformanceClass = "Type 4 — point-elastic",
+                Notes = "Entry-level single-layer PVC sports surface. Lower force reduction and shorter service life than a two-layer sports vinyl.",
+            });
+            db.SaveChanges();
+        }
+
         public static void Backfill(ReferenceDbContext db)
         {
             EnsureColumns(db);
+            EnsureEconomyFlooring(db);
             int touched = 0;
 
             foreach (var m in db.Materials)
