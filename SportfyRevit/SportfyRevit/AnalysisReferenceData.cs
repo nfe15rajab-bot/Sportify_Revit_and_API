@@ -47,8 +47,9 @@ namespace SportfyRevit
             },
             ["Wind Exposure"] = new() { ["edge_exposure_zone_m"] = 2.0 },
             // Same figures seeded in Sportify.Api's AnalysisParameter table (ReferenceDataSeeder) —
-            // AnalyzeLiveLoadsCommand and SportifyFamilyParameters.ComputeLiveLoad both read these
-            // via GetParam, so without a default here they'd silently compute 0/0 offline.
+            // SportifyFamilyParameters.ComputeLiveLoad (the live-load figure written onto each placed family) reads these
+            // via GetParam, so without a default here it would silently compute 0/0 offline. (The Live Loads command that also read them was
+            // retired: the Structural Loads analysis is the reference for loads on the roof.)
             ["Live Loads"] = new() { ["assumed_load_per_person_kg"] = 90, ["reference_capacity_kn_per_m2"] = 4.0 },
         };
 

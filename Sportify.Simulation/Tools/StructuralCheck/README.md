@@ -34,3 +34,13 @@ It must print `ORACLE MATCH`. After a Unity run (`BatchRunner.RunStructuralAnaly
 ## What the numbers are and are not
 
 A screening model, not a structural verification. Only the court load (category C4, 5.0 kN/m2, DIN EN 1991-1-1/NA Table 6.1DE) is taken from the standard; the other imposed loads, the people densities, the balance limits (5% marginal, 10% unbalanced) and the tree weights are the author's, named at the top of `StructureModel` and repeated in every report's assumptions. **The deck capacity is not in the layout**: until the structural engineer's figure is entered (Site tab in the web app, `structure.deck_capacity_kn_m2` in the export) a placeholder of 8 kN/m2 is used and the results say so.
+
+## The assumptions register
+
+`Assets/Scripts/Simulation/Structure/AnalysisAssumptions.cs` lists every value the structural analyses rest on that the layout cannot know (deck capacity, the deck's frequency, snow zone and altitude, the day's schedule, the comfort limits) and every fixed constant, each with where it comes from. The web app keeps a copy (`assumptions.js`); check they are the same list:
+
+```
+node Tools/StructuralCheck/assumptions-parity.js <path to the web app's assumptions.js>
+```
+
+`dotnet run --project Tools/StructuralCheck -- --assumptions-json` prints the C# side as JSON (what the script compares, and what regenerates the web copy).

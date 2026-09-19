@@ -41,7 +41,8 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            var boundary = ExtractTopFaceBoundary(element, out double? topFaceZFt);
+            var topFace = FindTopFace(element, out double? topFaceZFt);
+            var boundary = topFace != null ? OuterLoopPoints(topFace) : null;
 
             double ToMeters(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
             double originXFt = bbox.Min.X, originYFt = bbox.Min.Y;
@@ -59,12 +60,18 @@ namespace SportfyRevit
             // The structural grid and columns that lie under the roof, for the structural load analysis.
             var structure = TryCollectStructure(doc, bbox, out var structureNote);
 
+            // Openings, entries (stairs, cores, doors), parapets and railings, drains, the slab and the levels: what the rules that
+            // decide where things may stand need to know about the real roof.
+            var features = TryCollectFeatures(doc, element, topFace, boundary, roofTopFt, bbox, heightAboveGround, out var featuresNote);
+
             var payload = new
             {
                 roof = new
                 {
                     // Already in the canvas convention (roof-local x right, y down): see StructureGeometry.
                     structure,
+                    // Same convention: see RoofFeaturesGeometry and ROOF_FEATURES.md.
+                    features,
                     length_m = Math.Round(ToMeters(bbox.Max.X - bbox.Min.X), 2),
                     width_m = Math.Round(ToMeters(bbox.Max.Y - bbox.Min.Y), 2),
                     boundary_m = boundary?.Select(p => new
@@ -104,9 +111,40 @@ namespace SportfyRevit
                     ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
                       "Check it: the wind analysis uses it, and the Site tab lets you override it."
                     : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
-                structureNote);
+                structureNote + featuresNote);
 
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// Everything else the model says about the roof, in the roof's own plan coordinates (see RoofFeatureCollector for what is read and how),
+        /// or null when nothing was found. Best-effort: a failure only means the app has no features to show.
+        /// </summary>
+        private static RoofFeaturesDto? TryCollectFeatures(Document doc, Element roofElement, PlanarFace? topFace, List<XYZ>? outline, double roofTopFt,
+            BoundingBoxXYZ bbox, RoofHeightAboveGround.Result? height, out string note)
+        {
+            note = "";
+            try
+            {
+                double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+                var c = RoofFeatureCollector.Collect(doc, roofElement, topFace, outline, roofTopFt, bbox);
+                var dto = RoofFeaturesGeometry.Build(
+                    new StructureGeometry.RoofRect(M(bbox.Min.X), M(bbox.Min.Y), M(bbox.Max.X), M(bbox.Max.Y)),
+                    c.Outline, c.Openings, c.Entries, c.EdgeElements, c.Drains, c.Slab, c.Levels, M(roofTopFt), height?.GroundM, c.RoofLevelName, c.Notes);
+
+                var edgeSummary = dto.Edges.Count == 0 ? "" : $", edge: {dto.Edges.Count(e => e.Kind == "parapet")} parapet / {dto.Edges.Count(e => e.Kind == "railing")} railing / {dto.Edges.Count(e => e.Kind is "open" or "partial")} open stretch(es)";
+                note = $"\n\nRoof features: {dto.Openings.Count} opening(s), {dto.Entries.Count} entr{(dto.Entries.Count == 1 ? "y" : "ies")} (stairs, cores, doors), {dto.Drains.Count} drain(s), " +
+                       $"{dto.Levels.Count} level(s){edgeSummary}" +
+                       (dto.Slab != null ? $", slab {dto.Slab.ThicknessM * 1000:0} mm ({dto.Slab.StructuralThicknessM * 1000:0} mm structure)" : "") + "." +
+                       (dto.Notes.Count > 0 ? "\n" + string.Join(" ", dto.Notes) : "") +
+                       "\nDrains are found by their family names and parapets by their height; check them in the app (Site tab, Roof features).";
+                return dto;
+            }
+            catch (Exception ex)
+            {
+                note = $"\n\nRoof features: couldn't be read ({ex.Message}).";
+                return null;
+            }
         }
 
         /// <summary>
@@ -223,7 +261,7 @@ namespace SportfyRevit
         /// that's the height an imported layout has to sit at — it was already
         /// being computed here to pick the face and then discarded.
         /// </summary>
-        private static List<XYZ>? ExtractTopFaceBoundary(Element element, out double? topFaceZFt)
+        private static PlanarFace? FindTopFace(Element element, out double? topFaceZFt)
         {
             topFaceZFt = null;
             var options = new Options { ComputeReferences = false, DetailLevel = ViewDetailLevel.Fine };
@@ -247,7 +285,12 @@ namespace SportfyRevit
             }
             if (topFace == null) return null;
             topFaceZFt = maxZ;
+            return topFace;
+        }
 
+        /// <summary>The vertices of the outer loop of a face (the loop enclosing the largest area).</summary>
+        private static List<XYZ>? OuterLoopPoints(PlanarFace topFace)
+        {
             var loops = topFace.GetEdgesAsCurveLoops();
             if (loops == null || loops.Count == 0) return null;
 

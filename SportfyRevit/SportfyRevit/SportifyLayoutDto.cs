@@ -47,6 +47,22 @@ namespace SportfyRevit
         /// push found no grids: the structural analysis then assumes a regular grid and says so.
         /// </summary>
         [JsonPropertyName("structure")] public StructureDto? Structure { get; set; }
+
+        /// <summary>
+        /// What the designer decided about the structural analyses' built-in assumptions (the Site tab's "Analysis assumptions", or the
+        /// Revit dialog before an analysis): which built-in values they accepted, and the comfort limits they set. Absent in older exports.
+        /// </summary>
+        [JsonPropertyName("analysis_assumptions")] public AnalysisAssumptionsDto? AnalysisAssumptions { get; set; }
+    }
+
+    internal class AnalysisAssumptionsDto
+    {
+        /// <summary>Keys (Sportify.Simulation.Structure.AnalysisAssumptions) whose built-in value was accepted.</summary>
+        [JsonPropertyName("accepted")] public List<string>? Accepted { get; set; }
+
+        /// <summary>Acceleration limits in g. Null = the built-in ones.</summary>
+        [JsonPropertyName("comfort_limit_walking_g")] public double? ComfortLimitWalkingG { get; set; }
+        [JsonPropertyName("comfort_limit_rhythmic_g")] public double? ComfortLimitRhythmicG { get; set; }
     }
 
     internal class StructureDto
@@ -131,6 +147,12 @@ namespace SportfyRevit
         /// </summary>
         [JsonPropertyName("height_above_ground_m")] public double HeightAboveGroundM { get; set; }
         [JsonPropertyName("height_source")] public string? HeightSource { get; set; }
+
+        /// <summary>
+        /// What the Revit model says about the roof besides its outline and structure (openings, entries, edge, drains, slab, levels), in the
+        /// roof's own plan coordinates. Absent for a hand-made roof and in older exports. See RoofFeaturesGeometry.cs and ROOF_FEATURES.md.
+        /// </summary>
+        [JsonPropertyName("features")] public RoofFeaturesDto? Features { get; set; }
     }
 
     internal class DesignRulesDto
@@ -548,5 +570,119 @@ namespace SportfyRevit
         [JsonPropertyName("kn_per_m2")] public double KnPerM2 { get; set; }
         [JsonPropertyName("reference_kn_per_m2")] public double ReferenceKnPerM2 { get; set; }
         [JsonPropertyName("within_reference")] public bool WithinReference { get; set; }
+    }
+
+    // ---- what the Revit model says about the roof besides its outline and structure (see RoofFeaturesGeometry.cs, ROOF_FEATURES.md)
+
+    internal class RoofFeaturesDto
+    {
+        /// <summary>"revit". A hand-made roof has no features.</summary>
+        [JsonPropertyName("source")] public string Source { get; set; } = "revit";
+
+        /// <summary>What could not be read or was approximated, in words, for the designer.</summary>
+        [JsonPropertyName("notes")] public List<string> Notes { get; set; } = new List<string>();
+
+        [JsonPropertyName("openings")] public List<RoofOpeningDto> Openings { get; set; } = new List<RoofOpeningDto>();
+        [JsonPropertyName("entries")] public List<RoofEntryDto> Entries { get; set; } = new List<RoofEntryDto>();
+        [JsonPropertyName("edges")] public List<RoofEdgeDto> Edges { get; set; } = new List<RoofEdgeDto>();
+        [JsonPropertyName("drains")] public List<RoofDrainDto> Drains { get; set; } = new List<RoofDrainDto>();
+        [JsonPropertyName("slab")] public RoofSlabDto? Slab { get; set; }
+        [JsonPropertyName("levels")] public List<RoofLevelDto> Levels { get; set; } = new List<RoofLevelDto>();
+    }
+
+    /// <summary>A hole in the roof's top face (a skylight, a shaft, a rooflight): nothing may stand there.</summary>
+    internal class RoofOpeningDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+        [JsonPropertyName("polygon_m")] public List<PointDto> PolygonM { get; set; } = new List<PointDto>();
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+    }
+
+    /// <summary>A stair, a core (lift) or a door by which people reach the roof.</summary>
+    internal class RoofEntryDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+
+        /// <summary>"stair" | "core" | "door".</summary>
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "";
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+
+        /// <summary>Clear width of a door, m; 0 when the model does not say.</summary>
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        /// <summary>True when the position lies on the roof; false for a stair house or door just beyond its edge.</summary>
+        [JsonPropertyName("on_roof")] public bool OnRoof { get; set; }
+        [JsonPropertyName("source_element_id")] public long SourceElementId { get; set; }
+    }
+
+    /// <summary>One straight stretch of the roof's outline and what stands along it.</summary>
+    internal class RoofEdgeDto
+    {
+        [JsonPropertyName("index")] public int Index { get; set; }
+        [JsonPropertyName("start_m")] public PointDto StartM { get; set; } = new PointDto();
+        [JsonPropertyName("end_m")] public PointDto EndM { get; set; } = new PointDto();
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+
+        /// <summary>"parapet" | "railing" | "partial" (some of it covered) | "open" (nothing stops a fall or a ball).</summary>
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "open";
+
+        /// <summary>Height above the roof's top face, m, of what stands along the edge (a length-weighted mean); 0 when open.</summary>
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+
+        /// <summary>The share (0 to 1) of the edge's length covered by a parapet / by a railing.</summary>
+        [JsonPropertyName("parapet_coverage")] public double ParapetCoverage { get; set; }
+        [JsonPropertyName("railing_coverage")] public double RailingCoverage { get; set; }
+    }
+
+    internal class RoofDrainDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+
+        /// <summary>"drain" | "overflow" | "scupper", from the family's name.</summary>
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "drain";
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("source_element_id")] public long SourceElementId { get; set; }
+    }
+
+    /// <summary>The build-up of the roof or floor slab that was pushed.</summary>
+    internal class RoofSlabDto
+    {
+        [JsonPropertyName("type_name")] public string? TypeName { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+
+        /// <summary>The layers whose function is structure or structural deck: the depth that carries load.</summary>
+        [JsonPropertyName("structural_thickness_m")] public double StructuralThicknessM { get; set; }
+        [JsonPropertyName("layers")] public List<RoofSlabLayerDto> Layers { get; set; } = new List<RoofSlabLayerDto>();
+    }
+
+    internal class RoofSlabLayerDto
+    {
+        /// <summary>Revit's material function: Structure, Substrate, Insulation, Finish1, Finish2, Membrane, StructuralDeck.</summary>
+        [JsonPropertyName("function")] public string? Function { get; set; }
+        [JsonPropertyName("material")] public string? Material { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+    }
+
+    internal class RoofLevelDto
+    {
+        [JsonPropertyName("name")] public string? Name { get; set; }
+
+        /// <summary>Elevation in the project's own coordinates, m.</summary>
+        [JsonPropertyName("elevation_m")] public double ElevationM { get; set; }
+
+        /// <summary>Elevation above the ground the roof height was measured from; null when no ground was found.</summary>
+        [JsonPropertyName("above_ground_m")] public double? AboveGroundM { get; set; }
+
+        /// <summary>The level the roof sits on (the highest at or below its top face).</summary>
+        [JsonPropertyName("is_roof_level")] public bool IsRoofLevel { get; set; }
     }
 }

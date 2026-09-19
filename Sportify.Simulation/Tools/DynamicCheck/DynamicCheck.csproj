@@ -14,6 +14,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />

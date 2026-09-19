@@ -181,6 +181,7 @@ namespace Sportify.Simulation.Dynamics
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height, "Dynamic structural analysis", false);
             _hud.SetCaseStudy(_results.caseStudy);
+            _hud.SetPreliminary(AnalysisAssumptions.PreliminaryBanner(_report.assumptionUses));
 
             SceneBuilder.BuildEntryPoints(_payload.entry_points);
             BuildPieces();
@@ -821,7 +822,7 @@ namespace Sportify.Simulation.Dynamics
                 yield break;
             }
 
-            var act = DynamicModel.Activities.First(a => a.name == r.sweepActivity);
+            var act = r.activities.First(a => a.name == r.sweepActivity);
             var nb = _run.Static.bays.Count;
             var limit = act.limitG;
             var force = new double[nb]; var mass = new double[nb]; var fn = new double[nb];
@@ -1016,7 +1017,7 @@ namespace Sportify.Simulation.Dynamics
             var r = _report.resonance;
             var s = _report.summary;
             var headline = r.baysExceeding > 0 || s.baysOverCapacity > 0
-                ? (r.baysExceeding > 0 ? "Resonance: " + r.baysExceeding + " of " + r.bays.Count + " bays exceed the comfort limit" : s.baysOverCapacity + " bays exceed the capacity in some weather")
+                ? (r.baysExceeding > 0 ? "Resonance: " + r.baysExceeding + " of " + r.bays.Count + " bays exceed the " + (r.estimated ? "estimated " : "") + "comfort limit" : s.baysOverCapacity + " bays exceed the " + (s.capacityAssumed ? "ASSUMED " : "") + "capacity in some weather")
                 : "Nothing exceeds its limit";
             var lines = new List<string>
             {
@@ -1049,7 +1050,7 @@ namespace Sportify.Simulation.Dynamics
                 CardText.Bullet(lines, Tint("Weather", Good) + "  No bay exceeds the capacity in any case.");
             if (r.worstRatio > 1f)
             {
-                var a = DynamicModel.Activities.First(x => x.name == r.worstActivity);
+                var a = r.activities.First(x => x.name == r.worstActivity);
                 var kMax = 1;
                 for (var k = 1; k <= a.alpha.Length; k++) if (a.alpha[k - 1] >= 0.25f) kMax = k;
                 CardText.Bullet(lines, Tint("Resonance", Red) + "  " + r.worstBay + " reaches " + Num(r.worstAccelerationG, "0.00") + " g under " + r.worstActivity.ToLowerInvariant() + " (limit " + Num(r.worstLimitG, "0.00") + "). Only a deck above " +
@@ -1057,9 +1058,8 @@ namespace Sportify.Simulation.Dynamics
             }
             else CardText.Bullet(lines, Tint("Resonance", Good) + "  No bay exceeds its comfort limit.");
             CardText.Bullet(lines, Tint("Crowds", Amber) + "  The people are " + Num(s.crowdSharePercent, "0.#") + "% of the load: the build-ups decide the balance, not the crowd.");
-            if (r.estimated) CardText.Bullet(lines, Tint("Frequency", Muted) + "  The deck's frequency is an estimate: enter the engineer's figure in the Site tab.");
-            if (w.snow.zoneAssumed || w.snow.altitudeAssumed) CardText.Bullet(lines, Tint("Snow", Muted) + "  Zone " + w.snow.zone + " at " + Num(w.snow.altitudeM, "0") + " m is assumed: set the site's snow zone and altitude.");
-            if (s.capacityAssumed) CardText.Bullet(lines, Tint("Capacity", Muted) + "  " + Num(_run.Static.summary.capacityKnM2, "0.#") + " kN/m2 is a placeholder: enter the engineer's figure.");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Site tab, or the window Revit opens before the analysis).");
+            else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             _hud.ShowCard("What to change", Color.white, "Screening result: the results file lists every number and assumption", lines);
         }
 

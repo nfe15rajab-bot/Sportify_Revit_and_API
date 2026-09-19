@@ -15,7 +15,7 @@ namespace SportfyRevit
     /// Four panels, matching the project's own scope split rather than
     /// "whatever's been built so far": App & Data Import (getting a layout
     /// into Revit), Analysis (rule/geometry checks — no engine involved),
-    /// Unity Based Analysis (checks that specifically need a physics/
+    /// Physical Analysis (Unity based) (checks that specifically need a physics/
     /// rendering engine — real rigidbody/particle simulation, not just a
     /// calculation), and Data Export / Deliverables (getting results back
     /// out). Most Unity/Export buttons are still placeholders for features
@@ -65,10 +65,6 @@ namespace SportfyRevit
             var analysisPanel = application.CreateRibbonPanel(TabName, "Analysis");
             AddButton(analysisPanel, "AnalyzeFireSafety", "Fire Safety\nAnalysis", typeof(AnalyzeFireSafetyCommand),
                 "Checks evacuation travel distance from every piece to its nearest entry point against a reference figure from Sportify.Api.");
-            AddButton(analysisPanel, "AnalyzeWaterManagement", "Water Mgmt\nAnalysis", typeof(AnalyzeWaterManagementCommand),
-                "Estimates rainwater retention from garden coverage and buildup depth in the synced layout.");
-            AddButton(analysisPanel, "AnalyzeLiveLoads", "Live Loads\nAnalysis", typeof(AnalyzeLiveLoadsCommand),
-                "Illustrative estimate: converts each field's spectator capacity into a distributed load and compares it to a generic DIN EN 1991-1-1 reference value.");
             AddButton(analysisPanel, "AnalyzeCarbonImpact", "Carbon Impact\nAnalysis", typeof(AnalyzeCarbonImpactCommand),
                 "Illustrative kinetic-to-electrical energy-harvesting ceiling across active playing surface, assuming piezoelectric-capable flooring.");
             AddButton(analysisPanel, "AnalyzeSunAndShading", "Sun & Shading\nAnalysis", typeof(AnalyzeSunAndShadingCommand),
@@ -83,13 +79,13 @@ namespace SportfyRevit
             // than a rule check or calculation, which is what sets it apart from the
             // plain Analysis panel — see the project notes on why each of these was
             // judged a genuine Unity fit and the rest weren't.
-            var unityAnalysisPanel = application.CreateRibbonPanel(TabName, "Unity Based Analysis");
+            var unityAnalysisPanel = application.CreateRibbonPanel(TabName, "Physical Analysis (Unity based)");
             AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
                 "Runs the current layout through Sportify.Simulation (Unity): stray shots from every placed court, checking crossings into neighboring courts, the roof edge and circulation space. Records the flights as an MP4 video, and works out what share of shots leave the roof and where fences should go. Takes ~30-90s — Revit will be unresponsive while it runs. Close the Unity Editor first if it has Sportify.Simulation open.");
             AddButton(unityAnalysisPanel, "AnalyzeStructuralLoads", "Structural\nLoads", typeof(AnalyzeStructuralLoadsCommand),
-                "Static loads on the roof structure: pulls the structural grid and columns from the Revit model (with Push Roof), adds up the weight of the build-ups, courts, trees and the expected crowds bay by bay, and shows which bays are most loaded against the deck capacity and whether the load sits to one side, with the move or lightening that would balance it. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders). The deck capacity is a placeholder until the structural engineer's figure is entered in the Combine tab.");
+                "Static loads on the roof structure: pulls the structural grid and columns from the Revit model (with Push Roof), adds up the weight of the build-ups, courts, trees and the expected crowds bay by bay, and shows which bays are most loaded against the deck capacity and whether the load sits to one side, with the move or lightening that would balance it. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders). Before it runs, a window asks for the values the layout cannot know (the deck capacity, above all): enter your own or accept the built-in one knowingly; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Site tab.");
             AddButton(unityAnalysisPanel, "AnalyzeDynamicLoads", "Dynamic\nAnalysis", typeof(AnalyzeDynamicLoadsCommand),
-                "The dynamic half of the structural analysis, in three scenarios one after the other: (1) crowds - how people move over the roof through a day and how much they weigh where; (2) weather - a cloudburst soaking the green roofs, snow and wind as load cases with the crowd, and the governing case of every bay; (3) resonance - the deck's natural frequency and what walking, court play or a jumping crowd does to it, ending on the frequency spectrum and the vibrating deck. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about two minutes, Revit unresponsive while it renders). The deck's frequency is estimated from the spans, the snow zone is assumed and the day is a generic sports day until you set them in the Site tab.");
+                "The dynamic half of the structural analysis, in three scenarios one after the other: (1) crowds - how people move over the roof through a day and how much they weigh where; (2) weather - a cloudburst soaking the green roofs, snow and wind as load cases with the crowd, and the governing case of every bay; (3) resonance - the deck's natural frequency and what walking, court play or a jumping crowd does to it, ending on the frequency spectrum and the vibrating deck. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about two minutes, Revit unresponsive while it renders). Before it runs, a window asks for the values the layout cannot know (deck capacity, natural frequency, snow zone and altitude, the day's schedule, the comfort limits): enter your own or accept the built-in ones knowingly, each with its source; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Site tab.");
             AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
                 "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
             AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),

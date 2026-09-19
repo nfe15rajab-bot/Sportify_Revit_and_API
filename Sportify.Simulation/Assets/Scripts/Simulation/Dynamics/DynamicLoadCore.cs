@@ -42,6 +42,8 @@ namespace Sportify.Simulation.Dynamics
         public double? AltitudeM;                // of the site above sea level; null = not given
         public string Schedule;                  // "sports_day" | "event_day" | "community_day"; null = sports_day
         public double? NaturalFrequencyHz;       // the engineer's first natural frequency of the deck; null = estimate from the spans
+        public double? WalkingLimitG;            // comfort limits the designer set, in g; null = the built-in ones
+        public double? RhythmicLimitG;
     }
 
     // ------------------------------------------------------------------------ the day
@@ -267,6 +269,9 @@ namespace Sportify.Simulation.Dynamics
         public float worstAccelerationG, worstResonanceRatio;
         public int baysResonanceExceeding, baysOverCapacity;
         public bool frequencyEstimated, snowAssumed, capacityAssumed;
+        public bool preliminary;                        // some input is still a built-in value nobody confirmed
+        public string preliminaryNote = "";             // which ones, for the top of a video and a dialog
+        public string acceptedNote = "";                // which built-in values the designer accepted
     }
 
     [Serializable]
@@ -274,6 +279,7 @@ namespace Sportify.Simulation.Dynamics
     {
         public bool ran;
         public List<string> assumptions = new List<string>();
+        public List<AssumptionUse> assumptionUses = new List<AssumptionUse>();   // the inputs behind the numbers and whether the designer confirmed them
         public DynamicSummary summary = new DynamicSummary();
         public CrowdReport crowd = new CrowdReport();
         public WeatherReport weather = new WeatherReport();
@@ -515,15 +521,24 @@ namespace Sportify.Simulation.Dynamics
         public const double PersonN = 90.0 * 9.81;
         public const double FpStepHz = 0.05;
 
-        public static readonly ActivityDef[] Activities = MakeActivities();
+        /// <summary>The activities with the built-in comfort limits.</summary>
+        public static readonly ActivityDef[] Activities = MakeActivities(AnalysisAssumptions.DefaultComfortWalkingG, AnalysisAssumptions.DefaultComfortRhythmicG);
 
-        static ActivityDef[] MakeActivities()
+        /// <summary>The activities with the designer's comfort limits where they set them, else the built-in ones.</summary>
+        public static ActivityDef[] ActivitiesFor(DynamicInputs inputs)
+        {
+            var w = inputs.WalkingLimitG.HasValue && inputs.WalkingLimitG.Value > 0 ? inputs.WalkingLimitG.Value : AnalysisAssumptions.DefaultComfortWalkingG;
+            var r = inputs.RhythmicLimitG.HasValue && inputs.RhythmicLimitG.Value > 0 ? inputs.RhythmicLimitG.Value : AnalysisAssumptions.DefaultComfortRhythmicG;
+            return MakeActivities(w, r);
+        }
+
+        static ActivityDef[] MakeActivities(double walkingLimitG, double rhythmicLimitG)
         {
             return new[]
             {
-                new ActivityDef { key = "walking", name = "Walking", description = "People walking about the roof, not in step", fpLowHz = 1.6f, fpHighHz = 2.4f, limitG = 0.02f, sync = 0f, contactRatio = 0f, alpha = new[] { 0.4f, 0.1f, 0.1f, 0f } },
-                new ActivityDef { key = "play", name = "Court play", description = "Players and spectators moving on the courts and play areas", fpLowHz = 1.5f, fpHighHz = 3.0f, limitG = 0.05f, sync = 0.2f, contactRatio = 0.5f, alpha = FourierAlphas(0.5, 4) },
-                new ActivityDef { key = "event", name = "Jumping event", description = "A crowd jumping to a beat on the courts and play areas (a full-house celebration), 0.25 people per m2", fpLowHz = 1.5f, fpHighHz = 2.8f, limitG = 0.05f, sync = 0.6f, contactRatio = 1f / 3f, alpha = FourierAlphas(1.0 / 3.0, 4) },
+                new ActivityDef { key = "walking", name = "Walking", description = "People walking about the roof, not in step", fpLowHz = 1.6f, fpHighHz = 2.4f, limitG = (float)walkingLimitG, sync = 0f, contactRatio = 0f, alpha = new[] { 0.4f, 0.1f, 0.1f, 0f } },
+                new ActivityDef { key = "play", name = "Court play", description = "Players and spectators moving on the courts and play areas", fpLowHz = 1.5f, fpHighHz = 3.0f, limitG = (float)rhythmicLimitG, sync = 0.2f, contactRatio = 0.5f, alpha = FourierAlphas(0.5, 4) },
+                new ActivityDef { key = "event", name = "Jumping event", description = "A crowd jumping to a beat on the courts and play areas (a full-house celebration), 0.25 people per m2", fpLowHz = 1.5f, fpHighHz = 2.8f, limitG = (float)rhythmicLimitG, sync = 0.6f, contactRatio = 1f / 3f, alpha = FourierAlphas(1.0 / 3.0, 4) },
             };
         }
 
@@ -614,8 +629,10 @@ namespace Sportify.Simulation.Dynamics
             report.crowd = AnalyseCrowd(inputs, run);
             report.weather = AnalyseWeather(inputs, run, report.crowd);
             report.resonance = AnalyseResonance(inputs, run);
+            report.assumptionUses = DescribeInputs(inputs, report, run);
             Summarise(inputs, report);
             report.assumptions = Assumptions(inputs, report);
+            report.assumptions.AddRange(AnalysisAssumptions.Lines(report.assumptionUses));
             Recommend(inputs, report, run);
             return report;
         }
@@ -1076,7 +1093,8 @@ namespace Sportify.Simulation.Dynamics
                 estimated = !given, dampingRatio = (float)Damping, youngGPa = (float)YoungGPa,
                 bandLow = given ? 1f : (float)BandLow, bandHigh = given ? 1f : (float)BandHigh,
             };
-            rr.activities.AddRange(Activities);
+            var activities = ActivitiesFor(inputs);
+            rr.activities.AddRange(activities);
 
             var worstRatio = -1.0;
             BayResonance worstBay = null;
@@ -1104,7 +1122,7 @@ namespace Sportify.Simulation.Dynamics
                 foreach (var it in st.Items)
                     if ((it.Kind == LoadKind.Court || it.Kind == LoadKind.Activity) && it.Persons > 0) hostArea += OverlapArea(it, bay);
 
-                foreach (var a in Activities)
+                foreach (var a in activities)
                 {
                     double n;
                     if (a.key == "walking") n = run.PeakBayPersons[b];
@@ -1165,7 +1183,7 @@ namespace Sportify.Simulation.Dynamics
 
                 // the spectrum: the worst bay's loading against every deck frequency, for each activity
                 rr.spectrumFromHz = 2f; rr.spectrumStepHz = 0.1f;
-                foreach (var a in Activities)
+                foreach (var a in activities)
                 {
                     var resp = worstBay.activities.First(x => x.activity == a.name);
                     var curve = new SpectrumCurve { activity = a.name, accelerationG = new float[101] };
@@ -1220,7 +1238,32 @@ namespace Sportify.Simulation.Dynamics
                 frequencyEstimated = r.resonance.estimated, snowAssumed = r.weather.snow.zoneAssumed || r.weather.snow.altitudeAssumed,
                 capacityAssumed = !inputs.Structure.CapacityKnM2.HasValue,
                 capacityKnM2 = (float)(inputs.Structure.CapacityKnM2 ?? StructureModel.DefaultCapacityKnM2),
+                preliminary = AnalysisAssumptions.IsPreliminary(r.assumptionUses),
+                preliminaryNote = AnalysisAssumptions.PreliminaryNote(r.assumptionUses),
+                acceptedNote = AnalysisAssumptions.AcceptedNote(r.assumptionUses),
             };
+        }
+
+        /// <summary>The inputs behind the dynamic numbers, each with whether the designer entered it, accepted the built-in value, or did neither.</summary>
+        static List<AssumptionUse> DescribeInputs(DynamicInputs inputs, DynamicReport r, DynamicRun run)
+        {
+            var acc = inputs.Structure.AcceptedAssumptions;
+            var uses = new List<AssumptionUse>();
+            uses.AddRange(run.Static.assumptionUses);   // the deck capacity
+            var f = r.resonance;
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.NaturalFrequency, !f.estimated,
+                f.estimated ? "estimated, " + F1(f.lowestFrequencyHz) + " to " + F1(f.highestFrequencyHz) + " Hz" : F1(inputs.NaturalFrequencyHz.Value) + " Hz", acc));
+            var snow = r.weather.snow;
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.SnowZone, !snow.zoneAssumed, "zone " + snow.zone, acc));
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.Altitude, !snow.altitudeAssumed, F0(snow.altitudeM) + " m", acc));
+            var sched = DaySchedule.Get(inputs.Schedule);
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.DaySchedule, !string.IsNullOrWhiteSpace(inputs.Schedule), sched.Name.ToLowerInvariant(), acc));
+            var acts = f.activities;
+            var walking = acts.First(a => a.key == "walking").limitG;
+            var rhythmic = acts.First(a => a.key == "play").limitG;
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.ComfortWalking, inputs.WalkingLimitG.HasValue && inputs.WalkingLimitG.Value > 0, F2(walking) + " g", acc));
+            uses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.ComfortRhythmic, inputs.RhythmicLimitG.HasValue && inputs.RhythmicLimitG.Value > 0, F2(rhythmic) + " g", acc));
+            return uses;
         }
 
         static void Recommend(DynamicInputs inputs, DynamicReport r, DynamicRun run)
@@ -1267,7 +1310,7 @@ namespace Sportify.Simulation.Dynamics
                     scenario = "weather", kind = "rain", target = "Green roofs",
                     text = "A " + F0(RainIntensityMmH) + " mm/h cloudburst adds up to " + F0(w.rain.peakAddedKn) + " kN of water to the build-ups by minute " + F0(w.rain.peakAtMin) + " (" + F0(w.rain.peakKn) + " kN in all; saturated: " + F0(w.rain.saturatedKn) + " kN).",
                 });
-            if (w.snow.zoneAssumed || w.snow.altitudeAssumed)
+            if (Open(r, AnalysisAssumptions.SnowZone) || Open(r, AnalysisAssumptions.Altitude))
                 recs.Add(new DynamicRecommendation
                 {
                     scenario = "weather", kind = "snow-input", target = "Snow zone",
@@ -1278,7 +1321,7 @@ namespace Sportify.Simulation.Dynamics
             // resonance
             if (res.worstRatio > 1.0)
             {
-                var a = Activities.First(x => x.name == res.worstActivity);
+                var a = res.activities.First(x => x.name == res.worstActivity);
                 var kMax = 1;
                 for (var k = 1; k <= a.alpha.Length; k++) if (a.alpha[k - 1] >= 0.25f) kMax = k;   // the harmonics that carry weight
                 var clearHz = a.fpHighHz * kMax;
@@ -1296,18 +1339,24 @@ namespace Sportify.Simulation.Dynamics
                     scenario = "resonance", kind = "fine", target = "All bays",
                     text = "No bay exceeds its comfort limit under the crowd activities checked; the closest is " + res.worstBay + " under " + (res.worstActivity ?? "").ToLowerInvariant() + " at " + F0(res.worstRatio * 100) + "% of the limit.",
                 });
-            if (res.estimated)
+            if (res.estimated && Open(r, AnalysisAssumptions.NaturalFrequency))
                 recs.Add(new DynamicRecommendation
                 {
                     scenario = "resonance", kind = "frequency-input", target = "Natural frequency",
                     text = "The deck's frequency is an ESTIMATE from the spans (" + F1(res.lowestFrequencyHz) + " to " + F1(res.highestFrequencyHz) + " Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Site tab before relying on this.",
                 });
-            if (!inputs.Structure.CapacityKnM2.HasValue)
+            if (Open(r, AnalysisAssumptions.DeckCapacity))
                 recs.Add(new DynamicRecommendation
                 {
                     scenario = "general", kind = "capacity-input", target = "Deck capacity",
                     text = "The deck capacity (" + F1(run.Static.summary.capacityKnM2) + " kN/m2) is a placeholder: enter the structural engineer's figure.",
                 });
+        }
+
+        /// <summary>True while an input is still a built-in value nobody confirmed (neither entered nor accepted).</summary>
+        static bool Open(DynamicReport r, string key)
+        {
+            return r.assumptionUses.Any(u => u.key == key && u.state == AnalysisAssumptions.Unconfirmed);
         }
 
         static List<string> Assumptions(DynamicInputs inputs, DynamicReport r)
@@ -1323,7 +1372,7 @@ namespace Sportify.Simulation.Dynamics
                     " m, times " + F1(SnowShapeCoefficient) + " (flat roof); no drifting or sliding. Wind: the wind analysis's roof zones and peak pressure, the direction that lifts a bay most. Event in winter: EN 1990 combination values " + F1(PsiCrowd) + " (crowd) and " + F1(PsiSnow) + " (snow).",
                 "Resonance: each bay is one simply supported strip along its long span, depth span/" + F0(SpanToDepth) + " (" + F2(MinDepthM) + " to " + F2(MaxDepthM) + " m), E = " + F0(YoungGPa) + " GPa, damping " + F2(Damping) + "; " +
                     (r.resonance.estimated ? "the natural frequency is ESTIMATED from that (good to about 25%), and the response is the worst over that band" : "the natural frequency is the engineer's figure") + ". The crowd drives the harmonics of its rhythm with the dynamic load factors of a half-sine pulse train (jumping: contact ratio 1/3 gives 1.8, 1.29, 0.67; Bachmann and Ammann) or walking 0.4, 0.1, 0.1; " +
-                    "participants add as sync x N + (1 - sync) x sqrt(N) with sync 0 (walking), 0.2 (court play), 0.6 (event). A jumping event is 0.25 people per m2 on the courts and play areas only (planted gardens carry walkers, not a jumping crowd). Steady-state response; acceleration limits " + F2(0.02) + " g (walking) and " + F2(0.05) + " g (rhythmic activities) are the author's.",
+                    "participants add as sync x N + (1 - sync) x sqrt(N) with sync 0 (walking), 0.2 (court play), 0.6 (event). A jumping event is 0.25 people per m2 on the courts and play areas only (planted gardens carry walkers, not a jumping crowd). Steady-state response; acceleration limits " + F2(r.resonance.activities.First(a => a.key == "walking").limitG) + " g (walking) and " + F2(r.resonance.activities.First(a => a.key == "play").limitG) + " g (rhythmic activities): see the inputs below for whose they are.",
                 "Capacity: " + F1(r.summary.capacityAssumed ? StructureModel.DefaultCapacityKnM2 : inputs.Structure.CapacityKnM2.Value) + " kN/m2" + (r.summary.capacityAssumed ? " (a PLACEHOLDER: enter the engineer's figure)." : "."),
             };
         }

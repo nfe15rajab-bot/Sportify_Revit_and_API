@@ -4,6 +4,8 @@ using Sportify.Simulation.Structure;
 
 // usage: StructuralCheck <layout.json> [--json]
 // Prints a summary of the structural load report for the layout (or the whole report as JSON), then runs the checks that must hold whatever the constants.
+// StructuralCheck --assumptions-json prints the register of analysis assumptions (Tools/StructuralCheck/assumptions-parity.js compares it with the web app copy)
+if (args.Length > 0 && args[0] == "--assumptions-json") { Console.WriteLine(AnalysisAssumptions.ToJson()); return 0; }
 var layoutPath = args[0];
 var layout = JsonSerializer.Deserialize<SportifyLayout>(File.ReadAllText(layoutPath))!;
 var inputs = StructureLayoutAdapter.ToInputs(layout);

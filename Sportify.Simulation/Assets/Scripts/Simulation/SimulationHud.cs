@@ -46,7 +46,9 @@ namespace Sportify.Simulation
         readonly int _widthPx, _heightPx;
         readonly float _worldPerPx;
 
-        readonly TextMesh _title, _caseStudy, _clock, _counts, _feed, _legend;
+        readonly TextMesh _title, _caseStudy, _clock, _counts, _feed, _legend, _preliminary;
+        readonly GameObject _preliminaryBar;
+        readonly int _preliminaryChars;
         readonly GameObject _card;
         readonly TextMesh _cardHead, _cardSub, _cardBody;
 
@@ -81,6 +83,15 @@ namespace Sportify.Simulation
 
             _feed = Text("Feed", 22f, TextAnchor.LowerLeft, TextAlignment.Left, -widthPx * 0.5f + m, -heightPx * 0.5f + 26f, Ink, OrderHudText);
             _legend = Text("Legend", 19f, TextAnchor.LowerRight, TextAlignment.Right, widthPx * 0.5f - m, -heightPx * 0.5f + 22f, Muted, OrderHudText);
+
+            // A strip under the top bar for a warning that has to stay on screen in every scene (a result that rests on unconfirmed inputs).
+            var stripW = widthPx - 300f;
+            Bar("PreliminaryBar", -150f, heightPx * 0.5f - 124f - 34f, stripW, 68f, new Color(1f, 0.78f, 0.14f, 0.93f), OrderBar);
+            _preliminaryBar = _root.Find("PreliminaryBar").gameObject;
+            _preliminary = Text("Preliminary", 21f, TextAnchor.UpperLeft, TextAlignment.Left, -widthPx * 0.5f + m, heightPx * 0.5f - 124f - 8f, new Color(0.10f, 0.07f, 0.0f), OrderHudText);
+            _preliminaryChars = Mathf.Max(40, (int)((stripW - 2f * m) / (21f * 0.55f)));
+            _preliminaryBar.SetActive(false);
+            _preliminary.gameObject.SetActive(false);
 
             // The four shots every court gets always play the same roles, whatever the sport.
             if (shotLegend) _legend.text =
@@ -152,6 +163,33 @@ namespace Sportify.Simulation
         public void HideWindArrow()
         {
             _arrowPanel.SetActive(false);
+        }
+
+        /// <summary>Shows a warning strip under the top bar in every scene (two lines at most); an empty text hides it.</summary>
+        public void SetPreliminary(string text)
+        {
+            var on = !string.IsNullOrEmpty(text);
+            _preliminaryBar.SetActive(on);
+            _preliminary.gameObject.SetActive(on);
+            if (!on) return;
+
+            var lines = new List<string>();
+            var rest = text;
+            while (rest.Length > 0 && lines.Count < 2)
+            {
+                if (rest.Length <= _preliminaryChars) { lines.Add(rest); rest = ""; break; }
+                var cut = rest.LastIndexOf(' ', _preliminaryChars);
+                if (cut <= 0) cut = _preliminaryChars;
+                lines.Add(rest.Substring(0, cut));
+                rest = rest.Substring(cut).TrimStart();
+            }
+            if (rest.Length > 0) lines[lines.Count - 1] = lines[lines.Count - 1].TrimEnd('.', ' ') + "...";
+            _preliminary.text = "<b>" + string.Join("\n", lines) + "</b>";
+
+            // the strip is as tall as its lines
+            var stripPx = 16f + 28f * lines.Count;
+            _preliminaryBar.transform.localScale = new Vector3((_widthPx - 300f) * _worldPerPx, stripPx * _worldPerPx, 1f);
+            _preliminaryBar.transform.localPosition = new Vector3(-150f * _worldPerPx, (_heightPx * 0.5f - 124f - stripPx * 0.5f) * _worldPerPx, DistanceM + 0.06f);
         }
 
         public void SetLegend(IList<string> lines)

@@ -80,6 +80,7 @@ namespace Sportify.Simulation.Structure
         public List<double[]> Columns = new List<double[]>();                     // {x, y}
         public string GridSource = "";                                            // "revit" | "manual" | ""
         public double? CapacityKnM2;
+        public List<string> AcceptedAssumptions = new List<string>();             // keys (AnalysisAssumptions) whose built-in value the designer accepted
         public List<LoadItem> Items = new List<LoadItem>();
         public List<PathInput> Paths = new List<PathInput>();
         public List<double[]> Entries = new List<double[]>();
@@ -180,6 +181,10 @@ namespace Sportify.Simulation.Structure
         public float meanKnM2, peakBayKnM2;
         public float capacityKnM2;
         public bool capacityAssumed;
+        public bool capacityAccepted;             // the designer accepted the built-in capacity
+        public bool preliminary;                  // some input is still a built-in value nobody confirmed
+        public string preliminaryNote = "";       // which ones, for the top of a video and a dialog
+        public string acceptedNote = "";          // which built-in values the designer accepted
         public string gridSource;
         public bool gridAssumed;
         public int baysChecked, baysOver, baysMarginal;
@@ -195,6 +200,7 @@ namespace Sportify.Simulation.Structure
     {
         public bool ran;
         public List<string> assumptions = new List<string>();
+        public List<AssumptionUse> assumptionUses = new List<AssumptionUse>();   // the inputs behind the numbers and whether the designer confirmed them
         public StructureSummary summary = new StructureSummary();
         public BalanceResult balance = new BalanceResult();
         public List<BayResult> bays = new List<BayResult>();
@@ -601,6 +607,8 @@ namespace Sportify.Simulation.Structure
             var capacityAssumed = !inputs.CapacityKnM2.HasValue;
             var capacity = inputs.CapacityKnM2 ?? DefaultCapacityKnM2;
             report.assumptions.AddRange(Assumptions(capacity, capacityAssumed, gridAssumed, inputs.GridSource));
+            report.assumptionUses.Add(AnalysisAssumptions.Use(AnalysisAssumptions.DeckCapacity, !capacityAssumed, F1(capacity) + " kN/m2", inputs.AcceptedAssumptions));
+            report.assumptions.AddRange(AnalysisAssumptions.Lines(report.assumptionUses));
             report.assumptions.AddRange(inputs.Notes);
 
             // ---- bays: each cell splits over the bays it overlaps, by area
@@ -730,6 +738,10 @@ namespace Sportify.Simulation.Structure
                 meanKnM2 = (float)((totalDead + totalLive) / roofArea),
                 peakBayKnM2 = report.bays.Max(b => b.totalKnM2),
                 capacityKnM2 = (float)capacity, capacityAssumed = capacityAssumed,
+                capacityAccepted = report.assumptionUses[0].state == AnalysisAssumptions.Accepted,
+                preliminary = AnalysisAssumptions.IsPreliminary(report.assumptionUses),
+                preliminaryNote = AnalysisAssumptions.PreliminaryNote(report.assumptionUses),
+                acceptedNote = AnalysisAssumptions.AcceptedNote(report.assumptionUses),
                 gridSource = gridAssumed ? "assumed regular " + F1(AssumedBayM) + " m grid" : (string.IsNullOrEmpty(inputs.GridSource) ? "given with the layout" : inputs.GridSource),
                 gridAssumed = gridAssumed,
                 baysChecked = report.bays.Count,
@@ -902,7 +914,7 @@ namespace Sportify.Simulation.Structure
                     target = bay.label,
                     text = bay.label + (string.IsNullOrEmpty(bay.gridNames) ? "" : " (" + bay.gridNames + ")") + " carries " + F1(bay.totalKnM2) + " kN/m2 against a capacity of " +
                            F1(capacity) + " (" + F0(bay.utilisation * 100) + "%)" + (string.IsNullOrEmpty(bay.topContributor) ? "" : ", most of it from " + bay.topContributor) +
-                           ". " + (fit == "" ? "Lighten what stands there, " : fit) + "move it to a lighter bay or have the deck checked" + (s.capacityAssumed ? " (the capacity is a placeholder: enter the engineer's figure)" : "") + ".",
+                           ". " + (fit == "" ? "Lighten what stands there, " : fit) + "move it to a lighter bay or have the deck checked" + (s.capacityAssumed ? (s.capacityAccepted ? " (the capacity is the built-in assumption you accepted, not the engineer's figure)" : " (the capacity is a placeholder: enter the engineer's figure)") : "") + ".",
                 });
             }
 

@@ -31,51 +31,59 @@ namespace SportfyRevit
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
             var usingBundledSample = false;
 
             var haveUnity = UnityHeadlessRunner.TryLocate(out var unity, out _);
 
-            if (layoutJson == null)
+            if (baseJson == null)
             {
-                if (haveUnity) layoutJson = UnityHeadlessRunner.ReadBundledSample(unity!, BundledSampleFile);
-                usingBundledSample = layoutJson != null;
-                if (layoutJson == null)
+                if (haveUnity) baseJson = UnityHeadlessRunner.ReadBundledSample(unity!, BundledSampleFile);
+                usingBundledSample = baseJson != null;
+                if (baseJson == null)
                 {
                     message = "No layout to analyse yet. Import or push a layout from the Sportify web app first (Combine tab).";
                     return Result.Failed;
                 }
             }
 
-            StructureInputs inputs;
-            try
+            var review = false;
+            while (true)
             {
-                var layout = JsonSerializer.Deserialize<SportifyLayout>(layoutJson)
-                             ?? throw new InvalidOperationException("The layout was empty.");
-                inputs = StructureLayoutAdapter.ToInputs(layout);
-            }
-            catch (Exception ex)
-            {
-                message = $"Couldn't read the layout: {ex.Message}";
-                return Result.Failed;
-            }
+                // The values the analysis rests on that the layout cannot know: entered, accepted or left unconfirmed (which the results then say).
+                var prepared = AnalysisAssumptionsDialog.Prepare(baseJson, "structural", DialogTitle, commandData.Application.MainWindowHandle, review);
+                if (prepared.Cancelled) return Result.Cancelled;
+                var layoutJson = prepared.Json;
 
-            if (inputs.Items.Count == 0)
-            {
-                TaskDialog.Show(DialogTitle, "The layout has nothing that weighs on the roof yet (no sports field, activity, green-roof zone or tree). Place something in the Combine tab first.");
-                return Result.Cancelled;
-            }
+                StructureInputs inputs;
+                try
+                {
+                    var layout = JsonSerializer.Deserialize<SportifyLayout>(layoutJson)
+                                 ?? throw new InvalidOperationException("The layout was empty.");
+                    inputs = StructureLayoutAdapter.ToInputs(layout);
+                }
+                catch (Exception ex)
+                {
+                    message = $"Couldn't read the layout: {ex.Message}";
+                    return Result.Failed;
+                }
 
-            var report = StructureModel.Analyse(inputs);
-            var caseStudy = CaseStudy(inputs, report);
-            AnalysisResultPublisher.PublishStructuralLoads(BuildPublishedResult(report, caseStudy, null));
+                if (inputs.Items.Count == 0)
+                {
+                    TaskDialog.Show(DialogTitle, "The layout has nothing that weighs on the roof yet (no sports field, activity, green-roof zone or tree). Place something in the Combine tab first.");
+                    return Result.Cancelled;
+                }
 
-            var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
-            if (!ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree))
+                var report = StructureModel.Analyse(inputs);
+                var caseStudy = CaseStudy(inputs, report);
+                AnalysisResultPublisher.PublishStructuralLoads(BuildPublishedResult(report, caseStudy, null));
+
+                var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
+                var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
+                if (choice == SummaryChoice.Review) { review = true; continue; }
+                if (choice == SummaryChoice.Video) RenderVideo(unity!, layoutJson, report, caseStudy);
                 return Result.Succeeded;
-
-            RenderVideo(unity!, layoutJson, report, caseStudy);
-            return Result.Succeeded;
+            }
         }
 
         internal static string CaseStudy(StructureInputs inputs, StructureReport report)
@@ -85,18 +93,20 @@ namespace SportfyRevit
 
         // ------------------------------------------------------------------ dialogs
 
-        static bool ShowSummary(StructureReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
+        static SummaryChoice ShowSummary(StructureReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
             var s = report.summary;
             var b = report.balance;
             var body = new StringBuilder();
             if (usingBundledSample)
                 body.AppendLine("No layout imported into this Revit session yet — analysed Unity's bundled roof-garden sample instead.").AppendLine();
+            if (s.preliminary)
+                body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
             body.AppendLine($"{s.deadKn:0} kN permanent + {s.liveKn:0} kN imposed = {s.totalKn:0} kN on {s.roofAreaM2:0} m² ({s.meanKnM2:0.0} kN/m² on average, {s.peakBayKnM2:0.0} in the most loaded bay).");
-            body.AppendLine($"Deck capacity {s.capacityKnM2:0.#} kN/m²" + (s.capacityAssumed ? " — a PLACEHOLDER: enter the structural engineer's figure in the Combine tab." : "."));
+            body.AppendLine($"Deck capacity {s.capacityKnM2:0.#} kN/m²" + (!s.capacityAssumed ? " (entered)." : s.capacityAccepted ? " — the built-in value, accepted (not the structural engineer's figure)." : " — a PLACEHOLDER, not confirmed: enter the structural engineer's figure in the Site tab, or accept the built-in value."));
             body.AppendLine();
-            body.AppendLine($"Bays: {s.baysOver} of {s.baysChecked} over capacity, {s.baysMarginal} marginal; most loaded {s.worstBay} at {s.peakUtilisation * 100:0}%.");
+            body.AppendLine($"Bays: {s.baysOver} of {s.baysChecked} over the {(s.capacityAssumed ? "assumed " : "")}capacity, {s.baysMarginal} marginal; most loaded {s.worstBay} at {s.peakUtilisation * 100:0}%.");
             if (s.columnsChecked > 0)
                 body.AppendLine($"Columns: {s.columnsHigh} of {s.columnsChecked} take more than {StructureModel.ColumnHighFactor:0.#}× the average.");
             body.AppendLine($"People expected: about {s.expectedPersons:0}; {s.busiestBaysSharePercent:0}% of them in the busiest fifth of the bays.");
@@ -120,10 +130,12 @@ namespace SportfyRevit
 
             var dialog = new TaskDialog(DialogTitle)
             {
-                MainInstruction = s.baysOver > 0 ? $"{s.baysOver} bay(s) carry more than the deck capacity"
-                                : b.status != "balanced" ? "The load sits to one side of the roof"
-                                : "No bay is over capacity and the load is balanced",
+                MainInstruction = (s.preliminary ? "PRELIMINARY: " : "") +
+                                  (s.baysOver > 0 ? $"{s.baysOver} bay(s) carry more than the {(s.capacityAssumed ? "assumed " : "")}deck capacity"
+                                  : b.status != "balanced" ? "The load sits to one side of the roof"
+                                  : "No bay is over capacity and the load is balanced"),
                 MainContent = body.ToString(),
+                ExpandedContent = "Inputs used:\n" + AnalysisAssumptionsPatcher.DescribeInputs(report.assumptionUses),
                 CommonButtons = TaskDialogCommonButtons.Close,
                 DefaultButton = TaskDialogResult.Close,
             };
@@ -131,8 +143,11 @@ namespace SportfyRevit
             if (unityFree)
                 dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
                     "About a minute; Revit is unresponsive while it renders.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Review the assumptions, then run again",
+                s.preliminary ? "Enter the deck capacity, or accept the built-in value, to lift the PRELIMINARY mark." : "Change the deck capacity or how the built-in value is treated.");
 
-            return dialog.Show() == TaskDialogResult.CommandLink1;
+            var result = dialog.Show();
+            return result == TaskDialogResult.CommandLink1 ? SummaryChoice.Video : result == TaskDialogResult.CommandLink2 ? SummaryChoice.Review : SummaryChoice.Close;
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, StructureReport report, string caseStudy)
@@ -223,6 +238,9 @@ namespace SportfyRevit
                 GridAssumed = s.gridAssumed,
                 DeckCapacityKnM2 = Math.Round(s.capacityKnM2, 2),
                 DeckCapacityAssumed = s.capacityAssumed,
+                Preliminary = s.preliminary,
+                PreliminaryNote = s.preliminaryNote,
+                Inputs = AssumptionUseDto.From(report.assumptionUses),
                 RoofAreaM2 = Math.Round(s.roofAreaM2, 1),
                 PermanentLoadKn = Math.Round(s.deadKn, 1),
                 ImposedLoadKn = Math.Round(s.liveKn, 1),
@@ -244,6 +262,7 @@ namespace SportfyRevit
                 {
                     Label = x.label,
                     GridNames = x.gridNames,
+                    X0M = Math.Round(x.x0, 2), X1M = Math.Round(x.x1, 2), Y0M = Math.Round(x.y0, 2), Y1M = Math.Round(x.y1, 2),
                     LoadKnM2 = Math.Round(x.totalKnM2, 2),
                     UtilisationPercent = Math.Round(x.utilisation * 100.0, 1),
                     Status = x.status,

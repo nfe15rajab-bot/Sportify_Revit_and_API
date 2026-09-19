@@ -232,5 +232,17 @@ namespace Sportify.Simulation
 
         // The structural grid and columns (pushed from Revit or drawn in the app); absent in older exports.
         public StructureData structure;
+
+        // Which built-in analysis assumptions the designer accepted, and the comfort limits they set; absent in older exports.
+        public AnalysisAssumptionsData analysis_assumptions;
+    }
+
+    /// <summary>What the designer decided about the analyses' built-in assumptions (see Structure/AnalysisAssumptions.cs). Limits: 0 = not set.</summary>
+    [Serializable]
+    public class AnalysisAssumptionsData
+    {
+        public string[] accepted;
+        public float comfort_limit_walking_g;
+        public float comfort_limit_rhythmic_g;
     }
 }

@@ -17,6 +17,7 @@ namespace SportfyRevit
             var site = layout.SiteConditions;
             var frequency = layout.Structure?.NaturalFrequencyHz;
             var snow = string.IsNullOrWhiteSpace(site?.SnowZone) ? null : site!.SnowZone!.Trim();
+            var assumptions = layout.AnalysisAssumptions;
 
             return new DynamicInputs
             {
@@ -27,6 +28,8 @@ namespace SportfyRevit
                 AltitudeM = site?.AltitudeM,
                 Schedule = string.IsNullOrWhiteSpace(site?.DaySchedule) ? null : site!.DaySchedule,
                 NaturalFrequencyHz = frequency is > 0 ? frequency : null,
+                WalkingLimitG = assumptions?.ComfortLimitWalkingG is > 0 ? assumptions.ComfortLimitWalkingG : null,
+                RhythmicLimitG = assumptions?.ComfortLimitRhythmicG is > 0 ? assumptions.ComfortLimitRhythmicG : null,
             };
         }
     }

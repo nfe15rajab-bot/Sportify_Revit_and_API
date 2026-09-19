@@ -70,6 +70,9 @@ namespace Sportify.Simulation.Structure
             }
 
             ReadStructure(payload.structure, inputs);
+            if (payload.analysis_assumptions != null && payload.analysis_assumptions.accepted != null)
+                foreach (var key in payload.analysis_assumptions.accepted)
+                    if (!string.IsNullOrEmpty(key) && !inputs.AcceptedAssumptions.Contains(key)) inputs.AcceptedAssumptions.Add(key);
             return inputs;
         }
 

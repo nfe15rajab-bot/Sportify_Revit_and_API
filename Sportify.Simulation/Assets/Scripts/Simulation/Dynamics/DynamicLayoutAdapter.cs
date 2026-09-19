@@ -1,3 +1,4 @@
+using System;
 using Sportify.Simulation.Structure;
 using Sportify.Simulation.Wind;
 
@@ -15,6 +16,7 @@ namespace Sportify.Simulation.Dynamics
             var site = payload.site_conditions;
             var snow = site != null && !string.IsNullOrWhiteSpace(site.snow_zone) ? site.snow_zone.Trim() : null;
             var frequency = payload.structure != null && payload.structure.natural_frequency_hz > 0f ? payload.structure.natural_frequency_hz : (double?)null;
+            var a = payload.analysis_assumptions;
 
             return new DynamicInputs
             {
@@ -25,6 +27,9 @@ namespace Sportify.Simulation.Dynamics
                 AltitudeM = site != null && site.altitude_set ? site.altitude_m : (double?)null,
                 Schedule = site != null && !string.IsNullOrWhiteSpace(site.day_schedule) ? site.day_schedule : null,
                 NaturalFrequencyHz = frequency,
+                // rounded so a float from Unity's JsonUtility reads as the same double the add-in parses from the text
+                WalkingLimitG = a != null && a.comfort_limit_walking_g > 0f ? Math.Round((double)a.comfort_limit_walking_g, 6) : (double?)null,
+                RhythmicLimitG = a != null && a.comfort_limit_rhythmic_g > 0f ? Math.Round((double)a.comfort_limit_rhythmic_g, 6) : (double?)null,
             };
         }
     }

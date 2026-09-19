@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sportify.Simulation.Structure;
 
 namespace SportfyRevit
 {
@@ -17,9 +18,7 @@ namespace SportfyRevit
     {
         [JsonPropertyName("fire_safety")] public FireSafetyResultDto? FireSafety { get; set; }
         [JsonPropertyName("accessibility")] public AccessibilityResultDto? Accessibility { get; set; }
-        [JsonPropertyName("water_management")] public WaterManagementResultDto? WaterManagement { get; set; }
         [JsonPropertyName("lca")] public LcaResultDto? Lca { get; set; }
-        [JsonPropertyName("live_loads")] public LiveLoadsResultDto? LiveLoads { get; set; }
         [JsonPropertyName("carbon_impact")] public CarbonImpactResultDto? CarbonImpact { get; set; }
         [JsonPropertyName("sun_and_shading")] public SunAndShadingResultDto? SunAndShading { get; set; }
         [JsonPropertyName("ball_trajectory")] public BallTrajectoryResultDto? BallTrajectory { get; set; }
@@ -45,26 +44,12 @@ namespace SportfyRevit
         [JsonPropertyName("min_width_m")] public double MinWidthM { get; set; }
     }
 
-    internal class WaterManagementResultDto
-    {
-        [JsonPropertyName("total_area_m2")] public double TotalAreaM2 { get; set; }
-        [JsonPropertyName("avg_depth_cm")] public double AvgDepthCm { get; set; }
-        [JsonPropertyName("retention_percent")] public double RetentionPercent { get; set; }
-    }
-
     internal class LcaResultDto
     {
         [JsonPropertyName("total_kg")] public double TotalKg { get; set; }
         [JsonPropertyName("covered_count")] public int CoveredCount { get; set; }
         [JsonPropertyName("missing_count")] public int MissingCount { get; set; }
         [JsonPropertyName("total_count")] public int TotalCount { get; set; }
-    }
-
-    internal class LiveLoadsResultDto
-    {
-        [JsonPropertyName("worst_case_kn_per_m2")] public double WorstCaseKnPerM2 { get; set; }
-        [JsonPropertyName("reference_kn_per_m2")] public double ReferenceKnPerM2 { get; set; }
-        [JsonPropertyName("within_reference")] public bool WithinReference { get; set; }
     }
 
     internal class CarbonImpactResultDto
@@ -179,6 +164,13 @@ namespace SportfyRevit
         [JsonPropertyName("grid_assumed")] public bool GridAssumed { get; set; }
         [JsonPropertyName("deck_capacity_kn_m2")] public double DeckCapacityKnM2 { get; set; }
         [JsonPropertyName("deck_capacity_assumed")] public bool DeckCapacityAssumed { get; set; }
+
+        /// <summary>True while an input is still a built-in value the designer neither entered nor accepted: the result is then not a verdict.</summary>
+        [JsonPropertyName("preliminary")] public bool Preliminary { get; set; }
+        [JsonPropertyName("preliminary_note")] public string? PreliminaryNote { get; set; }
+
+        /// <summary>The inputs behind the numbers and whether the designer entered each, accepted the built-in value, or did neither.</summary>
+        [JsonPropertyName("inputs")] public List<AssumptionUseDto>? Inputs { get; set; }
         [JsonPropertyName("roof_area_m2")] public double RoofAreaM2 { get; set; }
         [JsonPropertyName("permanent_load_kn")] public double PermanentLoadKn { get; set; }
         [JsonPropertyName("imposed_load_kn")] public double ImposedLoadKn { get; set; }
@@ -209,6 +201,9 @@ namespace SportfyRevit
     {
         [JsonPropertyName("case_study")] public string? CaseStudy { get; set; }
         [JsonPropertyName("video_path")] public string? VideoPath { get; set; }
+        [JsonPropertyName("preliminary")] public bool Preliminary { get; set; }
+        [JsonPropertyName("preliminary_note")] public string? PreliminaryNote { get; set; }
+        [JsonPropertyName("inputs")] public List<AssumptionUseDto>? Inputs { get; set; }
 
         [JsonPropertyName("schedule")] public string? Schedule { get; set; }
         [JsonPropertyName("peak_persons")] public double PeakPersons { get; set; }
@@ -257,10 +252,34 @@ namespace SportfyRevit
     {
         [JsonPropertyName("label")] public string? Label { get; set; }
         [JsonPropertyName("grid_names")] public string? GridNames { get; set; }
+
+        /// <summary>The bay's rectangle in the roof's plan coordinates (x right, y down, metres), so the web app can draw the plan.</summary>
+        [JsonPropertyName("x0_m")] public double X0M { get; set; }
+        [JsonPropertyName("x1_m")] public double X1M { get; set; }
+        [JsonPropertyName("y0_m")] public double Y0M { get; set; }
+        [JsonPropertyName("y1_m")] public double Y1M { get; set; }
         [JsonPropertyName("load_kn_m2")] public double LoadKnM2 { get; set; }
         [JsonPropertyName("utilisation_percent")] public double UtilisationPercent { get; set; }
         [JsonPropertyName("status")] public string? Status { get; set; }
         [JsonPropertyName("persons")] public double Persons { get; set; }
+    }
+
+    /// <summary>One input of a structural analysis: its value, and whether the designer entered it, accepted the built-in one, or neither.</summary>
+    internal class AssumptionUseDto
+    {
+        [JsonPropertyName("key")] public string? Key { get; set; }
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("value")] public string? Value { get; set; }
+        /// <summary>"entered" | "accepted" | "unconfirmed".</summary>
+        [JsonPropertyName("state")] public string? State { get; set; }
+        /// <summary>Where the built-in value comes from: "standard" | "literature" | "assumed" | "placeholder" | "estimated".</summary>
+        [JsonPropertyName("status")] public string? Status { get; set; }
+        [JsonPropertyName("reference")] public string? Reference { get; set; }
+
+        public static List<AssumptionUseDto> From(IEnumerable<AssumptionUse> uses)
+        {
+            return uses.Select(u => new AssumptionUseDto { Key = u.key, Label = u.label, Value = u.value, State = u.state, Status = u.status, Reference = u.reference }).ToList();
+        }
     }
 
     /// <summary>One thing to change: ballast, a heavier build-up, anchoring or moving a tree, protecting the substrate.</summary>
@@ -287,16 +306,14 @@ namespace SportfyRevit
     /// Each Analyze* command only knows its own section, so publishing reads
     /// whatever's already live off RoofBoundaryServer, patches in the one
     /// section that just changed, and republishes the merged whole — a
-    /// Water Management run should never blank out an earlier Fire Safety
+    /// Soil Percolation run should never blank out an earlier Fire Safety
     /// result the web app hasn't polled yet.
     /// </summary>
     internal static class AnalysisResultPublisher
     {
         public static void PublishFireSafety(FireSafetyResultDto result) => Publish(p => p.FireSafety = result);
         public static void PublishAccessibility(AccessibilityResultDto result) => Publish(p => p.Accessibility = result);
-        public static void PublishWaterManagement(WaterManagementResultDto result) => Publish(p => p.WaterManagement = result);
         public static void PublishLca(LcaResultDto result) => Publish(p => p.Lca = result);
-        public static void PublishLiveLoads(LiveLoadsResultDto result) => Publish(p => p.LiveLoads = result);
         public static void PublishCarbonImpact(CarbonImpactResultDto result) => Publish(p => p.CarbonImpact = result);
         public static void PublishSunAndShading(SunAndShadingResultDto result) => Publish(p => p.SunAndShading = result);
         public static void PublishBallTrajectory(BallTrajectoryResultDto result) => Publish(p => p.BallTrajectory = result);

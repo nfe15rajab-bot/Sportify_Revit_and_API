@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace SportfyRevit
 {
@@ -13,9 +14,14 @@ namespace SportfyRevit
     ///   pushed automatically on every export so AutoImportSync can pick it up
     ///   without anyone opening a file picker.
     /// - GET  /analysis-results  — latest results published by an Analyze*
-    ///   command (AnalysisResultPublisher), for a future frontend poll loop
-    ///   to show real Revit-computed numbers instead of only its own
-    ///   lightweight web estimate.
+    ///   command (AnalysisResultPublisher); the web app's Compare mode polls
+    ///   it to show the real Revit-computed numbers next to its own
+    ///   lightweight estimates.
+    /// - GET  /recording?path=   — an MP4 an analysis recorded, so the web app
+    ///   can play the Unity video beside the numbers. Only files whose path
+    ///   appears as a "video_path" in the published results are served (a
+    ///   loopback server must not read arbitrary files for any page that asks),
+    ///   with byte ranges so the browser can seek.
     /// Binding to "localhost" specifically (not a wildcard host) means Windows
     /// doesn't require a URL ACL reservation or admin rights to start it.
     /// Started/stopped by SportfyRevitApp alongside Revit's own lifecycle, so
@@ -34,6 +40,9 @@ namespace SportfyRevit
 
         private static readonly object AnalysisResultsLock = new();
         private static string? _analysisResultsJson;
+
+        // The recordings the published results name: the only files /recording will serve.
+        private static readonly HashSet<string> AllowedRecordings = new(StringComparer.OrdinalIgnoreCase);
 
         private static readonly object FamiliesLock = new();
         private static string? _familiesJson;
@@ -101,7 +110,135 @@ namespace SportfyRevit
         /// </summary>
         public static void PublishAnalysisResults(string json)
         {
-            lock (AnalysisResultsLock) { _analysisResultsJson = json; }
+            var videos = VideoPathsIn(json);
+            lock (AnalysisResultsLock)
+            {
+                _analysisResultsJson = json;
+                AllowedRecordings.Clear();
+                foreach (var v in videos) AllowedRecordings.Add(v);
+            }
+        }
+
+        /// <summary>Every "video_path" (a .mp4 that exists) named anywhere in a published results document, as a full path.</summary>
+        internal static List<string> VideoPathsIn(string json)
+        {
+            var found = new List<string>();
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                void Walk(JsonElement e)
+                {
+                    if (e.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var p in e.EnumerateObject())
+                        {
+                            if (p.Name == "video_path" && p.Value.ValueKind == JsonValueKind.String)
+                            {
+                                var path = p.Value.GetString();
+                                if (!string.IsNullOrEmpty(path) && path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    try { found.Add(Path.GetFullPath(path)); } catch (Exception) { /* not a path */ }
+                                }
+                            }
+                            else Walk(p.Value);
+                        }
+                    }
+                    else if (e.ValueKind == JsonValueKind.Array)
+                        foreach (var item in e.EnumerateArray()) Walk(item);
+                }
+                Walk(doc.RootElement);
+            }
+            catch (JsonException) { /* not JSON: nothing to allow */ }
+            return found;
+        }
+
+        /// <summary>True when a published result names this file as a recording, so /recording may serve it.</summary>
+        internal static bool IsAllowedRecording(string path)
+        {
+            try
+            {
+                var full = Path.GetFullPath(path);
+                lock (AnalysisResultsLock) { return AllowedRecordings.Contains(full) && File.Exists(full); }
+            }
+            catch (Exception) { return false; }
+        }
+
+        /// <summary>The byte range a Range header asks of a file of this length: null for none or a malformed one, (-1, -1) when unsatisfiable.</summary>
+        internal static (long Start, long End)? ParseRange(string? header, long length)
+        {
+            if (string.IsNullOrWhiteSpace(header) || !header.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase)) return null;
+            var spec = header.Substring(6).Split(',')[0].Trim();
+            var dash = spec.IndexOf('-');
+            if (dash < 0) return null;
+            var a = spec.Substring(0, dash).Trim();
+            var b = spec.Substring(dash + 1).Trim();
+            long start, end;
+            if (a == "")
+            {
+                if (!long.TryParse(b, out var suffix) || suffix <= 0) return null;   // the last N bytes
+                start = Math.Max(0, length - suffix);
+                end = length - 1;
+            }
+            else
+            {
+                if (!long.TryParse(a, out start) || start < 0) return null;
+                if (b == "") end = length - 1;
+                else if (!long.TryParse(b, out end) || end < start) return null;
+            }
+            if (start >= length) return (-1, -1);
+            return (start, Math.Min(end, length - 1));
+        }
+
+        private static async Task ServeRecording(HttpListenerContext ctx)
+        {
+            var requested = ctx.Request.QueryString["path"];
+            if (string.IsNullOrEmpty(requested) || !IsAllowedRecording(requested))
+            {
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+                return;
+            }
+
+            var file = Path.GetFullPath(requested);
+            using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var length = stream.Length;
+            var range = ParseRange(ctx.Request.Headers["Range"], length);
+
+            ctx.Response.ContentType = "video/mp4";
+            ctx.Response.Headers.Add("Accept-Ranges", "bytes");
+            long from = 0, to = length - 1;
+            if (range is { } r)
+            {
+                if (r.Start < 0)
+                {
+                    ctx.Response.StatusCode = 416;
+                    ctx.Response.Headers.Add("Content-Range", $"bytes */{length}");
+                    ctx.Response.Close();
+                    return;
+                }
+                from = r.Start; to = r.End;
+                ctx.Response.StatusCode = 206;
+                ctx.Response.Headers.Add("Content-Range", $"bytes {from}-{to}/{length}");
+            }
+
+            ctx.Response.ContentLength64 = to - from + 1;
+            if (ctx.Request.HttpMethod == "HEAD") { ctx.Response.Close(); return; }
+
+            stream.Seek(from, SeekOrigin.Begin);
+            var buffer = new byte[81920];
+            var left = to - from + 1;
+            try
+            {
+                while (left > 0)
+                {
+                    var read = await stream.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)));
+                    if (read <= 0) break;
+                    await ctx.Response.OutputStream.WriteAsync(buffer.AsMemory(0, read));
+                    left -= read;
+                }
+            }
+            catch (Exception) { /* the player closed the connection (a seek): nothing to tell it */ }
+            finally { try { ctx.Response.Close(); } catch (Exception) { /* already gone */ } }
         }
 
         public static bool TryGetLatestAnalysisResults(out string? json)
@@ -182,6 +319,12 @@ namespace SportfyRevit
                         ctx.Response.ContentLength64 = resultsBytes.Length;
                         await ctx.Response.OutputStream.WriteAsync(resultsBytes);
                         ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (path == "/recording" && (ctx.Request.HttpMethod == "GET" || ctx.Request.HttpMethod == "HEAD"))
+                    {
+                        await ServeRecording(ctx);
                         continue;
                     }
 

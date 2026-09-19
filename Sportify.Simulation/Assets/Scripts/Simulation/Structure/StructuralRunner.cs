@@ -217,6 +217,7 @@ namespace Sportify.Simulation.Structure
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height, "Structural load analysis", false);
             _hud.SetCaseStudy(_results.caseStudy);
+            _hud.SetPreliminary(AnalysisAssumptions.PreliminaryBanner(_report.assumptionUses));
 
             SceneBuilder.BuildEntryPoints(_payload.entry_points);
             BuildPieces();
@@ -441,7 +442,7 @@ namespace Sportify.Simulation.Structure
 
             _hud.SetLegend(new List<string>
             {
-                Tint("load per m2, as a share of the deck capacity (" + Num(cap, "0.#") + " kN/m2" + (_report.summary.capacityAssumed ? ", a placeholder" : "") + "):", Muted),
+                Tint("load per m2, as a share of the deck capacity (" + Num(cap, "0.#") + " kN/m2" + (_report.summary.capacityAssumed ? (_report.summary.capacityAccepted ? ", built-in, accepted" : ", a placeholder") : "") + "):", Muted),
                 Tint("light", LoadColors.Ramp(0.1f)) + "  " + Tint("half", LoadColors.Ramp(0.5f)) + "  " + Tint("most", LoadColors.Ramp(0.8f)) + "  " + Tint("all of it", LoadColors.Ramp(1f)),
                 permanent ? "Green roofs at their SATURATED weight, trees, floor build-ups, roof finishes" : "The code's imposed loads: courts 5.0 kN/m2, accessible gardens, roof",
             });
@@ -503,8 +504,8 @@ namespace Sportify.Simulation.Structure
             SetTowersVisible(true);
             _hud.SetLegend(new List<string>
             {
-                "Block height = load against the deck capacity of " + Num(s.capacityKnM2, "0.#") + " kN/m2" + (s.capacityAssumed ? Tint(" (a PLACEHOLDER: enter the engineer's figure)", Amber) : ""),
-                Tint("green", LoadColors.Status("ok")) + " under 80%   " + Tint("amber", LoadColors.Status("marginal")) + " 80-100%   " + Tint("red", LoadColors.Status("over")) + " over the capacity",
+                "Block height = load against the deck capacity of " + Num(s.capacityKnM2, "0.#") + " kN/m2" + (s.capacityAssumed ? Tint(s.capacityAccepted ? " (the built-in value, accepted)" : " (a PLACEHOLDER: not confirmed)", Amber) : ""),
+                Tint("green", LoadColors.Status("ok")) + " under 80%   " + Tint("amber", LoadColors.Status("marginal")) + " 80-100%   " + Tint("red", LoadColors.Status("over")) + " over the " + (s.capacityAssumed ? "ASSUMED " : "") + "capacity",
                 Tint("Red squares = columns taking more than " + Num((float)StructureModel.ColumnHighFactor, "0.#") + "x the average", Red),
             });
 
@@ -695,12 +696,12 @@ namespace Sportify.Simulation.Structure
             var s = _report.summary;
             var b = _report.balance;
             var headline = s.baysOver > 0
-                ? s.baysOver + " of " + s.baysChecked + " bays are over the deck capacity"
+                ? s.baysOver + " of " + s.baysChecked + " bays are over the " + (s.capacityAssumed ? "ASSUMED " : "") + "deck capacity"
                 : (b.status != "balanced" ? "The load sits to one side of the roof" : "No bay is over capacity and the load is balanced");
             var lines = new List<string>
             {
                 "Load on the roof:   " + Num(s.deadKn, "0") + " kN permanent + " + Num(s.liveKn, "0") + " kN imposed = " + Num(s.totalKn, "0") + " kN   (" + Num(s.meanKnM2, "0.0") + " kN/m2 on average)",
-                "Deck capacity:   " + Num(s.capacityKnM2, "0.#") + " kN/m2" + (s.capacityAssumed ? Tint("   a PLACEHOLDER: enter the structural engineer's figure", Amber) : ""),
+                "Deck capacity:   " + Num(s.capacityKnM2, "0.#") + " kN/m2" + (s.capacityAssumed ? Tint(s.capacityAccepted ? "   the built-in value, accepted by the designer" : "   a PLACEHOLDER: not confirmed", Amber) : ""),
                 "Most loaded:   " + s.worstBay + " at " + Cell(s.peakUtilisation),
                 "Bays:   " + Tint(s.baysOver + " over", s.baysOver > 0 ? Red : Good) + ",  " + Tint(s.baysMarginal + " marginal", s.baysMarginal > 0 ? Amber : Good) + ",  of " + s.baysChecked,
                 "Columns:   " + s.columnsHigh + " of " + s.columnsChecked + " take more than " + Num((float)StructureModel.ColumnHighFactor, "0.#") + "x the average",
@@ -749,8 +750,8 @@ namespace Sportify.Simulation.Structure
                                 Num(worst.loadKn, "0") + " kN (" + Num(worst.ratioToMean, "0.0") + "x).");
             }
 
-            if (s.capacityAssumed)
-                CardText.Bullet(lines, Tint("Capacity", Muted) + "  " + Num(s.capacityKnM2, "0.#") + " kN/m2 is a placeholder: enter the structural engineer's figure in the Combine tab.");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Site tab, or the window Revit opens before the analysis).");
+            else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             if (s.gridAssumed)
                 CardText.Bullet(lines, Tint("Grid", Muted) + "  No structural grid in the layout: a regular 8.4 m grid was assumed. Push the roof from Revit for the real one.");
             if (s.baysOver == 0 && _report.balance.status == "balanced")

@@ -94,6 +94,13 @@ namespace SportfyRevit
 
         record ResultRow(string Name, string Detail, bool? Ok);
 
+        /// <summary>What each input of a structural analysis was, and whether the designer confirmed it, for the report.</summary>
+        static string InputsText(IEnumerable<AssumptionUseDto> inputs)
+        {
+            return string.Join("; ", inputs.Select(i =>
+                $"{i.Label}: {(i.Value ?? "").Replace("m2", "m²")} ({(i.State == "entered" ? "entered by the designer" : i.State == "accepted" ? "built-in value, accepted" : "built-in value, NOT CONFIRMED")})"));
+        }
+
         static List<ResultRow> BuildResultRows(AnalysisResultPayload? r)
         {
             var rows = new List<ResultRow>();
@@ -103,12 +110,8 @@ namespace SportfyRevit
                 rows.Add(new ResultRow("Fire Safety", $"{fs.MaxDistM:0.0} m travel distance (ref {fs.MaxTravelDistanceM:0.#} m), {fs.UnreachableCount} unreachable piece(s)", fs.WithinLimit && fs.UnreachableCount == 0));
             if (r.Accessibility is { } ac)
                 rows.Add(new ResultRow("Accessibility", $"Circulation width {ac.CurrentWidthM:0.0} m (min {ac.MinWidthM:0.#} m)", ac.WidthOk && ac.ReachOk));
-            if (r.WaterManagement is { } wm)
-                rows.Add(new ResultRow("Water Management", $"{wm.TotalAreaM2:0.#} m² garden, {wm.AvgDepthCm:0} cm buildup, ~{wm.RetentionPercent:0}% retention", null));
             if (r.Lca is { } lca)
                 rows.Add(new ResultRow("LCA", $"~{lca.TotalKg:0.#} kg CO2e ({lca.CoveredCount}/{lca.TotalCount} pieces with a reference material)", lca.TotalCount == 0 ? null : lca.CoveredCount == lca.TotalCount));
-            if (r.LiveLoads is { } ll)
-                rows.Add(new ResultRow("Live Loads", $"{ll.WorstCaseKnPerM2:0.00} kN/m² worst case (ref {ll.ReferenceKnPerM2:0.#} kN/m²)", ll.WithinReference));
             if (r.CarbonImpact is { } ci)
                 rows.Add(new ResultRow("Carbon Impact", $"~{ci.EstimatedDailyWh:0.#} Wh/day over {ci.ActiveSurfaceAreaM2:0.#} m² active surface", null));
             if (r.SunAndShading is { } ss)
@@ -170,23 +173,27 @@ namespace SportfyRevit
 
             if (r.StructuralLoads is { } sl)
             {
+                if (sl.Preliminary) rows.Add(new ResultRow("Structural Loads: PRELIMINARY", sl.PreliminaryNote ?? "Some inputs are built-in values the designer has not confirmed.", null));
                 rows.Add(new ResultRow("Structural Loads",
                     $"{sl.PermanentLoadKn:0} kN permanent + {sl.ImposedLoadKn:0} kN imposed on {sl.RoofAreaM2:0} m² ({sl.MeanLoadKnM2:0.0} kN/m² mean); " +
-                    $"most loaded bay {sl.WorstBay} at {sl.PeakUtilisationPercent:0}% of the {sl.DeckCapacityKnM2:0.#} kN/m² deck capacity" + (sl.DeckCapacityAssumed ? " (placeholder capacity)" : "") + "; " +
+                    $"most loaded bay {sl.WorstBay} at {sl.PeakUtilisationPercent:0}% of the {sl.DeckCapacityKnM2:0.#} kN/m² deck capacity" + (sl.DeckCapacityAssumed ? " (built-in capacity, not the engineer's figure)" : "") + "; " +
                     $"{sl.BaysOverCapacity} of {sl.BaysChecked} bays over, {sl.BaysMarginal} marginal; load centre {Math.Abs(sl.LoadCentreOffsetXPercent):0.#}% (length) / {Math.Abs(sl.LoadCentreOffsetYPercent):0.#}% (width) off the structure's centre: {sl.BalanceStatus}" +
                     (string.IsNullOrEmpty(sl.HeavySide) ? "" : $", heavy side {sl.HeavySide}") +
                     (string.IsNullOrEmpty(sl.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(sl.VideoPath)}"),
-                    sl.BaysOverCapacity == 0 && sl.BalanceStatus == "balanced"));
+                    sl.Preliminary ? null : sl.BaysOverCapacity == 0 && sl.BalanceStatus == "balanced"));
 
                 if (sl.Findings is { Count: > 0 })
                     rows.Add(new ResultRow("Structural Loads Advice", string.Join(" ", sl.Findings.Where(f => f.Kind != "grid").Take(5).Select(f => f.Text)) + " Screening estimate, not a structural verification.", null));
 
+                if (sl.Inputs is { Count: > 0 })
+                    rows.Add(new ResultRow("Structural Loads Inputs", InputsText(sl.Inputs), null));
                 if (sl.Assumptions is { Count: > 0 })
                     rows.Add(new ResultRow("Structural Loads Assumptions", string.Join(" ", sl.Assumptions), null));
             }
 
             if (r.DynamicAnalysis is { } da)
             {
+                if (da.Preliminary) rows.Add(new ResultRow("Dynamic Analysis: PRELIMINARY", da.PreliminaryNote ?? "Some inputs are built-in values the designer has not confirmed.", null));
                 rows.Add(new ResultRow("Dynamic: Crowds",
                     $"Day \"{da.Schedule}\": busiest at {da.PeakAtHour:0.0} h with about {da.PeakPersons:0} people ({da.PeakCrowdKn:0} kN, {da.CrowdShareOfLoadPercent:0.#}% of the load); most crowded bay {da.BusiestBay} at {da.BusiestBayPeakDensity:0.00} people/m²; " +
                     $"the crowd moves the load's centre by at most {da.MaxLoadCentreShiftPercent:0.##}%" + (string.IsNullOrEmpty(da.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(da.VideoPath)}"),
@@ -195,15 +202,17 @@ namespace SportfyRevit
                     $"Governing case \"{da.WorstCase}\" in {da.WorstCaseBay} at {da.WorstCaseUtilisationPercent:0}% of the {da.DeckCapacityKnM2:0.#} kN/m² deck capacity; snow zone {da.SnowZone}{(da.SnowAssumed ? " (assumed)" : "")} sk {da.SnowSkKnM2:0.00} kN/m²; " +
                     $"a cloudburst adds up to {da.RainPeakAddedKn:0} kN of water (saturated: {da.RainSaturatedKn:0} kN)" +
                     (da.Cases is { Count: > 0 } ? "; " + string.Join(", ", da.Cases.Select(c => $"{c.Name} {c.PeakUtilisationPercent:0}% ({c.BaysOverCapacity} over)")) : ""),
-                    da.WorstCaseUtilisationPercent <= 100));
+                    da.Preliminary ? null : da.WorstCaseUtilisationPercent <= 100));
                 rows.Add(new ResultRow("Dynamic: Resonance",
                     $"Deck frequency {da.LowestFrequencyHz:0.0} to {da.HighestFrequencyHz:0.0} Hz ({(da.FrequencyEstimated ? "ESTIMATED from the spans" : "given")}); worst {da.WorstResonanceBay} under {da.WorstResonanceActivity}: {da.WorstAccelerationG:0.000} g against {da.WorstLimitG:0.00} g; " +
                     $"{da.BaysExceedingComfort} of {da.BaysChecked} bays exceed the comfort limit under some activity",
-                    da.BaysExceedingComfort == 0));
+                    da.Preliminary ? null : da.BaysExceedingComfort == 0));
 
                 if (da.Findings is { Count: > 0 })
                     rows.Add(new ResultRow("Dynamic Analysis Advice", string.Join(" ", da.Findings.Take(6).Select(f => f.Text)) + " Screening estimate, not a structural verification or a vibration design.", null));
 
+                if (da.Inputs is { Count: > 0 })
+                    rows.Add(new ResultRow("Dynamic Analysis Inputs", InputsText(da.Inputs), null));
                 if (da.Assumptions is { Count: > 0 })
                     rows.Add(new ResultRow("Dynamic Analysis Assumptions", string.Join(" ", da.Assumptions), null));
             }
@@ -268,7 +277,8 @@ namespace SportfyRevit
             if (r == null) return rows;
             if (r.FireSafety is { } fs) rows.Add(new ChartRow("Fire Safety — travel distance", fs.MaxDistM, fs.MaxTravelDistanceM, "m", HigherIsBetter: false));
             if (r.Accessibility is { } ac) rows.Add(new ChartRow("Accessibility — circulation width", ac.CurrentWidthM, ac.MinWidthM, "m", HigherIsBetter: true));
-            if (r.LiveLoads is { } ll) rows.Add(new ChartRow("Live Loads — worst case", ll.WorstCaseKnPerM2, ll.ReferenceKnPerM2, "kN/m²", HigherIsBetter: false));
+            // The most loaded bay against the deck capacity: only once the inputs are confirmed, because a bar coloured red against a placeholder capacity would read as a verdict.
+            if (r.StructuralLoads is { Preliminary: false } sl) rows.Add(new ChartRow("Structural Loads — most loaded bay", sl.PeakUtilisationPercent, 100, "% of the deck capacity", HigherIsBetter: false));
             return rows;
         }
 

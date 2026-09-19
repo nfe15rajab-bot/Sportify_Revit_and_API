@@ -163,5 +163,57 @@ Check("the roof's snow load is mu1 x sk", Math.Abs(w.snow.roofKnM2 - 0.8 * w.sno
     Check("another day schedule gives another day", g.crowd.schedule == other && (g.crowd.peakAtHour != c.peakAtHour || g.crowd.peakPersons != c.peakPersons || g.crowd.meanPersons != c.meanPersons));
 }
 
+// 7. the assumptions: what is entered, accepted or left as a built-in value, and the comfort limits the designer sets
+{
+    var reg = AnalysisAssumptions.Editable;
+    Check("the register: unique keys, a status, a reference and a default text for every input; defaults inside their range",
+        reg.Select(d => d.Key).Distinct().Count() == reg.Count && reg.All(d => !string.IsNullOrEmpty(d.Status) && d.Reference.Length > 20 && d.DefaultText.Length > 0)
+        && reg.Where(d => d.Kind == "number" && !double.IsNaN(d.Default)).All(d => d.Default >= d.Min && d.Default <= d.Max)
+        && reg.Where(d => d.Kind == "choice").All(d => d.Choices.Any(x => x.Key == d.DefaultKey)));
+
+    DynamicInputs Bare()
+    {
+        var b = DynamicLayoutAdapter.ToInputs(layout);
+        b.Structure.CapacityKnM2 = null; b.NaturalFrequencyHz = null; b.SnowZone = null; b.AltitudeM = null; b.Schedule = null;
+        b.WalkingLimitG = null; b.RhythmicLimitG = null; b.Structure.AcceptedAssumptions.Clear();
+        return b;
+    }
+
+    var rb = DynamicModel.Analyse(Bare());
+    var keys = rb.assumptionUses.Select(u => u.key).ToList();
+    Check("every input of the dynamic analysis is reported once, and all of them are in the register", keys.Count == 7 && keys.Distinct().Count() == 7 && keys.All(k => AnalysisAssumptions.Find(k) != null), $"({string.Join(", ", keys)})");
+    Check("nothing entered, nothing accepted: every input is unconfirmed and the result is PRELIMINARY",
+        rb.assumptionUses.All(u => u.state == "unconfirmed") && rb.summary.preliminary && rb.summary.preliminaryNote.StartsWith("PRELIMINARY") && rb.summary.acceptedNote == "");
+
+    var acc = Bare();
+    acc.Structure.AcceptedAssumptions.AddRange(reg.Select(d => d.Key));
+    var ra = DynamicModel.Analyse(acc);
+    Check("every built-in value accepted: not preliminary, the numbers are unchanged, and the report says they were accepted",
+        !ra.summary.preliminary && ra.assumptionUses.All(u => u.state == "accepted") && ra.summary.acceptedNote != "" && ra.summary.worstAccelerationG == rb.summary.worstAccelerationG && ra.summary.worstCaseUtilisation == rb.summary.worstCaseUtilisation);
+
+    var ent = Bare();
+    ent.Structure.CapacityKnM2 = 6; ent.NaturalFrequencyHz = 6; ent.SnowZone = "1"; ent.AltitudeM = 50; ent.Schedule = "event_day"; ent.WalkingLimitG = 0.01; ent.RhythmicLimitG = 0.1;
+    var re = DynamicModel.Analyse(ent);
+    Check("every input entered: entered, not preliminary", re.assumptionUses.All(u => u.state == "entered") && !re.summary.preliminary && re.summary.preliminaryNote == "");
+
+    var both = Bare();
+    both.Structure.CapacityKnM2 = 6; both.Structure.AcceptedAssumptions.Add("deck_capacity");
+    Check("an entered value beats an accepted one for the same key", DynamicModel.Analyse(both).assumptionUses.First(u => u.key == "deck_capacity").state == "entered");
+
+    // the comfort limits are the designer's: the response does not change, the ratio to the limit does
+    var loose = Bare(); loose.NaturalFrequencyHz = 7.5;
+    var tight = Bare(); tight.NaturalFrequencyHz = 7.5; tight.WalkingLimitG = 0.01; tight.RhythmicLimitG = 0.025;
+    var rl = DynamicModel.Analyse(loose); var rt = DynamicModel.Analyse(tight);
+    Check("halving the comfort limits leaves the accelerations alone and doubles every ratio to the limit",
+        Math.Abs(rt.resonance.worstAccelerationG - rl.resonance.worstAccelerationG) < 1e-6
+        && rt.resonance.bays.Zip(rl.resonance.bays, (t, l) => Math.Abs(t.worstRatio - 2 * l.worstRatio) < 1e-4 * Math.Max(1, l.worstRatio)).All(x => x)
+        && rt.resonance.baysExceeding >= rl.resonance.baysExceeding, $"({rl.resonance.baysExceeding} -> {rt.resonance.baysExceeding} bays over)");
+    Check("the comfort limits used are the ones reported", Math.Abs(rt.resonance.activities.First(a => a.key == "walking").limitG - 0.01) < 1e-7 && Math.Abs(rt.resonance.activities.First(a => a.key == "event").limitG - 0.025) < 1e-7);
+
+    // the static analysis alone reports the deck capacity as its one input
+    var stat = StructureModel.Analyse(StructureLayoutAdapter.ToInputs(layout));
+    Check("the static analysis reports the deck capacity as its one input", stat.assumptionUses.Count == 1 && stat.assumptionUses[0].key == "deck_capacity");
+}
+
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;

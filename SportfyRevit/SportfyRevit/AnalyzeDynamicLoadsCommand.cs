@@ -29,56 +29,64 @@ namespace SportfyRevit
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
             var usingBundledSample = false;
 
             var haveUnity = UnityHeadlessRunner.TryLocate(out var unity, out _);
 
-            if (layoutJson == null)
+            if (baseJson == null)
             {
-                if (haveUnity) layoutJson = UnityHeadlessRunner.ReadBundledSample(unity!, BundledSampleFile);
-                usingBundledSample = layoutJson != null;
-                if (layoutJson == null)
+                if (haveUnity) baseJson = UnityHeadlessRunner.ReadBundledSample(unity!, BundledSampleFile);
+                usingBundledSample = baseJson != null;
+                if (baseJson == null)
                 {
                     message = "No layout to analyse yet. Import or push a layout from the Sportify web app first (Combine tab).";
                     return Result.Failed;
                 }
             }
 
-            DynamicInputs inputs;
-            try
+            var review = false;
+            while (true)
             {
-                var layout = JsonSerializer.Deserialize<SportifyLayout>(layoutJson)
-                             ?? throw new InvalidOperationException("The layout was empty.");
-                inputs = DynamicLayoutAdapter.ToInputs(layout);
-            }
-            catch (Exception ex)
-            {
-                message = $"Couldn't read the layout: {ex.Message}";
-                return Result.Failed;
-            }
+                // The values the analysis rests on that the layout cannot know: entered, accepted or left unconfirmed (which the results then say).
+                var prepared = AnalysisAssumptionsDialog.Prepare(baseJson, "dynamic", DialogTitle, commandData.Application.MainWindowHandle, review);
+                if (prepared.Cancelled) return Result.Cancelled;
+                var layoutJson = prepared.Json;
 
-            if (!inputs.Structure.Items.Any(i => i.Persons > 0))
-            {
-                TaskDialog.Show(DialogTitle, "The layout has nowhere for people to be yet (no sports field, activity or accessible garden). Place something in the Combine tab first.");
-                return Result.Cancelled;
-            }
+                DynamicInputs inputs;
+                try
+                {
+                    var layout = JsonSerializer.Deserialize<SportifyLayout>(layoutJson)
+                                 ?? throw new InvalidOperationException("The layout was empty.");
+                    inputs = DynamicLayoutAdapter.ToInputs(layout);
+                }
+                catch (Exception ex)
+                {
+                    message = $"Couldn't read the layout: {ex.Message}";
+                    return Result.Failed;
+                }
 
-            var report = DynamicModel.Analyse(inputs);
-            var caseStudy = DynamicModel.CaseStudy(inputs, report);
-            AnalysisResultPublisher.PublishDynamicAnalysis(BuildPublishedResult(report, caseStudy, null));
+                if (!inputs.Structure.Items.Any(i => i.Persons > 0))
+                {
+                    TaskDialog.Show(DialogTitle, "The layout has nowhere for people to be yet (no sports field, activity or accessible garden). Place something in the Combine tab first.");
+                    return Result.Cancelled;
+                }
 
-            var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
-            if (!ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree))
+                var report = DynamicModel.Analyse(inputs);
+                var caseStudy = DynamicModel.CaseStudy(inputs, report);
+                AnalysisResultPublisher.PublishDynamicAnalysis(BuildPublishedResult(report, caseStudy, null));
+
+                var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
+                var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
+                if (choice == SummaryChoice.Review) { review = true; continue; }
+                if (choice == SummaryChoice.Video) RenderVideo(unity!, layoutJson, report, caseStudy);
                 return Result.Succeeded;
-
-            RenderVideo(unity!, layoutJson, report, caseStudy);
-            return Result.Succeeded;
+            }
         }
 
         // ------------------------------------------------------------------ dialogs
 
-        static bool ShowSummary(DynamicReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
+        static SummaryChoice ShowSummary(DynamicReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
             var c = report.crowd;
             var w = report.weather;
@@ -87,6 +95,8 @@ namespace SportfyRevit
             var body = new StringBuilder();
             if (usingBundledSample)
                 body.AppendLine("No layout imported into this Revit session yet — analysed Unity's bundled roof-garden sample instead.").AppendLine();
+            if (s.preliminary)
+                body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
             body.AppendLine();
 
@@ -119,10 +129,12 @@ namespace SportfyRevit
 
             var dialog = new TaskDialog(DialogTitle)
             {
-                MainInstruction = r.worstRatio > 1.0 && r.estimated ? $"Resonance is likely: {r.baysExceeding} bay(s) exceed the comfort limit"
-                                : s.baysOverCapacity > 0 ? $"{s.baysOverCapacity} bay(s) exceed the deck capacity in some weather"
-                                : "No bay exceeds the deck capacity in any weather",
+                MainInstruction = (s.preliminary ? "PRELIMINARY: " : "") +
+                                  (r.worstRatio > 1.0 && r.estimated ? $"Resonance is likely: {r.baysExceeding} bay(s) exceed the comfort limit"
+                                  : s.baysOverCapacity > 0 ? $"{s.baysOverCapacity} bay(s) exceed the {(s.capacityAssumed ? "assumed " : "")}deck capacity in some weather"
+                                  : "No bay exceeds the deck capacity in any weather"),
                 MainContent = body.ToString(),
+                ExpandedContent = "Inputs used:\n" + AnalysisAssumptionsPatcher.DescribeInputs(report.assumptionUses),
                 CommonButtons = TaskDialogCommonButtons.Close,
                 DefaultButton = TaskDialogResult.Close,
             };
@@ -130,8 +142,11 @@ namespace SportfyRevit
             if (unityFree)
                 dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
                     "About two minutes; Revit is unresponsive while it renders.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Review the assumptions, then run again",
+                s.preliminary ? "Enter your own values, or accept the built-in ones, to lift the PRELIMINARY mark." : "Change a value or how a built-in one is treated.");
 
-            return dialog.Show() == TaskDialogResult.CommandLink1;
+            var result = dialog.Show();
+            return result == TaskDialogResult.CommandLink1 ? SummaryChoice.Video : result == TaskDialogResult.CommandLink2 ? SummaryChoice.Review : SummaryChoice.Close;
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, DynamicReport report, string caseStudy)
@@ -237,6 +252,9 @@ namespace SportfyRevit
                 WorstCaseBay = w.worstBay,
                 WorstCaseUtilisationPercent = Math.Round(w.peakUtilisation * 100.0, 1),
                 DeckCapacityKnM2 = Math.Round(s.capacityKnM2, 2),
+                Preliminary = s.preliminary,
+                PreliminaryNote = s.preliminaryNote,
+                Inputs = AssumptionUseDto.From(report.assumptionUses),
                 Cases = w.cases.Select(x => new DynamicCaseDto
                 {
                     Name = x.name, TotalKn = Math.Round(x.totalKn, 1), PeakUtilisationPercent = Math.Round(x.peakUtilisation * 100.0, 1), WorstBay = x.worstBay, BaysOverCapacity = x.baysOver,

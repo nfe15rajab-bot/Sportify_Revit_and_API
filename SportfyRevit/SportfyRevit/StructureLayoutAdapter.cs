@@ -68,6 +68,8 @@ namespace SportfyRevit
             }
 
             ReadStructure(layout.Structure, inputs);
+            foreach (var key in layout.AnalysisAssumptions?.Accepted ?? new List<string>())
+                if (!string.IsNullOrEmpty(key) && !inputs.AcceptedAssumptions.Contains(key)) inputs.AcceptedAssumptions.Add(key);
             return inputs;
         }
 

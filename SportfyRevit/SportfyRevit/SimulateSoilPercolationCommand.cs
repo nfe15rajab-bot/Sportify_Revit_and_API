@@ -13,8 +13,8 @@ namespace SportfyRevit
 {
     /// <summary>
     /// What rain does inside the roof garden: how much of a storm each build-up keeps, how much runs off and how much
-    /// later, and whether any build-up fills up. Complements AnalyzeWaterManagementCommand's one-line retention estimate
-    /// (a rule of thumb: 30% plus 2% per cm) with a model that steps rain through the real layers of each build-up.
+    /// later, and whether any build-up fills up. Replaces the old Water Management command's one-line retention estimate
+    /// (a rule of thumb: 30% plus 2% per cm, retired so the report has one answer) with a model that steps rain through the real layers of each build-up.
     /// It is a screening model, not a hydrological design: the rain events are generic, and every constant that is a
     /// judgement call is listed among the assumptions in the results.
     ///
