@@ -152,6 +152,22 @@ namespace SportfyRevit
                     rows.Add(new ResultRow("Wind & Erosion Assumptions", string.Join(" ", we.Assumptions), null));
             }
 
+            if (r.SoilPercolation is { } sp)
+            {
+                rows.Add(new ResultRow("Rain & Percolation",
+                    $"Roof keeps {sp.SteadyRetainedPercent:0}% / {sp.HeavyShowerRetainedPercent:0}% / {sp.CloudburstRetainedPercent:0}% of a steady rain / heavy shower / cloudburst; " +
+                    $"cloudburst peak {sp.CloudburstPeakLps:0.#} l/s against {sp.CloudburstReferencePeakLps:0.#} l/s with no green layers; " +
+                    $"{sp.ZonesBelowTarget} of {sp.ZonesChecked} build-ups keep under the 60% aim in a heavy shower" +
+                    (string.IsNullOrEmpty(sp.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(sp.VideoPath)}"),
+                    sp.ZonesBelowTarget == 0));
+
+                if (sp.Findings is { Count: > 0 })
+                    rows.Add(new ResultRow("Rain & Percolation Fixes", string.Join(" ", sp.Findings.Take(4).Select(f => f.Text)) + " Screening estimate, not a hydrological design.", null));
+
+                if (sp.Assumptions is { Count: > 0 })
+                    rows.Add(new ResultRow("Rain & Percolation Assumptions", string.Join(" ", sp.Assumptions), null));
+            }
+
             return rows;
         }
 

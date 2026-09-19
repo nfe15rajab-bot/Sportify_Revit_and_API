@@ -24,6 +24,7 @@ namespace SportfyRevit
         [JsonPropertyName("sun_and_shading")] public SunAndShadingResultDto? SunAndShading { get; set; }
         [JsonPropertyName("ball_trajectory")] public BallTrajectoryResultDto? BallTrajectory { get; set; }
         [JsonPropertyName("wind_erosion")] public WindErosionResultDto? WindErosion { get; set; }
+        [JsonPropertyName("soil_percolation")] public SoilPercolationResultDto? SoilPercolation { get; set; }
     }
 
     internal class FireSafetyResultDto
@@ -129,6 +130,41 @@ namespace SportfyRevit
         [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
     }
 
+    /// <summary>
+    /// What the rain and percolation screening found (PercolationCore.cs, computed in-process by this add-in). Retention
+    /// is the share of the rain kept, against the same rain on a bare roof, for three generic events: steady rain
+    /// (10 mm/h), a heavy shower (40 mm/h) and a cloudburst (108 mm/h).
+    /// </summary>
+    internal class SoilPercolationResultDto
+    {
+        [JsonPropertyName("case_study")] public string? CaseStudy { get; set; }
+        [JsonPropertyName("video_path")] public string? VideoPath { get; set; }
+        [JsonPropertyName("zones_checked")] public int ZonesChecked { get; set; }
+        [JsonPropertyName("green_area_m2")] public double GreenAreaM2 { get; set; }
+        [JsonPropertyName("steady_retained_percent")] public double SteadyRetainedPercent { get; set; }
+        [JsonPropertyName("heavy_shower_retained_percent")] public double HeavyShowerRetainedPercent { get; set; }
+        [JsonPropertyName("heavy_shower_peak_reduction_percent")] public double HeavyShowerPeakReductionPercent { get; set; }
+        [JsonPropertyName("cloudburst_retained_percent")] public double CloudburstRetainedPercent { get; set; }
+        [JsonPropertyName("cloudburst_peak_reduction_percent")] public double CloudburstPeakReductionPercent { get; set; }
+        [JsonPropertyName("cloudburst_peak_lps")] public double CloudburstPeakLps { get; set; }
+        [JsonPropertyName("cloudburst_reference_peak_lps")] public double CloudburstReferencePeakLps { get; set; }
+        [JsonPropertyName("zones_below_target")] public int ZonesBelowTarget { get; set; }
+        [JsonPropertyName("zones_saturated_in_cloudburst")] public int ZonesSaturatedInCloudburst { get; set; }
+        [JsonPropertyName("zones")] public List<SoilPercolationZoneDto>? Zones { get; set; }
+        [JsonPropertyName("findings")] public List<WindFindingDto>? Findings { get; set; }
+        [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
+    }
+
+    internal class SoilPercolationZoneDto
+    {
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("system")] public string? System { get; set; }
+        [JsonPropertyName("substrate_mm")] public double SubstrateMm { get; set; }
+        [JsonPropertyName("retained_steady_percent")] public double RetainedSteadyPercent { get; set; }
+        [JsonPropertyName("retained_heavy_shower_percent")] public double RetainedHeavyShowerPercent { get; set; }
+        [JsonPropertyName("retained_cloudburst_percent")] public double RetainedCloudburstPercent { get; set; }
+    }
+
     /// <summary>One thing to change: ballast, a heavier build-up, anchoring or moving a tree, protecting the substrate.</summary>
     internal class WindFindingDto
     {
@@ -167,6 +203,7 @@ namespace SportfyRevit
         public static void PublishSunAndShading(SunAndShadingResultDto result) => Publish(p => p.SunAndShading = result);
         public static void PublishBallTrajectory(BallTrajectoryResultDto result) => Publish(p => p.BallTrajectory = result);
         public static void PublishWindErosion(WindErosionResultDto result) => Publish(p => p.WindErosion = result);
+        public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish(p => p.SoilPercolation = result);
 
         private static void Publish(Action<AnalysisResultPayload> apply)
         {

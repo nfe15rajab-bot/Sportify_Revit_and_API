@@ -93,7 +93,7 @@ namespace SportfyRevit
             AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
                 "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
             AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
-                "Placeholder — will show water filtering down through a garden buildup's actual substrate/drainage layers in cross-section, complementing the Water Management surface animation.");
+                "Steps three rain events (steady, heavy shower, cloudburst) through the real layers of each roof-garden build-up: how much rain each keeps, how much runs off and how much later, and whether any fills up — with advice (more water-storing drainage layer or substrate). The numbers appear at once and need no Unity; a cross-section video of the water soaking down is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
 
             var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
             AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport\n(PDF)", typeof(GenerateAnalysisReportCommand),
