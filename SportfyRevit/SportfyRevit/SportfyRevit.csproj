@@ -93,6 +93,13 @@
     <None Include="SportfyRevit.addin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The wind and erosion model is plain C# with no Unity types, so the add-in compiles the very same
+       source file the Unity project runs: the analysis needs no Unity installed, and the two can never
+       drift apart. (Sportify.Simulation lives next to this project in the same repository.) -->
+  <ItemGroup>
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" Link="Wind\WindAnalysisCore.cs" />
+  </ItemGroup>
+
   <PropertyGroup>
     <SportifyWebAppDir>$(MSBuildProjectDirectory)\..\..\..\sportfify_goldbeck\</SportifyWebAppDir>
   </PropertyGroup>

@@ -87,11 +87,11 @@ namespace SportfyRevit
             AddButton(unityAnalysisPanel, "SimulateCrowds", "Simulate\nCrowds", typeof(SimulateCrowdsCommand),
                 "Placeholder — will simulate spectator/participant flow using the circulation paths and entry points from the Combine layout.");
             AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
-                "Runs the current layout through Sportify.Simulation (Unity): real rigidbody trajectories per placed court, checking crossings into neighboring courts, the roof edge and circulation space. Takes ~15-30s — Revit will be unresponsive while it runs.");
+                "Runs the current layout through Sportify.Simulation (Unity): stray shots from every placed court, checking crossings into neighboring courts, the roof edge and circulation space. Records the flights as an MP4 video, and works out what share of shots leave the roof and where fences should go. Takes ~30-90s — Revit will be unresponsive while it runs. Close the Unity Editor first if it has Sportify.Simulation open.");
             AddButton(unityAnalysisPanel, "AnalyzeStructuralResonance", "Structural\nResonance", typeof(AnalyzeStructuralResonanceCommand),
                 "Placeholder — will simulate synchronized crowd movement and visualize the resulting vibration/load pattern across the existing structure's grid.");
             AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
-                "Placeholder — will apply a simplified wind force field, stronger at roof edges/corners, to flag wind-uplift stress on tall vegetation and erosion/scour risk on exposed growing medium.");
+                "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
             AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
                 "Placeholder — will show water filtering down through a garden buildup's actual substrate/drainage layers in cross-section, complementing the Water Management surface animation.");
 

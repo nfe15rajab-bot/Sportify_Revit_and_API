@@ -11,14 +11,16 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Real implementation, replacing the PlaceholderCommand stub: takes
-    /// whatever the current Sportify layout is — a live Combine-tab push, or
+    /// Takes whatever the current Sportify layout is — a live Combine-tab push, or
     /// the last manual "Import Configuration" (both go through
     /// RoofBoundaryServer.TryGetLatestCombinedLayout now, see
     /// ImportSportifyLayoutCommand) — and hands it to the Sportify.Simulation
-    /// Unity project as a headless run, then shows what it found. No file
-    /// picker, no switching to Unity yourself: see Sportify.Simulation/
-    /// Assets/Scripts/Editor/BatchRunner.cs for the other half of this.
+    /// Unity project as a headless run. Unity flies four stray shots per court
+    /// and records them as an MP4, and separately sweeps a fan of ~400 shots per
+    /// court to work out what share leave the roof and where fences should go;
+    /// this command then shows that and publishes it. No file picker, no
+    /// switching to Unity yourself: see Sportify.Simulation/Assets/Scripts/Editor/
+    /// BatchRunner.cs for the other half of this.
     /// Falls back to the Unity project's own bundled Goldbeck default layout
     /// if nothing has been imported into this Revit session yet, so this
     /// always produces something rather than a dead end on a fresh session.
@@ -26,92 +28,41 @@ namespace SportfyRevit
     [Transaction(TransactionMode.ReadOnly)]
     public class SimulateBallTrajectoriesCommand : IExternalCommand
     {
-        const int TimeoutMs = 120_000;
+        // Unity start-up, a 1080p slow-motion render and the H.264 encode: roughly
+        // 30-60 s on a warm project, several minutes on the very first open.
+        const int TimeoutMs = 300_000;
+        const string DialogTitle = "Sportify — Ball Trajectory Simulation";
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
             var usingBundledDefault = layoutJson == null;
 
-            string unityProjectDir;
-            string unityExePath;
-            try
+            if (!UnityHeadlessRunner.TryLocate(out var unity, out var problem))
             {
-                unityProjectDir = ResolveUnityProjectDir();
-                unityExePath = ResolveUnityExePath(unityProjectDir);
-            }
-            catch (Exception ex)
-            {
-                message = ex.Message;
+                message = problem;
                 return Result.Failed;
             }
 
-            var tempDir = Path.Combine(Path.GetTempPath(), "Sportify");
-            Directory.CreateDirectory(tempDir);
-            var logFilePath = Path.Combine(tempDir, "unity_batch.log");
-
-            string? layoutFilePath = null;
-            if (layoutJson != null)
+            var run = UnityHeadlessRunner.Run(unity!, new UnityHeadlessRunner.Request
             {
-                layoutFilePath = Path.Combine(tempDir, "layout_for_unity.json");
-                File.WriteAllText(layoutFilePath, layoutJson);
-            }
-
-            var resultsPath = Path.Combine(unityProjectDir, "Recordings", "collision_results.json");
-            try { if (File.Exists(resultsPath)) File.Delete(resultsPath); } catch { /* best-effort */ }
-
-            var psi = new ProcessStartInfo
+                ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunCollisionAnalysis",
+                LayoutJson = layoutJson,
+                ResultsFileName = "collision_results.json",
+                VideoFileStem = "ball_trajectories",
+                LogFileName = "unity_batch.log",
+                TimeoutMs = TimeoutMs,
+            });
+            if (!run.Ok)
             {
-                FileName = unityExePath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            psi.ArgumentList.Add("-batchmode");
-            psi.ArgumentList.Add("-projectPath");
-            psi.ArgumentList.Add(unityProjectDir);
-            psi.ArgumentList.Add("-executeMethod");
-            psi.ArgumentList.Add("Sportify.Simulation.Editor.BatchRunner.RunCollisionAnalysis");
-            if (layoutFilePath != null)
-                psi.ArgumentList.Add($"-layoutFile={layoutFilePath}");
-            psi.ArgumentList.Add("-logFile");
-            psi.ArgumentList.Add(logFilePath);
-
-            Process process;
-            try
-            {
-                process = Process.Start(psi) ?? throw new InvalidOperationException("Process.Start returned null.");
-            }
-            catch (Exception ex)
-            {
-                message = $"Couldn't launch Unity at \"{unityExePath}\": {ex.Message}";
-                return Result.Failed;
-            }
-
-            // Revit's UI thread blocks here for the simulation's real-world
-            // duration (Unity startup plus an ~8s in-sim window) — a
-            // synchronous wait is the simplest correct v1 for a one-click
-            // school-project command; see the ribbon tooltip for the heads-up
-            // shown before this runs.
-            var exited = process.WaitForExit(TimeoutMs);
-            if (!exited)
-            {
-                try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
-                message = $"Unity didn't finish within {TimeoutMs / 1000}s — killed it. Log: {logFilePath}";
-                return Result.Failed;
-            }
-
-            if (!File.Exists(resultsPath))
-            {
-                message = $"Unity exited (code {process.ExitCode}) but wrote no results file. Check the log: {logFilePath}";
+                message = run.Message;
                 return Result.Failed;
             }
 
             CollisionResults? results;
-            string resultsJson;
             try
             {
-                resultsJson = File.ReadAllText(resultsPath);
-                results = System.Text.Json.JsonSerializer.Deserialize<CollisionResults>(resultsJson);
+                results = System.Text.Json.JsonSerializer.Deserialize<CollisionResults>(run.ResultsJson!);
             }
             catch (Exception ex)
             {
@@ -131,14 +82,56 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            RoofBoundaryServer.PublishAnalysisResults(resultsJson);
-            ShowSummary(results, usingBundledDefault);
+            var recordedVideo = !string.IsNullOrEmpty(results.Video?.FilePath) && File.Exists(results.Video!.FilePath)
+                ? results.Video.FilePath
+                : null;
+
+            // Merged into the session's analysis payload (like every other Analyze*
+            // command) rather than replacing it, so the Fire Safety / Water / ...
+            // results published earlier survive for the PDF report.
+            var violations = results.Violations ?? new List<ViolationRecord>();
+            AnalysisResultPublisher.PublishBallTrajectory(BuildPublishedResult(results, violations.Count, recordedVideo));
+
+            ShowSummary(results, violations, usingBundledDefault, recordedVideo);
             return Result.Succeeded;
         }
 
-        static void ShowSummary(CollisionResults results, bool usingBundledDefault)
+        static BallTrajectoryResultDto BuildPublishedResult(CollisionResults results, int crossings, string? videoPath)
         {
-            var violations = results.Violations ?? new List<ViolationRecord>();
+            var dto = new BallTrajectoryResultDto
+            {
+                CaseStudy = results.CaseStudy,
+                ShotsSimulated = results.ShotsSimulated,
+                CrossingCount = crossings,
+                VideoPath = videoPath,
+            };
+
+            var exit = results.RoofExit;
+            if (exit is { Ran: true })
+            {
+                dto.SweptShots = exit.ShotsSwept;
+                dto.PercentLeavingRoof = Math.Round(exit.PercentLeavingRoof, 2);
+                dto.PercentLeavingAfterFences = Math.Round(exit.PercentLeavingAfterFences, 2);
+                dto.Fences = new List<RoofFenceDto>();
+                foreach (var f in exit.Fences ?? new List<FenceInfo>())
+                {
+                    dto.Fences.Add(new RoofFenceDto
+                    {
+                        Edge = f.Edge,
+                        FromM = Math.Round(f.FromM, 2),
+                        ToM = Math.Round(f.ToM, 2),
+                        HeightM = Math.Round(f.HeightM, 2),
+                        FullHeightM = Math.Round(f.FullHeightM, 2),
+                        StopsPercentOfExits = Math.Round(f.StopsPercentOfExits, 1),
+                    });
+                }
+            }
+
+            return dto;
+        }
+
+        static void ShowSummary(CollisionResults results, List<ViolationRecord> violations, bool usingBundledDefault, string? videoPath)
+        {
             var body = new StringBuilder();
             if (usingBundledDefault)
                 body.AppendLine("No layout imported into this Revit session yet — ran Unity's bundled Goldbeck default instead.").AppendLine();
@@ -149,61 +142,80 @@ namespace SportfyRevit
             {
                 body.AppendLine();
                 body.AppendLine("First few:");
-                foreach (var v in violations.GetRange(0, Math.Min(8, violations.Count)))
-                    body.AppendLine($"  • Court {v.CourtIndex} \"{v.ShotLabel}\" → {v.ZoneType} ({v.ZoneLabel}) at t={v.SimTime:F2}s");
-                if (violations.Count > 8)
-                    body.AppendLine($"  … and {violations.Count - 8} more.");
+                foreach (var v in violations.GetRange(0, Math.Min(6, violations.Count)))
+                    body.AppendLine($"  • Court {v.CourtIndex} \"{v.ShotLabel}\" → {v.ZoneLabel ?? v.ZoneType} at t={v.SimTime:F2}s");
+                if (violations.Count > 6)
+                    body.AppendLine($"  … and {violations.Count - 6} more.");
             }
 
-            TaskDialog.Show("Sportify — Ball Trajectory Simulation", body.ToString());
-        }
+            AppendRoofExit(body, results.RoofExit);
 
-        static string ResolveUnityProjectDir()
-        {
-            var overridePath = Environment.GetEnvironmentVariable("SPORTIFY_UNITY_PROJECT");
-            if (!string.IsNullOrEmpty(overridePath) && Directory.Exists(overridePath))
-                return overridePath;
-
-            var defaultPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "Sportify_Revit_and_API", "Sportify.Simulation");
-            if (Directory.Exists(defaultPath) && File.Exists(Path.Combine(defaultPath, "ProjectSettings", "ProjectVersion.txt")))
-                return defaultPath;
-
-            throw new InvalidOperationException(
-                $"Can't find the Sportify.Simulation Unity project. Looked at \"{defaultPath}\" " +
-                "— set the SPORTIFY_UNITY_PROJECT environment variable to its folder if it's somewhere else.");
-        }
-
-        static string ResolveUnityExePath(string unityProjectDir)
-        {
-            var overridePath = Environment.GetEnvironmentVariable("SPORTIFY_UNITY_EXE");
-            if (!string.IsNullOrEmpty(overridePath) && File.Exists(overridePath))
-                return overridePath;
-
-            var versionFile = Path.Combine(unityProjectDir, "ProjectSettings", "ProjectVersion.txt");
-            var version = ParseEditorVersion(File.ReadAllText(versionFile));
-
-            var candidate = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "Unity", "Hub", "Editor", version, "Editor", "Unity.exe");
-            if (File.Exists(candidate)) return candidate;
-
-            throw new InvalidOperationException(
-                $"Can't find Unity {version} at \"{candidate}\" (Unity Hub's default install layout). " +
-                "Install it via Unity Hub, or set the SPORTIFY_UNITY_EXE environment variable to Unity.exe's own path.");
-        }
-
-        static string ParseEditorVersion(string projectVersionTxt)
-        {
-            foreach (var rawLine in projectVersionTxt.Split('\n'))
+            body.AppendLine();
+            if (videoPath != null)
             {
-                var line = rawLine.Trim();
-                if (line.StartsWith("m_EditorVersion:") && !line.StartsWith("m_EditorVersionWithRevision:"))
-                    return line.Substring("m_EditorVersion:".Length).Trim();
+                var v = results.Video!;
+                body.AppendLine($"Video: {Path.GetFileName(videoPath)} ({v.DurationS:0.#} s, {v.Width}×{v.Height})");
             }
-            throw new InvalidOperationException("Couldn't find m_EditorVersion in ProjectVersion.txt.");
+            else
+            {
+                body.AppendLine("Video: not recorded" + (string.IsNullOrEmpty(results.VideoError) ? "." : $" — {results.VideoError}"));
+            }
+
+            var dialog = new TaskDialog(DialogTitle)
+            {
+                MainInstruction = violations.Count == 0 ? "No boundary crossings found" : $"{violations.Count} boundary crossing(s) found",
+                MainContent = body.ToString(),
+                CommonButtons = TaskDialogCommonButtons.Close,
+                DefaultButton = TaskDialogResult.Close,
+            };
+
+            if (videoPath != null)
+            {
+                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Play the video", videoPath);
+                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Show the video in its folder");
+            }
+
+            var choice = dialog.Show();
+            if (videoPath == null) return;
+
+            try
+            {
+                if (choice == TaskDialogResult.CommandLink1)
+                    Process.Start(new ProcessStartInfo(videoPath) { UseShellExecute = true });
+                else if (choice == TaskDialogResult.CommandLink2)
+                    Process.Start("explorer.exe", $"/select,\"{videoPath}\"");
+            }
+            catch (Exception)
+            {
+                // Best-effort — the video is on disk either way.
+            }
         }
+
+        static void AppendRoofExit(StringBuilder body, RoofExitInfo? exit)
+        {
+            if (exit is not { Ran: true } || exit.ShotsSwept == 0) return;
+
+            body.AppendLine();
+            if (exit.ShotsLeavingRoof == 0)
+            {
+                body.AppendLine($"Roof edge: none of {exit.ShotsSwept} swept stray shots left the roof — no fence needed.");
+                return;
+            }
+
+            body.AppendLine($"Roof edge: {exit.PercentLeavingRoof:0.#}% of {exit.ShotsSwept} swept stray shots leave the roof.");
+            body.AppendLine("Proposed fences:");
+            foreach (var f in exit.Fences ?? new List<FenceInfo>())
+            {
+                var edge = string.IsNullOrEmpty(f.Edge) ? "" : char.ToUpperInvariant(f.Edge![0]) + f.Edge.Substring(1);
+                body.AppendLine($"  • {edge} edge, {f.FromM:0.#}–{f.ToM:0.#} m ({f.LengthM:0.#} m long), {f.HeightM:0.#} m high — stops {f.StopsPercentOfExits:0}% of its exits");
+            }
+            body.AppendLine(exit.PercentLeavingAfterFences <= 0.05
+                ? "With these fences no swept shot clears the roof edge."
+                : $"With these fences {exit.PercentLeavingAfterFences:0.#}% of swept shots would still clear them (high lobs).");
+            body.AppendLine("Percentages are shares of the swept shot set (a way to compare layouts and edges), not real-world probabilities.");
+        }
+
+        // ---- what Sportify.Simulation writes to Recordings/collision_results.json (camelCase, Unity JsonUtility) ----
 
         internal class ViolationRecord
         {
@@ -214,11 +226,44 @@ namespace SportfyRevit
             [JsonPropertyName("simTime")] public float SimTime { get; set; }
         }
 
+        internal class VideoInfo
+        {
+            // Named FilePath rather than Path so it can't be confused with System.IO.Path in this file.
+            [JsonPropertyName("path")] public string? FilePath { get; set; }
+            [JsonPropertyName("durationS")] public float DurationS { get; set; }
+            [JsonPropertyName("width")] public int Width { get; set; }
+            [JsonPropertyName("height")] public int Height { get; set; }
+        }
+
+        internal class FenceInfo
+        {
+            [JsonPropertyName("edge")] public string? Edge { get; set; }
+            [JsonPropertyName("fromM")] public double FromM { get; set; }
+            [JsonPropertyName("toM")] public double ToM { get; set; }
+            [JsonPropertyName("lengthM")] public double LengthM { get; set; }
+            [JsonPropertyName("heightM")] public double HeightM { get; set; }
+            [JsonPropertyName("fullHeightM")] public double FullHeightM { get; set; }
+            [JsonPropertyName("stopsPercentOfExits")] public double StopsPercentOfExits { get; set; }
+        }
+
+        internal class RoofExitInfo
+        {
+            [JsonPropertyName("ran")] public bool Ran { get; set; }
+            [JsonPropertyName("shotsSwept")] public int ShotsSwept { get; set; }
+            [JsonPropertyName("shotsLeavingRoof")] public int ShotsLeavingRoof { get; set; }
+            [JsonPropertyName("percentLeavingRoof")] public double PercentLeavingRoof { get; set; }
+            [JsonPropertyName("percentLeavingAfterFences")] public double PercentLeavingAfterFences { get; set; }
+            [JsonPropertyName("fences")] public List<FenceInfo>? Fences { get; set; }
+        }
+
         internal class CollisionResults
         {
             [JsonPropertyName("caseStudy")] public string? CaseStudy { get; set; }
             [JsonPropertyName("shotsSimulated")] public int ShotsSimulated { get; set; }
             [JsonPropertyName("violations")] public List<ViolationRecord>? Violations { get; set; }
+            [JsonPropertyName("roofExit")] public RoofExitInfo? RoofExit { get; set; }
+            [JsonPropertyName("video")] public VideoInfo? Video { get; set; }
+            [JsonPropertyName("videoError")] public string? VideoError { get; set; }
             [JsonPropertyName("error")] public string? Error { get; set; }
         }
     }

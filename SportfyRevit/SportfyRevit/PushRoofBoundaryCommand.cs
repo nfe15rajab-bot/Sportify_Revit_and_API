@@ -46,6 +46,16 @@ namespace SportfyRevit
             double ToMeters(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
             double originXFt = bbox.Min.X, originYFt = bbox.Min.Y;
 
+            // How high the roof stands above the ground: the wind analysis scales the roof's edge zones with it.
+            // Prefer the model's topography under the roof, else the ground-floor level; the source travels with it.
+            var roofTopFt = topFaceZFt ?? bbox.Max.Z;
+            var roofTopM = ToMeters(roofTopFt);
+            var heightAboveGround = RoofHeightAboveGround.Choose(
+                roofTopM,
+                TryTopographyElevationM(doc, bbox, roofTopFt),
+                new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
+                    .Select(l => new RoofHeightAboveGround.LevelInfo(l.Name, ToMeters(l.Elevation))).ToList());
+
             var payload = new
             {
                 roof = new
@@ -74,6 +84,9 @@ namespace SportfyRevit
                     // bounding box top for a shape with no flat upward face.
                     origin_z_m = Math.Round(ToMeters(topFaceZFt ?? bbox.Max.Z), 3),
                     source_element_name = element.Name,
+                    // Null when no ground could be worked out; the web app then lets the designer type it.
+                    height_above_ground_m = heightAboveGround?.HeightM,
+                    height_source = heightAboveGround?.Source,
                 },
             };
 
@@ -81,9 +94,52 @@ namespace SportfyRevit
 
             TaskDialog.Show("Sportify",
                 $"Pushed \"{element.Name}\" ({payload.roof.length_m} m x {payload.roof.width_m} m) — " +
-                "switch to the Sportify Combine tab to see it.");
+                "switch to the Sportify Combine tab to see it." +
+                (heightAboveGround != null
+                    ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
+                      "Check it: the wind analysis uses it, and the Site tab lets you override it."
+                    : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab."));
 
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// The ground under the roof from the model's topography (a ray down from the roof at its centre and four points
+        /// inset from its corners, averaged), or null when the model has none or the ray finds nothing. Best-effort: any
+        /// failure just means the ground-floor level is used instead.
+        /// </summary>
+        private static double? TryTopographyElevationM(Document doc, BoundingBoxXYZ bbox, double roofTopFt)
+        {
+            try
+            {
+                var view3d = new FilteredElementCollector(doc).OfClass(typeof(View3D)).Cast<View3D>().FirstOrDefault(v => !v.IsTemplate);
+                if (view3d == null) return null;
+
+                var categories = new List<BuiltInCategory> { BuiltInCategory.OST_Topography, BuiltInCategory.OST_Toposolid };
+                var intersector = new ReferenceIntersector(new ElementMulticategoryFilter(categories), FindReferenceTarget.Element, view3d);
+
+                double dx = bbox.Max.X - bbox.Min.X, dy = bbox.Max.Y - bbox.Min.Y;
+                double cx = (bbox.Min.X + bbox.Max.X) / 2, cy = (bbox.Min.Y + bbox.Max.Y) / 2;
+                var samples = new[]
+                {
+                    (cx, cy),
+                    (bbox.Min.X + dx * 0.15, bbox.Min.Y + dy * 0.15), (bbox.Max.X - dx * 0.15, bbox.Min.Y + dy * 0.15),
+                    (bbox.Min.X + dx * 0.15, bbox.Max.Y - dy * 0.15), (bbox.Max.X - dx * 0.15, bbox.Max.Y - dy * 0.15),
+                };
+
+                var grounds = new List<double>();
+                foreach (var (x, y) in samples)
+                {
+                    var hit = intersector.FindNearest(new XYZ(x, y, roofTopFt), XYZ.BasisZ.Negate());
+                    if (hit != null) grounds.Add(roofTopFt - hit.Proximity);
+                }
+
+                return grounds.Count == 0 ? null : UnitUtils.ConvertFromInternalUnits(grounds.Average(), UnitTypeId.Meters);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         /// <summary>

@@ -113,6 +113,44 @@ namespace SportfyRevit
                 rows.Add(new ResultRow("Carbon Impact", $"~{ci.EstimatedDailyWh:0.#} Wh/day over {ci.ActiveSurfaceAreaM2:0.#} m² active surface", null));
             if (r.SunAndShading is { } ss)
                 rows.Add(new ResultRow("Sun & Shading", $"Configured for {ss.ConfiguredForDateTime ?? "—"}", ss.LocationConfigured));
+            if (r.BallTrajectory is { } bt)
+            {
+                rows.Add(new ResultRow("Ball Trajectories",
+                    $"{bt.ShotsSimulated} stray shots simulated, {bt.CrossingCount} boundary crossing(s)" +
+                    (string.IsNullOrEmpty(bt.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(bt.VideoPath)}"),
+                    bt.CrossingCount == 0));
+
+                if (bt.SweptShots > 0)
+                {
+                    var fences = bt.Fences is { Count: > 0 }
+                        ? "fences: " + string.Join("; ", bt.Fences.Select(f => $"{f.Edge} edge {f.FromM:0.#}–{f.ToM:0.#} m × {f.HeightM:0.#} m"))
+                        : "no fence needed";
+                    rows.Add(new ResultRow("Roof-Edge Fences",
+                        $"{bt.PercentLeavingRoof:0.#}% of {bt.SweptShots} swept stray shots leave the roof — {fences}",
+                        bt.PercentLeavingRoof == 0));
+                }
+            }
+
+            if (r.WindErosion is { } we)
+            {
+                rows.Add(new ResultRow("Wind & Erosion",
+                    $"{we.TreesFailing} of {we.TreesChecked} trees would be blown over, {we.ZonesUpliftFlagged} of {we.ZonesChecked} zones lift " +
+                    $"({we.PercentPlantedAreaUpliftFlagged:0.#}% of the planted area); bare substrate moves from {we.LowestBareOnsetMs:0.#} m/s" +
+                    (string.IsNullOrEmpty(we.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(we.VideoPath)}"),
+                    we.TreesFailing == 0 && we.ZonesUpliftFlagged == 0));
+
+                if (we.Findings is { Count: > 0 })
+                {
+                    rows.Add(new ResultRow("Wind & Erosion Fixes",
+                        string.Join(" ", we.Findings.Take(4).Select(f => f.Text)) +
+                        (we.Findings.Count > 4 ? $" (+{we.Findings.Count - 4} more)" : "") +
+                        " Screening estimate, not a structural design.",
+                        null));
+                }
+
+                if (we.Assumptions is { Count: > 0 })
+                    rows.Add(new ResultRow("Wind & Erosion Assumptions", string.Join(" ", we.Assumptions), null));
+            }
 
             return rows;
         }

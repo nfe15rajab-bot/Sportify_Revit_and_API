@@ -17,6 +17,12 @@ namespace SportfyRevit
         [JsonPropertyName("entry_points")] public List<EntryPointDto>? EntryPoints { get; set; }
         [JsonPropertyName("circulation_paths")] public List<CirculationPathDto>? CirculationPaths { get; set; }
         [JsonPropertyName("site_location")] public SiteLocationDto? SiteLocation { get; set; }
+
+        /// <summary>
+        /// What the wind analysis needs to know about the site: the wind zone (looked up from where the site is, or set by
+        /// hand), and the roof's orientation. Absent in exports from before the web app carried it.
+        /// </summary>
+        [JsonPropertyName("site_conditions")] public SiteConditionsDto? SiteConditions { get; set; }
         [JsonPropertyName("placements")] public List<PlacementDto>? Placements { get; set; }
 
         /// <summary>
@@ -45,6 +51,19 @@ namespace SportfyRevit
         [JsonPropertyName("time")] public string? Time { get; set; } // "HH:mm"
     }
 
+    internal class SiteConditionsDto
+    {
+        /// <summary>German wind zone 1 to 4, or null when it could not be told (a site outside Germany, or none set).</summary>
+        [JsonPropertyName("wind_zone")] public int? WindZone { get; set; }
+        [JsonPropertyName("wind_zone_manual")] public bool WindZoneManual { get; set; }
+        /// <summary>"gemeinde" | "kreis" | "conservative" | "manual" | "none".</summary>
+        [JsonPropertyName("wind_zone_confidence")] public string? WindZoneConfidence { get; set; }
+        [JsonPropertyName("wind_zone_source")] public string? WindZoneSource { get; set; }
+
+        /// <summary>Compass bearing of the top of the plan (the sun compass's convention); null until the designer sets it.</summary>
+        [JsonPropertyName("north_deg")] public double? NorthDeg { get; set; }
+    }
+
     internal class RoofContextDto
     {
         [JsonPropertyName("length_m")] public double LengthM { get; set; }
@@ -59,6 +78,13 @@ namespace SportfyRevit
         /// without this field behaves exactly as it did before.
         /// </summary>
         [JsonPropertyName("world_origin_z_m")] public double WorldOriginZM { get; set; }
+
+        /// <summary>
+        /// How high the roof stands above the ground, from the Revit model (topography or the ground-floor level) or typed
+        /// in the Site tab. 0 when not known. Unlike world_origin_z_m this is a HEIGHT, which is what wind loading needs.
+        /// </summary>
+        [JsonPropertyName("height_above_ground_m")] public double HeightAboveGroundM { get; set; }
+        [JsonPropertyName("height_source")] public string? HeightSource { get; set; }
     }
 
     internal class DesignRulesDto
@@ -320,6 +346,8 @@ namespace SportfyRevit
 
     internal class GardenLayerDto
     {
+        [JsonPropertyName("layer_name")] public string? LayerName { get; set; }
+        [JsonPropertyName("material")] public string? Material { get; set; }
         [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
     }
 
