@@ -1,3 +1,4 @@
+using System;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 
@@ -16,6 +17,16 @@ namespace Sportify.Simulation.Editor
         // EditorApplication.Exit once the simulation actually finishes.
         public static void RunCollisionAnalysis()
         {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, null);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
+        // Same, for the garden analysis (wind uplift and erosion): -executeMethod
+        // Sportify.Simulation.Editor.BatchRunner.RunWindAnalysis. Writes Recordings/wind_results.json.
+        public static void RunWindAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Wind);
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.isPlaying = true;
         }
