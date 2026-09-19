@@ -40,6 +40,7 @@ namespace SportfyRevit
         /// to be placements: a zone has no fixed size and is not an object.
         /// </summary>
         [JsonPropertyName("zones")] public List<ZoneDto>? Zones { get; set; }
+        [JsonPropertyName("roof_finish")] public RoofFinishDto? RoofFinish { get; set; }
 
         /// <summary>
         /// The roof's structural grid and columns, pulled from the Revit model by the push (or drawn by hand in the Combine tab),
@@ -325,6 +326,33 @@ namespace SportfyRevit
         [JsonPropertyName("source_url")] public string? SourceUrl { get; set; }
         [JsonPropertyName("total_thickness_m")] public double TotalThicknessM { get; set; }
         [JsonPropertyName("layers")] public List<AssemblyLayerDto>? Layers { get; set; }
+    }
+
+    /// <summary>
+    /// The surface everything else sits in — what is left of the roof once the
+    /// courts and the planted zones are taken out. One floor with holes in it,
+    /// not a slab underneath the others: coplanar, nothing overlapping, which
+    /// is how the exposed surface would be drawn by hand.
+    /// </summary>
+    internal class RoofFinishDto
+    {
+        [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
+        [JsonPropertyName("revit_type_name")] public string? RevitTypeName { get; set; }
+        [JsonPropertyName("net_area_m2")] public double NetAreaM2 { get; set; }
+        [JsonPropertyName("roof_area_m2")] public double RoofAreaM2 { get; set; }
+
+        /// <summary>Every zone and court, as a hole in the finish.</summary>
+        [JsonPropertyName("openings")] public List<OpeningDto>? Openings { get; set; }
+    }
+
+    internal class OpeningDto
+    {
+        [JsonPropertyName("source")] public string? Source { get; set; }   // "zone" | "piece"
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
     }
 
     internal class ZoneDto

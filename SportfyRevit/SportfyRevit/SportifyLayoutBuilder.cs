@@ -99,6 +99,10 @@ namespace SportfyRevit
             // visually on top of the ground rather than under it.
             int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds);
 
+            // The leftover surface, before the pieces, so a court reads as
+            // sitting in the finish rather than on top of it.
+            CreateRoofFinishFloor(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds);
+
             int pieceCount = 0;
             if (layout.Placements != null)
             {
@@ -147,6 +151,61 @@ namespace SportfyRevit
         /// its assembly. A zone whose build-up produced no type is reported and
         /// skipped rather than drawn as something the designer did not choose.
         /// </summary>
+        /// <summary>
+        /// One floor for everything the courts and the zones do not cover, with
+        /// each of them punched through it as an opening.
+        ///
+        /// The boundary comes from the same polygon the roof was pushed with,
+        /// and deliberately is NOT Y-flipped: the web app already flips it when
+        /// it draws, so flipping again here would mirror the roof back. Items
+        /// and openings do get flipped, because those coordinates are the app's
+        /// own — the same asymmetry the rest of this importer carries.
+        /// </summary>
+        private static void CreateRoofFinishFloor(Document doc, SportifyLayout layout,
+            double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        {
+            var finish = layout.RoofFinish;
+            if (finish == null || string.IsNullOrWhiteSpace(finish.AssemblyKey)) return;
+
+            var assembly = layout.Assemblies?.FirstOrDefault(a => a.Key == finish.AssemblyKey);
+            if (assembly == null)
+            {
+                ImportDiagnostics.FloorFailed("Roof finish",
+                    $"build-up \"{finish.AssemblyKey}\" was not in the export's assembly list");
+                return;
+            }
+
+            var floorType = SportifyFloorTypeBuilder.GetOrCreate(doc, assembly);
+            if (floorType == null) return;
+
+            var boundary = layout.RoofContext?.SourceBoundaryPolygon;
+            if (boundary == null || boundary.Count < 3)
+            {
+                ImportDiagnostics.FloorFailed("Roof finish", "this export carries no roof boundary polygon");
+                return;
+            }
+
+            var pts = boundary
+                .Select(p => new XYZ(originXFt + FeetFromMeters(p.XM), originYFt + FeetFromMeters(p.YM), 0))
+                .ToList();
+
+            var floor = SportifyFloorTypeBuilder.CreateRoofFinish(
+                doc, floorType, pts, finish.Openings ?? new List<OpeningDto>(),
+                originXFt, originYFt, CurrentOriginZFt, out var failure);
+
+            if (floor == null)
+            {
+                ImportDiagnostics.FloorFailed($"Roof finish ({assembly.SystemName})", failure ?? "unknown reason");
+                return;
+            }
+            SetWorkset(floor, worksetId);
+            createdIds.Add(floor.Id);
+            ImportDiagnostics.FloorCreated(
+                $"Roof finish ({(finish.Openings?.Count ?? 0)} opening(s)"
+                    + (failure != null ? $"; {failure}" : "") + ")",
+                floorType.Name, finish.NetAreaM2);
+        }
+
         private static int CreateZoneFloors(Document doc, SportifyLayout layout,
                                             double originXFt, double originYFt,
                                             WorksetId worksetId, List<ElementId> createdIds)

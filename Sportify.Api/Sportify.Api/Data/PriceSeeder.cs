@@ -92,6 +92,13 @@ namespace Sportify.Api.Data
             ["Drainage element FKD 25"]                                  = (17, "EUR/m2", "363"),
             ["Protection mat RMS 500"]                                   = (7,  "EUR/m2", "363"),
 
+            ["Hardwood deck boards"]                                     = (95, "EUR/m2", "530"),
+            ["Aluminium joists"]                                         = (28, "EUR/m2", "530"),
+            ["Adjustable pedestals"]                                     = (26, "EUR/m2", "530"),
+            ["Washed round gravel 16/32"]                                = (55, "EUR/m3", "530"),
+            ["Filter fleece"]                                            = (3,  "EUR/m2", "363"),
+            ["Resin-bound aggregate"]                                    = (78, "EUR/m2", "530"),
+            ["Permeable base course"]                                    = (45, "EUR/m3", "530"),
             ["Concrete paving slab"]                                     = (48, "EUR/m2", "530"),
             ["Adjustable pedestal"]                                      = (26, "EUR/m2", "530"),
             ["Protection mat"]                                           = (6,  "EUR/m2", "363"),

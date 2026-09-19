@@ -362,6 +362,88 @@ namespace SportfyRevit
         }
 
         /// <summary>
+        /// The roof finish: one floor covering everything the courts and the
+        /// planted zones do not.
+        ///
+        /// Revit draws this natively — Floor.Create takes a list of loops where
+        /// the first is the boundary and every one after it is an opening. So
+        /// the leftover surface is a single element with real holes rather than
+        /// a slab hidden under the others, which means its area schedules
+        /// correctly and nothing fights for the same surface.
+        ///
+        /// An opening that falls outside the boundary, or overlaps another, is
+        /// skipped rather than failing the whole floor: one bad rectangle
+        /// should not cost you the entire finish.
+        /// </summary>
+        public static Floor? CreateRoofFinish(Document doc, FloorType floorType,
+            IList<XYZ> boundaryFt, IEnumerable<OpeningDto> openings,
+            double originXFt, double originYFt, double elevationFt, out string? failure)
+        {
+            failure = null;
+            try
+            {
+                if (boundaryFt == null || boundaryFt.Count < 3)
+                { failure = "the roof boundary has fewer than three points"; return null; }
+
+                var level = NearestLevel(doc, elevationFt);
+                if (level == null) { failure = "this project has no level to host a floor on"; return null; }
+                double z = level.Elevation;
+
+                var outer = new List<Curve>();
+                for (int i = 0; i < boundaryFt.Count; i++)
+                {
+                    var a = boundaryFt[i];
+                    var b = boundaryFt[(i + 1) % boundaryFt.Count];
+                    var p0 = new XYZ(a.X, a.Y, z);
+                    var p1 = new XYZ(b.X, b.Y, z);
+                    // Revit rejects a zero-length segment, and a pushed boundary
+                    // can carry duplicate points from the original sketch.
+                    if (p0.DistanceTo(p1) > doc.Application.ShortCurveTolerance)
+                        outer.Add(Line.CreateBound(p0, p1));
+                }
+                if (outer.Count < 3) { failure = "the roof boundary collapsed to fewer than three usable edges"; return null; }
+
+                var loops = new List<CurveLoop> { CurveLoop.Create(outer) };
+
+                int skipped = 0;
+                foreach (var o in openings ?? Enumerable.Empty<OpeningDto>())
+                {
+                    double x0 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM);
+                    double x1 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM + o.LengthM);
+                    double y0 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM + o.WidthM);
+                    double y1 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM);
+                    if (Math.Abs(x1 - x0) < doc.Application.ShortCurveTolerance ||
+                        Math.Abs(y1 - y0) < doc.Application.ShortCurveTolerance) { skipped++; continue; }
+                    try
+                    {
+                        loops.Add(CurveLoop.Create(new List<Curve>
+                        {
+                            Line.CreateBound(new XYZ(x0, y0, z), new XYZ(x1, y0, z)),
+                            Line.CreateBound(new XYZ(x1, y0, z), new XYZ(x1, y1, z)),
+                            Line.CreateBound(new XYZ(x1, y1, z), new XYZ(x0, y1, z)),
+                            Line.CreateBound(new XYZ(x0, y1, z), new XYZ(x0, y0, z)),
+                        }));
+                    }
+                    catch { skipped++; }
+                }
+
+                var floor = Floor.Create(doc, loops, floorType.Id, level.Id);
+                if (floor == null) { failure = "Revit returned no floor"; return null; }
+
+                var offset = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
+                if (offset != null && !offset.IsReadOnly) offset.Set(elevationFt - level.Elevation);
+
+                if (skipped > 0) failure = $"{skipped} opening(s) were unusable and left solid";
+                return floor;
+            }
+            catch (Exception ex)
+            {
+                failure = $"{ex.GetType().Name}: {ex.Message}";
+                return null;
+            }
+        }
+
+        /// <summary>
         /// The level closest to the roof, so the floor's offset stays small and
         /// the element reads sensibly in a project browser — a parcel 14 m up
         /// listed against Level 0 with a 14 m offset is technically correct and
