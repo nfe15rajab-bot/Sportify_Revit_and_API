@@ -363,6 +363,14 @@ namespace SportfyRevit
         [JsonPropertyName("bounding_box")] public BoundingBoxDto? BoundingBox { get; set; }
         [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
         [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
+
+        /// <summary>
+        /// The zone's real outline. A bed is not a rectangle once its corners
+        /// can be moved, and bounding_box would draw the floor as the box it
+        /// happens to fit inside. Absent on exports from before zones had
+        /// corners, which is why the box is still carried.
+        /// </summary>
+        [JsonPropertyName("points")] public List<PointDto>? Points { get; set; }
     }
 
     internal class AssemblyLayerDto

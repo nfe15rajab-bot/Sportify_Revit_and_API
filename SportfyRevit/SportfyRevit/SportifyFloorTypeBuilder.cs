@@ -362,6 +362,25 @@ namespace SportfyRevit
         }
 
         /// <summary>
+        /// A floor from an arbitrary outline — a zone whose corners have been
+        /// moved. Same machinery as the roof finish, with no openings: the
+        /// outline is the sketch, rather than the rectangle it fits inside.
+        /// </summary>
+        public static Floor? CreateFloorFromPoints(Document doc, FloorType floorType,
+            IList<PointDto> pointsM, double originXFt, double originYFt,
+            double elevationFt, out string? failure)
+        {
+            var ft = (pointsM ?? new List<PointDto>())
+                .Select(p => new XYZ(
+                    originXFt + SportifyLayoutBuilder.FeetFromMeters(p.XM),
+                    SportifyLayoutBuilder.WorldYFt(originYFt, p.YM),
+                    0))
+                .ToList();
+            return CreateRoofFinish(doc, floorType, ft, Enumerable.Empty<OpeningDto>(),
+                originXFt, originYFt, elevationFt, out failure);
+        }
+
+        /// <summary>
         /// The roof finish: one floor covering everything the courts and the
         /// planted zones do not.
         ///

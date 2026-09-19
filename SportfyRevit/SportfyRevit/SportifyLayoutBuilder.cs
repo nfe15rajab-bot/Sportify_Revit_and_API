@@ -225,8 +225,14 @@ namespace SportfyRevit
                     continue;
                 }
 
-                var floor = SportifyFloorTypeBuilder.CreateFloor(
-                    doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out string failure);
+                // Sketch the outline the designer actually drew. Only an export
+                // from before zones had movable corners falls back to the box,
+                // which for those is the same shape anyway.
+                var floor = (zone.Points != null && zone.Points.Count >= 3)
+                    ? SportifyFloorTypeBuilder.CreateFloorFromPoints(
+                        doc, floorType, zone.Points, originXFt, originYFt, CurrentOriginZFt, out string failure)
+                    : SportifyFloorTypeBuilder.CreateFloor(
+                        doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out failure);
 
                 if (floor == null) { ImportDiagnostics.FloorFailed(label, failure); continue; }
 
