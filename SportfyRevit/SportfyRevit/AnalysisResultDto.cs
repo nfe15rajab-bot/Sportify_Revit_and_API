@@ -26,6 +26,7 @@ namespace SportfyRevit
         [JsonPropertyName("wind_erosion")] public WindErosionResultDto? WindErosion { get; set; }
         [JsonPropertyName("soil_percolation")] public SoilPercolationResultDto? SoilPercolation { get; set; }
         [JsonPropertyName("structural_loads")] public StructuralLoadsResultDto? StructuralLoads { get; set; }
+        [JsonPropertyName("dynamic_analysis")] public DynamicAnalysisResultDto? DynamicAnalysis { get; set; }
     }
 
     internal class FireSafetyResultDto
@@ -200,6 +201,58 @@ namespace SportfyRevit
         [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
     }
 
+    /// <summary>
+    /// What the dynamic structural analysis found (DynamicLoadCore.cs, computed in-process by this add-in): the crowd through the day,
+    /// the weather load cases, and the resonance of the deck under rhythmic crowd movement.
+    /// </summary>
+    internal class DynamicAnalysisResultDto
+    {
+        [JsonPropertyName("case_study")] public string? CaseStudy { get; set; }
+        [JsonPropertyName("video_path")] public string? VideoPath { get; set; }
+
+        [JsonPropertyName("schedule")] public string? Schedule { get; set; }
+        [JsonPropertyName("peak_persons")] public double PeakPersons { get; set; }
+        [JsonPropertyName("peak_at_hour")] public double PeakAtHour { get; set; }
+        [JsonPropertyName("peak_crowd_kn")] public double PeakCrowdKn { get; set; }
+        [JsonPropertyName("crowd_share_of_load_percent")] public double CrowdShareOfLoadPercent { get; set; }
+        [JsonPropertyName("max_load_centre_shift_percent")] public double MaxLoadCentreShiftPercent { get; set; }
+        [JsonPropertyName("busiest_bay")] public string? BusiestBay { get; set; }
+        [JsonPropertyName("busiest_bay_peak_density")] public double BusiestBayPeakDensity { get; set; }
+
+        [JsonPropertyName("snow_zone")] public string? SnowZone { get; set; }
+        [JsonPropertyName("snow_assumed")] public bool SnowAssumed { get; set; }
+        [JsonPropertyName("snow_sk_kn_m2")] public double SnowSkKnM2 { get; set; }
+        [JsonPropertyName("rain_peak_added_kn")] public double RainPeakAddedKn { get; set; }
+        [JsonPropertyName("rain_saturated_kn")] public double RainSaturatedKn { get; set; }
+        [JsonPropertyName("worst_case")] public string? WorstCase { get; set; }
+        [JsonPropertyName("worst_case_bay")] public string? WorstCaseBay { get; set; }
+        [JsonPropertyName("worst_case_utilisation_percent")] public double WorstCaseUtilisationPercent { get; set; }
+        [JsonPropertyName("deck_capacity_kn_m2")] public double DeckCapacityKnM2 { get; set; }
+        [JsonPropertyName("cases")] public List<DynamicCaseDto>? Cases { get; set; }
+
+        [JsonPropertyName("frequency_estimated")] public bool FrequencyEstimated { get; set; }
+        [JsonPropertyName("lowest_frequency_hz")] public double LowestFrequencyHz { get; set; }
+        [JsonPropertyName("highest_frequency_hz")] public double HighestFrequencyHz { get; set; }
+        [JsonPropertyName("worst_resonance_bay")] public string? WorstResonanceBay { get; set; }
+        [JsonPropertyName("worst_resonance_activity")] public string? WorstResonanceActivity { get; set; }
+        [JsonPropertyName("worst_acceleration_g")] public double WorstAccelerationG { get; set; }
+        [JsonPropertyName("worst_limit_g")] public double WorstLimitG { get; set; }
+        [JsonPropertyName("bays_exceeding_comfort")] public int BaysExceedingComfort { get; set; }
+        [JsonPropertyName("bays_checked")] public int BaysChecked { get; set; }
+
+        [JsonPropertyName("findings")] public List<WindFindingDto>? Findings { get; set; }
+        [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
+    }
+
+    internal class DynamicCaseDto
+    {
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("total_kn")] public double TotalKn { get; set; }
+        [JsonPropertyName("peak_utilisation_percent")] public double PeakUtilisationPercent { get; set; }
+        [JsonPropertyName("worst_bay")] public string? WorstBay { get; set; }
+        [JsonPropertyName("bays_over_capacity")] public int BaysOverCapacity { get; set; }
+    }
+
     internal class StructuralBayDto
     {
         [JsonPropertyName("label")] public string? Label { get; set; }
@@ -250,6 +303,7 @@ namespace SportfyRevit
         public static void PublishWindErosion(WindErosionResultDto result) => Publish(p => p.WindErosion = result);
         public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish(p => p.SoilPercolation = result);
         public static void PublishStructuralLoads(StructuralLoadsResultDto result) => Publish(p => p.StructuralLoads = result);
+        public static void PublishDynamicAnalysis(DynamicAnalysisResultDto result) => Publish(p => p.DynamicAnalysis = result);
 
         private static void Publish(Action<AnalysisResultPayload> apply)
         {

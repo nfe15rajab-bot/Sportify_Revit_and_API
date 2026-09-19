@@ -29,6 +29,10 @@ namespace Sportify.Simulation
         public string wind_zone_source;
         public bool north_set;
         public float north_deg;
+        public string snow_zone;          // "1", "1a", "2", "2a", "3" or "" when not given
+        public bool altitude_set;
+        public float altitude_m;
+        public string day_schedule;
     }
 
     [Serializable]
@@ -125,6 +129,7 @@ namespace Sportify.Simulation
     {
         public string source;
         public float deck_capacity_kn_m2;
+        public float natural_frequency_hz;   // 0 = not given
         public GridLineData[] grid_lines;
         public StructuralColumnData[] columns;
     }

@@ -230,6 +230,13 @@ namespace Sportify.Simulation
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
 
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height);
+            foreach (var p in LayoutLoader.ExtractContext(_payload))
+            {
+                // what the patch is (its garden theme or activity), short enough not to run into the next one
+                var text = string.IsNullOrEmpty(p.Label) ? (p.Category == "garden" ? "Garden" : "Activity") : p.Label;
+                if (text.Length > 30) text = text.Substring(0, 29).TrimEnd() + "...";
+                _hud.WorldLabel(text, LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), 0.75f, new Color(1f, 1f, 1f, 0.8f));
+            }
             foreach (var court in _courts)
             {
                 var c = court.CenterLayout;

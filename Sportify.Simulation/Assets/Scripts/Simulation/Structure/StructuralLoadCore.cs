@@ -53,12 +53,14 @@ namespace Sportify.Simulation.Structure
     public class LoadItem
     {
         public string Id, Label;
+        public string Name = "";             // what it is, for the videos: "Badminton (standard)", "Yoga", "Green roof: ZinCo Roof Garden"
         public LoadKind Kind;
         public double X, Y, Width, Height;   // footprint (a tree: its crown's box)
         public double DeadKnM2;              // permanent load on the footprint
         public double LiveKnM2;              // characteristic imposed load of its use
         public double PointKn;               // a concentrated permanent load (a tree's weight)
         public double Persons;               // expected people on it
+        public double Players, Seats;        // a court's players and seated spectators (Persons is their sum)
         public string Basis = "";            // where the numbers come from, for the report
 
         public LoadItem Copy() { return (LoadItem)MemberwiseClone(); }
@@ -264,9 +266,9 @@ namespace Sportify.Simulation.Structure
             var players = PlayersOn(sport);
             return new LoadItem
             {
-                Id = id, Label = label, Kind = LoadKind.Court, X = x, Y = y, Width = w, Height = h,
+                Id = id, Label = label, Name = label, Kind = LoadKind.Court, X = x, Y = y, Width = w, Height = h,
                 DeadKnM2 = SportsSurfaceKnM2, LiveKnM2 = CourtLiveKnM2,
-                Persons = players + seats,
+                Persons = players + seats, Players = players, Seats = seats,
                 Basis = "sports area, category C4 (" + F1(CourtLiveKnM2) + " kN/m2); " + F0(players) + " players" + (seats > 0 ? " and " + seats + " seats" : ""),
             };
         }
@@ -275,7 +277,7 @@ namespace Sportify.Simulation.Structure
         {
             return new LoadItem
             {
-                Id = id, Label = label, Kind = LoadKind.Activity, X = x, Y = y, Width = w, Height = h,
+                Id = id, Label = label, Name = label, Kind = LoadKind.Activity, X = x, Y = y, Width = w, Height = h,
                 DeadKnM2 = SportsSurfaceKnM2, LiveKnM2 = ActivityLiveKnM2,
                 Persons = w * h * ActivityPersonsPerM2,
                 Basis = "play / assembly area (" + F1(ActivityLiveKnM2) + " kN/m2, assumed); " + F1(ActivityPersonsPerM2) + " people per m2",
@@ -308,6 +310,7 @@ namespace Sportify.Simulation.Structure
             return new LoadItem
             {
                 Id = zone.Id, Label = zone.Label, Kind = LoadKind.Zone,
+                Name = "Green roof: " + (a != null && !string.IsNullOrEmpty(a.SystemName) ? a.SystemName : (a != null && !string.IsNullOrEmpty(a.System) ? a.System : "no build-up")),
                 X = zone.X, Y = zone.Y, Width = zone.Width, Height = zone.Height,
                 DeadKnM2 = kgM2 * Gravity / 1000.0,
                 LiveKnM2 = accessible ? AccessibleLiveKnM2 : RoofLiveKnM2,
@@ -323,7 +326,7 @@ namespace Sportify.Simulation.Structure
             var kn = TreeMassAtSixMetresKg * Math.Pow(plant.HeightM / 6.0, 2) * Gravity / 1000.0;
             return new LoadItem
             {
-                Id = plant.Id, Label = plant.Species, Kind = LoadKind.Tree,
+                Id = plant.Id, Label = plant.Species, Name = plant.Species, Kind = LoadKind.Tree,
                 X = plant.X - plant.CrownM / 2, Y = plant.Y - plant.CrownM / 2, Width = plant.CrownM, Height = plant.CrownM,
                 PointKn = kn,
                 LiveKnM2 = RoofLiveKnM2,
@@ -547,8 +550,34 @@ namespace Sportify.Simulation.Structure
             return report;
         }
 
+        /// <summary>The bay boundaries the analysis uses (x, y), the model's own grid or the assumed regular one.</summary>
+        public static void BayBounds(StructureInputs inputs, out double[] xs, out double[] ys)
+        {
+            var assumed = inputs.VerticalLines.Count == 0 && inputs.HorizontalLines.Count == 0;
+            xs = Boundaries(assumed ? RegularLines(inputs.RoofLength) : inputs.VerticalLines, inputs.RoofLength);
+            ys = Boundaries(assumed ? RegularLines(inputs.RoofWidth) : inputs.HorizontalLines, inputs.RoofWidth);
+        }
+
+        /// <summary>Per-cell values (kN) summed into the bays, a cell across a grid line split by area; bay order as in the report (row by row).</summary>
+        public static double[] BaySums(double[] cellValues, LoadField f, double[] xs, double[] ys)
+        {
+            var nbx = xs.Length - 1;
+            var sums = new double[nbx * (ys.Length - 1)];
+            var ovX = Overlaps(xs, f.Nx, f.CellW);
+            var ovY = Overlaps(ys, f.Ny, f.CellH);
+            for (var iy = 0; iy < f.Ny; iy++)
+                for (var ix = 0; ix < f.Nx; ix++)
+                {
+                    var v = cellValues[f.Index(ix, iy)];
+                    foreach (var py in ovY[iy])
+                        foreach (var px in ovX[ix])
+                            sums[py.Key * nbx + px.Key] += v * px.Value * py.Value;
+                }
+            return sums;
+        }
+
         /// <summary>Everything except the advice.</summary>
-        static StructureReport Compute(StructureInputs inputs)
+        public static StructureReport Compute(StructureInputs inputs)
         {
             var report = new StructureReport { ran = true };
 

@@ -14,7 +14,7 @@ namespace SportfyRevit
     /// The static half of the structural analysis: where the weight and the people will be on the roof, which bays of the roof's
     /// structural grid are most loaded against the deck's capacity, and whether the load sits to one side, with the move or lightening
     /// that would balance it. (Crowds moving through the day, and water, wind and snow acting on the roof, are the dynamic half:
-    /// AnalyzeStructuralResonanceCommand, still to come.)
+    /// AnalyzeDynamicLoadsCommand.)
     ///
     /// The grid and columns come from the Revit model with the roof push (PushRoofBoundaryCommand) and travel with the layout. The
     /// numbers come from StructuralLoadCore.cs, compiled into this add-in from the Unity project's sources, so they need no Unity and

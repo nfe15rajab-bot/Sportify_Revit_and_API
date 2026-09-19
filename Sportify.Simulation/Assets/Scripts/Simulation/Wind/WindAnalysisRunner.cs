@@ -213,6 +213,8 @@ namespace Sportify.Simulation.Wind
 
             BuildCourts();
             SceneBuilder.BuildContext(LayoutLoader.ExtractContext(_payload).Where(p => p.Category != "garden").ToList());
+            foreach (var p in LayoutLoader.ExtractContext(_payload).Where(p => p.Category != "garden"))
+                _hud.WorldLabel(string.IsNullOrEmpty(p.Label) ? "Activity" : p.Label, LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), 0.9f, new Color(1f, 1f, 1f, 0.75f));
             SceneBuilder.BuildEntryPoints(_payload.entry_points);
 
             // The roof-wide layer sits just above the roof and courts; each bed gets its own on its top face.

@@ -100,6 +100,7 @@
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" Link="Wind\WindAnalysisCore.cs" />
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Water\PercolationCore.cs" Link="Water\PercolationCore.cs" />
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" Link="Structure\StructuralLoadCore.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" Link="Dynamics\DynamicLoadCore.cs" />
   </ItemGroup>
 
   <PropertyGroup>

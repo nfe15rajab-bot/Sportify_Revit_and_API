@@ -57,6 +57,9 @@ namespace SportfyRevit
         /// <summary>Characteristic G + Q the roof deck can carry, kN/m2. Null = not given.</summary>
         [JsonPropertyName("deck_capacity_kn_m2")] public double? DeckCapacityKnM2 { get; set; }
 
+        /// <summary>The deck's first natural frequency (vertical), Hz, from the structural engineer. Null = estimated from the spans.</summary>
+        [JsonPropertyName("natural_frequency_hz")] public double? NaturalFrequencyHz { get; set; }
+
         [JsonPropertyName("grid_lines")] public List<GridLineDto>? GridLines { get; set; }
         [JsonPropertyName("columns")] public List<StructuralColumnDto>? Columns { get; set; }
     }
@@ -96,6 +99,15 @@ namespace SportfyRevit
 
         /// <summary>Compass bearing of the top of the plan (the sun compass's convention); null until the designer sets it.</summary>
         [JsonPropertyName("north_deg")] public double? NorthDeg { get; set; }
+
+        /// <summary>German snow load zone "1", "1a", "2", "2a" or "3", set by the designer; null when not given (the dynamic analysis then assumes one and says so).</summary>
+        [JsonPropertyName("snow_zone")] public string? SnowZone { get; set; }
+
+        /// <summary>Altitude of the site above sea level, metres; null when not given.</summary>
+        [JsonPropertyName("altitude_m")] public double? AltitudeM { get; set; }
+
+        /// <summary>How the roof is used through the day: "sports_day" | "event_day" | "community_day"; null = sports_day.</summary>
+        [JsonPropertyName("day_schedule")] public string? DaySchedule { get; set; }
     }
 
     internal class RoofContextDto

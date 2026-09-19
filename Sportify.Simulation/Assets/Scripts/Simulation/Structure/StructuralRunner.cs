@@ -51,6 +51,7 @@ namespace Sportify.Simulation.Structure
             public GameObject Body;
             public Vector3 Start;
             public LineRenderer Ghost;
+            public TextMesh Name;
         }
 
         const float TitleCardS = 2.5f;
@@ -251,7 +252,20 @@ namespace Sportify.Simulation.Structure
                     else color = item.DeadKnM2 > 3.5 ? new Color(0.30f, 0.50f, 0.30f) : new Color(0.46f, 0.56f, 0.38f);
                     body = SceneBuilder.Box("Piece_" + item.Id, centre, new Vector3((float)item.Width, 0.08f, (float)item.Height), SceneBuilder.LitMaterial(color, 0.10f));
                 }
-                _pieces.Add(new Piece { Item = item, Body = body, Start = body.transform.position });
+                var name = PieceNames.Label(_hud, item, 0.7f);
+                if (name != null) name.gameObject.SetActive(false);
+                _pieces.Add(new Piece { Item = item, Body = body, Start = body.transform.position, Name = name });
+            }
+        }
+
+        /// <summary>Shows or hides the name of every piece, at the given height above the roof.</summary>
+        void ShowNames(bool visible, float height = 0.7f)
+        {
+            foreach (var p in _pieces)
+            {
+                if (p.Name == null) continue;
+                p.Name.gameObject.SetActive(visible);
+                p.Name.transform.position = PieceNames.Position(p.Item, height);
             }
         }
 
@@ -300,7 +314,11 @@ namespace Sportify.Simulation.Structure
 
         void BuildBays()
         {
-            foreach (var bay in _report.bays) _towers.Add(new BayTower(bay, _hud));
+            foreach (var bay in _report.bays)
+            {
+                var top = _inputs.Items.FirstOrDefault(i => i.Label == bay.topContributor);
+                _towers.Add(new BayTower(bay, _hud, top != null ? PieceNames.Short(PieceNames.Compact(top), 22) : ""));
+            }
             SetTowersVisible(false);
         }
 
@@ -398,6 +416,7 @@ namespace Sportify.Simulation.Structure
         {
             _heat.Clear();
             SetGridVisible(true);
+            ShowNames(true, 0.7f);
             var s = _report.summary;
             _hud.SetLegend(new List<string>
             {
@@ -434,11 +453,12 @@ namespace Sportify.Simulation.Structure
                 var kn = permanent ? p.Item.DeadKnM2 : p.Item.LiveKnM2;
                 if (!permanent && kn <= StructureModel.RoofLiveKnM2 + 1e-6) continue;
                 var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 0.9f);
-                var label = _hud.WorldLabel((permanent ? "G " : "Q ") + Num((float)kn, "0.0") + " kN/m2", pos, 1.0f, Color.white).gameObject;
+                var label = _hud.WorldLabel(PieceNames.Short(p.Item.Name, 26) + "\n" + (permanent ? "G " : "Q ") + Num((float)kn, "0.0") + " kN/m2", pos, 0.85f, Color.white).gameObject;
                 label.SetActive(false);
                 labels.Add(label);
             }
 
+            ShowNames(false);
             var seconds = permanent ? DeadS : LiveS;
             foreach (var frame in Play(seconds, t =>
             {
@@ -457,6 +477,7 @@ namespace Sportify.Simulation.Structure
             var cell = _field.CellW * _field.CellH;
             var cap = _report.summary.capacityKnM2;
             var s = _report.summary;
+            ShowNames(true, 1.6f);
             _hud.SetLegend(new List<string>
             {
                 Tint("dots", new Color(1f, 0.92f, 0.55f)) + " = the people expected: players, spectators, visitors, arrivals at the entries",
@@ -478,6 +499,7 @@ namespace Sportify.Simulation.Structure
         {
             var s = _report.summary;
             _heat.Clear();
+            ShowNames(false);
             SetTowersVisible(true);
             _hud.SetLegend(new List<string>
             {
@@ -506,6 +528,7 @@ namespace Sportify.Simulation.Structure
             var cell = _field.CellW * _field.CellH;
             var cap = _report.summary.capacityKnM2;
             SetBalanceVisible(true);
+            ShowNames(true, 2.4f);
             _hud.SetLegend(new List<string>
             {
                 Tint("white ball", Color.white) + " = centre of the structure (" + b.centreBasis + ")",
@@ -549,6 +572,7 @@ namespace Sportify.Simulation.Structure
                 yield break;
             }
 
+            ShowNames(true, 0.7f);
             var ghosts = new List<GameObject>();
             foreach (var p in moved)
             {
@@ -564,7 +588,7 @@ namespace Sportify.Simulation.Structure
             foreach (var p in lightened)
             {
                 var i = _pieces.IndexOf(p);
-                var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 1.0f);
+                var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 2.2f);
                 labels.Add(_hud.WorldLabel(Num((float)p.Item.DeadKnM2, "0.0") + " > " + Num((float)_after.Items[i].DeadKnM2, "0.0") + " kN/m2", pos, 1.1f, Amber).gameObject);
             }
 
@@ -584,6 +608,7 @@ namespace Sportify.Simulation.Structure
                     var after = _after.Items[_pieces.IndexOf(p)];
                     var target = LayoutSpace.ToWorld((float)(after.X + after.Width * 0.5), (float)(after.Y + after.Height * 0.5), 0.05f);
                     p.Body.transform.position = Vector3.Lerp(p.Start, target, k);
+                    if (p.Name != null) p.Name.transform.position = p.Body.transform.position + Vector3.up * 0.7f;
                 }
                 _heat.Fill((ix, iy, c) =>
                 {
@@ -607,6 +632,7 @@ namespace Sportify.Simulation.Structure
             foreach (var g in ghosts) UnityEngine.Object.Destroy(g);
             foreach (var l in labels) UnityEngine.Object.Destroy(l);
             foreach (var p in moved) p.Body.transform.position = p.Start;
+            ShowNames(false);
             SetBalanceVisible(false);
             _heat.Clear();
         }

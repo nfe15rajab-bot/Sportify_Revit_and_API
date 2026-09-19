@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the dynamic structural model (crowds through a day, weather load cases, resonance; plain C#, no Unity) over a layout
+       export, prints its report, and checks what must hold whatever the constants. Compiles the SAME source files the Unity
+       project and the Revit add-in use. See README.md. Not part of the Unity project. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
+  </ItemGroup>
+</Project>

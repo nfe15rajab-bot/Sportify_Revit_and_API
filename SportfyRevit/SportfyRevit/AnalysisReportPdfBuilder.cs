@@ -185,6 +185,29 @@ namespace SportfyRevit
                     rows.Add(new ResultRow("Structural Loads Assumptions", string.Join(" ", sl.Assumptions), null));
             }
 
+            if (r.DynamicAnalysis is { } da)
+            {
+                rows.Add(new ResultRow("Dynamic: Crowds",
+                    $"Day \"{da.Schedule}\": busiest at {da.PeakAtHour:0.0} h with about {da.PeakPersons:0} people ({da.PeakCrowdKn:0} kN, {da.CrowdShareOfLoadPercent:0.#}% of the load); most crowded bay {da.BusiestBay} at {da.BusiestBayPeakDensity:0.00} people/m²; " +
+                    $"the crowd moves the load's centre by at most {da.MaxLoadCentreShiftPercent:0.##}%" + (string.IsNullOrEmpty(da.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(da.VideoPath)}"),
+                    null));
+                rows.Add(new ResultRow("Dynamic: Weather",
+                    $"Governing case \"{da.WorstCase}\" in {da.WorstCaseBay} at {da.WorstCaseUtilisationPercent:0}% of the {da.DeckCapacityKnM2:0.#} kN/m² deck capacity; snow zone {da.SnowZone}{(da.SnowAssumed ? " (assumed)" : "")} sk {da.SnowSkKnM2:0.00} kN/m²; " +
+                    $"a cloudburst adds up to {da.RainPeakAddedKn:0} kN of water (saturated: {da.RainSaturatedKn:0} kN)" +
+                    (da.Cases is { Count: > 0 } ? "; " + string.Join(", ", da.Cases.Select(c => $"{c.Name} {c.PeakUtilisationPercent:0}% ({c.BaysOverCapacity} over)")) : ""),
+                    da.WorstCaseUtilisationPercent <= 100));
+                rows.Add(new ResultRow("Dynamic: Resonance",
+                    $"Deck frequency {da.LowestFrequencyHz:0.0} to {da.HighestFrequencyHz:0.0} Hz ({(da.FrequencyEstimated ? "ESTIMATED from the spans" : "given")}); worst {da.WorstResonanceBay} under {da.WorstResonanceActivity}: {da.WorstAccelerationG:0.000} g against {da.WorstLimitG:0.00} g; " +
+                    $"{da.BaysExceedingComfort} of {da.BaysChecked} bays exceed the comfort limit under some activity",
+                    da.BaysExceedingComfort == 0));
+
+                if (da.Findings is { Count: > 0 })
+                    rows.Add(new ResultRow("Dynamic Analysis Advice", string.Join(" ", da.Findings.Take(6).Select(f => f.Text)) + " Screening estimate, not a structural verification or a vibration design.", null));
+
+                if (da.Assumptions is { Count: > 0 })
+                    rows.Add(new ResultRow("Dynamic Analysis Assumptions", string.Join(" ", da.Assumptions), null));
+            }
+
             return rows;
         }
 

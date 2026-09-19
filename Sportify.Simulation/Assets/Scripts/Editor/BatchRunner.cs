@@ -42,6 +42,15 @@ namespace Sportify.Simulation.Editor
             EditorApplication.isPlaying = true;
         }
 
+        // Same, for the dynamic structural analysis (crowds, weather, resonance): -executeMethod
+        // Sportify.Simulation.Editor.BatchRunner.RunDynamicAnalysis. Writes Recordings/dynamic_results.json.
+        public static void RunDynamicAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Dynamic);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
         public static void RunWindAnalysis()
         {
             Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Wind);

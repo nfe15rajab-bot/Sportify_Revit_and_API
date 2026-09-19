@@ -110,6 +110,36 @@ namespace Sportify.Simulation.Structure
         }
     }
 
+    /// <summary>What is on the roof, in words: a label with each piece's name (its sport, activity or build-up), for every recording.</summary>
+    public static class PieceNames
+    {
+        public static string Short(string text, int max = 24)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            return text.Length <= max ? text : text.Substring(0, max - 1).TrimEnd() + "...";
+        }
+
+        /// <summary>The name without its "Green roof: " prefix, for tight places (the bay blocks): "Sloped Sedum", "Deep tree bed (800 mm)", "Badminton (standard)".</summary>
+        public static string Compact(LoadItem item)
+        {
+            var n = item.Name ?? "";
+            return n.StartsWith("Green roof: ") ? n.Substring("Green roof: ".Length) : n;
+        }
+
+        /// <summary>The label for a piece, at its centre and the given height above the roof; null for trees (too many, and they are not the point).</summary>
+        public static TextMesh Label(SimulationHud hud, LoadItem item, float height, float size = 0.85f)
+        {
+            if (item.Kind == LoadKind.Tree || string.IsNullOrEmpty(item.Name)) return null;
+            var tm = hud.WorldLabel(Short(item.Name, 26), Position(item, height), size, Color.white);
+            return tm;
+        }
+
+        public static Vector3 Position(LoadItem item, float height)
+        {
+            return LayoutSpace.ToWorld((float)(item.X + item.Width * 0.5), (float)(item.Y + item.Height * 0.5), height);
+        }
+    }
+
     /// <summary>One bay of the structural grid as a block whose height is its load against the deck's capacity, with its percentage above it.</summary>
     public sealed class BayTower
     {
@@ -117,11 +147,16 @@ namespace Sportify.Simulation.Structure
 
         readonly GameObject _box;
         readonly TextMesh _label;
-        readonly float _cx, _cy, _footX, _footY, _fullHeight;
-        readonly bool _over;
+        readonly Material _material;
+        readonly string _subtitle;
+        readonly float _cx, _cy, _footX, _footY;
+        float _fullHeight;
+        bool _over;
 
-        public BayTower(BayResult bay, SimulationHud hud)
+        /// <param name="subtitle">A second line under the percentage: what stands on the bay (its heaviest piece).</param>
+        public BayTower(BayResult bay, SimulationHud hud, string subtitle = "")
         {
+            _subtitle = subtitle ?? "";
             _cx = (bay.x0 + bay.x1) * 0.5f;
             _cy = (bay.y0 + bay.y1) * 0.5f;
             _footX = (bay.x1 - bay.x0) * 0.74f;
@@ -129,9 +164,9 @@ namespace Sportify.Simulation.Structure
             _fullHeight = Mathf.Max(0.08f, bay.utilisation * HeightAtCapacityM);
             _over = bay.status == "over";
 
-            _box = SceneBuilder.Box("Bay_" + bay.label, LayoutSpace.ToWorld(_cx, _cy, 0.05f), new Vector3(_footX, 0.1f, _footY),
-                SceneBuilder.LitMaterial(LoadColors.Status(bay.status) * 0.78f, 0.05f));
-            _label = hud.WorldLabel(Mathf.RoundToInt(bay.utilisation * 100f) + "%", LayoutSpace.ToWorld(_cx, _cy, _fullHeight + 0.9f), 1.0f, Color.white);
+            _material = SceneBuilder.LitMaterial(LoadColors.Status(bay.status) * 0.78f, 0.05f);
+            _box = SceneBuilder.Box("Bay_" + bay.label, LayoutSpace.ToWorld(_cx, _cy, 0.05f), new Vector3(_footX, 0.1f, _footY), _material);
+            _label = hud.WorldLabel(Text(bay.utilisation), LayoutSpace.ToWorld(_cx, _cy, _fullHeight + LabelLift), _subtitle == "" ? 1.0f : 0.8f, Color.white);
             SetGrow(0f);
         }
 
@@ -141,6 +176,22 @@ namespace Sportify.Simulation.Structure
             _label.gameObject.SetActive(active);
         }
 
+        /// <summary>Retargets the block to another load against the capacity (a different case): its height, colour and percentage.</summary>
+        public void SetUtilisation(float utilisation)
+        {
+            _fullHeight = Mathf.Max(0.08f, utilisation * HeightAtCapacityM);
+            _over = utilisation > 1f;
+            _material.color = LoadColors.Status(utilisation > 1f ? "over" : (utilisation > 0.8f ? "marginal" : "ok")) * 0.78f;
+            SimulationHud.SetLabelText(_label, Text(utilisation));
+        }
+
+        float LabelLift { get { return _subtitle == "" ? 0.9f : 1.4f; } }
+
+        string Text(float utilisation)
+        {
+            return Mathf.RoundToInt(utilisation * 100f) + "%" + (_subtitle == "" ? "" : "\n" + _subtitle);
+        }
+
         /// <summary>grow 0..1: the block rises to its height; the label appears near the end.</summary>
         public void SetGrow(float grow, float pulseTime = 0f)
         {
@@ -148,7 +199,7 @@ namespace Sportify.Simulation.Structure
             var pulse = _over && grow >= 1f ? 1f + 0.03f * Mathf.Sin(pulseTime * 6f) : 1f;
             _box.transform.position = LayoutSpace.ToWorld(_cx, _cy, h * 0.5f);
             _box.transform.localScale = new Vector3(_footX * pulse, h, _footY * pulse);
-            _label.transform.position = LayoutSpace.ToWorld(_cx, _cy, h + 0.9f);
+            _label.transform.position = LayoutSpace.ToWorld(_cx, _cy, h + LabelLift);
             _label.gameObject.SetActive(grow > 0.6f);
         }
     }
