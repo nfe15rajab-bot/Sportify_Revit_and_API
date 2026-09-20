@@ -106,7 +106,7 @@ namespace SportfyRevit
             AddButton(exportPanel, "GenerateSchedules", "Schedules\n(CSV)", typeof(GenerateSchedulesCommand),
                 "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area) into the Schedules folder of your Sportify folder.");
             AddButton(exportPanel, "OpenSportifyFolder", "Open Sportify\nFolder", typeof(OpenSportifyFolderCommand),
-                "Opens your Sportify folder (chosen when Sportify was installed, by default Documents\\Sportify) in Explorer: layouts, sport and garden data, analysis charts (PDF), videos, analysis reports, schedules and diagrams, one subfolder each. The web app's Deliverables tab lists the same files.");
+                "Opens your Sportify folder (chosen when Sportify was installed, by default Documents\\Sportify Workspace) in Explorer: layouts, sport and garden data, analysis charts (PDF), videos, analysis reports, schedules and diagrams, one subfolder each. The web app's Deliverables tab lists the same files.");
 
             application.Idling += AutoImportSync.OnIdling;
 

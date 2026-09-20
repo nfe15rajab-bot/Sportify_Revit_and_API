@@ -7,7 +7,7 @@ Nothing is imported or exported by hand. Everything Sportify makes goes into one
 The installer asks where it should be (Enter takes the default). It is made at install time with a subfolder for every kind of deliverable, and the choice is written to `%APPDATA%\Sportify\settings.json` (`workspace_folder`), which the add-in reads.
 
 ```
-Sportify.Installer.exe                       asks: "Press Enter for Documents\Sportify, or type another folder"
+Sportify.Installer.exe                       asks: "Press Enter for Documents\Sportify Workspace, or type another folder"
 Sportify.Installer.exe --default-workspace   silent, the default
 Sportify.Installer.exe --workspace "D:\Projects\Sportify"
 ```

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Assembles the one thing Ali/Moamen/Sukriti actually need: a folder
     they can unzip and run. Produces dist\Sportify_Revit.exe (the
@@ -37,10 +37,14 @@ $addinProj = Join-Path $root "SportfyRevit\SportfyRevit\SportfyRevit.csproj"
 dotnet build $addinProj -c Release
 if ($LASTEXITCODE -ne 0) { throw "SportfyRevit build failed." }
 
-$addinOut = Join-Path $root "SportfyRevit\SportfyRevit\bin\Release\net8.0-windows"
-if (-not (Test-Path (Join-Path $addinOut "SportfyRevit.dll"))) {
-    throw "Expected build output not found at $addinOut"
+# The project sets a RuntimeIdentifier (QuestPDF's native engine needs it), so the output lands in ...\net8.0-windows\win-x64\, one folder deeper than a plain
+# build: take whichever folder the newest SportfyRevit.dll is in, rather than a path that goes stale the next time the project's settings change.
+$releaseDir = Join-Path $root "SportfyRevit\SportfyRevit\bin\Release"
+$builtDll = Get-ChildItem $releaseDir -Recurse -Filter "SportfyRevit.dll" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $builtDll) {
+    throw "Expected build output not found under $releaseDir"
 }
+$addinOut = $builtDll.DirectoryName
 Copy-Item "$addinOut\*" $payloadDir -Recurse -Force
 
 if (-not (Test-Path (Join-Path $payloadDir "web\index.html"))) {

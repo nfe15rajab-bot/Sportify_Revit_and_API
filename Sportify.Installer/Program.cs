@@ -74,7 +74,7 @@ internal static class Program
     }
 
     /// <summary>
-    /// Where Sportify keeps what it makes: the layouts, the charts and PDFs of the analyses, the videos, the schedules. Default is a "Sportify" folder in Documents;
+    /// Where Sportify keeps what it makes: the layouts, the charts and PDFs of the analyses, the videos, the schedules. Default is a "Sportify Workspace" folder in Documents;
     /// the person can type another (or pass --workspace "D:\\Some Folder" for a silent install, or --default-workspace to take the default without asking). The folder
     /// is made now with a subfolder for every kind of deliverable, and the choice is written to %APPDATA%\Sportify\settings.json, which the add-in reads: nothing
     /// has to be imported or exported by hand afterwards, the web app and Revit both read and write that folder.
@@ -105,7 +105,7 @@ internal static class Program
         catch (Exception ex)
         {
             Console.WriteLine($"Couldn't set up the folder \"{chosen}\": {ex.Message}");
-            Console.WriteLine("Sportify will use the default (Documents\\Sportify) and make it the first time it saves something.");
+            Console.WriteLine("Sportify will use the default (Documents\\Sportify Workspace) and make it the first time it saves something.");
         }
     }
 
@@ -250,7 +250,7 @@ internal static class Program
     {
         Console.WriteLine();
         Console.WriteLine("Installation did not complete. Press any key to exit.");
-        Console.ReadKey();
+        WaitForKey();
         return 1;
     }
 
@@ -258,7 +258,13 @@ internal static class Program
     {
         Console.WriteLine();
         Console.WriteLine("Press any key to exit.");
-        Console.ReadKey();
+        WaitForKey();
         return 0;
+    }
+
+    /// <summary>Waits for a key when a person is at the console; a scripted (silent) install has no keyboard and must just finish.</summary>
+    private static void WaitForKey()
+    {
+        if (!Console.IsInputRedirected) Console.ReadKey();
     }
 }

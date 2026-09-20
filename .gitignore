@@ -36,3 +36,6 @@ Sportify.Simulation/*.sln
 Sportify.Simulation/*.userprefs
 Sportify.Simulation/[Bb]uild/
 Sportify.Simulation/[Bb]uilds/
+
+# BuildDistribution.ps1 output: the installer, the add-in payload and a self-contained API (~100 MB). Rebuilt by the script; never source.
+dist/

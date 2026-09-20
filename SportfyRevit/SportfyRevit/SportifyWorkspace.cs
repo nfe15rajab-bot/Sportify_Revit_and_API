@@ -17,7 +17,7 @@ namespace SportfyRevit
 
     /// <summary>
     /// The folder on the user's machine where everything Sportify makes goes: layouts, sport and garden data, the charts and results of the physical analyses, their videos,
-    /// the analysis report, schedules and diagrams, one subfolder each. The installer creates it (default Documents\Sportify, or a folder the person chooses) and records
+    /// the analysis report, schedules and diagrams, one subfolder each. The installer creates it (default Documents\Sportify Workspace, or a folder the person chooses) and records
     /// the choice in %APPDATA%\Sportify\settings.json; the add-in reads that file, so both always agree, and makes any missing subfolder on first use. The web app writes
     /// and reads its files through the add-in's local server (WorkspaceEndpoints), so nothing has to be imported or exported by hand.
     /// Revit-free on purpose: the installer compiles this file too, and Tools/ContractCheck tests it.
@@ -41,7 +41,8 @@ namespace SportfyRevit
 
         public static string SettingsPath => _settingsOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sportify", "settings.json");
 
-        public static string DefaultFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sportify");
+        /// <summary>"Sportify Workspace", not "Sportify": Documents\Sportify is where the web app itself is usually unzipped or cloned, and the two must never share a folder.</summary>
+        public static string DefaultFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sportify Workspace");
 
         /// <summary>The workspace folder: the one in the settings file when there is one, else the default.</summary>
         public static string Folder

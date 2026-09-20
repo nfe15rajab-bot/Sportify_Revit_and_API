@@ -6,3 +6,7 @@ end_of_line = lf
 
 [*.{bat,cmd,sln}]
 end_of_line = crlf
+
+# Windows PowerShell 5.1 (the one every Windows ships) reads a script without a BOM as ANSI, which breaks a string holding a dash or an umlaut
+[*.ps1]
+charset = utf-8-bom

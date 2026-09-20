@@ -54,7 +54,7 @@ namespace SportfyRevit
 
         public static readonly string[] AllKeys = { "structural_loads", "dynamic_analysis", "wind_erosion", "soil_percolation", "sun_and_shading" };
 
-        /// <summary>Where the PDFs go: the "Physical analysis" folder of the workspace (by default Documents\Sportify\Physical analysis).</summary>
+        /// <summary>Where the PDFs go: the "Physical analysis" folder of the workspace (by default Documents\Sportify Workspace\Physical analysis).</summary>
         public static string DefaultFolder() => SportifyWorkspace.PathFor("analysis");
 
         /// <summary>Builds the sections and writes the PDF. <paramref name="only"/> limits it to some analyses (by key); null = all five.</summary>

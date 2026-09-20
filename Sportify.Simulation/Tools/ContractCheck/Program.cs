@@ -214,7 +214,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     JsonElement Reply(EndpointResponse? r) => JsonDocument.Parse(r!.Body!).RootElement;
 
     // the folder
-    Check("the default is a Sportify folder in Documents, and the installer's choice wins", SportifyWorkspace.DefaultFolder.EndsWith("Sportify") && SportifyWorkspace.Folder == root);
+    Check("the default is a \"Sportify Workspace\" folder in Documents (never Documents\\Sportify, where the web app itself lives), and the installer's choice wins", SportifyWorkspace.DefaultFolder.EndsWith("Sportify Workspace") && SportifyWorkspace.Folder == root);
     SportifyWorkspace.EnsureCreated();
     Check("it is made with a subfolder for every kind of deliverable", SportifyWorkspace.Kinds.Length == 8 && SportifyWorkspace.Kinds.All(k => Directory.Exists(Path.Combine(root, k.Folder))), string.Join(", ", SportifyWorkspace.Kinds.Select(k => k.Folder)));
     SportifyWorkspace.SaveSetting(@"D:\Somewhere Else");
