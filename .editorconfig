@@ -1,0 +1,8 @@
+# Keeps editors (Visual Studio, VS Code, Unity's IDEs) on the line endings .gitattributes sets. Nothing here changes how code is built or formatted.
+root = true
+
+[*]
+end_of_line = lf
+
+[*.{bat,cmd,sln}]
+end_of_line = crlf
