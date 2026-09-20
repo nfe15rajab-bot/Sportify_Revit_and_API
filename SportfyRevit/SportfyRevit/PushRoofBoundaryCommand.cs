@@ -7,33 +7,58 @@ using System.Text.Json;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Ribbon command: pick a roof (or floor) in the active view, extract its
-    /// footprint, and push it to RoofBoundaryServer so the frontend's
-    /// Combine tab picks it up on its next poll. Read-only — never touches
-    /// the model.
+    /// The "Push to Sportify" commands: take a roof (or floor) of the model, extract what the scope asks for, and push it to RoofBoundaryServer so
+    /// the frontend's Combine tab picks it up on its next poll. Read-only: never touches the model.
+    ///
+    /// The ribbon offers them as a drop-down (see SportfyRevitApp): everything at once, or one part of what the model knows about the roof
+    /// (its structure, its entries, its openings ...), so a designer who only changed the stairs does not have to walk the whole model again and a slow
+    /// read can be left out. Whatever the scope, the roof's outline and size always go with it: they fix the plan's frame. A push of the same roof
+    /// with a smaller scope keeps what the earlier pushes brought (RoofPushMerge); a push of another roof starts again.
+    ///
+    /// Which roof: the roof or floor already selected in the model; failing that, for a push that is only part of the model's data, the roof pushed
+    /// last; failing that, the designer is asked to pick one.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
-    public class PushRoofBoundaryCommand : IExternalCommand
+    public abstract class PushRoofCommandBase : IExternalCommand
     {
+        /// <summary>What this command pushes (the roof's outline and size always go too).</summary>
+        internal abstract RoofPushScope Scope { get; }
+
+        // the roof pushed last (in this session, in this document): a partial push complements it without asking again
+        private static long _lastRoofId;
+        private static string? _lastDocumentTitle;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+            var scope = Scope | RoofPushScope.Roof;
             var uidoc = commandData.Application.ActiveUIDocument;
             var doc = uidoc.Document;
+            _selection = uidoc.Selection.GetElementIds();
 
-            Reference reference;
-            try
+            Element? element = null;
+            var reusedLast = false;
+            foreach (var id in uidoc.Selection.GetElementIds())
             {
-                reference = uidoc.Selection.PickObject(
-                    ObjectType.Element,
-                    new RoofOrFloorSelectionFilter(),
-                    "Select a roof (or floor) to push to Sportify");
+                var candidate = doc.GetElement(id);
+                if (candidate != null && new RoofOrFloorSelectionFilter().AllowElement(candidate)) { element = candidate; break; }
             }
-            catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+            if (element == null && !RoofPushScopes.IsEverything(scope) && _lastRoofId != 0 && _lastDocumentTitle == doc.Title)
             {
-                return Result.Cancelled;
+                element = doc.GetElement(new ElementId(_lastRoofId));
+                reusedLast = element != null;
+            }
+            if (element == null)
+            {
+                try
+                {
+                    var reference = uidoc.Selection.PickObject(ObjectType.Element, new RoofOrFloorSelectionFilter(), "Select a roof (or floor) to push to Sportify");
+                    element = doc.GetElement(reference);
+                }
+                catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+                {
+                    return Result.Cancelled;
+                }
             }
 
-            var element = doc.GetElement(reference);
             var bbox = element.get_BoundingBox(null);
             if (bbox == null)
             {
@@ -45,7 +70,12 @@ namespace SportfyRevit
             var boundary = topFace != null ? OuterLoopPoints(topFace) : null;
 
             double ToMeters(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
-            double originXFt = bbox.Min.X, originYFt = bbox.Min.Y;
+
+            // The plan follows the roof: a roof turned against the model's axes gets its own (x along the roof, y down from its top edge),
+            // so pieces, grid, bays and wind zones are measured square to it instead of against a far bigger bounding box (see RoofFrame).
+            // A roof square to the model gets the frame it always had: origin at the bounding box's minimum corner.
+            var frame = RoofFrame.Fit(boundary?.Select(p => (ToMeters(p.X), ToMeters(p.Y))).ToList(),
+                ToMeters(bbox.Min.X), ToMeters(bbox.Min.Y), ToMeters(bbox.Max.X), ToMeters(bbox.Max.Y));
 
             // How high the roof stands above the ground: the wind analysis scales the roof's edge zones with it.
             // Prefer the model's topography under the roof, else the ground-floor level; the source travels with it.
@@ -57,12 +87,17 @@ namespace SportfyRevit
                 new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                     .Select(l => new RoofHeightAboveGround.LevelInfo(l.Name, ToMeters(l.Elevation))).ToList());
 
-            // The structural grid and columns that lie under the roof, for the structural load analysis.
-            var structure = TryCollectStructure(doc, bbox, out var structureNote);
+            // The structure under the roof (grid lines, columns, beams, bearing walls), for the structural load and dynamic analyses.
+            var structure = scope.HasFlag(RoofPushScope.Structure) ? TryCollectStructure(doc, frame, roofTopFt, bbox, out var structureNote) : null;
+            var structureText = scope.HasFlag(RoofPushScope.Structure) ? _structureNote : "";
 
-            // Openings, entries (stairs, cores, doors), parapets and railings, drains, the slab and the levels: what the rules that
+            // Openings, entries (stairs, cores, doors), parapets and railings, drains, equipment, the slab and the levels: what the rules that
             // decide where things may stand need to know about the real roof.
-            var features = TryCollectFeatures(doc, element, topFace, boundary, roofTopFt, bbox, heightAboveGround, out var featuresNote);
+            var featureScope = scope & (RoofPushScope.Entries | RoofPushScope.Openings | RoofPushScope.Edge | RoofPushScope.Drains | RoofPushScope.Equipment | RoofPushScope.SlabLevels);
+            var features = featureScope != RoofPushScope.None
+                ? TryCollectFeatures(doc, element, topFace, boundary, roofTopFt, bbox, frame, heightAboveGround, featureScope, out var featuresNote)
+                : null;
+            var featuresText = featureScope != RoofPushScope.None ? _featuresNote : "";
 
             var payload = new
             {
@@ -72,23 +107,27 @@ namespace SportfyRevit
                     structure,
                     // Same convention: see RoofFeaturesGeometry and ROOF_FEATURES.md.
                     features,
-                    length_m = Math.Round(ToMeters(bbox.Max.X - bbox.Min.X), 2),
-                    width_m = Math.Round(ToMeters(bbox.Max.Y - bbox.Min.Y), 2),
-                    boundary_m = boundary?.Select(p => new
+                    length_m = Math.Round(frame.Length, 2),
+                    width_m = Math.Round(frame.Width, 2),
+                    // How far the plan is turned from the model's X axis (counter-clockwise, degrees): 0 for a roof square to the model.
+                    // The Revit import turns everything back by it; nothing else needs to know.
+                    rotation_deg = Math.Round(frame.AngleDeg, 3),
+                    // NOT flipped, unlike every other Y in this pipeline. The
+                    // web app draws the boundary with its own flip built in
+                    // (roofShapeSvg: "roof.width - p.y_m"), so this polygon
+                    // alone travels in Revit's convention — Y up from the
+                    // roof's minimum. Placements, circulation and entry points
+                    // use the canvas convention instead (Y down from the top
+                    // edge) and are flipped on import. Two conventions in one
+                    // payload is a trap, but it is the app's existing contract.
+                    // (In the roof's own axes when the plan is turned: RoofFrame.ToLocalUp.)
+                    boundary_m = boundary?.Select(p =>
                     {
-                        x_m = Math.Round(ToMeters(p.X - originXFt), 2),
-                        // NOT flipped, unlike every other Y in this pipeline. The
-                        // web app draws the boundary with its own flip built in
-                        // (roofShapeSvg: "roof.width - p.y_m"), so this polygon
-                        // alone travels in Revit's convention — Y up from the
-                        // roof's minimum. Placements, circulation and entry points
-                        // use the canvas convention instead (Y down from the top
-                        // edge) and are flipped on import. Two conventions in one
-                        // payload is a trap, but it is the app's existing contract.
-                        y_m = Math.Round(ToMeters(p.Y - originYFt), 2),
+                        var (a, b) = frame.ToLocalUp(ToMeters(p.X), ToMeters(p.Y));
+                        return new { x_m = Math.Round(a, 2), y_m = Math.Round(b, 2) };
                     }).ToArray(),
-                    origin_x_m = Math.Round(ToMeters(originXFt), 2),
-                    origin_y_m = Math.Round(ToMeters(originYFt), 2),
+                    origin_x_m = Math.Round(frame.OriginX, 3),
+                    origin_y_m = Math.Round(frame.OriginY, 3),
                     // The roof's actual height in the project. Without this every
                     // imported piece landed at Z=0 — on the ground, under the
                     // building, instead of on the roof it was designed for.
@@ -102,109 +141,116 @@ namespace SportfyRevit
                 },
             };
 
-            RoofBoundaryServer.SetPayload(JsonSerializer.Serialize(payload));
+            // A push of only part of the data is laid onto the roof pushed before it (same roof), so the app always gets the roof whole.
+            var merged = RoofPushMerge.Merge(RoofBoundaryServer.CurrentPayload, JsonSerializer.Serialize(payload), scope, out var keptEarlier);
+            RoofBoundaryServer.SetPayload(merged);
+            _lastRoofId = element.Id.Value;
+            _lastDocumentTitle = doc.Title;
 
             TaskDialog.Show("Sportify",
-                $"Pushed \"{element.Name}\" ({payload.roof.length_m} m x {payload.roof.width_m} m) — " +
-                "switch to the Sportify Combine tab to see it." +
+                $"Pushed \"{element.Name}\" ({payload.roof.length_m} m x {payload.roof.width_m} m): {RoofPushScopes.Describe(scope)}." +
+                (reusedLast ? "\nThe roof pushed before was used again; select another roof first to change it." : "") +
+                (RoofPushScopes.IsEverything(scope) ? "" : keptEarlier
+                    ? "\nWhat earlier pushes of this roof brought is kept."
+                    : "\nThis is a different roof from the one pushed before (or the first): only what was pushed now is on it. Push the rest from the same drop-down.") +
+                "\nSwitch to the Sportify Combine tab to see it." +
+                (frame.IsTurned
+                    ? $"\n\nThe roof is turned {frame.AngleDeg:0.#}° against the model's axes, so the plan was turned with it: pieces you place are square to the roof, and the import turns them back."
+                    : "") +
                 (heightAboveGround != null
                     ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
                       "Check it: the wind analysis uses it, and the Site tab lets you override it."
                     : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
-                structureNote + featuresNote);
+                structureText + featuresText);
 
             return Result.Succeeded;
         }
+
+        // What the two collectors say for the dialog (kept beside the return values because their signatures carry the DTOs).
+        private static string _structureNote = "";
+        private static string _featuresNote = "";
+
+        /// <summary>What the designer has selected in Revit right now (set at the start of Execute): the collectors read the selected grid lines, columns, beams, walls, stairs, lifts, doors and ramps instead of everything.</summary>
+        private static ICollection<ElementId>? _selection;
 
         /// <summary>
         /// Everything else the model says about the roof, in the roof's own plan coordinates (see RoofFeatureCollector for what is read and how),
         /// or null when nothing was found. Best-effort: a failure only means the app has no features to show.
         /// </summary>
         private static RoofFeaturesDto? TryCollectFeatures(Document doc, Element roofElement, PlanarFace? topFace, List<XYZ>? outline, double roofTopFt,
-            BoundingBoxXYZ bbox, RoofHeightAboveGround.Result? height, out string note)
+            BoundingBoxXYZ bbox, RoofFrame frame, RoofHeightAboveGround.Result? height, RoofPushScope scope, out string note)
         {
             note = "";
+            _featuresNote = "";
             try
             {
                 double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
-                var c = RoofFeatureCollector.Collect(doc, roofElement, topFace, outline, roofTopFt, bbox);
+                var c = RoofFeatureCollector.Collect(doc, roofElement, topFace, outline, roofTopFt, bbox, scope, _selection);
                 var dto = RoofFeaturesGeometry.Build(
-                    new StructureGeometry.RoofRect(M(bbox.Min.X), M(bbox.Min.Y), M(bbox.Max.X), M(bbox.Max.Y)),
-                    c.Outline, c.Openings, c.Entries, c.EdgeElements, c.Drains, c.Slab, c.Levels, M(roofTopFt), height?.GroundM, c.RoofLevelName, c.Notes);
+                    frame,
+                    c.Outline, c.Openings, c.Entries, c.EdgeElements, c.Drains, c.Slab, c.Levels, M(roofTopFt), height?.GroundM, c.RoofLevelName, c.Notes, c.Obstacles, c.Equipment);
 
-                var edgeSummary = dto.Edges.Count == 0 ? "" : $", edge: {dto.Edges.Count(e => e.Kind == "parapet")} parapet / {dto.Edges.Count(e => e.Kind == "railing")} railing / {dto.Edges.Count(e => e.Kind is "open" or "partial")} open stretch(es)";
-                note = $"\n\nRoof features: {dto.Openings.Count} opening(s), {dto.Entries.Count} entr{(dto.Entries.Count == 1 ? "y" : "ies")} (stairs, cores, doors), {dto.Drains.Count} drain(s), " +
-                       $"{dto.Levels.Count} level(s){edgeSummary}" +
-                       (dto.Slab != null ? $", slab {dto.Slab.ThicknessM * 1000:0} mm ({dto.Slab.StructuralThicknessM * 1000:0} mm structure)" : "") + "." +
-                       (dto.Notes.Count > 0 ? "\n" + string.Join(" ", dto.Notes) : "") +
-                       "\nDrains are found by their family names and parapets by their height; check them in the app (Site tab, Roof features).";
+                var parts = new List<string>();
+                if (scope.HasFlag(RoofPushScope.Openings)) parts.Add($"{dto.Openings.Count} opening(s)");
+                if (scope.HasFlag(RoofPushScope.Entries)) parts.Add($"{dto.Entries.Count} entr{(dto.Entries.Count == 1 ? "y" : "ies")} (stairs, cores, doors)");
+                if (scope.HasFlag(RoofPushScope.Drains)) parts.Add($"{dto.Drains.Count} drain(s)");
+                if (scope.HasFlag(RoofPushScope.Equipment)) parts.Add($"{dto.Equipment.Count} piece(s) of equipment ({dto.Equipment.Count(e => e.WeightKn.HasValue)} with a weight)");
+                if (scope.HasFlag(RoofPushScope.SlabLevels)) parts.Add($"{dto.Levels.Count} level(s)" + (dto.Slab != null ? $", slab {dto.Slab.ThicknessM * 1000:0} mm ({dto.Slab.StructuralThicknessM * 1000:0} mm structure)" : ", no slab build-up read"));
+                if (scope.HasFlag(RoofPushScope.Edge))
+                {
+                    var edgeSummary = dto.Edges.Count == 0 ? "" : $", edge: {dto.Edges.Count(e => e.Kind == "parapet")} parapet / {dto.Edges.Count(e => e.Kind == "railing")} railing / {dto.Edges.Count(e => e.Kind is "open" or "partial")} open stretch(es)";
+                    parts.Add($"{dto.Obstacles.Count} wall(s) that shade the roof{edgeSummary}");
+                }
+                _featuresNote = $"\n\nRoof features: {string.Join(", ", parts)}." +
+                                (dto.Notes.Count > 0 ? "\n" + string.Join(" ", dto.Notes) : "") +
+                                (scope.HasFlag(RoofPushScope.Drains) || scope.HasFlag(RoofPushScope.Edge) || scope.HasFlag(RoofPushScope.Equipment)
+                                    ? "\nDrains are found by their family names, parapets by their height and equipment by its category and height; check them in the app (Site tab, Roof features)." : "");
+                note = _featuresNote;
                 return dto;
             }
             catch (Exception ex)
             {
                 note = $"\n\nRoof features: couldn't be read ({ex.Message}).";
+                _featuresNote = note;
                 return null;
             }
         }
 
         /// <summary>
-        /// The model's straight grid lines and structural columns that lie under the roof, in the roof's own plan coordinates, or null when
-        /// there are none. Best-effort like the ground lookup: a failure only means the structural analysis assumes a regular grid.
-        /// Curved and multi-segment grids and bearing walls are not read; the note says so.
+        /// The structure under the roof, in the roof's own plan coordinates: the model's straight grid lines and structural columns, the beams under
+        /// the slab and the walls that reach it (see StructureCollector). Null when there is none of them. Best-effort like the ground lookup: a
+        /// failure only means the structural analysis assumes a regular grid. Curved and multi-segment grids are not read; the note says so.
         /// </summary>
-        private static StructureDto? TryCollectStructure(Document doc, BoundingBoxXYZ bbox, out string note)
+        private static StructureDto? TryCollectStructure(Document doc, RoofFrame frame, double roofTopFt, BoundingBoxXYZ bbox, out string note)
         {
             note = "";
+            _structureNote = "";
             try
             {
-                double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+                var c = StructureCollector.Collect(doc, RoofPushScope.Structure, roofTopFt, bbox, _selection);
+                var dto = StructureGeometry.ToRoofLocal(c.Grids, c.Columns, frame, c.Beams, c.Walls);
 
-                var grids = new List<StructureGeometry.GridSegment>();
-                var curved = 0;
-                foreach (var g in new FilteredElementCollector(doc).OfClass(typeof(Grid)).Cast<Grid>())
+                var skipped = c.CurvedGrids + c.MultiSegmentGrids;
+                var notes = c.Notes.Count > 0 ? "\n" + string.Join(" ", c.Notes) : "";
+                if ((dto.GridLines?.Count ?? 0) == 0 && (dto.Columns?.Count ?? 0) == 0 && (dto.Beams?.Count ?? 0) == 0 && (dto.Walls?.Count ?? 0) == 0)
                 {
-                    if (g.Curve is Line line)
-                    {
-                        var a = line.GetEndPoint(0);
-                        var b = line.GetEndPoint(1);
-                        grids.Add(new StructureGeometry.GridSegment(g.Name, M(a.X), M(a.Y), M(b.X), M(b.Y)));
-                    }
-                    else curved++;
-                }
-                var multiSegment = new FilteredElementCollector(doc).OfClass(typeof(MultiSegmentGrid)).GetElementCount();
-
-                var columns = new List<StructureGeometry.ColumnPoint>();
-                foreach (var fi in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralColumns).WhereElementIsNotElementType().OfType<FamilyInstance>())
-                {
-                    XYZ? p = fi.Location switch
-                    {
-                        LocationPoint lp => lp.Point,
-                        LocationCurve lc => lc.Curve.GetEndPoint(0),
-                        _ => null,
-                    };
-                    if (p == null) continue;
-                    columns.Add(new StructureGeometry.ColumnPoint(fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "", M(p.X), M(p.Y)));
-                }
-
-                var dto = StructureGeometry.ToRoofLocal(grids, columns,
-                    new StructureGeometry.RoofRect(M(bbox.Min.X), M(bbox.Min.Y), M(bbox.Max.X), M(bbox.Max.Y)));
-
-                var skipped = curved + multiSegment;
-                if ((dto.GridLines?.Count ?? 0) == 0 && (dto.Columns?.Count ?? 0) == 0)
-                {
-                    note = "\n\nStructure: no grid lines or structural columns found under this roof, so the structural analysis will assume a regular grid." +
-                           (skipped > 0 ? $" ({skipped} curved or multi-segment grid(s) are not read.)" : "");
+                    note = "\n\nStructure: no grid lines, columns, beams or walls found under this roof, so the structural analysis will assume a regular grid." +
+                           (skipped > 0 ? $" ({skipped} curved or multi-segment grid(s) are not read.)" : "") + notes;
+                    _structureNote = note;
                     return null;
                 }
 
-                note = $"\n\nStructure: {dto.GridLines!.Count} grid line(s) and {dto.Columns!.Count} column(s) under the roof pulled for the structural load analysis." +
+                note = $"\n\nStructure: {dto.GridLines!.Count} grid line(s), {dto.Columns!.Count} column(s), {dto.Beams?.Count ?? 0} beam segment(s) and {dto.Walls?.Count ?? 0} wall(s) under the roof " +
+                       $"({dto.Walls?.Count(w => w.Bearing) ?? 0} load-bearing)." +
                        (skipped > 0 ? $" {skipped} curved or multi-segment grid(s) were not read." : "") +
-                       " Bearing walls are not read.";
+                       "\nBeams and walls are recognised by their height against the roof's top face: check them in the app." + notes;
+                _structureNote = note;
                 return dto;
             }
             catch (Exception ex)
             {
-                note = $"\n\nStructure: couldn't read the grids and columns ({ex.Message}); the structural analysis will assume a regular grid.";
+                note = $"\n\nStructure: couldn't read the model ({ex.Message}); the structural analysis will assume a regular grid.";
+                _structureNote = note;
                 return null;
             }
         }

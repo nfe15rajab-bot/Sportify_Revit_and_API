@@ -249,15 +249,9 @@ namespace SportfyRevit
 
             double centerXFt, centerYFt;
             if (p.InsertionPoint != null)
-            {
-                centerXFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(p.InsertionPoint.CenterXM);
-                centerYFt = SportifyLayoutBuilder.WorldYFt(originYFt, p.InsertionPoint.CenterYM);
-            }
+                (centerXFt, centerYFt) = SportifyLayoutBuilder.PlanToWorldFt(p.InsertionPoint.CenterXM, p.InsertionPoint.CenterYM);
             else
-            {
-                centerXFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM + bb.WidthM / 2.0);
-                centerYFt = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM / 2.0);
-            }
+                (centerXFt, centerYFt) = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM + bb.WidthM / 2.0, bb.TopLeftYM + bb.HeightM / 2.0);
             var center = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.CurrentOriginZFt);
 
             var instance = doc.Create.NewFamilyInstance(center, symbol, StructuralType.NonStructural);
@@ -278,14 +272,16 @@ namespace SportfyRevit
             MoveToElevation(doc, instance, center.Z);
 
             double rotationDeg = p.Transform?.RotationDeg ?? 0;
-            if (Math.Abs(rotationDeg) > 1e-6)
+            // Negated because the Y axis is flipped on the way in (see
+            // SportifyLayoutBuilder.WorldYFt). Mirroring a plan reverses the
+            // sense of rotation, so a clockwise turn on the web canvas is a
+            // counter-clockwise turn in Revit — applying the angle unchanged
+            // would leave every rotated piece turned the wrong way.
+            // Plus the turn of the plan itself (RoofFrame): a roof turned against the
+            // model's axes has a plan turned by that much, so every piece is turned with it.
+            double rotationRad = -rotationDeg * Math.PI / 180.0 + SportifyLayoutBuilder.CurrentAngleRad;
+            if (Math.Abs(rotationRad) > 1e-9)
             {
-                // Negated because the Y axis is flipped on the way in (see
-                // SportifyLayoutBuilder.WorldYFt). Mirroring a plan reverses the
-                // sense of rotation, so a clockwise turn on the web canvas is a
-                // counter-clockwise turn in Revit — applying the angle unchanged
-                // would leave every rotated piece turned the wrong way.
-                double rotationRad = -rotationDeg * Math.PI / 180.0;
                 var axis = Line.CreateBound(center, center + XYZ.BasisZ);
                 ElementTransformUtils.RotateElement(doc, instance.Id, axis, rotationRad);
             }
@@ -347,19 +343,17 @@ namespace SportfyRevit
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
             double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
         {
-            double xFt = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM);
-            // The canvas box's TOP edge is its LOWEST Y once flipped, so the
-            // corner this rectangle is built from is the bottom-left in Revit.
-            double yFt = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM);
-            double wFt = SportifyLayoutBuilder.FeetFromMeters(bb.WidthM);
-            double hFt = SportifyLayoutBuilder.FeetFromMeters(bb.HeightM);
+            // The canvas box's TOP edge is its LOWEST Y once flipped, so the first
+            // corner is the box's bottom-left on the canvas, and the loop runs counter-clockwise
+            // in Revit. Each corner goes through the plan-to-model transform, so a roof turned
+            // against the model's axes gets a turned box.
             double thickFt = SportifyLayoutBuilder.FeetFromMeters(ThicknessM);
-
+            double z = SportifyLayoutBuilder.CurrentOriginZFt;
             var loop = new CurveLoop();
-            var c0 = new XYZ(xFt, yFt, SportifyLayoutBuilder.CurrentOriginZFt);
-            var c1 = new XYZ(xFt + wFt, yFt, SportifyLayoutBuilder.CurrentOriginZFt);
-            var c2 = new XYZ(xFt + wFt, yFt + hFt, SportifyLayoutBuilder.CurrentOriginZFt);
-            var c3 = new XYZ(xFt, yFt + hFt, SportifyLayoutBuilder.CurrentOriginZFt);
+            var c0 = SportifyLayoutBuilder.PlanPointFt(bb.TopLeftXM, bb.TopLeftYM + bb.HeightM, z);
+            var c1 = SportifyLayoutBuilder.PlanPointFt(bb.TopLeftXM + bb.WidthM, bb.TopLeftYM + bb.HeightM, z);
+            var c2 = SportifyLayoutBuilder.PlanPointFt(bb.TopLeftXM + bb.WidthM, bb.TopLeftYM, z);
+            var c3 = SportifyLayoutBuilder.PlanPointFt(bb.TopLeftXM, bb.TopLeftYM, z);
             loop.Append(Line.CreateBound(c0, c1));
             loop.Append(Line.CreateBound(c1, c2));
             loop.Append(Line.CreateBound(c2, c3));
@@ -378,7 +372,7 @@ namespace SportfyRevit
             SportifyLayoutBuilder.SetWorkset(ds, worksetId);
             createdIds.Add(ds.Id);
 
-            var textOrigin = new XYZ(xFt + wFt / 2.0, yFt + hFt / 2.0, SportifyLayoutBuilder.CurrentOriginZFt + thickFt);
+            var textOrigin = new XYZ((c0.X + c2.X) / 2.0, (c0.Y + c2.Y) / 2.0, SportifyLayoutBuilder.CurrentOriginZFt + thickFt);
             CreateLabelText(doc, label, textOrigin, textTypeId, worksetId, createdIds);
 
             return ds;

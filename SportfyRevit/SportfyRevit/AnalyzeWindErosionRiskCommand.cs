@@ -81,17 +81,21 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishWindErosion(BuildPublishedResult(report, caseStudy, null));
 
             var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
-            if (!ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree))
-                return Result.Succeeded;
-
-            RenderVideo(unity!, layoutJson, report, caseStudy);
+            var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
+            if (choice == SummaryChoice.Video)
+            {
+                var install = AnalysisMedia.EnsureUnity(DialogTitle, haveUnity ? unity : null, layoutJson, "wind_erosion", AnalysisMedia.ProjectTitle(commandData));
+                if (install != null) RenderVideo(install, layoutJson, report, caseStudy);
+            }
+            else if (choice == SummaryChoice.Pdf)
+                AnalysisMedia.ExportPdf(DialogTitle, layoutJson, new[] { "wind_erosion" }, AnalysisMedia.ProjectTitle(commandData));
             return Result.Succeeded;
         }
 
         // ------------------------------------------------------------------ dialogs
 
         /// <summary>Shows the numbers. Returns true if the user asked for the Unity video.</summary>
-        static bool ShowSummary(WindReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
+        static SummaryChoice ShowSummary(WindReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
             var s = report.summary;
             var site = report.site;
@@ -131,10 +135,6 @@ namespace SportfyRevit
             body.AppendLine();
             body.AppendLine("A screening estimate after EN 1991-1-4 and the FLL guideline, not a structural design. The assumptions are in the PDF report.");
 
-            if (!haveUnity)
-                body.AppendLine().AppendLine("3D video: needs the Unity Editor, which wasn't found. The numbers above don't.");
-            else if (!unityFree)
-                body.AppendLine().AppendLine("3D video: close the Unity Editor (it has Sportify.Simulation open) to render it.");
 
             var dialog = new TaskDialog(DialogTitle)
             {
@@ -144,16 +144,14 @@ namespace SportfyRevit
                 DefaultButton = TaskDialogResult.Close,
             };
 
-            if (unityFree)
-                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
-                    "About a minute; Revit is unresponsive while it renders.");
+            AnalysisMedia.AddLinks(dialog, haveUnity, unityFree, "About a minute.");
 
-            return dialog.Show() == TaskDialogResult.CommandLink1;
+            return AnalysisMedia.Read(dialog.Show());
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, WindReport report, string caseStudy)
         {
-            var run = UnityHeadlessRunner.Run(unity, new UnityHeadlessRunner.Request
+            var run = AnalysisMedia.RunUnity(unity, new UnityHeadlessRunner.Request
             {
                 ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunWindAnalysis",
                 LayoutJson = layoutJson,
@@ -161,11 +159,11 @@ namespace SportfyRevit
                 VideoFileStem = "wind_erosion",
                 LogFileName = "unity_wind_batch.log",
                 TimeoutMs = VideoTimeoutMs,
-            });
+            }, "Rendering the wind and erosion video");
 
             if (!run.Ok)
             {
-                TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
+                if (!run.Cancelled) TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
                 return;
             }
 
@@ -190,6 +188,7 @@ namespace SportfyRevit
             var videoPath = video != null && !string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath)
                 ? video.FilePath
                 : null;
+            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath);     // the workspace holds the video, not just Unity's Recordings folder
 
             var disagreement = results.Analysis != null ? Compare(report, results.Analysis) : "Unity's results carried no analysis to compare.";
 

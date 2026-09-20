@@ -38,6 +38,11 @@ namespace SportfyRevit
             StaticWebServer.Start();
             EnsureApiRunning();
 
+            // The Sportify folder (layouts, reports, charts, videos ... one subfolder each): made now if the installer has not, so the web app always has somewhere to put
+            // and find its files; and the way for the web app to ask Revit for the functional diagrams.
+            try { SportifyWorkspace.EnsureCreated(); } catch (System.Exception) { /* read-only Documents: the folder is made when the first file is saved */ }
+            RevitCommandBridge.Install();
+
             // Must happen in OnStartup, before any document is open — see
             // SportifyDockablePaneProvider's own notes on the GUID needing
             // to stay constant across builds.
@@ -49,8 +54,7 @@ namespace SportfyRevit
             var importPanel = application.CreateRibbonPanel(TabName, "App & Data Import");
             AddButton(importPanel, "OpenSportifyApp", "Open\nSportify App", typeof(OpenSportifyAppCommand),
                 $"Opens the Sportify web app in a docked pane inside Revit ({SportifyBrowserPane.DefaultUrl}).");
-            AddButton(importPanel, "PushRoofBoundary", "Push Roof\nto Sportify", typeof(PushRoofBoundaryCommand),
-                "Select a roof or floor and send its footprint to the Sportify web app's Combine tab.");
+            AddPushMenu(importPanel);
             AddButton(importPanel, "ImportSportifyLayout", "Import\nConfiguration", typeof(ImportSportifyLayoutCommand),
                 "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.");
             AddButton(importPanel, "LoadFamilies", "Load\nFamilies", typeof(LoadFamiliesCommand),
@@ -67,8 +71,6 @@ namespace SportfyRevit
                 "Checks evacuation travel distance from every piece to its nearest entry point against a reference figure from Sportify.Api.");
             AddButton(analysisPanel, "AnalyzeCarbonImpact", "Carbon Impact\nAnalysis", typeof(AnalyzeCarbonImpactCommand),
                 "Illustrative kinetic-to-electrical energy-harvesting ceiling across active playing surface, assuming piezoelectric-capable flooring.");
-            AddButton(analysisPanel, "AnalyzeSunAndShading", "Sun & Shading\nAnalysis", typeof(AnalyzeSunAndShadingCommand),
-                "Confirms Site Location matches the synced layout, then points at Revit's own Sun Path/Shadows for the real render.");
             AddButton(analysisPanel, "AnalyzeLca", "LCA\nAnalysis", typeof(AnalyzeLcaCommand),
                 "Sums embodied carbon from each piece's picked reference material, using Sportify.Api's Materials table.");
             AddButton(analysisPanel, "AnalyzeAccessibility", "Accessibility\nAnalysis", typeof(AnalyzeAccessibilityCommand),
@@ -80,24 +82,31 @@ namespace SportfyRevit
             // plain Analysis panel — see the project notes on why each of these was
             // judged a genuine Unity fit and the rest weren't.
             var unityAnalysisPanel = application.CreateRibbonPanel(TabName, "Physical Analysis (Unity based)");
+            AddButton(unityAnalysisPanel, "SendPhysicalAnalysisToWeb", "Send All to\nWeb App", typeof(SendPhysicalAnalysisToWebCommand),
+                "Sends the physical analyses to the Sportify web app (Analysis tab) in one go, with no questions asked: wind and erosion, rain and soil percolation, static loads, dynamic analysis, sun and shade, run on the layout the web app pushed. Uses whatever inputs you already decided (in this session or in the app's Structure and Site conditions tabs); what is still unconfirmed is marked PRELIMINARY, and a summary offers to review it. Needs no Unity and takes a few seconds. The ball trajectories and the 3D videos need Unity and keep their own buttons below; a video already made for exactly these numbers stays with them.");
+            unityAnalysisPanel.AddSeparator();
             AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
-                "Runs the current layout through Sportify.Simulation (Unity): stray shots from every placed court, checking crossings into neighboring courts, the roof edge and circulation space. Records the flights as an MP4 video, and works out what share of shots leave the roof and where fences should go. Takes ~30-90s — Revit will be unresponsive while it runs. Close the Unity Editor first if it has Sportify.Simulation open.");
+                "Runs the current layout through Sportify.Simulation (Unity): stray shots from every placed court, checking crossings into neighboring courts, the roof edge and circulation space. Records the flights as an MP4 video, and works out what share of shots leave the roof and where fences should go. Needs the Unity Editor (its physics makes the numbers, so there is no PDF alternative). Takes ~30-90s with a progress window you can cancel. Close the Unity Editor first if it has Sportify.Simulation open.");
             AddButton(unityAnalysisPanel, "AnalyzeStructuralLoads", "Structural\nLoads", typeof(AnalyzeStructuralLoadsCommand),
-                "Static loads on the roof structure: pulls the structural grid and columns from the Revit model (with Push Roof), adds up the weight of the build-ups, courts, trees and the expected crowds bay by bay, and shows which bays are most loaded against the deck capacity and whether the load sits to one side, with the move or lightening that would balance it. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders). Before it runs, a window asks for the values the layout cannot know (the deck capacity, above all): enter your own or accept the built-in one knowingly; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Site tab.");
+                "Static loads on the roof structure: pulls the structural grid and columns from the Revit model (with Push Roof), adds up the weight of the build-ups, courts, trees and the expected crowds bay by bay, and shows which bays are most loaded against the deck capacity and whether the load sits to one side, with the move or lightening that would balance it. The numbers appear at once and need no Unity; a 3D video is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs, a window asks for the values the layout cannot know (the deck capacity, above all): enter your own or accept the built-in one knowingly; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Structure and Site conditions tabs.");
             AddButton(unityAnalysisPanel, "AnalyzeDynamicLoads", "Dynamic\nAnalysis", typeof(AnalyzeDynamicLoadsCommand),
-                "The dynamic half of the structural analysis, in three scenarios one after the other: (1) crowds - how people move over the roof through a day and how much they weigh where; (2) weather - a cloudburst soaking the green roofs, snow and wind as load cases with the crowd, and the governing case of every bay; (3) resonance - the deck's natural frequency and what walking, court play or a jumping crowd does to it, ending on the frequency spectrum and the vibrating deck. The numbers appear at once and need no Unity; a 3D video is offered afterwards if the Unity Editor is installed (about two minutes, Revit unresponsive while it renders). Before it runs, a window asks for the values the layout cannot know (deck capacity, natural frequency, snow zone and altitude, the day's schedule, the comfort limits): enter your own or accept the built-in ones knowingly, each with its source; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Site tab.");
+                "The dynamic half of the structural analysis, in three scenarios one after the other: (1) crowds - how people move over the roof through a day and how much they weigh where; (2) weather - a cloudburst soaking the green roofs, snow and wind as load cases with the crowd, and the governing case of every bay; (3) resonance - the deck's natural frequency and what walking, court play or a jumping crowd does to it, ending on the frequency spectrum and the vibrating deck. The numbers appear at once and need no Unity; a 3D video is offered afterwards: the video if you have Unity (about two minutes, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs, a window asks for the values the layout cannot know (deck capacity, natural frequency, snow zone and altitude, the day's schedule, the comfort limits): enter your own or accept the built-in ones knowingly, each with its source; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Structure and Site conditions tabs.");
+            AddButton(unityAnalysisPanel, "AnalyzeSunShade", "Sun & Shade\nAnalysis", typeof(AnalyzeSunShadeCommand),
+                "Direct sun on the roof through the year's design days (21 June, 21 March, 21 December): the hours of sun every part gets, which play areas and spectator zones are too sunny at midday and which gardens too shaded, and the shading equipment (pergolas, canopies, sails, parasols, a tree) that would fix it without taking the sun from the gardens, with its weight, the wind on it and the deck's answer. The numbers appear at once and need no Unity; a 3D video of the shadows sweeping the roof and the equipment going up is offered afterwards: the video if you have Unity (about two minutes, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs a window asks for the site, the orientation, the shade target and the sun the gardens need: enter your own or accept the built-in ones; whatever is left unconfirmed marks the results PRELIMINARY.");
             AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
-                "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
+                "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't.");
             AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
-                "Steps three rain events (steady, heavy shower, cloudburst) through the real layers of each roof-garden build-up: how much rain each keeps, how much runs off and how much later, and whether any fills up — with advice (more water-storing drainage layer or substrate). The numbers appear at once and need no Unity; a cross-section video of the water soaking down is offered afterwards if the Unity Editor is installed (about a minute, Revit unresponsive while it renders).");
+                "Steps three rain events (steady, heavy shower, cloudburst) through the real layers of each roof-garden build-up: how much rain each keeps, how much runs off and how much later, and whether any fills up — with advice (more water-storing drainage layer or substrate). The numbers appear at once and need no Unity; a cross-section video of the water soaking down is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't.");
 
             var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
             AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport\n(PDF)", typeof(GenerateAnalysisReportCommand),
-                "Generates and opens a PDF report: every Analysis check run this session, the component schedule, and the circulation/axonometric diagrams — auto-exported, no manual picking.");
+                "Generates and opens a PDF report: every Analysis check run this session, the component schedule, and the circulation/axonometric diagrams — auto-exported, no manual picking. Saved in the Analysis reports folder of your Sportify folder.");
             AddButton(exportPanel, "GenerateFunctionalDiagrams", "Functional\nDiagrams", typeof(GenerateFunctionalDiagramsCommand),
-                "Generates a circulation-only floor plan and a 3D massing axonometric. Bubble diagram not built yet.");
+                "Generates a circulation-only floor plan and a 3D massing axonometric, saved as PNG in the Diagrams folder of your Sportify folder (the web app's Deliverables tab can ask for them too). Bubble diagram not built yet.");
             AddButton(exportPanel, "GenerateSchedules", "Schedules\n(CSV)", typeof(GenerateSchedulesCommand),
-                "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area).");
+                "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area) into the Schedules folder of your Sportify folder.");
+            AddButton(exportPanel, "OpenSportifyFolder", "Open Sportify\nFolder", typeof(OpenSportifyFolderCommand),
+                "Opens your Sportify folder (chosen when Sportify was installed, by default Documents\\Sportify) in Explorer: layouts, sport and garden data, analysis charts (PDF), videos, analysis reports, schedules and diagrams, one subfolder each. The web app's Deliverables tab lists the same files.");
 
             application.Idling += AutoImportSync.OnIdling;
 
@@ -170,6 +179,46 @@ namespace SportfyRevit
             {
                 // Best-effort — Analyze* commands already degrade gracefully if the API stays unreachable.
             }
+        }
+
+        /// <summary>
+        /// The "Push to Sportify" drop-down: everything the model knows about the selected roof at once, or one part of it at a time (its structure, its
+        /// entries, its openings ...). The roof's outline and size go with every part; a part pushed alone is laid onto the roof pushed before it.
+        /// </summary>
+        private static void AddPushMenu(RibbonPanel panel)
+        {
+            var menu = (PulldownButton)panel.AddItem(new PulldownButtonData("PushToSportify", "Push to\nSportify")
+            {
+                ToolTip = "Send the selected roof or floor to the Sportify web app's Combine tab: everything the model knows about it at once, or one part at a time.",
+                LongDescription = "The roof's outline and size always go with it (they fix the plan). A part pushed alone is laid onto the roof pushed before, so you can push the " +
+                                  "structure, then the entries, then the equipment without walking the whole model again. Select the roof (or floor) in the model first; if nothing is " +
+                                  "selected, a partial push uses the roof pushed last, and Everything asks you to pick one.",
+            });
+
+            void Item(string name, string text, Type command, string tip)
+            {
+                menu.AddPushButton(new PushButtonData(name, text, typeof(SportfyRevitApp).Assembly.Location, command.FullName) { ToolTip = tip });
+            }
+
+            Item("PushRoofBoundary", "Everything", typeof(PushRoofBoundaryCommand),
+                "The roof's outline and size, its structure (grid, columns, beams, bearing walls), entries, openings, edge and walls on the roof, drains, equipment, and the slab build-up and levels.");
+            menu.AddSeparator();
+            Item("PushRoofOutline", "Roof outline and size", typeof(PushRoofOutlineCommand),
+                "Only the roof's outline, size and height above ground. Enough to place pieces on it.");
+            Item("PushRoofStructure", "Structure: grid, columns, beams, walls", typeof(PushRoofStructureCommand),
+                "The structural grid, columns, the beams under the slab and the walls that reach it (marked bearing or not). What the structural and dynamic analyses lay the bays on.");
+            Item("PushRoofEntries", "Entries: stairs, lifts, doors", typeof(PushRoofEntriesCommand),
+                "The stairs, lifts and doors by which people reach the roof: where they arrive.");
+            Item("PushRoofOpenings", "Openings", typeof(PushRoofOpeningsCommand),
+                "Holes in the roof's top face (skylights, shafts, rooflights): nothing may stand there.");
+            Item("PushRoofEdge", "Edge and walls on the roof", typeof(PushRoofEdgeCommand),
+                "Parapets and railings along the roof's edge, and the walls standing on the roof (which shade it).");
+            Item("PushRoofDrains", "Drains", typeof(PushRoofDrainsCommand),
+                "Roof drains, overflows and scuppers (found by their family names).");
+            Item("PushRoofEquipment", "Equipment on the roof", typeof(PushRoofEquipmentCommand),
+                "Mechanical and electrical equipment standing on the roof: footprint, height and, where the family has a weight, its weight.");
+            Item("PushRoofSlabLevels", "Slab build-up and levels", typeof(PushRoofSlabLevelsCommand),
+                "The layers of the roof slab (its structural thickness is what the deck's resonance estimate needs) and the project's levels.");
         }
 
         private static PushButton AddButton(RibbonPanel panel, string internalName, string text, Type commandType, string tooltip)

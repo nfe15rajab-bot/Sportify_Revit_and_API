@@ -18,7 +18,8 @@ namespace SportfyRevit
     //
     //  Convention, the same as for placements, entry points, circulation and the structure: the roof's origin is the minimum corner
     //  of its bounding box, x runs right and y runs DOWN from the roof's top (maximum-Y) edge, so canvas y = roof width -
-    //  (model Y - minimum Y). Everything is in metres. See ROOF_FEATURES.md at the repository root for the JSON contract.
+    //  (model Y - minimum Y). A roof turned against the model's axes has its own axes (RoofFrame): the same convention holds in them.
+    //  Everything is in metres. See ROOF_FEATURES.md at the repository root for the JSON contract.
     //  (The DTO classes it produces, RoofFeaturesDto and its parts, live in SportifyLayoutDto.cs with the rest of the layout's JSON.)
     // ---------------------------------------------------------------------------------------
 
@@ -31,6 +32,11 @@ namespace SportfyRevit
         /// <summary>A wall or railing that stands on the roof; HeightM is above the roof's top face.</summary>
         internal record EdgeElement(string Kind, string Name, double X0, double Y0, double X1, double Y1, double HeightM, double ThicknessM);
         internal record DrainRecord(string Kind, string Name, double X, double Y, long SourceId);
+        /// <summary>
+        /// A piece of plant on the roof: the middle of its footprint (model coordinates, metres), its own width and depth, the angle its width runs at
+        /// (radians from the model's X axis), its height, and its weight in kN when the family says.
+        /// </summary>
+        internal record EquipmentRecord(string Kind, string Name, double CentreX, double CentreY, double WidthM, double DepthM, double AngleRad, double HeightM, double? WeightKn, long SourceId);
         internal record LayerRecord(string Function, string Material, double ThicknessM);
         internal record SlabRecord(string TypeName, IReadOnlyList<LayerRecord> Layers);
         internal record LevelRecord(string Name, double ElevationM);
@@ -50,7 +56,7 @@ namespace SportfyRevit
         /// <summary>Two entries of one kind closer than this are one (a stair has several runs, a door several leaves).</summary>
         public const double DuplicateM = 0.75;
 
-        /// <param name="roof">The roof's bounding box in model coordinates.</param>
+        /// <param name="roof">The roof's bounding box in model coordinates (a roof square to the model's axes).</param>
         /// <param name="outline">The outer boundary of the top face in model coordinates (vertices in order), or empty: the bounding box is used.</param>
         /// <param name="groundM">The elevation the roof height was measured from, or null when no ground was found.</param>
         /// <param name="roofTopM">Elevation of the roof's top face.</param>
@@ -67,10 +73,31 @@ namespace SportfyRevit
             double roofTopM,
             double? groundM,
             string? roofLevelName,
-            IEnumerable<string>? notes = null)
+            IEnumerable<string>? notes = null,
+            IEnumerable<EdgeElement>? obstacleElements = null,
+            IEnumerable<EquipmentRecord>? equipment = null)
+            => Build(RoofFrame.FromRect(roof), outline, openings, entries, edgeElements, drains, slab, levels, roofTopM, groundM, roofLevelName, notes, obstacleElements, equipment);
+
+        /// <param name="frame">The roof's own plan frame: where its origin is in the model and how far it is turned.</param>
+        public static RoofFeaturesDto Build(
+            RoofFrame frame,
+            IReadOnlyList<PointM> outline,
+            IEnumerable<OpeningLoop> openings,
+            IEnumerable<EntryRecord> entries,
+            IEnumerable<EdgeElement> edgeElements,
+            IEnumerable<DrainRecord> drains,
+            SlabRecord? slab,
+            IEnumerable<LevelRecord> levels,
+            double roofTopM,
+            double? groundM,
+            string? roofLevelName,
+            IEnumerable<string>? notes = null,
+            IEnumerable<EdgeElement>? obstacleElements = null,
+            IEnumerable<EquipmentRecord>? equipment = null)
         {
-            var width = roof.MaxY - roof.MinY;
-            (double x, double y) ToCanvas(double mx, double my) => (mx - roof.MinX, width - (my - roof.MinY));
+            var width = frame.Width;
+            var length = frame.Length;
+            (double x, double y) ToCanvas(double mx, double my) => frame.ToPlan(mx, my);
 
             var dto = new RoofFeaturesDto();
             if (notes != null) dto.Notes.AddRange(notes);
@@ -85,7 +112,7 @@ namespace SportfyRevit
                 var area = Math.Abs(Area(pts));
                 if (area < MinOpeningM2) continue;
                 double x0 = pts.Min(p => p.x), x1 = pts.Max(p => p.x), y0 = pts.Min(p => p.y), y1 = pts.Max(p => p.y);
-                if (x1 < -StructureGeometry.ToleranceM || x0 > roof.MaxX - roof.MinX + StructureGeometry.ToleranceM || y1 < -StructureGeometry.ToleranceM || y0 > width + StructureGeometry.ToleranceM) continue;
+                if (x1 < -StructureGeometry.ToleranceM || x0 > length + StructureGeometry.ToleranceM || y1 < -StructureGeometry.ToleranceM || y0 > width + StructureGeometry.ToleranceM) continue;
                 dto.Openings.Add(new RoofOpeningDto
                 {
                     Id = $"opening_{++index}",
@@ -99,11 +126,10 @@ namespace SportfyRevit
             var kept = new List<RoofEntryDto>();
             foreach (var e in entries)
             {
-                if (e.X < roof.MinX - EntryReachM || e.X > roof.MaxX + EntryReachM || e.Y < roof.MinY - EntryReachM || e.Y > roof.MaxY + EntryReachM) continue;
                 var (cx, cy) = ToCanvas(e.X, e.Y);
+                if (!frame.InsidePlan(cx, cy, EntryReachM)) continue;
                 if (kept.Any(o => o.Kind == e.Kind && Math.Abs(o.XM - cx) < DuplicateM && Math.Abs(o.YM - cy) < DuplicateM)) continue;
-                var onRoof = e.X >= roof.MinX - StructureGeometry.ToleranceM && e.X <= roof.MaxX + StructureGeometry.ToleranceM
-                          && e.Y >= roof.MinY - StructureGeometry.ToleranceM && e.Y <= roof.MaxY + StructureGeometry.ToleranceM;
+                var onRoof = frame.InsidePlan(cx, cy, StructureGeometry.ToleranceM);
                 kept.Add(new RoofEntryDto { Kind = e.Kind, Name = e.Name, XM = R(cx), YM = R(cy), WidthM = R(e.WidthM), OnRoof = onRoof, SourceElementId = e.SourceId });
             }
             var counters = new Dictionary<string, int>();
@@ -117,7 +143,7 @@ namespace SportfyRevit
             // ---- edges: each straight stretch of the outline against the parapets and railings that stand along it
             var outlineCanvas = (outline.Count >= 3
                 ? outline.Select(p => ToCanvas(p.X, p.Y)).ToList()
-                : new List<(double x, double y)> { (0, 0), (roof.MaxX - roof.MinX, 0), (roof.MaxX - roof.MinX, width), (0, width) });
+                : new List<(double x, double y)> { (0, 0), (length, 0), (length, width), (0, width) });
             var elements = edgeElements.Select(w =>
             {
                 var a = ToCanvas(w.X0, w.Y0); var b = ToCanvas(w.X1, w.Y1);
@@ -157,12 +183,52 @@ namespace SportfyRevit
                 });
             }
 
+            // ---- obstacles: the walls standing on the roof, whatever their height (they cast shadows), on the roof or just beyond its edge
+            var obstacleIndex = 0;
+            foreach (var w in (obstacleElements ?? Enumerable.Empty<EdgeElement>()))
+            {
+                bool Near(double px, double py) { var (qx, qy) = ToCanvas(px, py); return frame.InsidePlan(qx, qy, EntryReachM); }
+                if (!Near(w.X0, w.Y0) && !Near(w.X1, w.Y1)) continue;
+                if (Math.Abs(w.X1 - w.X0) + Math.Abs(w.Y1 - w.Y0) < 0.05 || w.HeightM <= 0) continue;
+                var a = ToCanvas(w.X0, w.Y0); var b = ToCanvas(w.X1, w.Y1);
+                dto.Obstacles.Add(new RoofObstacleDto
+                {
+                    Id = $"obstacle_{++obstacleIndex}", Name = w.Name,
+                    StartM = new PointDto { XM = R(a.x), YM = R(a.y) }, EndM = new PointDto { XM = R(b.x), YM = R(b.y) },
+                    HeightM = Math.Round(w.HeightM, 2), ThicknessM = Math.Round(w.ThicknessM, 2),
+                });
+            }
+
+            // ---- equipment: what stands on the roof itself; its box in the plan is the box of its four corners turned into the roof's own axes
+            var equipmentList = new List<RoofEquipmentDto>();
+            foreach (var q in equipment ?? Enumerable.Empty<EquipmentRecord>())
+            {
+                // its footprint turned into the roof's axes: a box of its own width and depth at the angle between them, and the plan's box round it
+                var (cx, cy) = ToCanvas(q.CentreX, q.CentreY);
+                if (!frame.InsidePlan(cx, cy, StructureGeometry.ToleranceM)) continue;
+                var phi = q.AngleRad - frame.AngleRad;
+                double c = Math.Abs(Math.Cos(phi)), sn = Math.Abs(Math.Sin(phi));
+                double boxW = q.WidthM * c + q.DepthM * sn, boxD = q.WidthM * sn + q.DepthM * c;
+                equipmentList.Add(new RoofEquipmentDto
+                {
+                    Kind = q.Kind, Name = q.Name, XM = R(cx), YM = R(cy), WidthM = R(boxW), DepthM = R(boxD), HeightM = R(q.HeightM),
+                    WeightKn = q.WeightKn.HasValue ? Math.Round(q.WeightKn.Value, 2) : null, SourceElementId = q.SourceId,
+                });
+            }
+            var equipmentCounters = new Dictionary<string, int>();
+            foreach (var e in equipmentList.OrderBy(k => k.Kind).ThenBy(k => k.XM).ThenBy(k => k.YM))
+            {
+                equipmentCounters[e.Kind] = equipmentCounters.GetValueOrDefault(e.Kind) + 1;
+                e.Id = $"{e.Kind}_{equipmentCounters[e.Kind]}";
+                dto.Equipment.Add(e);
+            }
+
             // ---- drains
             var drainList = new List<RoofDrainDto>();
             foreach (var d in drains)
             {
-                if (d.X < roof.MinX - StructureGeometry.ToleranceM || d.X > roof.MaxX + StructureGeometry.ToleranceM || d.Y < roof.MinY - StructureGeometry.ToleranceM || d.Y > roof.MaxY + StructureGeometry.ToleranceM) continue;
                 var (cx, cy) = ToCanvas(d.X, d.Y);
+                if (!frame.InsidePlan(cx, cy, StructureGeometry.ToleranceM)) continue;
                 if (drainList.Any(o => Math.Abs(o.XM - cx) < 0.05 && Math.Abs(o.YM - cy) < 0.05)) continue;
                 drainList.Add(new RoofDrainDto { Kind = d.Kind, Name = d.Name, XM = R(cx), YM = R(cy), SourceElementId = d.SourceId });
             }

@@ -43,8 +43,7 @@ namespace SportfyRevit
             string outputPath;
             try
             {
-                var reportsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sportify Reports");
-                Directory.CreateDirectory(reportsDir);
+                var reportsDir = SportifyWorkspace.PathFor("reports");
                 outputPath = Path.Combine(reportsDir, $"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
                 AnalysisReportPdfBuilder.Generate(outputPath, layout, results, circulationImagePath, axoImagePath);
             }
@@ -104,12 +103,20 @@ namespace SportfyRevit
 
                 var circulationPath = ExportViewImage(doc, circulationView.Id, Path.Combine(tempDir, "circulation"));
                 var axoPath = ExportViewImage(doc, axoView.Id, Path.Combine(tempDir, "axonometric"));
-                return (circulationPath, axoPath);
+                return KeepDiagrams(circulationPath, axoPath);
             }
             catch (Exception)
             {
                 return (null, null);
             }
+        }
+
+        /// <summary>Copies the two diagram images into the workspace's Diagrams folder (timestamped), so they are deliverables and the next report finds them; returns the copies.</summary>
+        internal static (string? Circulation, string? Axo) KeepDiagrams(string? circulationPath, string? axoPath)
+        {
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            return (circulationPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", circulationPath, $"circulation_{stamp}.png"),
+                    axoPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", axoPath, $"axonometric_{stamp}.png"));
         }
 
         /// <summary>
@@ -118,7 +125,7 @@ namespace SportfyRevit
         /// views in one call never collides) — search for whatever it actually
         /// produced instead of assuming an exact filename.
         /// </summary>
-        private static string? ExportViewImage(Document doc, ElementId viewId, string outputBasePath)
+        internal static string? ExportViewImage(Document doc, ElementId viewId, string outputBasePath)
         {
             var options = new ImageExportOptions
             {

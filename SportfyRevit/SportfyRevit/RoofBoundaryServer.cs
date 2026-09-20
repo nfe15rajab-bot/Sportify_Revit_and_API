@@ -63,7 +63,13 @@ namespace SportfyRevit
             _listener = null;
         }
 
-        /// <summary>Called by PushRoofBoundaryCommand every time the user pushes a roof.</summary>
+        /// <summary>The roof pushed last, as the app receives it (null before the first push): what a partial push is laid onto (RoofPushMerge).</summary>
+        internal static string? CurrentPayload
+        {
+            get { lock (PayloadLock) { return _payloadJson; } }
+        }
+
+        /// <summary>Called by the push commands (PushRoofCommandBase) every time the user pushes a roof.</summary>
         public static void SetPayload(string json)
         {
             lock (PayloadLock) { _payloadJson = json; }
@@ -83,6 +89,16 @@ namespace SportfyRevit
                 _combinedLayoutJson = json;
                 _combinedLayoutVersion++;
             }
+        }
+
+        /// <summary>
+        /// The layout as the web app has it right now, sent automatically as it changes (POST /combined-layout?draft=1). The analyses, the charts and the PDFs read
+        /// the newest layout, so this updates it; but it is not an export, so the version that Auto Import watches stays where it was and nothing is imported into
+        /// the Revit model until the designer exports.
+        /// </summary>
+        public static void SetDraftLayoutPayload(string json)
+        {
+            lock (CombinedLayoutLock) { _combinedLayoutJson = json; }
         }
 
         /// <summary>
@@ -199,13 +215,20 @@ namespace SportfyRevit
                 return;
             }
 
-            var file = Path.GetFullPath(requested);
+            await ServeFile(ctx, Path.GetFullPath(requested), "video/mp4");
+        }
+
+        /// <summary>Streams a file, honouring a Range header (a video seeks; a PDF is read whole).</summary>
+        private static async Task ServeFile(HttpListenerContext ctx, string file, string contentType)
+        {
             using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var length = stream.Length;
             var range = ParseRange(ctx.Request.Headers["Range"], length);
 
-            ctx.Response.ContentType = "video/mp4";
+            ctx.Response.ContentType = contentType;
             ctx.Response.Headers.Add("Accept-Ranges", "bytes");
+            if (Path.GetExtension(file).ToLowerInvariant() is ".csv" or ".dxf" or ".json" or ".txt")     // a browser would show these as text: offer them as files
+                ctx.Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{Path.GetFileName(file)}\"");
             long from = 0, to = length - 1;
             if (range is { } r)
             {
@@ -239,6 +262,28 @@ namespace SportfyRevit
             }
             catch (Exception) { /* the player closed the connection (a seek): nothing to tell it */ }
             finally { try { ctx.Response.Close(); } catch (Exception) { /* already gone */ } }
+        }
+
+        private static byte[] ReadAll(Stream input)
+        {
+            using var ms = new MemoryStream();
+            input.CopyTo(ms);
+            return ms.ToArray();
+        }
+
+        private static async Task Write(HttpListenerContext ctx, EndpointResponse answer)
+        {
+            if (answer.FilePath != null)
+            {
+                await ServeFile(ctx, answer.FilePath, answer.ContentType);
+                return;
+            }
+            ctx.Response.StatusCode = answer.Status;
+            ctx.Response.ContentType = answer.ContentType;
+            var bytes = answer.Body ?? Array.Empty<byte>();
+            ctx.Response.ContentLength64 = bytes.Length;
+            if (ctx.Request.HttpMethod != "HEAD") await ctx.Response.OutputStream.WriteAsync(bytes);
+            ctx.Response.Close();
         }
 
         public static bool TryGetLatestAnalysisResults(out string? json)
@@ -296,7 +341,7 @@ namespace SportfyRevit
                     {
                         using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
                         var body = await reader.ReadToEndAsync();
-                        SetCombinedLayoutPayload(body);
+                        if (ctx.Request.QueryString["draft"] == "1") SetDraftLayoutPayload(body); else SetCombinedLayoutPayload(body);
                         ctx.Response.StatusCode = 204;
                         ctx.Response.Close();
                         continue;
@@ -348,6 +393,17 @@ namespace SportfyRevit
                         await ctx.Response.OutputStream.WriteAsync(familiesBytes);
                         ctx.Response.Close();
                         continue;
+                    }
+
+                    // the workspace: what is in it, saving into it, the analyses and their charts, the PDFs (WorkspaceEndpoints: plain functions of the request)
+                    {
+                        var request = ctx.Request;
+                        var answer = await Task.Run(() => WorkspaceEndpoints.Handle(request.HttpMethod, path, request.QueryString, () => ReadAll(request.InputStream)));
+                        if (answer != null)
+                        {
+                            await Write(ctx, answer);
+                            continue;
+                        }
                     }
 
                     if (path != "/roof-boundary")

@@ -81,7 +81,13 @@ namespace SportfyRevit
                 var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
                 var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
                 if (choice == SummaryChoice.Review) { review = true; continue; }
-                if (choice == SummaryChoice.Video) RenderVideo(unity!, layoutJson, report, caseStudy);
+                if (choice == SummaryChoice.Video)
+                {
+                    var install = AnalysisMedia.EnsureUnity(DialogTitle, haveUnity ? unity : null, layoutJson, "structural_loads", AnalysisMedia.ProjectTitle(commandData));
+                    if (install != null) RenderVideo(install, layoutJson, report, caseStudy);
+                }
+                else if (choice == SummaryChoice.Pdf)
+                    AnalysisMedia.ExportPdf(DialogTitle, layoutJson, new[] { "structural_loads" }, AnalysisMedia.ProjectTitle(commandData));
                 return Result.Succeeded;
             }
         }
@@ -104,7 +110,7 @@ namespace SportfyRevit
                 body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
             body.AppendLine($"{s.deadKn:0} kN permanent + {s.liveKn:0} kN imposed = {s.totalKn:0} kN on {s.roofAreaM2:0} m² ({s.meanKnM2:0.0} kN/m² on average, {s.peakBayKnM2:0.0} in the most loaded bay).");
-            body.AppendLine($"Deck capacity {s.capacityKnM2:0.#} kN/m²" + (!s.capacityAssumed ? " (entered)." : s.capacityAccepted ? " — the built-in value, accepted (not the structural engineer's figure)." : " — a PLACEHOLDER, not confirmed: enter the structural engineer's figure in the Site tab, or accept the built-in value."));
+            body.AppendLine($"Deck capacity {s.capacityKnM2:0.#} kN/m²" + (!s.capacityAssumed ? " (entered)." : s.capacityAccepted ? " — the built-in value, accepted (not the structural engineer's figure)." : " — a PLACEHOLDER, not confirmed: enter the structural engineer's figure in the Structure tab, or accept the built-in value."));
             body.AppendLine();
             body.AppendLine($"Bays: {s.baysOver} of {s.baysChecked} over the {(s.capacityAssumed ? "assumed " : "")}capacity, {s.baysMarginal} marginal; most loaded {s.worstBay} at {s.peakUtilisation * 100:0}%.");
             if (s.columnsChecked > 0)
@@ -123,10 +129,6 @@ namespace SportfyRevit
             body.AppendLine();
             body.AppendLine("A screening estimate, not a structural verification. The assumptions are in the PDF report; crowds in motion and wind, rain and snow come with the dynamic analysis.");
 
-            if (!haveUnity)
-                body.AppendLine().AppendLine("3D video: needs the Unity Editor, which wasn't found. The numbers above don't.");
-            else if (!unityFree)
-                body.AppendLine().AppendLine("3D video: close the Unity Editor (it has Sportify.Simulation open) to render it.");
 
             var dialog = new TaskDialog(DialogTitle)
             {
@@ -140,19 +142,17 @@ namespace SportfyRevit
                 DefaultButton = TaskDialogResult.Close,
             };
 
-            if (unityFree)
-                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
-                    "About a minute; Revit is unresponsive while it renders.");
-            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Review the assumptions, then run again",
+            AnalysisMedia.AddLinks(dialog, haveUnity, unityFree, "About a minute.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Review the assumptions, then run again",
                 s.preliminary ? "Enter the deck capacity, or accept the built-in value, to lift the PRELIMINARY mark." : "Change the deck capacity or how the built-in value is treated.");
 
             var result = dialog.Show();
-            return result == TaskDialogResult.CommandLink1 ? SummaryChoice.Video : result == TaskDialogResult.CommandLink2 ? SummaryChoice.Review : SummaryChoice.Close;
+            return result == TaskDialogResult.CommandLink3 ? SummaryChoice.Review : AnalysisMedia.Read(result);
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, StructureReport report, string caseStudy)
         {
-            var run = UnityHeadlessRunner.Run(unity, new UnityHeadlessRunner.Request
+            var run = AnalysisMedia.RunUnity(unity, new UnityHeadlessRunner.Request
             {
                 ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunStructuralAnalysis",
                 LayoutJson = layoutJson,
@@ -160,11 +160,11 @@ namespace SportfyRevit
                 VideoFileStem = "structural_loads",
                 LogFileName = "unity_structure_batch.log",
                 TimeoutMs = VideoTimeoutMs,
-            });
+            }, "Rendering the structural loads video");
 
             if (!run.Ok)
             {
-                TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
+                if (!run.Cancelled) TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
                 return;
             }
 
@@ -187,6 +187,7 @@ namespace SportfyRevit
 
             var video = results.Video;
             var videoPath = video != null && !string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath) ? video.FilePath : null;
+            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath);     // the workspace holds the video, not just Unity's Recordings folder
             var disagreement = results.Analysis != null ? Compare(report, results.Analysis) : "Unity's results carried no analysis to compare.";
 
             AnalysisResultPublisher.PublishStructuralLoads(BuildPublishedResult(report, caseStudy, videoPath));
@@ -263,6 +264,9 @@ namespace SportfyRevit
                     Label = x.label,
                     GridNames = x.gridNames,
                     X0M = Math.Round(x.x0, 2), X1M = Math.Round(x.x1, 2), Y0M = Math.Round(x.y0, 2), Y1M = Math.Round(x.y1, 2),
+                    PolygonM = x.polygon == null || x.polygon.Length < 6 ? null
+                        : Enumerable.Range(0, x.polygon.Length / 2).Select(i => new PointDto { XM = Math.Round(x.polygon[2 * i], 2), YM = Math.Round(x.polygon[2 * i + 1], 2) }).ToList(),
+                    AreaM2 = Math.Round(x.areaM2, 2),
                     LoadKnM2 = Math.Round(x.totalKnM2, 2),
                     UtilisationPercent = Math.Round(x.utilisation * 100.0, 1),
                     Status = x.status,

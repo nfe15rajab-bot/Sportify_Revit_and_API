@@ -53,7 +53,7 @@ namespace SportfyRevit
                 var layout = JsonSerializer.Deserialize<SportifyLayout>(layoutJson)
                              ?? throw new InvalidOperationException("The layout was empty.");
                 var zones = WindLayoutAdapter.ToInputs(layout);
-                inputs = new WaterInputs { RoofLength = zones.RoofLength, RoofWidth = zones.RoofWidth, Zones = zones.Zones };
+                inputs = new WaterInputs { RoofLength = zones.RoofLength, RoofWidth = zones.RoofWidth, RoofAreaM2 = zones.Shape.Area, Zones = zones.Zones };
             }
             catch (Exception ex)
             {
@@ -72,10 +72,14 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishSoilPercolation(BuildPublishedResult(report, caseStudy, null));
 
             var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
-            if (!ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree))
-                return Result.Succeeded;
-
-            RenderVideo(unity!, layoutJson, report, caseStudy);
+            var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
+            if (choice == SummaryChoice.Video)
+            {
+                var install = AnalysisMedia.EnsureUnity(DialogTitle, haveUnity ? unity : null, layoutJson, "soil_percolation", AnalysisMedia.ProjectTitle(commandData));
+                if (install != null) RenderVideo(install, layoutJson, report, caseStudy);
+            }
+            else if (choice == SummaryChoice.Pdf)
+                AnalysisMedia.ExportPdf(DialogTitle, layoutJson, new[] { "soil_percolation" }, AnalysisMedia.ProjectTitle(commandData));
             return Result.Succeeded;
         }
 
@@ -86,7 +90,7 @@ namespace SportfyRevit
 
         // ------------------------------------------------------------------ dialogs
 
-        static bool ShowSummary(PercolationReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
+        static SummaryChoice ShowSummary(PercolationReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
             var s = report.summary;
             var body = new StringBuilder();
@@ -119,10 +123,6 @@ namespace SportfyRevit
             body.AppendLine();
             body.AppendLine("A screening estimate with generic rain events (not the site's design rainfall), not a hydrological design. The assumptions are in the PDF report.");
 
-            if (!haveUnity)
-                body.AppendLine().AppendLine("3D video: needs the Unity Editor, which wasn't found. The numbers above don't.");
-            else if (!unityFree)
-                body.AppendLine().AppendLine("3D video: close the Unity Editor (it has Sportify.Simulation open) to render it.");
 
             var dialog = new TaskDialog(DialogTitle)
             {
@@ -134,16 +134,14 @@ namespace SportfyRevit
                 DefaultButton = TaskDialogResult.Close,
             };
 
-            if (unityFree)
-                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
-                    "About a minute; Revit is unresponsive while it renders.");
+            AnalysisMedia.AddLinks(dialog, haveUnity, unityFree, "About a minute.");
 
-            return dialog.Show() == TaskDialogResult.CommandLink1;
+            return AnalysisMedia.Read(dialog.Show());
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, PercolationReport report, string caseStudy)
         {
-            var run = UnityHeadlessRunner.Run(unity, new UnityHeadlessRunner.Request
+            var run = AnalysisMedia.RunUnity(unity, new UnityHeadlessRunner.Request
             {
                 ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunPercolationAnalysis",
                 LayoutJson = layoutJson,
@@ -151,11 +149,11 @@ namespace SportfyRevit
                 VideoFileStem = "rain_percolation",
                 LogFileName = "unity_percolation_batch.log",
                 TimeoutMs = VideoTimeoutMs,
-            });
+            }, "Rendering the rain and percolation video");
 
             if (!run.Ok)
             {
-                TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
+                if (!run.Cancelled) TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
                 return;
             }
 
@@ -178,6 +176,7 @@ namespace SportfyRevit
 
             var video = results.Video;
             var videoPath = video != null && !string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath) ? video.FilePath : null;
+            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath);     // the workspace holds the video, not just Unity's Recordings folder
             var disagreement = results.Analysis != null ? Compare(report, results.Analysis) : "Unity's results carried no analysis to compare.";
 
             AnalysisResultPublisher.PublishSoilPercolation(BuildPublishedResult(report, caseStudy, videoPath));

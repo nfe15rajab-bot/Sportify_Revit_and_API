@@ -1,3 +1,4 @@
+using Sportify.Simulation;
 using Sportify.Simulation.Dynamics;
 
 namespace SportfyRevit
@@ -18,6 +19,7 @@ namespace SportfyRevit
             var frequency = layout.Structure?.NaturalFrequencyHz;
             var snow = string.IsNullOrWhiteSpace(site?.SnowZone) ? null : site!.SnowZone!.Trim();
             var assumptions = layout.AnalysisAssumptions;
+            var slab = layout.RoofContext?.Features?.Slab?.StructuralThicknessM;
 
             return new DynamicInputs
             {
@@ -25,9 +27,11 @@ namespace SportfyRevit
                 Wind = WindLayoutAdapter.ToInputs(layout),
                 SnowZone = snow,
                 SnowZoneSource = snow == null ? "" : "set by the designer",
-                AltitudeM = site?.AltitudeM,
+                AltitudeM = site is { AltitudeSet: true, AltitudeM: double altitude } ? InputQuantiser.Q(altitude) : null,
                 Schedule = string.IsNullOrWhiteSpace(site?.DaySchedule) ? null : site!.DaySchedule,
-                NaturalFrequencyHz = frequency is > 0 ? frequency : null,
+                NaturalFrequencyHz = frequency is > 0 ? InputQuantiser.Q(frequency.Value) : null,
+                // the slab's structural thickness from the Revit push (to 0.1 mm, as Unity's reader has it)
+                SlabDepthM = slab is > 0 ? Math.Round(slab.Value, 4) : null,
                 WalkingLimitG = assumptions?.ComfortLimitWalkingG is > 0 ? assumptions.ComfortLimitWalkingG : null,
                 RhythmicLimitG = assumptions?.ComfortLimitRhythmicG is > 0 ? assumptions.ComfortLimitRhythmicG : null,
             };

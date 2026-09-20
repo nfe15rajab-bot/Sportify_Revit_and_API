@@ -38,6 +38,39 @@ namespace SportfyRevit
         private static double CurrentRoofWidthFt;
 
         /// <summary>
+        /// The roof's own plan frame for the import in progress (metres; see RoofFrame): where the plan's origin is in the model and how far
+        /// the plan is turned from the model's axes. For a roof square to the model this is the old convention exactly.
+        /// </summary>
+        private static RoofFrame CurrentFrame = RoofFrame.Axis(0, 0, 0, 0);
+
+        /// <summary>
+        /// Plan coordinates (metres, y DOWN from the roof's top edge, as the web canvas measures them) to a model point in feet.
+        /// Replaces the formula "origin + x, WorldYFt(origin, y)" at every place the import places something, so a roof turned against
+        /// the model's axes is turned back in ONE place.
+        /// </summary>
+        internal static (double X, double Y) PlanToWorldFt(double planXM, double planYM)
+        {
+            var (mx, my) = CurrentFrame.ToModel(planXM, planYM);
+            return (FeetFromMeters(mx), FeetFromMeters(my));
+        }
+
+        /// <summary>The same for the roof's boundary polygon, which alone keeps y UP (see PushRoofBoundaryCommand).</summary>
+        internal static (double X, double Y) LocalUpToWorldFt(double aM, double bM)
+        {
+            var (mx, my) = CurrentFrame.FromLocalUp(aM, bM);
+            return (FeetFromMeters(mx), FeetFromMeters(my));
+        }
+
+        /// <summary>How far the plan is turned from the model's X axis (radians, counter-clockwise), for the rotation of placed families.</summary>
+        internal static double CurrentAngleRad => CurrentFrame.AngleRad;
+
+        internal static XYZ PlanPointFt(double planXM, double planYM, double zFt)
+        {
+            var (x, y) = PlanToWorldFt(planXM, planYM);
+            return new XYZ(x, y, zFt);
+        }
+
+        /// <summary>
         /// Floor types built for this import, by assembly key — so a parcel can
         /// find the type its build-up produced without searching the document
         /// again for every placement.
@@ -80,6 +113,8 @@ namespace SportfyRevit
             double originZFt = FeetFromMeters(layout.RoofContext?.WorldOriginZM ?? 0);
             SportifyLayoutBuilder.CurrentOriginZFt = originZFt;
             CurrentRoofWidthFt = FeetFromMeters(layout.RoofContext?.WidthM ?? 0);
+            CurrentFrame = new RoofFrame(layout.RoofContext?.WorldOriginXM ?? 0, layout.RoofContext?.WorldOriginYM ?? 0,
+                (layout.RoofContext?.RotationDeg ?? 0) * Math.PI / 180.0, layout.RoofContext?.LengthM ?? 0, layout.RoofContext?.WidthM ?? 0);
 
             // Computed once for the whole layout (a BFS pass, not a per-placement
             // lookup) and threaded down to FamilyPlacementBuilder, which stamps
@@ -318,17 +353,21 @@ namespace SportfyRevit
             createdIds.Add(line.Id);
         }
 
+        /// <summary>The roof's bounding rectangle in its own axes (a turned roof: a turned rectangle), corner by corner, y up.</summary>
         private static List<XYZ> RoofRectangleFt(SportifyLayout layout, double originXFt, double originYFt)
         {
-            double lengthFt = FeetFromMeters(layout.RoofContext?.LengthM ?? 0);
-            double widthFt = FeetFromMeters(layout.RoofContext?.WidthM ?? 0);
+            double length = layout.RoofContext?.LengthM ?? 0;
+            double width = layout.RoofContext?.WidthM ?? 0;
             return new List<XYZ>
             {
-                new XYZ(originXFt, originYFt, CurrentOriginZFt),
-                new XYZ(originXFt + lengthFt, originYFt, CurrentOriginZFt),
-                new XYZ(originXFt + lengthFt, originYFt + widthFt, CurrentOriginZFt),
-                new XYZ(originXFt, originYFt + widthFt, CurrentOriginZFt),
+                LocalUpPointFt(0, 0), LocalUpPointFt(length, 0), LocalUpPointFt(length, width), LocalUpPointFt(0, width),
             };
+        }
+
+        private static XYZ LocalUpPointFt(double aM, double bM)
+        {
+            var (x, y) = LocalUpToWorldFt(aM, bM);
+            return new XYZ(x, y, CurrentOriginZFt);
         }
 
         private static void CreateRoofBoundary(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
@@ -342,7 +381,7 @@ namespace SportfyRevit
                 // stored in Revit's convention already. Flipping it here mirrored
                 // the roof outline while every placement landed correctly — the
                 // two conventions have to be honored separately.
-                pts = poly.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), originYFt + FeetFromMeters(pt.YM), CurrentOriginZFt)).ToList();
+                pts = poly.Select(pt => LocalUpPointFt(pt.XM, pt.YM)).ToList();
             }
             else
             {
@@ -363,19 +402,16 @@ namespace SportfyRevit
             double setbackFt = FeetFromMeters(layout.DesignRules?.BoundarySetbackM ?? 0);
             if (setbackFt <= 0) return;
 
-            var outer = RoofRectangleFt(layout, originXFt, originYFt);
-            double minX = outer.Min(p => p.X) + setbackFt;
-            double minY = outer.Min(p => p.Y) + setbackFt;
-            double maxX = outer.Max(p => p.X) - setbackFt;
-            double maxY = outer.Max(p => p.Y) - setbackFt;
+            // inset in the roof's own axes, so a turned roof gets a turned rectangle
+            double setback = layout.DesignRules?.BoundarySetbackM ?? 0;
+            double length = layout.RoofContext?.LengthM ?? 0;
+            double width = layout.RoofContext?.WidthM ?? 0;
+            double minX = setback, minY = setback, maxX = length - setback, maxY = width - setback;
             if (maxX <= minX || maxY <= minY) return;
 
             var pts = new List<XYZ>
             {
-                new XYZ(minX, minY, CurrentOriginZFt),
-                new XYZ(maxX, minY, CurrentOriginZFt),
-                new XYZ(maxX, maxY, CurrentOriginZFt),
-                new XYZ(minX, maxY, CurrentOriginZFt),
+                LocalUpPointFt(minX, minY), LocalUpPointFt(maxX, minY), LocalUpPointFt(maxX, maxY), LocalUpPointFt(minX, maxY),
             };
             for (int i = 0; i < pts.Count; i++)
                 CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds);
@@ -391,7 +427,7 @@ namespace SportfyRevit
                 var points = path.PointsM;
                 if (points == null || points.Count < 2) continue;
 
-                var pts = points.Select(pt => new XYZ(originXFt + FeetFromMeters(pt.XM), WorldYFt(originYFt, pt.YM), CurrentOriginZFt)).ToList();
+                var pts = points.Select(pt => PlanPointFt(pt.XM, pt.YM, CurrentOriginZFt)).ToList();
                 for (int i = 0; i < pts.Count - 1; i++)
                     CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds);
                 count++;
@@ -407,7 +443,7 @@ namespace SportfyRevit
             double rFt = FeetFromMeters(EntryMarkerRadiusM);
             foreach (var ep in layout.EntryPoints)
             {
-                var center = new XYZ(originXFt + FeetFromMeters(ep.XM), WorldYFt(originYFt, ep.YM), CurrentOriginZFt);
+                var center = PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt);
                 var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
                 var sketchPlane = SketchPlane.Create(doc, plane);
                 var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);

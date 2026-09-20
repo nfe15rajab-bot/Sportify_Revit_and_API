@@ -1,3 +1,4 @@
+using System.IO;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -45,6 +46,7 @@ namespace SportfyRevit
             }
 
             string circulationViewName, axoViewName;
+            ElementId circulationViewId, axoViewId;
 
             using (var t = new Transaction(doc, "Generate Sportify functional diagrams"))
             {
@@ -54,15 +56,31 @@ namespace SportfyRevit
                 var axoView = CreateOrReuseAxonometricView(doc, worksets);
                 circulationViewName = circulationView.Name;
                 axoViewName = axoView.Name;
+                circulationViewId = circulationView.Id;
+                axoViewId = axoView.Id;
 
                 t.Commit();
             }
+
+            // the two views as images in the workspace's Diagrams folder: the deliverable outside Revit
+            string saved;
+            try
+            {
+                var temp = Path.Combine(Path.GetTempPath(), "Sportify", "DiagramImages");
+                if (Directory.Exists(temp)) Directory.Delete(temp, true);
+                Directory.CreateDirectory(temp);
+                var (circulationImage, axoImage) = GenerateAnalysisReportCommand.KeepDiagrams(
+                    GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation")),
+                    GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric")));
+                saved = circulationImage != null || axoImage != null ? $"\n\nImages saved to {SportifyWorkspace.PathFor("diagrams")}." : "";
+            }
+            catch (Exception ex) { saved = "\n\nThe views could not be exported as images: " + ex.Message; }
 
             TaskDialog.Show(title,
                 $"Created/updated two views (see the Project Browser):\n" +
                 $"- \"{circulationViewName}\" — floor plan, Combine workset only.\n" +
                 $"- \"{axoViewName}\" — 3D isometric, all Sportify worksets.\n\n" +
-                "Bubble diagram isn't built yet — it needs new zone geometry, not just a view of what's already placed.");
+                "Bubble diagram isn't built yet — it needs new zone geometry, not just a view of what's already placed." + saved);
 
             return Result.Succeeded;
         }

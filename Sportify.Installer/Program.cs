@@ -21,7 +21,7 @@ internal static class Program
     private const string AddinFileName = "SportfyRevit.addin";
     private const string MainAssemblyName = "SportfyRevit.dll";
 
-    private static int Main()
+    private static int Main(string[] args)
     {
         Console.WriteLine("=======================================");
         Console.WriteLine(" Sportify — Revit 2025 Add-in Installer");
@@ -61,6 +61,9 @@ internal static class Program
         }
 
         Console.WriteLine();
+        ChooseWorkspace(args);
+
+        Console.WriteLine();
         CheckWebView2Runtime();
 
         Console.WriteLine();
@@ -68,6 +71,48 @@ internal static class Program
         LaunchRevit(revitExe);
 
         return Success();
+    }
+
+    /// <summary>
+    /// Where Sportify keeps what it makes: the layouts, the charts and PDFs of the analyses, the videos, the schedules. Default is a "Sportify" folder in Documents;
+    /// the person can type another (or pass --workspace "D:\\Some Folder" for a silent install, or --default-workspace to take the default without asking). The folder
+    /// is made now with a subfolder for every kind of deliverable, and the choice is written to %APPDATA%\Sportify\settings.json, which the add-in reads: nothing
+    /// has to be imported or exported by hand afterwards, the web app and Revit both read and write that folder.
+    /// </summary>
+    private static void ChooseWorkspace(string[] args)
+    {
+        var chosen = SportfyRevit.SportifyWorkspace.Folder;                       // an earlier install's choice, else the default
+        var given = ArgValue(args, "--workspace");
+        if (given != null) chosen = given;
+        else if (!args.Contains("--default-workspace"))
+        {
+            Console.WriteLine("Where should Sportify keep your files (layouts, analysis charts, reports, videos)?");
+            Console.Write($"Press Enter for {chosen}, or type another folder: ");
+            var typed = Console.ReadLine()?.Trim().Trim('"');
+            if (!string.IsNullOrEmpty(typed)) chosen = typed;
+        }
+
+        try
+        {
+            chosen = Path.GetFullPath(chosen);
+            SportfyRevit.SportifyWorkspace.UseFolder(chosen);
+            SportfyRevit.SportifyWorkspace.EnsureCreated();
+            SportfyRevit.SportifyWorkspace.SaveSetting(chosen);
+            Console.WriteLine($"Your Sportify folder: {chosen}");
+            Console.WriteLine("  with a subfolder for " + string.Join(", ", SportfyRevit.SportifyWorkspace.Kinds.Select(k => k.Folder)) + ".");
+            Console.WriteLine("  (Change it later by editing workspace_folder in " + SportfyRevit.SportifyWorkspace.SettingsPath + ".)");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Couldn't set up the folder \"{chosen}\": {ex.Message}");
+            Console.WriteLine("Sportify will use the default (Documents\\Sportify) and make it the first time it saves something.");
+        }
+    }
+
+    private static string? ArgValue(string[] args, string name)
+    {
+        var i = Array.IndexOf(args, name);
+        return i >= 0 && i + 1 < args.Length ? args[i + 1].Trim('"') : null;
     }
 
     /// <summary>

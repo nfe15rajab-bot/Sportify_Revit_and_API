@@ -49,7 +49,7 @@ namespace SportfyRevit
         [JsonPropertyName("structure")] public StructureDto? Structure { get; set; }
 
         /// <summary>
-        /// What the designer decided about the structural analyses' built-in assumptions (the Site tab's "Analysis assumptions", or the
+        /// What the designer decided about the structural analyses' built-in assumptions (the Structure and Site conditions tabs, or the
         /// Revit dialog before an analysis): which built-in values they accepted, and the comfort limits they set. Absent in older exports.
         /// </summary>
         [JsonPropertyName("analysis_assumptions")] public AnalysisAssumptionsDto? AnalysisAssumptions { get; set; }
@@ -63,6 +63,12 @@ namespace SportfyRevit
         /// <summary>Acceleration limits in g. Null = the built-in ones.</summary>
         [JsonPropertyName("comfort_limit_walking_g")] public double? ComfortLimitWalkingG { get; set; }
         [JsonPropertyName("comfort_limit_rhythmic_g")] public double? ComfortLimitRhythmicG { get; set; }
+
+        /// <summary>For the sun and shade analysis: the shade target of a people zone (%), the sun a garden needs (hours), which kinds of equipment may be recommended ("all" | "light" | "fixed"), and a site latitude typed in (degrees north). Null = the built-in ones.</summary>
+        [JsonPropertyName("shade_target_percent")] public double? ShadeTargetPercent { get; set; }
+        [JsonPropertyName("garden_min_sun_hours")] public double? GardenMinSunHours { get; set; }
+        [JsonPropertyName("shade_equipment")] public string? ShadeEquipment { get; set; }
+        [JsonPropertyName("site_latitude_deg")] public double? SiteLatitudeDeg { get; set; }
     }
 
     internal class StructureDto
@@ -78,6 +84,36 @@ namespace SportfyRevit
 
         [JsonPropertyName("grid_lines")] public List<GridLineDto>? GridLines { get; set; }
         [JsonPropertyName("columns")] public List<StructuralColumnDto>? Columns { get; set; }
+
+        /// <summary>Beams under (or in) the roof slab, as segments in the plan with their section. Absent when none were read.</summary>
+        [JsonPropertyName("beams")] public List<StructuralBeamDto>? Beams { get; set; }
+
+        /// <summary>Walls whose top meets the roof slab (the ones that hold it up, or close enough to it to matter), as segments in the plan.</summary>
+        [JsonPropertyName("walls")] public List<StructuralWallDto>? Walls { get; set; }
+    }
+
+    /// <summary>A beam under the roof: its axis in the plan (x right, y down, metres) and its section.</summary>
+    internal class StructuralBeamDto
+    {
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("start_m")] public PointDto? StartM { get; set; }
+        [JsonPropertyName("end_m")] public PointDto? EndM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("depth_m")] public double DepthM { get; set; }
+
+        /// <summary>Elevation of the beam's top in the project, metres.</summary>
+        [JsonPropertyName("top_elevation_m")] public double TopElevationM { get; set; }
+    }
+
+    /// <summary>A wall under the roof: its axis in the plan, thickness and height, and whether Revit marks it as load-bearing.</summary>
+    internal class StructuralWallDto
+    {
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("start_m")] public PointDto? StartM { get; set; }
+        [JsonPropertyName("end_m")] public PointDto? EndM { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("bearing")] public bool Bearing { get; set; }
     }
 
     /// <summary>A grid line as a segment in the roof's own plan coordinates (x right, y down, metres), with its name from the model ("A", "1"...).</summary>
@@ -116,6 +152,16 @@ namespace SportfyRevit
         /// <summary>Compass bearing of the top of the plan (the sun compass's convention); null until the designer sets it.</summary>
         [JsonPropertyName("north_deg")] public double? NorthDeg { get; set; }
 
+        /// <summary>
+        /// The web writes north_deg as null until it is set, and also this flag. Unity's JsonUtility cannot read a null, so its reader goes by the flag alone
+        /// (SiteConditions.north_set); this reader has to agree, so the orientation counts only when the flag is true (Tools/ReaderParity checks it on
+        /// fixtures with the flag off and a stale north_deg, and with north_deg but no flag at all).
+        /// </summary>
+        [JsonPropertyName("north_set")] public bool NorthSet { get; set; }
+
+        /// <summary>Whether altitude_m was given (the same flag-not-null arrangement as north_set).</summary>
+        [JsonPropertyName("altitude_set")] public bool AltitudeSet { get; set; }
+
         /// <summary>German snow load zone "1", "1a", "2", "2a" or "3", set by the designer; null when not given (the dynamic analysis then assumes one and says so).</summary>
         [JsonPropertyName("snow_zone")] public string? SnowZone { get; set; }
 
@@ -133,6 +179,13 @@ namespace SportfyRevit
         [JsonPropertyName("source_boundary_polygon")] public List<PointDto>? SourceBoundaryPolygon { get; set; }
         [JsonPropertyName("world_origin_x_m")] public double WorldOriginXM { get; set; }
         [JsonPropertyName("world_origin_y_m")] public double WorldOriginYM { get; set; }
+
+        /// <summary>
+        /// How far the plan is turned from the Revit model's X axis, counter-clockwise, in degrees (see RoofFrame): a roof turned against the
+        /// model's axes has a plan of its own, and the import turns everything back by this. 0 (or absent) for a roof square to the model,
+        /// which is exactly how an older export behaves.
+        /// </summary>
+        [JsonPropertyName("rotation_deg")] public double RotationDeg { get; set; }
 
         /// <summary>
         /// Elevation of the pushed roof's top face. Absent (0) for a roof typed
@@ -586,6 +639,12 @@ namespace SportfyRevit
         [JsonPropertyName("entries")] public List<RoofEntryDto> Entries { get; set; } = new List<RoofEntryDto>();
         [JsonPropertyName("edges")] public List<RoofEdgeDto> Edges { get; set; } = new List<RoofEdgeDto>();
         [JsonPropertyName("drains")] public List<RoofDrainDto> Drains { get; set; } = new List<RoofDrainDto>();
+
+        /// <summary>Walls standing on the roof (parapets, screens, the walls of a stair house or plant room): what casts shadows on it.</summary>
+        [JsonPropertyName("obstacles")] public List<RoofObstacleDto> Obstacles { get; set; } = new List<RoofObstacleDto>();
+
+        /// <summary>Plant and equipment standing on the roof (mechanical, electrical): footprint, height and, where the model has it, weight.</summary>
+        [JsonPropertyName("equipment")] public List<RoofEquipmentDto> Equipment { get; set; } = new List<RoofEquipmentDto>();
         [JsonPropertyName("slab")] public RoofSlabDto? Slab { get; set; }
         [JsonPropertyName("levels")] public List<RoofLevelDto> Levels { get; set; } = new List<RoofLevelDto>();
     }
@@ -607,7 +666,7 @@ namespace SportfyRevit
     {
         [JsonPropertyName("id")] public string Id { get; set; } = "";
 
-        /// <summary>"stair" | "core" | "door".</summary>
+        /// <summary>"stair" | "core" | "door" | "ramp".</summary>
         [JsonPropertyName("kind")] public string Kind { get; set; } = "";
         [JsonPropertyName("name")] public string? Name { get; set; }
         [JsonPropertyName("x_m")] public double XM { get; set; }
@@ -641,6 +700,17 @@ namespace SportfyRevit
         [JsonPropertyName("railing_coverage")] public double RailingCoverage { get; set; }
     }
 
+    /// <summary>A wall standing on the roof, as its centre line, thickness and height above the roof's top face.</summary>
+    internal class RoofObstacleDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("start_m")] public PointDto StartM { get; set; } = new PointDto();
+        [JsonPropertyName("end_m")] public PointDto EndM { get; set; } = new PointDto();
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+    }
+
     internal class RoofDrainDto
     {
         [JsonPropertyName("id")] public string Id { get; set; } = "";
@@ -654,6 +724,27 @@ namespace SportfyRevit
     }
 
     /// <summary>The build-up of the roof or floor slab that was pushed.</summary>
+    /// <summary>A piece of plant on the roof (an air handler, a chiller, a switchboard): a box in the plan.</summary>
+    internal class RoofEquipmentDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+
+        /// <summary>"mechanical" | "electrical".</summary>
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "mechanical";
+        [JsonPropertyName("name")] public string? Name { get; set; }
+
+        /// <summary>The middle of its footprint in the plan, metres.</summary>
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("depth_m")] public double DepthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+
+        /// <summary>Its weight in kN when the family carries a weight or mass parameter; absent when the model does not say.</summary>
+        [JsonPropertyName("weight_kn")] public double? WeightKn { get; set; }
+        [JsonPropertyName("source_element_id")] public long SourceElementId { get; set; }
+    }
+
     internal class RoofSlabDto
     {
         [JsonPropertyName("type_name")] public string? TypeName { get; set; }

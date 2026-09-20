@@ -33,43 +33,12 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            var fod = new FileSaveDialog("CSV file (*.csv)|*.csv");
-            fod.Title = "Save Sportify component schedule";
-            if (fod.Show() != ItemSelectionDialogResult.Confirmed)
-                return Result.Cancelled;
-
+            // saved to the Schedules folder of the workspace: no file dialog (the web app's Deliverables tab makes the same file)
             string path;
             try
             {
-                path = ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath());
-            }
-            catch (Exception ex)
-            {
-                TaskDialog.Show(title, "Couldn't resolve the save location: " + ex.Message);
-                return Result.Failed;
-            }
-            if (!path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) path += ".csv";
-
-            var sb = new StringBuilder();
-            sb.AppendLine("Category,Label,QualityLevel,ReferenceMaterial,ReferenceProvider,AreaM2,QualityKey");
-            foreach (var it in items)
-            {
-                var bb = it.BoundingBox;
-                double areaM2 = bb != null ? bb.WidthM * bb.HeightM : 0;
-
-                sb.AppendLine(string.Join(",",
-                    CsvField(it.Category),
-                    CsvField(it.Label),
-                    CsvField(PlacementDataHelpers.GetQualityLevel(it)),
-                    CsvField(PlacementDataHelpers.GetReferenceMaterialName(it)),
-                    CsvField(PlacementDataHelpers.GetReferenceProviderName(it)),
-                    areaM2.ToString("0.00"),
-                    CsvField(it.Parameters?.QualityKey)));
-            }
-
-            try
-            {
-                File.WriteAllText(path, sb.ToString());
+                path = SportifyWorkspace.UniquePath("schedules", $"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+                File.WriteAllBytes(path, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());
             }
             catch (Exception ex)
             {
@@ -79,13 +48,6 @@ namespace SportfyRevit
 
             TaskDialog.Show(title, $"Exported {items.Count} component(s) to:\n{path}");
             return Result.Succeeded;
-        }
-
-        private static string CsvField(string? value)
-        {
-            value ??= "";
-            bool needsQuoting = value.Contains(',') || value.Contains('"') || value.Contains('\n');
-            return needsQuoting ? "\"" + value.Replace("\"", "\"\"") + "\"" : value;
         }
     }
 }

@@ -114,8 +114,6 @@ namespace SportfyRevit
                 rows.Add(new ResultRow("LCA", $"~{lca.TotalKg:0.#} kg CO2e ({lca.CoveredCount}/{lca.TotalCount} pieces with a reference material)", lca.TotalCount == 0 ? null : lca.CoveredCount == lca.TotalCount));
             if (r.CarbonImpact is { } ci)
                 rows.Add(new ResultRow("Carbon Impact", $"~{ci.EstimatedDailyWh:0.#} Wh/day over {ci.ActiveSurfaceAreaM2:0.#} m² active surface", null));
-            if (r.SunAndShading is { } ss)
-                rows.Add(new ResultRow("Sun & Shading", $"Configured for {ss.ConfiguredForDateTime ?? "—"}", ss.LocationConfigured));
             if (r.BallTrajectory is { } bt)
             {
                 rows.Add(new ResultRow("Ball Trajectories",
@@ -189,6 +187,27 @@ namespace SportfyRevit
                     rows.Add(new ResultRow("Structural Loads Inputs", InputsText(sl.Inputs), null));
                 if (sl.Assumptions is { Count: > 0 })
                     rows.Add(new ResultRow("Structural Loads Assumptions", string.Join(" ", sl.Assumptions), null));
+            }
+
+            if (r.SunAndShading is { } sn)
+            {
+                if (sn.Preliminary) rows.Add(new ResultRow("Sun & Shade: PRELIMINARY", sn.PreliminaryNote ?? "Some inputs are built-in values the designer has not confirmed.", null));
+                var june = sn.Days?.FirstOrDefault();
+                rows.Add(new ResultRow("Sun & Shade",
+                    $"Latitude {sn.LatitudeDeg:0.#}°N{(sn.LatitudeAssumed ? " (assumed)" : "")}, roof turned {sn.NorthDeg:0}°{(sn.NorthAssumed ? " (assumed)" : "")}; " +
+                    (june != null ? $"21 June: sun {june.SunriseH:0.#} to {june.SunsetH:0.#} h solar time, roof mean {june.RoofMeanSunHours:0.#} h of direct sun; " : "") +
+                    $"{sn.PeopleZonesTooSunny} of {sn.PeopleZones} people zones too sunny at midday (target {sn.ShadeTargetPercent:0}% shade), {sn.GardenZonesTooShaded} of {sn.GardenZones} gardens under {sn.GardenMinSunHours:0.#} h of sun" +
+                    (sn.Pieces > 0 ? $"; {sn.Pieces} piece(s) of shading equipment recommended: {sn.PeopleZonesTooSunnyAfter} zone(s) still too sunny, {sn.GardenZonesTooShadedAfter} garden(s) too shaded, +{sn.AddedLoadKn:0.#} kN on the deck" : "") +
+                    (string.IsNullOrEmpty(sn.VideoPath) ? "" : $" — video: {System.IO.Path.GetFileName(sn.VideoPath)}"),
+                    sn.Preliminary ? null : sn.PeopleZonesTooSunnyAfter == 0 && sn.GardenZonesTooShadedAfter == 0));
+                if (sn.Equipment is { Count: > 0 })
+                    rows.Add(new ResultRow("Sun & Shade Equipment", string.Join("; ", sn.Equipment.Select(e => $"{e.Name} {e.WidthM:0.#} x {e.DepthM:0.#} m, {e.HeightM:0.#} m high, at x {e.XM + e.WidthM / 2:0.#} y {e.YM + e.DepthM / 2:0.#} for {e.Zone}: shade {e.ShadeBeforePercent:0}% to {e.ShadeAfterPercent:0}%, +{e.AddedLoadKn:0.#} kN, wind up to {e.WindUpliftKn:0.#} kN")), null));
+                if (sn.Findings is { Count: > 0 })
+                    rows.Add(new ResultRow("Sun & Shade Advice", string.Join(" ", sn.Findings.Where(f => f.Kind != "equipment").Take(6).Select(f => f.Text)) + " Screening estimate, not a daylight or thermal design.", null));
+                if (sn.Inputs is { Count: > 0 })
+                    rows.Add(new ResultRow("Sun & Shade Inputs", InputsText(sn.Inputs), null));
+                if (sn.Assumptions is { Count: > 0 })
+                    rows.Add(new ResultRow("Sun & Shade Assumptions", string.Join(" ", sn.Assumptions), null));
             }
 
             if (r.DynamicAnalysis is { } da)

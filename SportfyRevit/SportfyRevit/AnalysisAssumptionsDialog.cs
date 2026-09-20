@@ -15,7 +15,7 @@ namespace SportfyRevit
     /// designer enters their own, or accepts the built-in one knowingly (with where it comes from: the standard's clause, published
     /// guidance, or the author's judgement), or leaves it for later, in which case the results are marked PRELIMINARY.
     ///
-    /// The same choice is offered in the web app's Site tab ("Analysis assumptions", assumptions.js); this dialog is for deciding at
+    /// The same choice is offered in the web app's Structure and Site conditions tabs (assumptions.js); this dialog is for deciding at
     /// the moment of running. It knows nothing of Revit: the owner is just a window handle.
     /// </summary>
     internal sealed class AnalysisAssumptionsDialog : Window
@@ -61,7 +61,7 @@ namespace SportfyRevit
                 Margin = new Thickness(0, 0, 0, 12),
                 Text = "This analysis rests on a few values the layout cannot know. For each, enter your own value, or accept the built-in one knowingly. " +
                        "Anything left unconfirmed is named in the results, which are then marked PRELIMINARY: a red bay against a placeholder capacity is not a verdict. " +
-                       "Values entered here last for this Revit session; enter them in the app's Site tab to keep them with the layout.",
+                       "Values entered here last for this Revit session; enter them in the app's Structure and Site conditions tabs to keep them with the layout.",
             };
             DockPanel.SetDock(intro, Dock.Top);
             dock.Children.Add(intro);
@@ -170,7 +170,7 @@ namespace SportfyRevit
 
         UIElement BuildFixed(string analysis)
         {
-            var list = AnalysisAssumptions.FixedConstants.Where(f => f.Analyses.Split(' ').Contains(analysis)).ToList();
+            var list = AnalysisAssumptions.FixedConstants.Where(f => analysis == AnalysisAssumptionsPatcher.AllAnalyses || f.Analyses.Split(' ').Contains(analysis)).ToList();
             var stack = new StackPanel { Margin = new Thickness(8, 4, 0, 4) };
             stack.Children.Add(new TextBlock
             {

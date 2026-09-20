@@ -16,6 +16,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- the add-in's own description of the Sportify folder: the installer and the add-in must agree on the subfolders and on where the choice is kept -->
+    <Compile Include="..\SportfyRevit\SportfyRevit\SportifyWorkspace.cs" Link="SportifyWorkspace.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
   </ItemGroup>
 

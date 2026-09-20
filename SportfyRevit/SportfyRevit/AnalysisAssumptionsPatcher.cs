@@ -6,7 +6,7 @@ using Sportify.Simulation.Structure;
 namespace SportfyRevit
 {
     /// <summary>What the designer chose in a command's result dialog.</summary>
-    internal enum SummaryChoice { Close, Video, Review }
+    internal enum SummaryChoice { Close, Video, Pdf, Review }
 
     /// <summary>What the designer decided about one assumption: entered their own value, accepted the built-in one, or neither yet.</summary>
     internal sealed class AssumptionDecision
@@ -29,7 +29,7 @@ namespace SportfyRevit
 
     /// <summary>
     /// Reads which of the structural analyses' assumptions a layout export has the designer's word on (a value entered in the web
-    /// app's Site tab, or a built-in value accepted there), and writes the designer's decisions from the Revit dialog back into the
+    /// app's Structure and Site conditions tabs, or a built-in value accepted there), and writes the designer's decisions from the Revit dialog back into the
     /// export before it goes to the analysis and to Unity. Revit-free on purpose, and tested that way.
     ///
     /// The values live where the analyses already read them (structure.deck_capacity_kn_m2, structure.natural_frequency_hz,
@@ -51,9 +51,12 @@ namespace SportfyRevit
             return string.Join("\n", lines);
         }
 
+        /// <summary>The scope that asks about every input of every analysis at once (the batch that sends all the physical analyses to the web app).</summary>
+        public const string AllAnalyses = "all";
+
         static bool Uses(AssumptionDef d, string analysis)
         {
-            return d.Analyses.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(analysis);
+            return analysis == AllAnalyses || d.Analyses.Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains(analysis);
         }
 
         static double? Num(JsonNode? n)
@@ -101,6 +104,23 @@ namespace SportfyRevit
                 case AnalysisAssumptions.DaySchedule: return Str(site?["day_schedule"]);
                 case AnalysisAssumptions.ComfortWalking: { var v = Num(extra?["comfort_limit_walking_g"]); return v > 0 ? Invariant(v.Value) : ""; }
                 case AnalysisAssumptions.ComfortRhythmic: { var v = Num(extra?["comfort_limit_rhythmic_g"]); return v > 0 ? Invariant(v.Value) : ""; }
+                case AnalysisAssumptions.SiteLatitude:
+                    {
+                        var typed = Num(extra?["site_latitude_deg"]);
+                        if (typed.HasValue && typed.Value != 0) return Invariant(typed.Value);
+                        var loc = root["site_location"] as JsonObject;
+                        var lat = Num(loc?["latitude_deg"]); var lon = Num(loc?["longitude_deg"]);
+                        return loc != null && lat.HasValue && (lat.Value != 0 || (lon ?? 0) != 0) ? Invariant(lat.Value) : "";
+                    }
+                case AnalysisAssumptions.RoofNorth:
+                    {
+                        var v = Num(site?["north_deg"]);
+                        var set = site?["north_set"] is JsonValue sv && sv.TryGetValue<bool>(out var b) ? b : v.HasValue;
+                        return v.HasValue && set ? Invariant(v.Value) : "";
+                    }
+                case AnalysisAssumptions.ShadeTarget: { var v = Num(extra?["shade_target_percent"]); return v > 0 ? Invariant(v.Value) : ""; }
+                case AnalysisAssumptions.GardenMinSun: { var v = Num(extra?["garden_min_sun_hours"]); return v > 0 ? Invariant(v.Value) : ""; }
+                case AnalysisAssumptions.ShadeEquipment: return Str(extra?["shade_equipment"]);
                 default: return "";
             }
         }
@@ -199,6 +219,17 @@ namespace SportfyRevit
                     case AnalysisAssumptions.DaySchedule: Obj(root, "site_conditions")["day_schedule"] = entered ? JsonValue.Create(d.Value) : null; break;
                     case AnalysisAssumptions.ComfortWalking: extra["comfort_limit_walking_g"] = entered ? JsonValue.Create(number) : null; break;
                     case AnalysisAssumptions.ComfortRhythmic: extra["comfort_limit_rhythmic_g"] = entered ? JsonValue.Create(number) : null; break;
+                    case AnalysisAssumptions.SiteLatitude: extra["site_latitude_deg"] = entered ? JsonValue.Create(number) : null; break;
+                    case AnalysisAssumptions.RoofNorth:
+                        {
+                            var site = Obj(root, "site_conditions");
+                            site["north_deg"] = entered ? JsonValue.Create(number) : null;
+                            site["north_set"] = entered;
+                            break;
+                        }
+                    case AnalysisAssumptions.ShadeTarget: extra["shade_target_percent"] = entered ? JsonValue.Create(number) : null; break;
+                    case AnalysisAssumptions.GardenMinSun: extra["garden_min_sun_hours"] = entered ? JsonValue.Create(number) : null; break;
+                    case AnalysisAssumptions.ShadeEquipment: extra["shade_equipment"] = entered ? JsonValue.Create(d.Value) : null; break;
                 }
             }
 
@@ -246,6 +277,16 @@ namespace SportfyRevit
                 if (d.State == AnalysisAssumptions.Unconfirmed) Decided.Remove(d.Key);
                 else Decided[d.Key] = new AssumptionDecision { Key = d.Key, State = d.State, Value = d.Value };
             }
+        }
+
+        /// <summary>
+        /// What was decided in Revit for the project this layout belongs to (entered or accepted; nothing when the decisions were made for another project), for the web app
+        /// to take over: the configuration the designer set in the Revit dialog comes to the app without anyone retyping it.
+        /// </summary>
+        public static List<AssumptionDecision> DecidedFor(string layoutJson)
+        {
+            if (Decided.Count == 0 || Fingerprint(layoutJson) != _fingerprint) return new List<AssumptionDecision>();
+            return Decided.Values.Select(d => new AssumptionDecision { Key = d.Key, State = d.State, Value = d.Value }).ToList();
         }
 
         public static void Forget()

@@ -44,7 +44,7 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            var run = UnityHeadlessRunner.Run(unity!, new UnityHeadlessRunner.Request
+            var run = AnalysisMedia.RunUnity(unity!, new UnityHeadlessRunner.Request
             {
                 ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunCollisionAnalysis",
                 LayoutJson = layoutJson,
@@ -52,9 +52,10 @@ namespace SportfyRevit
                 VideoFileStem = "ball_trajectories",
                 LogFileName = "unity_batch.log",
                 TimeoutMs = TimeoutMs,
-            });
+            }, "Simulating the ball trajectories and recording the video");
             if (!run.Ok)
             {
+                if (run.Cancelled) return Result.Cancelled;
                 message = run.Message;
                 return Result.Failed;
             }
@@ -85,6 +86,7 @@ namespace SportfyRevit
             var recordedVideo = !string.IsNullOrEmpty(results.Video?.FilePath) && File.Exists(results.Video!.FilePath)
                 ? results.Video.FilePath
                 : null;
+            if (recordedVideo != null) recordedVideo = SportifyWorkspace.Adopt("videos", recordedVideo);     // the workspace holds the video, not just Unity's Recordings folder
 
             // Merged into the session's analysis payload (like every other Analyze*
             // command) rather than replacing it, so the Fire Safety / Water / ...

@@ -37,6 +37,8 @@ namespace SportfyRevit
         internal sealed class RunOutcome
         {
             public bool Ok;
+            /// <summary>The run was cancelled by the person (Unity was stopped).</summary>
+            public bool Cancelled;
             public string Message = "";
             public string? ResultsJson;
             public string? VideoPath;
@@ -63,7 +65,11 @@ namespace SportfyRevit
             }
         }
 
-        public static RunOutcome Run(UnityInstall install, Request request)
+        /// <summary>
+        /// Runs the request and waits for Unity. <paramref name="cancelled"/> is polled while it runs (a few times a second): when it says true Unity is stopped
+        /// and the outcome says so. Call it from a worker thread with a progress window on the UI thread (AnalysisMedia.RunUnity), so Revit does not freeze.
+        /// </summary>
+        public static RunOutcome Run(UnityInstall install, Request request, Func<bool>? cancelled = null)
         {
             var outcome = new RunOutcome();
             var tempDir = Path.Combine(Path.GetTempPath(), "Sportify");
@@ -120,14 +126,24 @@ namespace SportfyRevit
                 return outcome;
             }
 
-            // Revit's UI thread blocks here for the run's real-world duration (Unity startup, the
-            // analysis, then rendering and encoding the video) — a synchronous wait is the simplest
-            // correct v1 for a one-click command; the ribbon tooltips warn about it.
-            if (!process.WaitForExit(request.TimeoutMs))
+            // The wait is in slices so a cancel is noticed within a fraction of a second. (Unity startup, the analysis, then rendering and encoding the
+            // video take a minute or two; the caller shows progress, see AnalysisMedia.RunUnity.)
+            var started = DateTime.UtcNow;
+            while (!process.WaitForExit(250))
             {
-                try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
-                outcome.Message = $"Unity didn't finish within {request.TimeoutMs / 1000}s — killed it. Log: {outcome.LogPath}";
-                return outcome;
+                if (cancelled != null && cancelled())
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+                    outcome.Cancelled = true;
+                    outcome.Message = "Cancelled: Unity was stopped and no video was made.";
+                    return outcome;
+                }
+                if ((DateTime.UtcNow - started).TotalMilliseconds > request.TimeoutMs)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { /* best-effort */ }
+                    outcome.Message = $"Unity didn't finish within {request.TimeoutMs / 1000}s — killed it. Log: {outcome.LogPath}";
+                    return outcome;
+                }
             }
 
             if (!File.Exists(resultsPath))

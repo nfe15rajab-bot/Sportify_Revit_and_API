@@ -79,7 +79,13 @@ namespace SportfyRevit
                 var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
                 var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
                 if (choice == SummaryChoice.Review) { review = true; continue; }
-                if (choice == SummaryChoice.Video) RenderVideo(unity!, layoutJson, report, caseStudy);
+                if (choice == SummaryChoice.Video)
+                {
+                    var install = AnalysisMedia.EnsureUnity(DialogTitle, haveUnity ? unity : null, layoutJson, "dynamic_analysis", AnalysisMedia.ProjectTitle(commandData));
+                    if (install != null) RenderVideo(install, layoutJson, report, caseStudy);
+                }
+                else if (choice == SummaryChoice.Pdf)
+                    AnalysisMedia.ExportPdf(DialogTitle, layoutJson, new[] { "dynamic_analysis" }, AnalysisMedia.ProjectTitle(commandData));
                 return Result.Succeeded;
             }
         }
@@ -122,10 +128,6 @@ namespace SportfyRevit
             body.AppendLine();
             body.AppendLine("A screening estimate, not a structural verification or a vibration design. The assumptions are in the PDF report.");
 
-            if (!haveUnity)
-                body.AppendLine().AppendLine("3D video: needs the Unity Editor, which wasn't found. The numbers above don't.");
-            else if (!unityFree)
-                body.AppendLine().AppendLine("3D video: close the Unity Editor (it has Sportify.Simulation open) to render it.");
 
             var dialog = new TaskDialog(DialogTitle)
             {
@@ -139,19 +141,17 @@ namespace SportfyRevit
                 DefaultButton = TaskDialogResult.Close,
             };
 
-            if (unityFree)
-                dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Render the 3D video with Unity",
-                    "About two minutes; Revit is unresponsive while it renders.");
-            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Review the assumptions, then run again",
+            AnalysisMedia.AddLinks(dialog, haveUnity, unityFree, "About two minutes.");
+            dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, "Review the assumptions, then run again",
                 s.preliminary ? "Enter your own values, or accept the built-in ones, to lift the PRELIMINARY mark." : "Change a value or how a built-in one is treated.");
 
             var result = dialog.Show();
-            return result == TaskDialogResult.CommandLink1 ? SummaryChoice.Video : result == TaskDialogResult.CommandLink2 ? SummaryChoice.Review : SummaryChoice.Close;
+            return result == TaskDialogResult.CommandLink3 ? SummaryChoice.Review : AnalysisMedia.Read(result);
         }
 
         static void RenderVideo(UnityHeadlessRunner.UnityInstall unity, string layoutJson, DynamicReport report, string caseStudy)
         {
-            var run = UnityHeadlessRunner.Run(unity, new UnityHeadlessRunner.Request
+            var run = AnalysisMedia.RunUnity(unity, new UnityHeadlessRunner.Request
             {
                 ExecuteMethod = "Sportify.Simulation.Editor.BatchRunner.RunDynamicAnalysis",
                 LayoutJson = layoutJson,
@@ -159,11 +159,11 @@ namespace SportfyRevit
                 VideoFileStem = "dynamic_analysis",
                 LogFileName = "unity_dynamic_batch.log",
                 TimeoutMs = VideoTimeoutMs,
-            });
+            }, "Rendering the dynamic analysis video");
 
             if (!run.Ok)
             {
-                TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
+                if (!run.Cancelled) TaskDialog.Show(DialogTitle, "The numbers above stand, but the video couldn't be rendered.\n\n" + run.Message);
                 return;
             }
 
@@ -186,6 +186,7 @@ namespace SportfyRevit
 
             var video = results.Video;
             var videoPath = video != null && !string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath) ? video.FilePath : null;
+            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath);     // the workspace holds the video, not just Unity's Recordings folder
             var disagreement = results.Analysis != null ? Compare(report, results.Analysis) : "Unity's results carried no analysis to compare.";
 
             AnalysisResultPublisher.PublishDynamicAnalysis(BuildPublishedResult(report, caseStudy, videoPath));
@@ -260,6 +261,8 @@ namespace SportfyRevit
                     Name = x.name, TotalKn = Math.Round(x.totalKn, 1), PeakUtilisationPercent = Math.Round(x.peakUtilisation * 100.0, 1), WorstBay = x.worstBay, BaysOverCapacity = x.baysOver,
                 }).ToList(),
                 FrequencyEstimated = r.estimated,
+                SlabDepthGiven = r.slabDepthGiven,
+                SlabDepthMm = Math.Round(r.slabDepthM * 1000.0, 0),
                 LowestFrequencyHz = Math.Round(r.lowestFrequencyHz, 2),
                 HighestFrequencyHz = Math.Round(r.highestFrequencyHz, 2),
                 WorstResonanceBay = r.worstBay,

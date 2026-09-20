@@ -1,3 +1,4 @@
+using Sportify.Simulation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,8 +17,11 @@ namespace SportfyRevit
     /// </summary>
     internal static class StructureLayoutAdapter
     {
-        /// <summary>A grid line more than this many degrees off the roof's axes is not used (the bays are a rectangular grid).</summary>
-        public const double MaxSkewDeg = 5.0;
+        /// <summary>
+        /// A grid line within this many degrees of the roof's axes is taken as square to them (only where it crosses matters). A line further off
+        /// keeps its own two points and cuts the roof at its own angle: the bays are then quadrilaterals.
+        /// </summary>
+        public const double AxisToleranceDeg = 0.05;
 
         public static StructureInputs ToInputs(SportifyLayout layout)
         {
@@ -25,7 +29,7 @@ namespace SportfyRevit
             if (roof == null || roof.LengthM <= 0 || roof.WidthM <= 0)
                 throw new InvalidOperationException("The layout has no roof size (roof_context length/width).");
 
-            var inputs = new StructureInputs { RoofLength = roof.LengthM, RoofWidth = roof.WidthM };
+            var inputs = new StructureInputs { RoofLength = InputQuantiser.Q(roof.LengthM), RoofWidth = InputQuantiser.Q(roof.WidthM), Outline = WindLayoutAdapter.OutlineOf(roof) };
 
             // Build-ups and plants are read exactly as the wind and rain analyses read them.
             var garden = WindLayoutAdapter.ToInputs(layout);
@@ -44,26 +48,26 @@ namespace SportfyRevit
                 {
                     courts++;
                     var f = p.Parameters?.Field;
-                    inputs.Items.Add(StructureModel.CourtItem(p.Id ?? "field_" + courts, p.Label ?? "Sports field " + courts, f?.Sport ?? p.Label,
-                        bb.TopLeftXM, bb.TopLeftYM, bb.WidthM, bb.HeightM, Math.Max(0, f?.Capacity?.Seats ?? 0)));
+                    inputs.Items.Add(StructureModel.CourtItem(InputQuantiser.Or(p.Id, "field_" + courts), InputQuantiser.Or(p.Label, "Sports field " + courts), InputQuantiser.Or(f?.Sport, p.Label),
+                        InputQuantiser.Q(bb.TopLeftXM), InputQuantiser.Q(bb.TopLeftYM), InputQuantiser.Q(bb.WidthM), InputQuantiser.Q(bb.HeightM), Math.Max(0, f?.Capacity?.Seats ?? 0)));
                 }
                 else if (string.Equals(p.Category, "activity", StringComparison.OrdinalIgnoreCase))
                 {
                     activities++;
-                    inputs.Items.Add(StructureModel.ActivityItem(p.Id ?? "activity_" + activities, p.Label ?? "Activity " + activities,
-                        bb.TopLeftXM, bb.TopLeftYM, bb.WidthM, bb.HeightM));
+                    inputs.Items.Add(StructureModel.ActivityItem(InputQuantiser.Or(p.Id, "activity_" + activities), InputQuantiser.Or(p.Label, "Activity " + activities),
+                        InputQuantiser.Q(bb.TopLeftXM), InputQuantiser.Q(bb.TopLeftYM), InputQuantiser.Q(bb.WidthM), InputQuantiser.Q(bb.HeightM)));
                 }
             }
 
             foreach (var e in layout.EntryPoints ?? new List<EntryPointDto>())
-                inputs.Entries.Add(new[] { e.XM, e.YM });
+                inputs.Entries.Add(new[] { InputQuantiser.Q(e.XM), InputQuantiser.Q(e.YM) });
 
             var pathWidth = layout.DesignRules != null && layout.DesignRules.CirculationWidthM > 0 ? layout.DesignRules.CirculationWidthM : 1.0;
             foreach (var c in layout.CirculationPaths ?? new List<CirculationPathDto>())
             {
                 if (c.PointsM == null || c.PointsM.Count < 2) continue;
                 var path = new PathInput { WidthM = pathWidth };
-                foreach (var pt in c.PointsM) path.Points.Add(new[] { pt.XM, pt.YM });
+                foreach (var pt in c.PointsM) path.Points.Add(new[] { InputQuantiser.Q(pt.XM), InputQuantiser.Q(pt.YM) });
                 inputs.Paths.Add(path);
             }
 
@@ -79,28 +83,39 @@ namespace SportfyRevit
             inputs.GridSource = s.Source ?? "";
             if (s.DeckCapacityKnM2 is > 0) inputs.CapacityKnM2 = s.DeckCapacityKnM2;
 
-            var skewed = 0;
+            var slanted = 0;
             foreach (var g in s.GridLines ?? new List<GridLineDto>())
             {
                 if (g.StartM == null || g.EndM == null) continue;
-                double dx = g.EndM.XM - g.StartM.XM, dy = g.EndM.YM - g.StartM.YM;
+                double x0 = Math.Round(g.StartM.XM, 4), y0 = Math.Round(g.StartM.YM, 4), x1 = Math.Round(g.EndM.XM, 4), y1 = Math.Round(g.EndM.YM, 4);
+                double dx = x1 - x0, dy = y1 - y0;
                 if (Math.Sqrt(dx * dx + dy * dy) < 1e-6) continue;
 
                 var vertical = Math.Abs(dy) >= Math.Abs(dx);
                 var offAxisDeg = Math.Atan2(vertical ? Math.Abs(dx) : Math.Abs(dy), vertical ? Math.Abs(dy) : Math.Abs(dx)) * 180.0 / Math.PI;
-                if (offAxisDeg > MaxSkewDeg) { skewed++; continue; }
 
-                var line = new GridLineInput { Name = g.Name ?? "", Position = vertical ? (g.StartM.XM + g.EndM.XM) / 2.0 : (g.StartM.YM + g.EndM.YM) / 2.0 };
+                var line = new GridLineInput { Name = g.Name ?? "" };
+                if (offAxisDeg <= AxisToleranceDeg)
+                    line.Position = vertical ? (x0 + x1) / 2.0 : (y0 + y1) / 2.0;
+                else
+                {
+                    slanted++;
+                    line.HasGeometry = true; line.X0 = x0; line.Y0 = y0; line.X1 = x1; line.Y1 = y1;
+                    // where it crosses the middle of the roof: what orders it among its neighbours
+                    line.Position = vertical ? x0 + (inputs.RoofWidth / 2.0 - y0) * dx / dy : y0 + (inputs.RoofLength / 2.0 - x0) * dy / dx;
+                }
                 (vertical ? inputs.VerticalLines : inputs.HorizontalLines).Add(line);
             }
-            if (skewed > 0)
-                inputs.Notes.Add(skewed + " grid line" + (skewed == 1 ? " is" : "s are") + " more than " + MaxSkewDeg + " degrees off the roof's axes and was not used: the bays are a rectangular grid.");
+            if (slanted > 0)
+                inputs.Notes.Add(slanted + " grid line" + (slanted == 1 ? " is" : "s are") + " not square to the roof's edges (more than " + AxisToleranceDeg.ToString(System.Globalization.CultureInfo.InvariantCulture) + " degrees off): the bays between them are quadrilaterals, not rectangles.");
 
             var outside = 0;
             foreach (var c in s.Columns ?? new List<StructuralColumnDto>())
             {
-                if (c.XM < -0.5 || c.XM > inputs.RoofLength + 0.5 || c.YM < -0.5 || c.YM > inputs.RoofWidth + 0.5) { outside++; continue; }
-                inputs.Columns.Add(new[] { c.XM, c.YM });
+                double cx = InputQuantiser.Q(c.XM), cy = InputQuantiser.Q(c.YM);
+                if (cx < -0.5 || cx > inputs.RoofLength + 0.5 || cy < -0.5 || cy > inputs.RoofWidth + 0.5) { outside++; continue; }
+                if (!inputs.Shape.IsRectangle && !inputs.Shape.Contains(cx, cy) && inputs.Shape.DistanceToEdge(cx, cy) > 0.5) { outside++; continue; }   // in the notch of an L
+                inputs.Columns.Add(new[] { cx, cy });
             }
             if (outside > 0)
                 inputs.Notes.Add(outside + " column" + (outside == 1 ? " lies" : "s lie") + " outside the roof and was left out.");

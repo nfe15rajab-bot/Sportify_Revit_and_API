@@ -323,13 +323,14 @@ namespace SportfyRevit
             failure = "";
             try
             {
-                double x0 = originXFt + SportifyLayoutBuilder.FeetFromMeters(bb.TopLeftXM);
-                double x1 = x0 + SportifyLayoutBuilder.FeetFromMeters(bb.WidthM);
                 // The canvas measures Y downward and Revit upward, so the box's
                 // top edge is its lower Y here — the same flip every other
-                // coordinate in this import goes through.
-                double y0 = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM + bb.HeightM);
-                double y1 = SportifyLayoutBuilder.WorldYFt(originYFt, bb.TopLeftYM);
+                // coordinate in this import goes through (and, for a roof turned
+                // against the model's axes, the same turn).
+                var p0 = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM, bb.TopLeftYM + bb.HeightM);            // bottom-left on the canvas
+                var p1 = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM + bb.WidthM, bb.TopLeftYM + bb.HeightM); // bottom-right
+                var p2 = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM + bb.WidthM, bb.TopLeftYM);             // top-right
+                var p3 = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM, bb.TopLeftYM);                          // top-left
 
                 var level = NearestLevel(doc, elevationFt);
                 if (level == null) { failure = "this project has no level to host a floor on"; return null; }
@@ -340,10 +341,10 @@ namespace SportfyRevit
                 double z = level.Elevation;
                 var loop = CurveLoop.Create(new List<Curve>
                 {
-                    Line.CreateBound(new XYZ(x0, y0, z), new XYZ(x1, y0, z)),
-                    Line.CreateBound(new XYZ(x1, y0, z), new XYZ(x1, y1, z)),
-                    Line.CreateBound(new XYZ(x1, y1, z), new XYZ(x0, y1, z)),
-                    Line.CreateBound(new XYZ(x0, y1, z), new XYZ(x0, y0, z)),
+                    Line.CreateBound(new XYZ(p0.X, p0.Y, z), new XYZ(p1.X, p1.Y, z)),
+                    Line.CreateBound(new XYZ(p1.X, p1.Y, z), new XYZ(p2.X, p2.Y, z)),
+                    Line.CreateBound(new XYZ(p2.X, p2.Y, z), new XYZ(p3.X, p3.Y, z)),
+                    Line.CreateBound(new XYZ(p3.X, p3.Y, z), new XYZ(p0.X, p0.Y, z)),
                 });
 
                 var floor = Floor.Create(doc, new List<CurveLoop> { loop }, floorType.Id, level.Id);

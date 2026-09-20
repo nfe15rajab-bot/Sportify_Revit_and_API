@@ -1,3 +1,4 @@
+using Sportify.Simulation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +18,17 @@ namespace SportfyRevit
     /// </summary>
     internal static class WindLayoutAdapter
     {
+        /// <summary>
+        /// The roof's outline in the plan's own coordinates (y DOWN), from the pushed boundary polygon (which keeps y UP: see PushRoofBoundaryCommand),
+        /// or null when the roof has none. Rounded to 0.1 mm so Unity's reader (floats) and this one (doubles) give the very same polygon.
+        /// </summary>
+        internal static List<double[]>? OutlineOf(RoofContextDto roof)
+        {
+            var poly = roof.SourceBoundaryPolygon;
+            if (poly == null || poly.Count < 3) return null;
+            return poly.Select(p => new[] { Math.Round(p.XM, 4), Math.Round(roof.WidthM - p.YM, 4) }).ToList();
+        }
+
         public static WindInputs ToInputs(SportifyLayout layout)
         {
             var roof = layout.RoofContext;
@@ -30,6 +42,7 @@ namespace SportfyRevit
                 RoofElevationM = roof.WorldOriginZM,
                 RoofHeightAboveGroundM = roof.HeightAboveGroundM,
                 RoofHeightSource = roof.HeightSource,
+                Outline = OutlineOf(roof),
             };
 
             var site = layout.SiteConditions;
@@ -40,7 +53,7 @@ namespace SportfyRevit
                     inputs.WindZone = site.WindZone.Value.ToString();
                     inputs.WindZoneSource = site.WindZoneSource;
                 }
-                inputs.NorthDeg = site.NorthDeg;
+                if (site.NorthSet) inputs.NorthDeg = site.NorthDeg;     // by the flag, as Unity's reader has it
             }
 
             var assemblies = new Dictionary<string, AssemblyInput>(StringComparer.OrdinalIgnoreCase);
@@ -63,7 +76,7 @@ namespace SportfyRevit
                 zoneNumber++;
                 inputs.Zones.Add(new ZoneInput
                 {
-                    Id = z.Id ?? "zone_" + zoneNumber,
+                    Id = InputQuantiser.Or(z.Id, "zone_" + zoneNumber),
                     Label = "Green roof " + zoneNumber,
                     X = bb.TopLeftXM,
                     Y = bb.TopLeftYM,
@@ -84,7 +97,7 @@ namespace SportfyRevit
                     zoneNumber++;
                     inputs.Zones.Add(new ZoneInput
                     {
-                        Id = p.Id ?? "garden_" + zoneNumber,
+                        Id = InputQuantiser.Or(p.Id, "garden_" + zoneNumber),
                         Label = "Green roof " + zoneNumber,
                         X = bb.TopLeftXM,
                         Y = bb.TopLeftYM,
@@ -100,10 +113,10 @@ namespace SportfyRevit
                 {
                     var species = !string.IsNullOrWhiteSpace(veg.BotanicalName) ? veg.BotanicalName!
                                 : !string.IsNullOrWhiteSpace(veg.CommonName) ? veg.CommonName!
-                                : (p.Label ?? "plant");
+                                : InputQuantiser.Or(p.Label, "plant");
                     inputs.Plants.Add(new PlantInput
                     {
-                        Id = p.Id ?? "plant_" + (inputs.Plants.Count + 1),
+                        Id = InputQuantiser.Or(p.Id, "plant_" + (inputs.Plants.Count + 1)),
                         Species = species,
                         Form = string.IsNullOrWhiteSpace(veg.Form) ? (veg.HeightM >= 2.5 ? "tree" : "shrub") : veg.Form!,
                         X = bb.TopLeftXM + bb.WidthM / 2.0,
@@ -115,7 +128,7 @@ namespace SportfyRevit
                 }
             }
 
-            return inputs;
+            return InputQuantiser.Apply(inputs);
         }
 
         /// <summary>One line naming what was analysed, shared with the Unity run's title card.</summary>
@@ -131,7 +144,7 @@ namespace SportfyRevit
                 Key = a.Key ?? "",
                 System = ((a.Provider ?? "") + " " + (a.SystemName ?? "")).Trim(),
                 SystemName = a.SystemName ?? "",
-                Category = a.Category ?? "extensive",
+                Category = InputQuantiser.Or(a.Category, "extensive"),
                 SaturatedKgM2 = a.SaturatedKgM2,
                 WaterStorageLM2 = a.WaterStorageLM2,
             };
@@ -152,7 +165,7 @@ namespace SportfyRevit
         {
             return new AssemblyInput
             {
-                Key = key ?? "(none)",
+                Key = InputQuantiser.Or(key, "(none)"),
                 System = string.IsNullOrEmpty(key) ? "no build-up chosen" : "unknown build-up \"" + key + "\"",
                 Category = "extensive",
             };
@@ -167,7 +180,7 @@ namespace SportfyRevit
             var result = new AssemblyInput
             {
                 Key = "legacy_" + (p.Id ?? ""),
-                System = p.Label ?? "garden parcel",
+                System = InputQuantiser.Or(p.Label, "garden parcel"),
                 Category = "extensive",
             };
 
