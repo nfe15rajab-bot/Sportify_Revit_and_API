@@ -194,6 +194,14 @@ step("the web app: every script parses, and its wind-zone test", async () => {
   return bad.length ? { status: "fail", output: bad.join("\n") } : { status: "pass", detail: `${files.length} scripts` };
 }, { needsWeb: true });
 
+step("algorithmic placement: the packing core against the Rhino tool's results", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "algoplacement-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/algoplacement-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT CHECKS PASSED /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
 // ---- local only: they need an installed Unity / Revit (CI has neither)
 step("Unity project still compiles (needs a Unity install)", async () => {
   const managed = process.env.UNITY_MANAGED || "C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.2f1\\Editor\\Data\\Managed\\UnityEngine";

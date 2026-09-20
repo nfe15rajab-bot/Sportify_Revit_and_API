@@ -14,6 +14,7 @@ So there are three kinds of drift, and one kind of check for each:
 | the two **readers** of the layout disagree (Unity's JsonUtility vs the add-in's System.Text.Json) | `ReaderParity`: compiles both readers, runs them on every fixture, emulates JsonUtility's quirks, checks the emulation against **real Unity results** (`fixtures/golden-unity`), and checks that no field Unity reads is missing from the add-in's DTOs |
 | Unity's **results** no longer fit the add-in (a renamed field, a changed text) | `ContractCheck`: every real Unity result parses into the add-in's DTOs, agrees with the add-in's own numbers, publishes and builds its PDF rows |
 | a **JavaScript copy** differs from the C# | `CirculationCheck` runs the web's real `rules.js` against the add-in's `CirculationEngine`; `StructuralCheck/assumptions-parity.js` compares the assumptions register; the web's own wind-zone test runs |
+| the web's **Algorithmic placement** packing drifts from the Rhino tool it was ported from | `Sportify/tools/algoplacement-test.js` (run by `run-checks.js`): seven roofs (rectangles, an L-shape) checked against what the Rhino tool's own Python core placed, and every layout re-checked by a separate implementation of the rules |
 | the web app calls something the add-in does not serve | `ContractCheck/endpoints-parity.js`: every path `workspaceBridge.js` calls is answered by `WorkspaceEndpoints.cs` / `RoofBoundaryServer.cs`; the chart sections and the workspace subfolders agree both ways |
 
 ## Run everything
