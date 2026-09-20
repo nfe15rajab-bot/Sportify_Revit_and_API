@@ -68,11 +68,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
-{
-    var refDb = scope.ServiceProvider.GetRequiredService<ReferenceDbContext>();
-    refDb.Database.EnsureCreated();
-    ReferenceDataSeeder.Seed(refDb);
-}
+// The catalog is created and seeded once, so an existing reference.db never got what a later build added. The guard compares it with what this build would create and,
+// by default, backs the old file up and rebuilds it (ReferenceDbGuard.cs). ReferenceDb:OnDrift = Rebuild | Fail | Ignore.
+var onDrift = Enum.TryParse<DriftPolicy>(app.Configuration["ReferenceDb:OnDrift"], ignoreCase: true, out var configured) ? configured : DriftPolicy.Rebuild;
+ReferenceDbGuard.Prepare(refDbPath, app.Logger, onDrift);
 
 app.Run();

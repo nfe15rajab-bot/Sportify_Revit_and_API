@@ -14,6 +14,8 @@ appsettings.Development.json
 *.db
 *.db-shm
 *.db-wal
+# what the API's reference.db guard leaves when it rebuilds an out-of-date catalog (the .db backups are covered by *.db)
+reference.*.backup.rows-not-in-new-catalog.txt
 
 # Self-contained publish output (e.g. Sportify.Api/publish/) — a ~100MB
 # built artifact, not source; a real release/installer step regenerates it

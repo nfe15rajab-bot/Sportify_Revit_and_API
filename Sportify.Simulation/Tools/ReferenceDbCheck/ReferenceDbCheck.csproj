@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Sportify.Api's reference.db is created once and never migrated by EF; ReferenceDbGuard (Sportify.Api/Data) compares it with what the current build would create at
+       startup and rebuilds it, with a backup, when it is out of date. This tool runs that guard on throw-away database files: the API's own sources, compiled here without
+       the web host. Not part of the API or the Unity project. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8632</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDbContext.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDataSeeder.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDbGuard.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Models\*.cs" Exclude="..\..\..\Sportify.Api\Sportify.Api\Models\AuthDtos.cs;..\..\..\Sportify.Api\Sportify.Api\Models\User.cs;..\..\..\Sportify.Api\Sportify.Api\Models\SavedConfigurations.cs" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+  </ItemGroup>
+</Project>
