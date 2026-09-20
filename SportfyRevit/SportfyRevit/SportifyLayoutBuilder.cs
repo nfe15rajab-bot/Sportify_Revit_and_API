@@ -234,7 +234,9 @@ namespace SportfyRevit
                     : SportifyFloorTypeBuilder.CreateFloor(
                         doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out failure);
 
-                if (floor == null) { ImportDiagnostics.FloorFailed(label, failure); continue; }
+                // CreateRoofFinish reports a partial success through the same out
+                // parameter, so it can be null on the failure path too.
+                if (floor == null) { ImportDiagnostics.FloorFailed(label, failure ?? "Revit gave no reason"); continue; }
 
                 SetWorkset(floor, worksetId);
                 createdIds.Add(floor.Id);
