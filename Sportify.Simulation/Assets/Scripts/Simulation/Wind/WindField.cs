@@ -36,7 +36,7 @@ namespace Sportify.Simulation.Wind
                     {
                         var x = (ix + 0.5) * inputs.RoofLength / Nx;
                         var y = (iy + 0.5) * inputs.RoofWidth / Ny;
-                        var z = WindModel.Classify(x, y, dirs[d], inputs.RoofLength, inputs.RoofWidth, site.RoofElevation);
+                        var z = WindModel.Classify(inputs.Shape, x, y, dirs[d], site.RoofElevation);
                         _zones[d][iy * Nx + ix] = z;
                         _speed[d][iy * Nx + ix] = (float)WindModel.SpeedUp(z);
                     }
@@ -111,7 +111,7 @@ namespace Sportify.Simulation.Wind
 
                     for (var d = 0; d < dirs.Length; d++)
                     {
-                        var rz = WindModel.Classify(x, y, dirs[d], inputs.RoofLength, inputs.RoofWidth, site.RoofElevation);
+                        var rz = WindModel.Classify(inputs.Shape, x, y, dirs[d], site.RoofElevation);
                         if (Known) maxU = Math.Max(maxU, WindModel.UpliftUtilisation(rz, site.QRoof, DryKgM2));
                         if (!Paved)
                         {

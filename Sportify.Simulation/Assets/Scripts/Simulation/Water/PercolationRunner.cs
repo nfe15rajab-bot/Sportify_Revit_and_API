@@ -141,7 +141,7 @@ namespace Sportify.Simulation.Water
             _results.layoutSource = LayoutLoader.LastPath ?? "";
 
             var windInputs = WindLayoutAdapter.ToInputs(_payload);
-            _inputs = new WaterInputs { RoofLength = windInputs.RoofLength, RoofWidth = windInputs.RoofWidth, Zones = windInputs.Zones };
+            _inputs = new WaterInputs { RoofLength = windInputs.RoofLength, RoofWidth = windInputs.RoofWidth, RoofAreaM2 = windInputs.Shape.Area, Zones = windInputs.Zones };
             _report = PercolationModel.Analyse(_inputs);
             _results.analysis = _report;
             _results.caseStudy = (LayoutLoader.IsRoofGardenSample ? "Goldbeck default - roof garden sample: " : "") +

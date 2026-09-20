@@ -157,10 +157,14 @@ namespace Sportify.Simulation.Structure
         public BayTower(BayResult bay, SimulationHud hud, string subtitle = "")
         {
             _subtitle = subtitle ?? "";
-            _cx = (bay.x0 + bay.x1) * 0.5f;
-            _cy = (bay.y0 + bay.y1) * 0.5f;
-            _footX = (bay.x1 - bay.x0) * 0.74f;
-            _footY = (bay.y1 - bay.y0) * 0.74f;
+            // a rectangle's own middle and sides; a skewed or cut bay: its centroid and mean sides, so the block stays on the roof
+            double cx, cy, sx, sy;
+            StructureModel.BayCentre(bay, out cx, out cy);
+            StructureModel.BaySpans(bay, out sx, out sy);
+            _cx = (float)cx;
+            _cy = (float)cy;
+            _footX = (float)sx * 0.74f;
+            _footY = (float)sy * 0.74f;
             _fullHeight = Mathf.Max(0.08f, bay.utilisation * HeightAtCapacityM);
             _over = bay.status == "over";
 

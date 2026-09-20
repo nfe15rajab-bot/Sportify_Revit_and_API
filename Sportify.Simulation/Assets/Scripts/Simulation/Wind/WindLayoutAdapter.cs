@@ -12,13 +12,26 @@ namespace Sportify.Simulation.Wind
     /// </summary>
     public static class WindLayoutAdapter
     {
+        /// <summary>The roof's outline in the plan's own coordinates (y DOWN) from the pushed boundary polygon (y UP), or null. The add-in's reader does the same, to 0.1 mm.</summary>
+        public static List<double[]> OutlineOf(RoofContext roof)
+        {
+            var poly = roof.source_boundary_polygon;
+            if (poly == null || poly.Length < 3) return null;
+            var list = new List<double[]>();
+            foreach (var p in poly) list.Add(new[] { Math.Round((double)p.x_m, 4), Math.Round((double)roof.width_m - p.y_m, 4) });
+            return list;
+        }
+
         public static WindInputs ToInputs(GoldbeckPayload payload)
         {
             var roof = payload.roof_context;
+            if (roof == null || roof.length_m <= 0f || roof.width_m <= 0f)
+                throw new InvalidOperationException("The layout has no roof size (roof_context length/width).");     // as the add-in's reader says
             var inputs = new WindInputs
             {
                 RoofLength = roof.length_m,
                 RoofWidth = roof.width_m,
+                Outline = OutlineOf(roof),
                 RoofElevationM = roof.world_origin_z_m,
                 RoofHeightAboveGroundM = roof.height_above_ground_m,
                 RoofHeightSource = roof.height_source,
@@ -58,7 +71,7 @@ namespace Sportify.Simulation.Wind
                     zoneNumber++;
                     inputs.Zones.Add(new ZoneInput
                     {
-                        Id = z.id ?? "zone_" + zoneNumber,
+                        Id = InputQuantiser.Or(z.id, "zone_" + zoneNumber),
                         Label = "Green roof " + zoneNumber,
                         X = bb.top_left_x_m,
                         Y = bb.top_left_y_m,
@@ -82,7 +95,7 @@ namespace Sportify.Simulation.Wind
                         zoneNumber++;
                         inputs.Zones.Add(new ZoneInput
                         {
-                            Id = p.id ?? "garden_" + zoneNumber,
+                            Id = InputQuantiser.Or(p.id, "garden_" + zoneNumber),
                             Label = "Green roof " + zoneNumber,
                             X = bb.top_left_x_m,
                             Y = bb.top_left_y_m,
@@ -98,10 +111,10 @@ namespace Sportify.Simulation.Wind
                     {
                         var species = !string.IsNullOrWhiteSpace(veg.botanical_name) ? veg.botanical_name
                                     : !string.IsNullOrWhiteSpace(veg.common_name) ? veg.common_name
-                                    : (p.label ?? "plant");
+                                    : InputQuantiser.Or(p.label, "plant");
                         inputs.Plants.Add(new PlantInput
                         {
-                            Id = p.id ?? "plant_" + (inputs.Plants.Count + 1),
+                            Id = InputQuantiser.Or(p.id, "plant_" + (inputs.Plants.Count + 1)),
                             Species = species,
                             Form = string.IsNullOrWhiteSpace(veg.form) ? (veg.height_m >= 2.5f ? "tree" : "shrub") : veg.form,
                             X = bb.top_left_x_m + bb.width_m / 2.0,
@@ -114,7 +127,7 @@ namespace Sportify.Simulation.Wind
                 }
             }
 
-            return inputs;
+            return InputQuantiser.Apply(inputs);
         }
 
         /// <summary>Total build-up thickness for drawing, in metres.</summary>
@@ -130,7 +143,7 @@ namespace Sportify.Simulation.Wind
                 Key = a.key ?? "",
                 System = ((a.provider ?? "") + " " + (a.system_name ?? "")).Trim(),
                 SystemName = a.system_name ?? "",
-                Category = a.category ?? "extensive",
+                Category = InputQuantiser.Or(a.category, "extensive"),
                 // Both figures or neither: the provider prints them together.
                 SaturatedKgM2 = a.saturated_kg_m2 > 0f && a.water_storage_l_m2 > 0f ? a.saturated_kg_m2 : (double?)null,
                 WaterStorageLM2 = a.saturated_kg_m2 > 0f && a.water_storage_l_m2 > 0f ? a.water_storage_l_m2 : (double?)null,
@@ -155,7 +168,7 @@ namespace Sportify.Simulation.Wind
         {
             return new AssemblyInput
             {
-                Key = key ?? "(none)",
+                Key = InputQuantiser.Or(key, "(none)"),
                 System = string.IsNullOrEmpty(key) ? "no build-up chosen" : "unknown build-up \"" + key + "\"",
                 Category = "extensive",
             };
@@ -170,7 +183,7 @@ namespace Sportify.Simulation.Wind
             var result = new AssemblyInput
             {
                 Key = "legacy_" + (p.id ?? ""),
-                System = p.label ?? "garden parcel",
+                System = InputQuantiser.Or(p.label, "garden parcel"),
                 Category = "extensive",
             };
 

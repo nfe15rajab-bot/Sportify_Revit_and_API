@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Sportify.Simulation.Roof;
+using Sportify.Simulation.Wind;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -147,15 +149,108 @@ namespace Sportify.Simulation
 
         // ---------------------------------------------------------------- the roof and what's on it
 
+        /// <summary>The shape of the roof being drawn (its outline, or the rectangle): what the overlays that cover the roof stay inside.</summary>
+        public static RoofShape CurrentRoof { get; private set; }
+
         public static void BuildRoof(RoofContext roof)
         {
             var l = roof.length_m;
             var w = roof.width_m;
+            CurrentRoof = RoofShape.Create(l, w, WindLayoutAdapter.OutlineOf(roof));
 
             // Top surface at y = 0: everything in the analysis is measured from it.
-            Box("Roof", new Vector3(l * 0.5f, -0.25f, -w * 0.5f), new Vector3(l, 0.5f, w), LitMaterial(RoofColor, 0.04f));
+            if (CurrentRoof.IsRectangle)
+            {
+                Box("Roof", new Vector3(l * 0.5f, -0.25f, -w * 0.5f), new Vector3(l, 0.5f, w), LitMaterial(RoofColor, 0.04f));
+                Line("RoofOutline", RectCorners(0f, l, 0f, w, 0.08f), EdgeColor, 0.20f, true, true);
+                return;
+            }
 
-            Line("RoofOutline", RectCorners(0f, l, 0f, w, 0.08f), EdgeColor, 0.20f, true, true);
+            // A roof with an outline (an L, a step, a chamfer): the slab is the outline extruded down half a metre.
+            var go = new GameObject("Roof");
+            go.AddComponent<MeshFilter>().sharedMesh = OutlineSlab(CurrentRoof.Outline, 0.5f);
+            go.AddComponent<MeshRenderer>().sharedMaterial = LitMaterial(RoofColor, 0.04f);
+            go.AddComponent<MeshCollider>();
+            var corners = new List<Vector3>();
+            foreach (var p in CurrentRoof.Outline) corners.Add(LayoutSpace.ToWorld((float)p[0], (float)p[1], 0.08f));
+            Line("RoofOutline", corners, EdgeColor, 0.20f, true, true);
+        }
+
+        /// <summary>
+        /// The outline (counter-clockwise by the plan's numbers, as RoofShape keeps it) as a slab: a top face triangulated by ear clipping and a
+        /// skirt round it. Faces are wound to look outward in Unity's left-handed world (the plan's y runs toward -z).
+        /// </summary>
+        static Mesh OutlineSlab(List<double[]> outline, float thickness)
+        {
+            var verts = new List<Vector3>();
+            var tris = new List<int>();
+            var n = outline.Count;
+
+            // top face: one vertex per corner, triangles from ear clipping (counter-clockwise in the plan = clockwise seen from above)
+            for (var i = 0; i < n; i++) verts.Add(LayoutSpace.ToWorld((float)outline[i][0], (float)outline[i][1], 0f));
+            var idx = new List<int>();
+            for (var i = 0; i < n; i++) idx.Add(i);
+            var guard = 0;
+            while (idx.Count > 3 && guard++ < 10000)
+            {
+                var clipped = false;
+                for (var i = 0; i < idx.Count; i++)
+                {
+                    int a = idx[(i + idx.Count - 1) % idx.Count], b = idx[i], c = idx[(i + 1) % idx.Count];
+                    if (Cross(outline[a], outline[b], outline[c]) <= 1e-9) continue;              // a reflex corner is not an ear
+                    var inside = false;
+                    foreach (var k in idx)
+                    {
+                        if (k == a || k == b || k == c) continue;
+                        if (InTriangle(outline[k], outline[a], outline[b], outline[c])) { inside = true; break; }
+                    }
+                    if (inside) continue;
+                    tris.Add(a); tris.Add(b); tris.Add(c);
+                    idx.RemoveAt(i);
+                    clipped = true;
+                    break;
+                }
+                if (!clipped) break;                                                              // not a simple polygon: leave the rest
+            }
+            if (idx.Count == 3) { tris.Add(idx[0]); tris.Add(idx[1]); tris.Add(idx[2]); }
+
+            // the skirt: each stretch of the outline dropped by the thickness, facing outward
+            for (var i = 0; i < n; i++)
+            {
+                var p = outline[i];
+                var q = outline[(i + 1) % n];
+                var baseIndex = verts.Count;
+                verts.Add(LayoutSpace.ToWorld((float)p[0], (float)p[1], 0f));
+                verts.Add(LayoutSpace.ToWorld((float)q[0], (float)q[1], 0f));
+                verts.Add(LayoutSpace.ToWorld((float)q[0], (float)q[1], -thickness));
+                verts.Add(LayoutSpace.ToWorld((float)p[0], (float)p[1], -thickness));
+                // outward in the plan is (dy, -dx) for this winding; in the world the plan's y is -z
+                double dx = q[0] - p[0], dy = q[1] - p[1];
+                var outward = new Vector3((float)dy, 0f, (float)dx);
+                var normal = Vector3.Cross(verts[baseIndex + 1] - verts[baseIndex], verts[baseIndex + 2] - verts[baseIndex]);
+                if (Vector3.Dot(normal, outward) >= 0f) { tris.Add(baseIndex); tris.Add(baseIndex + 1); tris.Add(baseIndex + 2); tris.Add(baseIndex); tris.Add(baseIndex + 2); tris.Add(baseIndex + 3); }
+                else { tris.Add(baseIndex); tris.Add(baseIndex + 2); tris.Add(baseIndex + 1); tris.Add(baseIndex); tris.Add(baseIndex + 3); tris.Add(baseIndex + 2); }
+            }
+
+            var mesh = new Mesh { name = "RoofSlab" };
+            mesh.SetVertices(verts);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static double Cross(double[] a, double[] b, double[] c)
+        {
+            return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        }
+
+        static bool InTriangle(double[] p, double[] a, double[] b, double[] c)
+        {
+            var d1 = Cross(a, b, p);
+            var d2 = Cross(b, c, p);
+            var d3 = Cross(c, a, p);
+            return d1 >= -1e-9 && d2 >= -1e-9 && d3 >= -1e-9;
         }
 
         /// <summary>Garden beds and activities: drawn so the video reads as the designed roof, never tested.</summary>

@@ -154,7 +154,10 @@ namespace Sportify.Simulation.Wind
                 {
                     // Texture row 0 is the quad's local bottom, which lies at the plan's LOWEST edge (largest y).
                     var row = Ny - 1 - iy;
-                    _pixels[row * Nx + ix] = colorAt(ix, iy, CellCentre(ix, iy));
+                    var centre = CellCentre(ix, iy);
+                    // where the roof has no roof (the notch of an L) there is nothing to colour
+                    var roof = SceneBuilder.CurrentRoof;
+                    _pixels[row * Nx + ix] = roof != null && !roof.IsRectangle && !roof.Contains(centre.x, centre.y) ? new Color32(0, 0, 0, 0) : colorAt(ix, iy, centre);
                 }
             }
             Upload();

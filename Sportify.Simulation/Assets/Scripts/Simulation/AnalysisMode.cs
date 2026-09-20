@@ -16,6 +16,7 @@ namespace Sportify.Simulation
         public const string Percolation = "percolation";
         public const string Structural = "structural";
         public const string Dynamic = "dynamic";
+        public const string Sun = "sun";
 
         public static string Current => Environment.GetEnvironmentVariable(EnvVar);
 
@@ -23,6 +24,7 @@ namespace Sportify.Simulation
         public static bool IsPercolation => string.Equals(Current, Percolation, StringComparison.OrdinalIgnoreCase);
         public static bool IsStructural => string.Equals(Current, Structural, StringComparison.OrdinalIgnoreCase);
         public static bool IsDynamic => string.Equals(Current, Dynamic, StringComparison.OrdinalIgnoreCase);
+        public static bool IsSun => string.Equals(Current, Sun, StringComparison.OrdinalIgnoreCase);
         public static bool IsBallSimulation => string.IsNullOrEmpty(Current);
     }
 }

@@ -276,15 +276,47 @@ namespace Sportify.Simulation.Structure
             var w = _payload.roof_context.width_m;
             var lineColor = GridBlue;
 
+            // a line square to the roof runs from edge to edge; a slanted one is drawn along its own two points, carried to the roof's box
+            Vector3[] GridLine(GridLineInput g, bool vertical, float height)
+            {
+                if (!g.HasGeometry)
+                    return vertical ? new[] { LayoutSpace.ToWorld((float)g.Position, 0f, height), LayoutSpace.ToWorld((float)g.Position, w, height) }
+                                    : new[] { LayoutSpace.ToWorld(0f, (float)g.Position, height), LayoutSpace.ToWorld(l, (float)g.Position, height) };
+                if (vertical)
+                {
+                    var m = (g.X1 - g.X0) / (g.Y1 - g.Y0);
+                    return new[] { LayoutSpace.ToWorld((float)(g.X0 + (0 - g.Y0) * m), 0f, height), LayoutSpace.ToWorld((float)(g.X0 + (w - g.Y0) * m), w, height) };
+                }
+                var k = (g.Y1 - g.Y0) / (g.X1 - g.X0);
+                return new[] { LayoutSpace.ToWorld(0f, (float)(g.Y0 + (0 - g.X0) * k), height), LayoutSpace.ToWorld(l, (float)(g.Y0 + (l - g.X0) * k), height) };
+            }
+            // on a roof with an outline a grid line is drawn only where there is roof
+            IEnumerable<Vector3[]> OnRoof(Vector3[] line)
+            {
+                var roof = SceneBuilder.CurrentRoof;
+                if (roof == null || roof.IsRectangle) { yield return line; yield break; }
+                var run = new List<Vector3>();
+                var steps = Mathf.Max(2, Mathf.CeilToInt(Vector3.Distance(line[0], line[1]) / 0.25f));
+                for (var i = 0; i <= steps; i++)
+                {
+                    var p = Vector3.Lerp(line[0], line[1], i / (float)steps);
+                    if (roof.Contains(p.x, -p.z)) run.Add(p);
+                    else if (run.Count > 1) { yield return new[] { run[0], run[run.Count - 1] }; run.Clear(); }
+                    else run.Clear();
+                }
+                if (run.Count > 1) yield return new[] { run[0], run[run.Count - 1] };
+            }
             foreach (var g in _inputs.VerticalLines)
             {
-                _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, new[] { LayoutSpace.ToWorld((float)g.Position, 0f, 0.22f), LayoutSpace.ToWorld((float)g.Position, w, 0.22f) }, lineColor, 0.12f, false, true).gameObject);
-                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, LayoutSpace.ToWorld((float)g.Position, -1.4f, 0.3f), 1.1f, GridBlue).gameObject);
+                var line = GridLine(g, true, 0.22f);
+                foreach (var part in OnRoof(line)) _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, part, lineColor, 0.12f, false, true).gameObject);
+                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, line[0] + new Vector3(0f, 0.08f, 1.4f), 1.1f, GridBlue).gameObject);
             }
             foreach (var g in _inputs.HorizontalLines)
             {
-                _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, new[] { LayoutSpace.ToWorld(0f, (float)g.Position, 0.22f), LayoutSpace.ToWorld(l, (float)g.Position, 0.22f) }, lineColor, 0.12f, false, true).gameObject);
-                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, LayoutSpace.ToWorld(-1.6f, (float)g.Position, 0.3f), 1.1f, GridBlue).gameObject);
+                var line = GridLine(g, false, 0.22f);
+                foreach (var part in OnRoof(line)) _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, part, lineColor, 0.12f, false, true).gameObject);
+                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, line[0] + new Vector3(-1.6f, 0.08f, 0f), 1.1f, GridBlue).gameObject);
             }
             if (_report.summary.gridAssumed)
             {
@@ -750,7 +782,7 @@ namespace Sportify.Simulation.Structure
                                 Num(worst.loadKn, "0") + " kN (" + Num(worst.ratioToMean, "0.0") + "x).");
             }
 
-            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Site tab, or the window Revit opens before the analysis).");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure and Site conditions tabs, or the window Revit opens before the analysis).");
             else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             if (s.gridAssumed)
                 CardText.Bullet(lines, Tint("Grid", Muted) + "  No structural grid in the layout: a regular 8.4 m grid was assumed. Push the roof from Revit for the real one.");

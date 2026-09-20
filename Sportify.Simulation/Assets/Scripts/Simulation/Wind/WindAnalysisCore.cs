@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Sportify.Simulation.Roof;
 
 namespace Sportify.Simulation.Wind
 {
@@ -71,6 +72,9 @@ namespace Sportify.Simulation.Wind
     public class WindInputs
     {
         public double RoofLength, RoofWidth;
+        public List<double[]> Outline;         // the roof's outline in plan coordinates when it is not the rectangle; null = the rectangle
+        RoofShape _shape;
+        public RoofShape Shape { get { return _shape ?? (_shape = RoofShape.Create(RoofLength, RoofWidth, Outline)); } }
         public double RoofElevationM;          // elevation of the roof in the Revit project (world_origin_z_m); 0 = not known
         public double RoofHeightAboveGroundM;  // height above ground when the Revit model or the designer gave it; 0 = not given
         public string RoofHeightSource;        // where that came from, for the report
@@ -373,6 +377,33 @@ namespace Sportify.Simulation.Wind
                 var d = uy > 0 ? y : roofWidth - y;
                 var a = Math.Min(x, roofLength - x);
                 worst = Worse(worst, ZoneAt(d, a, Math.Min(roofLength, 2.0 * roofElevation)));
+            }
+            return worst;
+        }
+
+        /// <summary>
+        /// The same for a roof of any outline. For each straight stretch of the outline that the wind blows in across (its outward normal turned
+        /// against the wind), a point behind it (its foot on the stretch lies on the stretch and can be seen from the point without leaving the roof)
+        /// is in the zone the distance in from that stretch and along it to its nearer end gives; e = min(b, 2h) with b how far the roof reaches along
+        /// the stretch. The worse zone of all windward stretches wins: exactly the rule above for a rectangle, which takes that path itself.
+        /// </summary>
+        public static RoofZone Classify(RoofShape shape, double x, double y, double dirDeg, double roofElevation)
+        {
+            if (shape.IsRectangle) return Classify(x, y, dirDeg, shape.Length, shape.Width, roofElevation);
+            var rad = dirDeg * Math.PI / 180.0;
+            double ux = Math.Cos(rad), uy = Math.Sin(rad);
+            var worst = RoofZone.I;
+            foreach (var e in shape.Edges)
+            {
+                var facing = -(e.NormalX * ux + e.NormalY * uy);
+                if (facing <= 0.01) continue;                                         // the wind blows along or away from this stretch
+                double tx = (e.X1 - e.X0) / e.Length, ty = (e.Y1 - e.Y0) / e.Length;
+                var t = (x - e.X0) * tx + (y - e.Y0) * ty;
+                var d = -((x - e.X0) * e.NormalX + (y - e.Y0) * e.NormalY);
+                if (t < 0 || t > e.Length || d < -1e-9) continue;                     // not behind this stretch
+                if (!shape.SegmentInside(x, y, e.X0 + t * tx, e.Y0 + t * ty)) continue;   // hidden from it by another part of the roof
+                var b = shape.ExtentAlong(tx, ty);
+                worst = Worse(worst, ZoneAt(d, Math.Min(t, e.Length - t), Math.Min(b, 2.0 * roofElevation)));
             }
             return worst;
         }
@@ -770,7 +801,7 @@ namespace Sportify.Simulation.Wind
 
                     for (var d = 0; d < dirs.Length; d++)
                     {
-                        var rz = Classify(x, y, dirs[d], L, W, h);
+                        var rz = Classify(inputs.Shape, x, y, dirs[d], h);
 
                         var s = SpeedUp(rz);
                         if (s > dirReports[d].maxSpeedUp) dirReports[d].maxSpeedUp = (float)s;
@@ -798,7 +829,7 @@ namespace Sportify.Simulation.Wind
                     if (cellMaxU > maxU) maxU = cellMaxU;
 
                     double dist;
-                    var edge = NearestEdge(x, y, L, W, out dist);
+                    var edge = NearestEdge(inputs.Shape, x, y, out dist);
 
                     if (known && cellMaxU > 1.0)
                     {
@@ -878,6 +909,25 @@ namespace Sportify.Simulation.Wind
             return best;
         }
 
+        /// <summary>The same for a roof of any outline: the side (top, bottom, left, right) that the nearest stretch of the outline faces.</summary>
+        public static int NearestEdge(RoofShape shape, double x, double y, out double distance)
+        {
+            if (shape.IsRectangle) return NearestEdge(x, y, shape.Length, shape.Width, out distance);
+            var best = 0;
+            distance = double.MaxValue;
+            foreach (var e in shape.Edges)
+            {
+                var d = RoofShape.DistanceToSegment(e.X0, e.Y0, e.X1, e.Y1, x, y);
+                if (d < distance - 1e-12) { distance = d; best = SideIndex(e.Side); }
+            }
+            return best;
+        }
+
+        static int SideIndex(string side)
+        {
+            return side == "top" ? 0 : side == "bottom" ? 1 : side == "left" ? 2 : 3;
+        }
+
         public static string EdgeName(int e)
         {
             switch (e)
@@ -953,8 +1003,7 @@ namespace Sportify.Simulation.Wind
             {
                 var rz = RoofZone.I;
                 foreach (var o in offsets)
-                    rz = Worse(rz, Classify(x + o[0] * p.CrownM / 2.0, y + o[1] * p.CrownM / 2.0, dirs[d],
-                                            inputs.RoofLength, inputs.RoofWidth, site.RoofElevation));
+                    rz = Worse(rz, Classify(inputs.Shape, x + o[0] * p.CrownM / 2.0, y + o[1] * p.CrownM / 2.0, dirs[d], site.RoofElevation));
 
                 var s = SpeedUp(rz);
                 var m = TreeDragCoefficient * t.QPlant * s * s * t.Area * t.Lever;

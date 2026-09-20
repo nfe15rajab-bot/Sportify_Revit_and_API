@@ -437,7 +437,7 @@ namespace Sportify.Simulation.Wind
             for (var i = 0; i < _zoneLayers.Count; i++)
             {
                 _zoneLayers[i].Fill((ix, iy, c) => ZoneMapColor(
-                    WindModel.Classify(c.x, c.y, angle, _inputs.RoofLength, _inputs.RoofWidth, _site.RoofElevation)));
+                    WindModel.Classify(_inputs.Shape, c.x, c.y, angle, _site.RoofElevation)));
             }
 
             _streaks.Seed(d);

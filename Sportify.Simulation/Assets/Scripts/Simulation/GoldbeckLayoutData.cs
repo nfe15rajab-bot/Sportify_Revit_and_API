@@ -14,6 +14,77 @@ namespace Sportify.Simulation
         // Height of the roof above the ground (Revit model, or typed in the Site tab); 0 when not known.
         public float height_above_ground_m;
         public string height_source;
+
+        // The roof's outline (Revit's convention: y up from the roof's minimum corner) and what the model says about it; absent for a roof typed in by hand.
+        public PolyPointData[] source_boundary_polygon;
+        public RoofFeaturesData features;
+    }
+
+    [Serializable]
+    public class PolyPointData
+    {
+        public float x_m;
+        public float y_m;
+    }
+
+    [Serializable]
+    public class RoofObstacleData
+    {
+        public string name;
+        public PolyPointData start_m;
+        public PolyPointData end_m;
+        public float height_m;
+        public float thickness_m;
+    }
+
+    [Serializable]
+    public class RoofDrainData
+    {
+        public float x_m;
+        public float y_m;
+    }
+
+    [Serializable]
+    public class RoofOpeningData
+    {
+        public PolyPointData[] polygon_m;
+    }
+
+    /// <summary>The parts of roof_context.features the sun and shade analysis reads (the rest is for the web app).</summary>
+    [Serializable]
+    public class RoofFeaturesData
+    {
+        public RoofObstacleData[] obstacles;
+        public RoofDrainData[] drains;
+        public RoofOpeningData[] openings;
+        public RoofSlabData slab;
+        public RoofEquipmentData[] equipment;
+    }
+
+    [Serializable]
+    public class RoofEquipmentData
+    {
+        public string name;
+        public float x_m;
+        public float y_m;
+        public float width_m;
+        public float depth_m;
+        public float height_m;
+    }
+
+    /// <summary>The slab of the pushed roof: its structural thickness is what the deck's resonance estimate needs.</summary>
+    [Serializable]
+    public class RoofSlabData
+    {
+        public float thickness_m;
+        public float structural_thickness_m;
+    }
+
+    [Serializable]
+    public class SiteLocationData
+    {
+        public float latitude_deg;
+        public float longitude_deg;
     }
 
     /// <summary>
@@ -229,6 +300,7 @@ namespace Sportify.Simulation
         public AssemblyData[] assemblies;
 
         public SiteConditions site_conditions;
+        public SiteLocationData site_location;
 
         // The structural grid and columns (pushed from Revit or drawn in the app); absent in older exports.
         public StructureData structure;
@@ -244,5 +316,11 @@ namespace Sportify.Simulation
         public string[] accepted;
         public float comfort_limit_walking_g;
         public float comfort_limit_rhythmic_g;
+
+        // For the sun and shade analysis (0 / empty = not set)
+        public float shade_target_percent;
+        public float garden_min_sun_hours;
+        public string shade_equipment;
+        public float site_latitude_deg;
     }
 }

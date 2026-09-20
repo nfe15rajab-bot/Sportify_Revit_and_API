@@ -51,6 +51,15 @@ namespace Sportify.Simulation.Editor
             EditorApplication.isPlaying = true;
         }
 
+        // Same, for the sun and shade analysis: -executeMethod
+        // Sportify.Simulation.Editor.BatchRunner.RunSunAnalysis. Writes Recordings/sun_results.json.
+        public static void RunSunAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Sun);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
         public static void RunWindAnalysis()
         {
             Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Wind);

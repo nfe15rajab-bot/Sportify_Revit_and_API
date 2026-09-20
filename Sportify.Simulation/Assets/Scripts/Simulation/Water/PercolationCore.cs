@@ -132,6 +132,7 @@ namespace Sportify.Simulation.Water
     public class WaterInputs
     {
         public double RoofLength, RoofWidth;
+        public double RoofAreaM2;              // the roof's own area when its outline is not the rectangle; 0 = length x width
         public List<ZoneInput> Zones = new List<ZoneInput>();
     }
 
@@ -502,7 +503,7 @@ namespace Sportify.Simulation.Water
 
             double greenArea = 0;
             foreach (var z in inputs.Zones) greenArea += z.Width * z.Height;
-            var roofArea = inputs.RoofLength * inputs.RoofWidth;
+            var roofArea = inputs.RoofAreaM2 > 0 ? inputs.RoofAreaM2 : inputs.RoofLength * inputs.RoofWidth;
             var otherArea = Math.Max(0, roofArea - greenArea);
 
             var bare = new Run[report.scenarios.Count];

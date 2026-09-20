@@ -42,6 +42,7 @@ namespace Sportify.Simulation.Dynamics
         public double? AltitudeM;                // of the site above sea level; null = not given
         public string Schedule;                  // "sports_day" | "event_day" | "community_day"; null = sports_day
         public double? NaturalFrequencyHz;       // the engineer's first natural frequency of the deck; null = estimate from the spans
+        public double? SlabDepthM;               // the slab's structural thickness from the Revit model (roof.features.slab); null = the span/25 rule
         public double? WalkingLimitG;            // comfort limits the designer set, in g; null = the built-in ones
         public double? RhythmicLimitG;
     }
@@ -234,6 +235,8 @@ namespace Sportify.Simulation.Dynamics
     public class ResonanceReport
     {
         public bool estimated;
+        public bool slabDepthGiven;             // the deck depth is the model's slab thickness, not the span/25 rule
+        public float slabDepthM;                // that thickness (0 when not given)
         public float dampingRatio, youngGPa, bandLow, bandHigh;
         public List<ActivityDef> activities = new List<ActivityDef>();
         public List<BayResonance> bays = new List<BayResonance>();
@@ -355,6 +358,8 @@ namespace Sportify.Simulation.Dynamics
 
             _entries = inputs.Entries.Count > 0 ? inputs.Entries.ToArray()
                 : new[] { new[] { RoofLength / 2, 0.0 }, new[] { RoofLength / 2, RoofWidth }, new[] { 0.0, RoofWidth / 2 }, new[] { RoofLength, RoofWidth / 2 } };
+            if (inputs.Entries.Count == 0 && !inputs.Shape.IsRectangle)
+                _entries = _entries.Select(e => inputs.Shape.Contains(e[0], e[1]) ? e : inputs.Shape.NearestOnEdge(e[0], e[1])).ToArray();   // the middle of a side may be in the notch: use the outline instead
         }
 
         public double Hour { get { return TimeS / 3600.0; } }
@@ -485,7 +490,8 @@ namespace Sportify.Simulation.Dynamics
     {
         public StructureReport Static;
         public LoadField Field;
-        public double[] Xs, Ys;
+        public double[] Xs, Ys;                        // the bay boundaries as numbers (where the grid lines cross the roof's middle)
+        public BaySystem Bays;                         // the bays themselves: rectangles, or polygons on a skewed grid or an L-shaped roof
         public double CentreX, CentreY;
         public double PeakTimeS;
         public List<AgentSnapshot> PeakAgents = new List<AgentSnapshot>();
@@ -515,6 +521,7 @@ namespace Sportify.Simulation.Dynamics
         public const double ConcreteKgM3 = 2500.0;
         public const double SpanToDepth = 25.0;                   // deck depth = the bay's long span / 25 (clamped)
         public const double MinDepthM = 0.20, MaxDepthM = 0.60;
+        public const double MinSlabDepthM = 0.10, MaxSlabDepthM = 1.50;   // a slab thickness outside this is a modelling slip, not a deck
         public const double Damping = 0.03;                       // finished floor
         public const double BandLow = 0.80, BandHigh = 1.25;      // an estimated frequency is good to about this much
         public const double RhythmicDensity = 0.25;               // persons per m2 in a rhythmic crowd (Bachmann & Ammann)
@@ -622,7 +629,9 @@ namespace Sportify.Simulation.Dynamics
             var report = new DynamicReport { ran = true };
             var st = inputs.Structure;
             run = new DynamicRun { Static = StructureModel.Compute(st), Field = StructureModel.BuildField(st) };
-            StructureModel.BayBounds(st, out run.Xs, out run.Ys);
+            run.Bays = StructureModel.Bays(st);
+            run.Xs = run.Bays.Xs;
+            run.Ys = run.Bays.Ys;
             run.CentreX = run.Static.balance.centreX;
             run.CentreY = run.Static.balance.centreY;
 
@@ -641,12 +650,7 @@ namespace Sportify.Simulation.Dynamics
 
         static int BayOf(DynamicRun run, double x, double y)
         {
-            var nbx = run.Xs.Length - 1;
-            var c = 0;
-            while (c < nbx - 1 && x >= run.Xs[c + 1]) c++;
-            var r = 0;
-            while (r < run.Ys.Length - 2 && y >= run.Ys[r + 1]) r++;
-            return r * nbx + c;
+            return run.Bays.IndexAt(x, y);
         }
 
         static CrowdReport AnalyseCrowd(DynamicInputs inputs, DynamicRun run)
@@ -794,8 +798,10 @@ namespace Sportify.Simulation.Dynamics
             for (var iy = 0; iy < f.Ny; iy++)
                 for (var ix = 0; ix < f.Nx; ix++)
                 {
-                    var zone = WindModel.Classify((ix + 0.5) * f.CellW, (iy + 0.5) * f.CellH, dirDeg, f.Nx * f.CellW, f.Ny * f.CellH, site.RoofElevation);
-                    cells[f.Index(ix, iy)] = WindModel.Cpe(zone) * site.QRoof / 1000.0 * cellArea;   // cpe is negative: suction
+                    var k = f.Index(ix, iy);
+                    if (f.Coverage[k] <= 0) continue;                                                // no roof here, no wind load
+                    var zone = WindModel.Classify(f.Roof, (ix + 0.5) * f.CellW, (iy + 0.5) * f.CellH, dirDeg, site.RoofElevation);
+                    cells[k] = WindModel.Cpe(zone) * site.QRoof / 1000.0 * cellArea * f.Coverage[k];   // cpe is negative: suction
                 }
             return cells;
         }
@@ -860,7 +866,7 @@ namespace Sportify.Simulation.Dynamics
         {
             var cells = new double[f.Nx * f.Ny];
             var v = w.snow.roofKnM2 * f.CellW * f.CellH;
-            for (var i = 0; i < cells.Length; i++) cells[i] = v;
+            for (var i = 0; i < cells.Length; i++) cells[i] = v * f.Coverage[i];
             return cells;
         }
 
@@ -985,7 +991,7 @@ namespace Sportify.Simulation.Dynamics
             double worstDir = 0;
             foreach (var dir in WindModel.DirectionsDeg)
             {
-                var sums = StructureModel.BaySums(WindCells(inputs, site, dir, f), f, run.Xs, run.Ys);
+                var sums = run.Bays.Sums(WindCells(inputs, site, dir, f), f);
                 var m = 0.0;
                 for (var b = 0; b < nb; b++) m = Math.Max(m, -sums[b] / bays[b].areaM2);
                 if (m > worstSuction * (1 + 1e-6) + 1e-12) { worstSuction = m; worstDir = dir; }   // mirror-image directions tie: the first listed wins, whatever the rounding
@@ -1010,7 +1016,7 @@ namespace Sportify.Simulation.Dynamics
             foreach (var d in defs)
             {
                 var cells = CaseCells(inputs, run, w, d[0]);
-                var sums = StructureModel.BaySums(cells, f, run.Xs, run.Ys);
+                var sums = run.Bays.Sums(cells, f);
                 var lc = new LoadCase { key = d[0], name = d[1], description = d[2], bayKnM2 = new float[nb], bayUtilisation = new float[nb], totalKn = (float)cells.Sum() };
                 for (var b = 0; b < nb; b++)
                 {
@@ -1027,11 +1033,11 @@ namespace Sportify.Simulation.Dynamics
             }
             var galeCase = w.cases.First(c => c.key == "gale");
             w.wind.baysNetUplift = galeCase.bayKnM2.Count(v => v < 0);
-            var galeSums = StructureModel.BaySums(WindCells(inputs, site, worstDir, f), f, run.Xs, run.Ys);
-            w.wind.meanSuctionKnM2 = (float)(-galeSums.Sum() / (st.RoofLength * st.RoofWidth));
+            var galeSums = run.Bays.Sums(WindCells(inputs, site, worstDir, f), f);
+            w.wind.meanSuctionKnM2 = (float)(-galeSums.Sum() / st.Shape.Area);
 
             // typical permanent load per bay, kept for the frequency estimate
-            var fcSums = StructureModel.BaySums(DeadCells(inputs, run, "field"), f, run.Xs, run.Ys);
+            var fcSums = run.Bays.Sums(DeadCells(inputs, run, "field"), f);
             run.DeadFieldKnM2Bay = new double[nb];
             for (var b = 0; b < nb; b++) run.DeadFieldKnM2Bay[b] = fcSums[b] / bays[b].areaM2;
 
@@ -1056,9 +1062,7 @@ namespace Sportify.Simulation.Dynamics
 
         static double OverlapArea(LoadItem i, BayResult bay)
         {
-            var w = Math.Max(0, Math.Min(i.X + i.Width, bay.x1) - Math.Max(i.X, bay.x0));
-            var h = Math.Max(0, Math.Min(i.Y + i.Height, bay.y1) - Math.Max(i.Y, bay.y0));
-            return w * h;
+            return StructureModel.BayOverlapM2(bay, i.X, i.Y, i.X + i.Width, i.Y + i.Height);
         }
 
         /// <summary>The largest acceleration (g) over the crowd's rhythm range, and the rhythm and harmonic that produce it.</summary>
@@ -1088,9 +1092,10 @@ namespace Sportify.Simulation.Dynamics
             var st = inputs.Structure;
             var bays = run.Static.bays;
             var given = inputs.NaturalFrequencyHz.HasValue && inputs.NaturalFrequencyHz.Value > 0;
+            var slabGiven = inputs.SlabDepthM.HasValue && inputs.SlabDepthM.Value >= MinSlabDepthM && inputs.SlabDepthM.Value <= MaxSlabDepthM;
             var rr = new ResonanceReport
             {
-                estimated = !given, dampingRatio = (float)Damping, youngGPa = (float)YoungGPa,
+                estimated = !given, slabDepthGiven = slabGiven, slabDepthM = slabGiven ? (float)inputs.SlabDepthM.Value : 0f, dampingRatio = (float)Damping, youngGPa = (float)YoungGPa,
                 bandLow = given ? 1f : (float)BandLow, bandHigh = given ? 1f : (float)BandHigh,
             };
             var activities = ActivitiesFor(inputs);
@@ -1105,10 +1110,11 @@ namespace Sportify.Simulation.Dynamics
             for (var b = 0; b < bays.Count; b++)
             {
                 var bay = bays[b];
-                var bx = bay.x1 - bay.x0;
-                var by = bay.y1 - bay.y0;
+                double bx, by;
+                StructureModel.BaySpans(bay, out bx, out by);
                 var span = Math.Max(bx, by);
-                var depth = Math.Min(MaxDepthM, Math.Max(MinDepthM, span / SpanToDepth));
+                // the deck's depth: the slab's own structural thickness when the model gave it, else a rule of thumb from the span
+                var depth = slabGiven ? inputs.SlabDepthM.Value : Math.Min(MaxDepthM, Math.Max(MinDepthM, span / SpanToDepth));
                 var mass = ConcreteKgM3 * depth + run.DeadFieldKnM2Bay[b] * 1000.0 / Gravity;
                 var fn = given ? inputs.NaturalFrequencyHz.Value : FrequencyHz(span, depth, mass);
                 var br = new BayResonance
@@ -1315,7 +1321,7 @@ namespace Sportify.Simulation.Dynamics
                 {
                     scenario = "weather", kind = "snow-input", target = "Snow zone",
                     text = "The snow load uses " + (w.snow.zoneAssumed ? "an ASSUMED snow zone (" + w.snow.zone + ")" : "zone " + w.snow.zone) + (w.snow.altitudeAssumed ? " and an ASSUMED altitude of " + F0(w.snow.altitudeM) + " m" : "") +
-                           ": enter the site's snow zone and altitude in the Site tab. sk = " + F2(w.snow.skKnM2) + " kN/m2.",
+                           ": enter the site's snow zone and altitude in the Site conditions tab. sk = " + F2(w.snow.skKnM2) + " kN/m2.",
                 });
 
             // resonance
@@ -1343,7 +1349,7 @@ namespace Sportify.Simulation.Dynamics
                 recs.Add(new DynamicRecommendation
                 {
                     scenario = "resonance", kind = "frequency-input", target = "Natural frequency",
-                    text = "The deck's frequency is an ESTIMATE from the spans (" + F1(res.lowestFrequencyHz) + " to " + F1(res.highestFrequencyHz) + " Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Site tab before relying on this.",
+                    text = "The deck's frequency is an ESTIMATE from the spans (" + F1(res.lowestFrequencyHz) + " to " + F1(res.highestFrequencyHz) + " Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Structure tab before relying on this.",
                 });
             if (Open(r, AnalysisAssumptions.DeckCapacity))
                 recs.Add(new DynamicRecommendation
@@ -1370,7 +1376,9 @@ namespace Sportify.Simulation.Dynamics
                 "Weather: each case is a characteristic combination, without partial safety factors. Permanent load: build-ups dry, at field capacity (where the storm starts) or wet, as the case says; the static analysis's saturated weight is the envelope of all of them.",
                 "Rain: the cloudburst of the rain analysis (" + F0(RainIntensityMmH) + " mm/h for " + F0(RainMinutes) + " min) through each zone's own column, from field capacity. Snow: DIN EN 1991-1-3/NA ground load for zone " + r.weather.snow.zone + " at " + F0(r.weather.snow.altitudeM) +
                     " m, times " + F1(SnowShapeCoefficient) + " (flat roof); no drifting or sliding. Wind: the wind analysis's roof zones and peak pressure, the direction that lifts a bay most. Event in winter: EN 1990 combination values " + F1(PsiCrowd) + " (crowd) and " + F1(PsiSnow) + " (snow).",
-                "Resonance: each bay is one simply supported strip along its long span, depth span/" + F0(SpanToDepth) + " (" + F2(MinDepthM) + " to " + F2(MaxDepthM) + " m), E = " + F0(YoungGPa) + " GPa, damping " + F2(Damping) + "; " +
+                "Resonance: each bay is one simply supported strip along its long span, " +
+                    (r.resonance.slabDepthGiven ? "of the slab's own structural thickness from the Revit model (" + F0(r.resonance.slabDepthM * 1000f) + " mm), taken as concrete" : "depth span/" + F0(SpanToDepth) + " (" + F2(MinDepthM) + " to " + F2(MaxDepthM) + " m, no slab thickness was given)") +
+                    ", E = " + F0(YoungGPa) + " GPa, damping " + F2(Damping) + "; " +
                     (r.resonance.estimated ? "the natural frequency is ESTIMATED from that (good to about 25%), and the response is the worst over that band" : "the natural frequency is the engineer's figure") + ". The crowd drives the harmonics of its rhythm with the dynamic load factors of a half-sine pulse train (jumping: contact ratio 1/3 gives 1.8, 1.29, 0.67; Bachmann and Ammann) or walking 0.4, 0.1, 0.1; " +
                     "participants add as sync x N + (1 - sync) x sqrt(N) with sync 0 (walking), 0.2 (court play), 0.6 (event). A jumping event is 0.25 people per m2 on the courts and play areas only (planted gardens carry walkers, not a jumping crowd). Steady-state response; acceleration limits " + F2(r.resonance.activities.First(a => a.key == "walking").limitG) + " g (walking) and " + F2(r.resonance.activities.First(a => a.key == "play").limitG) + " g (rhythmic activities): see the inputs below for whose they are.",
                 "Capacity: " + F1(r.summary.capacityAssumed ? StructureModel.DefaultCapacityKnM2 : inputs.Structure.CapacityKnM2.Value) + " kN/m2" + (r.summary.capacityAssumed ? " (a PLACEHOLDER: enter the engineer's figure)." : "."),

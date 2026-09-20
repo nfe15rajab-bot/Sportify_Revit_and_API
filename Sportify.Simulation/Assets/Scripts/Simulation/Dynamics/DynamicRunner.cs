@@ -187,7 +187,7 @@ namespace Sportify.Simulation.Dynamics
             BuildPieces();
             _heat = new HeatLayer("HeatDyn", 0f, 0f, roof.length_m, roof.width_m, _field.Nx, _field.Ny, LayerHeight, 3);
             _agents = new AgentPool();
-            _deck = new VibratingDeck(_field, _run.Xs, _run.Ys, 0.7f);
+            _deck = new VibratingDeck(_field, _run.Bays, _run.Static.bays, 0.7f);
 
             // which bay each cell belongs to (by its centre), for colouring cells by bay
             _cellBay = new int[_field.Nx * _field.Ny];
@@ -216,14 +216,17 @@ namespace Sportify.Simulation.Dynamics
             b.Apply();
         }
 
+        /// <summary>Where a bay's label goes: its middle, for a skewed or cut bay its centroid.</summary>
+        static Vector3 BayPoint(BayResult bay, float height)
+        {
+            double cx, cy;
+            StructureModel.BayCentre(bay, out cx, out cy);
+            return LayoutSpace.ToWorld((float)cx, (float)cy, height);
+        }
+
         int BayIndex(double x, double y)
         {
-            var nbx = _run.Xs.Length - 1;
-            var c = 0;
-            while (c < nbx - 1 && x >= _run.Xs[c + 1]) c++;
-            var r = 0;
-            while (r < _run.Ys.Length - 2 && y >= _run.Ys[r + 1]) r++;
-            return r * nbx + c;
+            return _run.Bays.IndexAt(x, y);
         }
 
         void BuildPieces()
@@ -702,7 +705,7 @@ namespace Sportify.Simulation.Dynamics
             for (var b = 0; b < r.bays.Count; b++)
             {
                 var bay = _run.Static.bays[b];
-                labels.Add(_hud.WorldLabel(Num(r.bays[b].frequencyHz, "0.0") + " Hz", LayoutSpace.ToWorld((bay.x0 + bay.x1) * 0.5f, (bay.y0 + bay.y1) * 0.5f, 1.0f), 1.15f, Color.white).gameObject);
+                labels.Add(_hud.WorldLabel(Num(r.bays[b].frequencyHz, "0.0") + " Hz", BayPoint(bay, 1.0f), 1.15f, Color.white).gameObject);
                 labels[b].SetActive(false);
             }
             var plot = NewPlot(0f, 1560f);
@@ -726,7 +729,7 @@ namespace Sportify.Simulation.Dynamics
             _hud.SetLegend(new List<string>
             {
                 "Each bay coloured by its natural frequency, red (low) to violet (high)",
-                r.estimated ? Tint("ESTIMATED from the spans: good to about 25%. Enter the engineer's first natural frequency in the Site tab", Amber) : "The engineer's figure",
+                r.estimated ? Tint("ESTIMATED from the spans: good to about 25%. Enter the engineer's first natural frequency in the Structure tab", Amber) : "The engineer's figure",
                 Tint("Heavier and longer means lower: the tree bed's bays are the lowest", Muted),
             });
 
@@ -957,7 +960,7 @@ namespace Sportify.Simulation.Dynamics
                         var bay = _run.Static.bays[b];
                         var g = (float)DynamicModel.AccelerationG(act.alpha, force[b], mass[b], fn[b], fp, DynamicModel.Damping);
                         if (g / limit < 0.3f) continue;
-                        labels.Add(_hud.WorldLabel(Num(g, "0.00") + " g", LayoutSpace.ToWorld((bay.x0 + bay.x1) * 0.5f, (bay.y0 + bay.y1) * 0.5f, 2.2f), 1.1f, Color.white).gameObject);
+                        labels.Add(_hud.WorldLabel(Num(g, "0.00") + " g", BayPoint(bay, 2.2f), 1.1f, Color.white).gameObject);
                     }
                 }
 
@@ -1058,7 +1061,7 @@ namespace Sportify.Simulation.Dynamics
             }
             else CardText.Bullet(lines, Tint("Resonance", Good) + "  No bay exceeds its comfort limit.");
             CardText.Bullet(lines, Tint("Crowds", Amber) + "  The people are " + Num(s.crowdSharePercent, "0.#") + "% of the load: the build-ups decide the balance, not the crowd.");
-            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Site tab, or the window Revit opens before the analysis).");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure and Site conditions tabs, or the window Revit opens before the analysis).");
             else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             _hud.ShowCard("What to change", Color.white, "Screening result: the results file lists every number and assumption", lines);
         }

@@ -189,7 +189,7 @@ namespace Sportify.Simulation.Dynamics
         readonly int[] _bay;
         readonly float[] _phi, _slope;
 
-        public VibratingDeck(LoadField f, double[] xs, double[] ys, float height)
+        public VibratingDeck(LoadField f, BaySystem bays, IList<BayResult> results, float height)
         {
             _nx = f.Nx + 1;
             _ny = f.Ny + 1;
@@ -200,7 +200,6 @@ namespace Sportify.Simulation.Dynamics
             _bay = new int[n];
             _phi = new float[n];
             _slope = new float[n];
-            var nbx = xs.Length - 1;
 
             for (var iy = 0; iy < _ny; iy++)
             {
@@ -209,17 +208,17 @@ namespace Sportify.Simulation.Dynamics
                     var i = iy * _nx + ix;
                     var x = (float)(ix * f.CellW);
                     var y = (float)(iy * f.CellH);
-                    var c = 0;
-                    while (c < nbx - 1 && x >= xs[c + 1] - 1e-4) c++;
-                    var r = 0;
-                    while (r < ys.Length - 2 && y >= ys[r + 1] - 1e-4) r++;
-                    _bay[i] = r * nbx + c;
+                    var b = bays.IndexAt(x + 1e-4, y + 1e-4);                     // a vertex on a grid line belongs to the bay that starts there
+                    _bay[i] = b;
 
-                    var bx = (float)(xs[c + 1] - xs[c]);
-                    var by = (float)(ys[r + 1] - ys[r]);
-                    var alongY = by >= bx;
-                    var span = alongY ? by : bx;
-                    var s = Mathf.Clamp01((alongY ? y - (float)ys[r] : x - (float)xs[c]) / span);
+                    // the bay's box and spans: a rectangle's own; a skewed or cut bay's bounding box and mean sides
+                    var bay = results[b];
+                    double sx, sy;
+                    StructureModel.BaySpans(bay, out sx, out sy);
+                    var alongY = sy >= sx;
+                    var span = Mathf.Max(0.1f, (float)(alongY ? sy : sx));
+                    var extent = Mathf.Max(0.1f, alongY ? bay.y1 - bay.y0 : bay.x1 - bay.x0);
+                    var s = Mathf.Clamp01((alongY ? y - bay.y0 : x - bay.x0) / extent);
                     _phi[i] = Mathf.Sin(Mathf.PI * s);
                     var d = Mathf.PI / span * Mathf.Cos(Mathf.PI * s);          // the slope of the mode along the long span
                     _slope[i] = alongY ? d : 0.4f * d;
@@ -232,6 +231,7 @@ namespace Sportify.Simulation.Dynamics
             for (var iy = 0; iy < _ny - 1; iy++)
                 for (var ix = 0; ix < _nx - 1; ix++)
                 {
+                    if (f.Coverage[f.Index(ix, iy)] <= 0) continue;               // no deck where there is no roof
                     var a = iy * _nx + ix;
                     var b = a + 1;
                     var cc = a + _nx;
@@ -240,6 +240,7 @@ namespace Sportify.Simulation.Dynamics
                     tris[t++] = a; tris[t++] = b; tris[t++] = cc;
                     tris[t++] = b; tris[t++] = d2; tris[t++] = cc;
                 }
+            System.Array.Resize(ref tris, t);
 
             _mesh = new Mesh { name = "VibratingDeck", indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
             _mesh.MarkDynamic();

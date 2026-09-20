@@ -92,6 +92,11 @@ namespace Sportify.Simulation.Structure
         public const string DaySchedule = "day_schedule";
         public const string ComfortWalking = "comfort_limit_walking";
         public const string ComfortRhythmic = "comfort_limit_rhythmic";
+        public const string SiteLatitude = "site_latitude";
+        public const string RoofNorth = "roof_north";
+        public const string ShadeTarget = "shade_target";
+        public const string GardenMinSun = "garden_min_sun";
+        public const string ShadeEquipment = "shade_equipment";
 
         public const double DefaultComfortWalkingG = 0.02;
         public const double DefaultComfortRhythmicG = 0.05;
@@ -107,7 +112,7 @@ namespace Sportify.Simulation.Structure
         {
             new AssumptionDef
             {
-                Key = DeckCapacity, Label = "Deck capacity", ShortLabel = "deck capacity", Unit = "kN/m2", Kind = "number", Analyses = "structural dynamic",
+                Key = DeckCapacity, Label = "Deck capacity", ShortLabel = "deck capacity", Unit = "kN/m2", Kind = "number", Analyses = "structural dynamic sun",
                 Default = 8.0, Min = 0.5, Max = 30.0, DefaultText = "8.0 kN/m2", Status = AssumptionStatus.Placeholder,
                 Reference = "No code value: it is the structural engineer's figure for the deck (characteristic permanent + imposed load per m2).",
                 Basis = "A stand-in, not the engineer's figure: 5.0 for sports use (DIN EN 1991-1-1/NA Table 6.1DE, category C4) plus 3.0 permanent. Every over-capacity result depends on it.",
@@ -159,6 +164,45 @@ namespace Sportify.Simulation.Structure
                 Reference = "SCI P354 gives about 3% g for gymnasia; ISO 10137 and CCIP-016 give the framework. No DIN table.",
                 Basis = "0.05 g (5% g) for court play and a jumping crowd, the author's choice within the published range.",
             },
+            new AssumptionDef
+            {
+                Key = SiteLatitude, Label = "Site latitude", ShortLabel = "latitude", Unit = "deg N", Kind = "number", Analyses = "sun",
+                Default = 51.0, Min = -66.0, Max = 66.0, DefaultText = "51.0 deg N (Germany's middle)", Status = AssumptionStatus.Assumed,
+                Reference = "Where the roof is: the height of the sun depends on it. Set by the Site tab's map; Germany spans about 47.3 to 55.1 deg N.",
+                Basis = "51 deg N is a stand-in for a site with no location set. Only the latitude matters (the analysis works in solar time), but it moves the noon sun by about one degree for every degree.",
+            },
+            new AssumptionDef
+            {
+                Key = RoofNorth, Label = "Roof orientation", ShortLabel = "orientation", Unit = "deg", Kind = "number", Analyses = "sun",
+                Default = 0.0, Min = 0.0, Max = 359.99, DefaultText = "0 deg (the top of the plan is north)", Status = AssumptionStatus.Assumed,
+                Reference = "The compass bearing of the top of the plan, clockwise from north (the Site tab's Roof orientation).",
+                Basis = "0 deg puts north at the top of the plan. It decides which side the shade falls on, so a wrong orientation moves every shadow.",
+            },
+            new AssumptionDef
+            {
+                Key = ShadeTarget, Label = "Shade target for people zones", ShortLabel = "shade target", Unit = "%", Kind = "number", Analyses = "sun",
+                Default = 50.0, Min = 1.0, Max = 100.0, DefaultText = "50% of the zone in shade", Status = AssumptionStatus.Assumed,
+                Reference = "No standard fixes it for a roof. DIN 5034-1 sets sunshine duration for dwellings, not for outdoor areas; sun-protection guidance asks for shade wherever people stay for long around midday.",
+                Basis = "Half of every play area and spectator zone in shade between 11:00 and 16:00 solar time on 21 June: the author's choice, for the team to argue with.",
+            },
+            new AssumptionDef
+            {
+                Key = GardenMinSun, Label = "Sun the gardens need", ShortLabel = "garden sun", Unit = "h", Kind = "number", Analyses = "sun",
+                Default = 4.0, Min = 0.5, Max = 16.0, DefaultText = "4 h of direct sun on 21 June", Status = AssumptionStatus.Assumed,
+                Reference = "Plant need: sedum and lawn want 6 h or more, half-shade planting 3 to 6 h (rule of thumb, not verified against the FLL guideline or the species data).",
+                Basis = "4 h is a middle value for a mixed planting. Shade equipment is not allowed to take a garden below it.",
+            },
+            new AssumptionDef
+            {
+                Key = ShadeEquipment, Label = "Shading equipment that may be recommended", ShortLabel = "equipment", Kind = "choice", Analyses = "sun",
+                DefaultKey = "all", DefaultText = "all kinds", Status = AssumptionStatus.Assumed,
+                Reference = "A choice for the project: fixed structures need the roof's approval and a deck check; light ones (sails, parasols) need anchoring and wind checks.",
+                Basis = "All kinds are considered by default; the heavy ones (a tree in a deep bed) are weighed against the deck like everything else.",
+                Choices = new List<AssumptionChoice>
+                {
+                    Choice("all", "All kinds"), Choice("light", "Light only (sails and parasols)"), Choice("fixed", "Fixed only (pergolas and canopies)"),
+                },
+            },
         };
 
         static AssumptionDef Fixed(string key, string label, string text, string status, string reference, string analyses = "structural dynamic")
@@ -181,7 +225,14 @@ namespace Sportify.Simulation.Structure
             Fixed("event_density", "Jumping crowd density", "0.25 people/m2 on courts and play areas", AssumptionStatus.Literature, "Bachmann and Ammann, Vibrations in Structures (crowd density for rhythmic activity)", "dynamic"),
             Fixed("harmonics", "Dynamic load factors of jumping and walking", "1.8, 1.29, 0.67 (jumping); 0.4, 0.1, 0.1 (walking)", AssumptionStatus.Literature, "Half-sine pulse train (Bachmann and Ammann); ISO 10137 for walking", "dynamic"),
             Fixed("sync", "Synchronisation of the crowd", "0 walking, 0.2 court play, 0.6 jumping event", AssumptionStatus.Assumed, "Author's choice: N people add as sync x N + (1 - sync) x sqrt(N)", "dynamic"),
-            Fixed("deck_model", "Deck stiffness and damping", "concrete, E 30 GPa, depth span/25, damping 3%", AssumptionStatus.Assumed, "Reinforced-concrete slab strip; 3% is a usual value for a finished floor", "dynamic"),
+            Fixed("sun_days", "Design days", "21 June, 21 March, 21 December", AssumptionStatus.Assumed, "The summer solstice decides the heat, the equinox and the winter solstice show what shade costs the gardens in the other seasons", "sun"),
+            Fixed("sun_window", "Heat window", "11:00 to 16:00 solar time", AssumptionStatus.Assumed, "The hours around solar noon when the sun is highest and people are on the roof: the shade target is judged here", "sun"),
+            Fixed("sun_sky", "Sun and sky", "direct sun only, solar time, sun counted above 2 deg", AssumptionStatus.Assumed, "Sun position by Spencer's series (declination) and the hour angle: good to a fraction of a degree. Diffuse light, clouds, reflections and neighbouring buildings are not modelled", "sun"),
+            Fixed("sun_trees", "Tree canopies", "sphere of the crown, lets 25% of the sun through in summer, 50% in March, 70% bare in December", AssumptionStatus.Assumed, "The author's leaf-density figures; only plants 2 m or taller cast shade", "sun"),
+            Fixed("sun_spectators", "Spectator zone", "a 2 m band around a court that has seats", AssumptionStatus.Assumed, "Where people watch: the court's play area itself is never covered", "sun"),
+            Fixed("sun_catalogue", "Shading equipment", "louvre pergola 2.6 m high (lets 15% through), solid canopy 3.0 m (0%), shade sail 3.5 m (10%), parasol 2.8 m (10%), tree in a deep bed 6 m", AssumptionStatus.Assumed, "Typical sizes, heights and weights, not a product catalogue: pergola 0.35, canopy 0.5, sail 0.03, parasol 0.05 kN/m2, a tree bed 13.5 kN/m2 over 3 x 3 m", "sun"),
+            Fixed("sun_wind", "Wind on the equipment", "peak pressure of the wind analysis x 1.2 to 1.5", AssumptionStatus.Assumed, "A flat plate or sail in the roof's peak wind: the uplift the anchors must carry, an estimate to hand to the structural engineer", "sun"),
+            Fixed("deck_model", "Deck stiffness and damping", "concrete, E 30 GPa, depth = the slab's structural thickness from the Revit model (else span/25), damping 3%", AssumptionStatus.Assumed, "Reinforced-concrete slab strip; 3% is a usual value for a finished floor. The thickness is the layers whose function is structure in the pushed slab; beams under it are not added to the depth", "dynamic"),
         };
 
         public static AssumptionDef Find(string key)

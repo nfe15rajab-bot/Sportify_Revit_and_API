@@ -15,8 +15,9 @@ namespace Sportify.Simulation.Dynamics
         {
             var site = payload.site_conditions;
             var snow = site != null && !string.IsNullOrWhiteSpace(site.snow_zone) ? site.snow_zone.Trim() : null;
-            var frequency = payload.structure != null && payload.structure.natural_frequency_hz > 0f ? payload.structure.natural_frequency_hz : (double?)null;
+            var frequency = payload.structure != null && payload.structure.natural_frequency_hz > 0f ? InputQuantiser.Q(payload.structure.natural_frequency_hz) : (double?)null;
             var a = payload.analysis_assumptions;
+            var slab = payload.roof_context != null && payload.roof_context.features != null && payload.roof_context.features.slab != null ? payload.roof_context.features.slab.structural_thickness_m : 0f;
 
             return new DynamicInputs
             {
@@ -24,9 +25,10 @@ namespace Sportify.Simulation.Dynamics
                 Wind = WindLayoutAdapter.ToInputs(payload),
                 SnowZone = snow,
                 SnowZoneSource = snow == null ? "" : "set by the designer",
-                AltitudeM = site != null && site.altitude_set ? site.altitude_m : (double?)null,
+                AltitudeM = site != null && site.altitude_set ? InputQuantiser.Q(site.altitude_m) : (double?)null,
                 Schedule = site != null && !string.IsNullOrWhiteSpace(site.day_schedule) ? site.day_schedule : null,
                 NaturalFrequencyHz = frequency,
+                SlabDepthM = slab > 0f ? Math.Round((double)slab, 4) : (double?)null,
                 // rounded so a float from Unity's JsonUtility reads as the same double the add-in parses from the text
                 WalkingLimitG = a != null && a.comfort_limit_walking_g > 0f ? Math.Round((double)a.comfort_limit_walking_g, 6) : (double?)null,
                 RhythmicLimitG = a != null && a.comfort_limit_rhythmic_g > 0f ? Math.Round((double)a.comfort_limit_rhythmic_g, 6) : (double?)null,
