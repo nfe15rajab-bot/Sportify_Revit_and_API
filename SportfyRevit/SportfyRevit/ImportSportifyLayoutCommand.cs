@@ -7,16 +7,16 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Manual, on-demand half of the Combine-to-Revit import: prompts for a
-    /// JSON file and builds geometry for it via SportifyLayoutBuilder. Kept
-    /// independent of AutoImportSync's live toggle — this always adds a
-    /// fresh set of elements (never deletes a previous run's geometry),
-    /// since a deliberate manual run is expected to be occasional, not a
-    /// repeated live-sync loop.
+    /// Manual, on-demand half of the Combine-to-Revit import: prompts for a JSON file and builds geometry for it through LayoutImporter,
+    /// the same import Auto Import runs. Unlike before it REPLACES what the previous import of this project created (ImportLedger) instead of
+    /// adding a second copy on top of it, asks before turning worksharing on, and shows which family every piece got or why it is a box.
+    /// The same report is in the log (%APPDATA%\Sportify\logs).
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class ImportSportifyLayoutCommand : IExternalCommand
     {
+        private const long MaxLayoutBytes = 64L * 1024 * 1024;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             var uidoc = commandData.Application.ActiveUIDocument;
@@ -42,6 +42,7 @@ namespace SportfyRevit
             }
             catch (Exception ex)
             {
+                SportifyLog.Error("import", "the selected file could not be resolved", ex);
                 message = "Couldn't resolve the selected file: " + ex.Message;
                 return Result.Failed;
             }
@@ -50,11 +51,17 @@ namespace SportfyRevit
             SportifyLayout? layout;
             try
             {
+                if (new FileInfo(jsonPath).Length > MaxLayoutBytes)
+                {
+                    message = "That file is larger than 64 MB: it is not a Sportify layout export.";
+                    return Result.Failed;
+                }
                 text = File.ReadAllText(jsonPath);
                 layout = JsonSerializer.Deserialize<SportifyLayout>(text);
             }
             catch (Exception ex)
             {
+                SportifyLog.Error("import", "the file " + jsonPath + " could not be read as a layout", ex);
                 message = "Couldn't read that JSON file: " + ex.Message;
                 return Result.Failed;
             }
@@ -65,46 +72,28 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            // Makes this manually-imported layout visible to RoofBoundaryServer's
-            // TryGetLatestCombinedLayout the same way a live Combine-tab push would
-            // be — so SimulateBallTrajectoriesCommand (and anything else that wants
-            // "the current layout") works right after a file-picker import too, not
-            // only after a live push from the web app.
+            // Makes this manually-imported layout visible to RoofBoundaryServer's TryGetLatestCombinedLayout the same way a live Combine-tab push
+            // would be — so SimulateBallTrajectoriesCommand (and anything else that wants "the current layout") works right after a file-picker
+            // import too, not only after a live push from the web app.
             RoofBoundaryServer.SetCombinedLayoutPayload(text);
 
-            // Must run before the transaction opens — EnableWorksharing (inside this,
-            // only on a not-yet-workshared document) throws if called from within one.
-            SportifyLayoutBuilder.EnsureWorksharing(doc);
-
-            using (var t = new Transaction(doc, "Import Sportify layout"))
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual);
+            if (outcome.Cancelled) return Result.Cancelled;
+            if (!outcome.Succeeded || outcome.Summary == null)
             {
-                t.Start();
-                ImportDiagnostics.Begin();
-                ImportSummary summary;
-                try
-                {
-                    summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
-                }
-                catch (Exception ex)
-                {
-                    t.RollBack();
-                    message = "Import failed while building geometry: " + ex.Message;
-                    return Result.Failed;
-                }
-
-                t.Commit();
-
-                TaskDialog.Show(
-                    "Sportify",
-                    $"Imported {summary.PieceCount} placement(s), roof boundary, setback line, " +
-                    $"{summary.PathCount} circulation path(s) and {summary.EntryCount} entrance marker(s).\n\n" +
-                    "Pieces went to the Sports/Gardens worksets; boundary, setback, circulation " +
-                    "and entrances went to the Combine workset.\n\n" +
-                    // How each piece was actually placed. Without this, an import
-                    // that quietly used the wrong family type looks exactly like
-                    // one that worked.
-                    ImportDiagnostics.Report());
+                message = "Import failed: " + outcome.Error + "\n\nThe project is as it was before. The log has the details:\n" + SportifyLog.CurrentFile;
+                return Result.Failed;
             }
+
+            var summary = outcome.Summary;
+            TaskDialog.Show(
+                "Sportify",
+                $"Imported {summary.PieceCount} placement(s), roof boundary, setback line, " +
+                $"{summary.PathCount} circulation path(s) and {summary.EntryCount} entrance marker(s).\n" +
+                (outcome.Replaced > 0 ? $"Replaced {outcome.Replaced} element(s) of the previous import.\n" : "") +
+                "\nPieces went to the Sports/Gardens worksets when the project has worksets; boundary, setback, circulation and entrances to the Combine workset.\n\n" +
+                // Which family every piece got, or why it became a box.
+                outcome.Report + "\nLog: " + SportifyLog.CurrentFile);
 
             return Result.Succeeded;
         }

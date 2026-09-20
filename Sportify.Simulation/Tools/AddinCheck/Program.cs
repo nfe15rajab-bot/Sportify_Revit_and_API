@@ -533,5 +533,56 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("equipment, beams and walls are read back from the layout", layout.RoofContext!.Features!.Equipment.Count == 1 && layout.RoofContext.Features.Equipment[0].WeightKn == 3.5 && layout.Structure!.Beams![0].DepthM == 0.3 && layout.Structure.Walls![0].Bearing);
 }
 
+// ---- the log and the family template search: what the import's honesty rests on
+{
+    Console.WriteLine("\n===== the add-in's log =====");
+    var logDir = Path.Combine(Path.GetTempPath(), "sportify-log-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    SportifyLog.UseDirectory(logDir);
+    SportifyLog.Info("check", "hello");
+    SportifyLog.Warn("check", "careful");
+    SportifyLog.Error("check", "it broke", new InvalidOperationException("the reason"));
+    SportifyLog.Block("import", "report:", "line one\nline two\r\nline three");
+    var text = File.ReadAllText(SportifyLog.CurrentFile);
+    Check("the log is a file per day under the folder it was pointed at", SportifyLog.CurrentFile.StartsWith(logDir) && Path.GetFileName(SportifyLog.CurrentFile).StartsWith("addin-") && File.Exists(SportifyLog.CurrentFile));
+    Check("every entry has a UTC time, a level and an area", System.Text.RegularExpressions.Regex.Matches(text, @"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (INFO |WARN |ERROR) \[[a-z\-]+\] ", System.Text.RegularExpressions.RegexOptions.Multiline).Count == 4);
+    Check("an exception is logged with its type, its message and its stack", text.Contains("InvalidOperationException: the reason"));
+    Check("a report keeps its lines under one entry, indented", text.Contains("        line two") && text.Contains("        line three"));
+
+    var old = Path.Combine(logDir, "addin-20200101.log");
+    File.WriteAllText(old, "old"); File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-30));
+    var fresh = Path.Combine(logDir, "addin-20260101.log");
+    File.WriteAllText(fresh, "recent"); File.SetLastWriteTimeUtc(fresh, DateTime.UtcNow.AddDays(-3));
+    SportifyLog.UseDirectory(logDir);               // forgets that it pruned today
+    SportifyLog.Info("check", "prune");
+    Check("files older than two weeks are removed, newer ones are kept", !File.Exists(old) && File.Exists(fresh));
+
+    var blocker = Path.Combine(Path.GetTempPath(), "sportify-log-file-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    File.WriteAllText(blocker, "a file where the log folder should be");
+    SportifyLog.UseDirectory(Path.Combine(blocker, "logs"));
+    var threw = false;
+    try { SportifyLog.Error("check", "nowhere to write", new Exception("x")); } catch (Exception) { threw = true; }
+    Check("a log that cannot be written never throws (it must not be what breaks an import)", !threw);
+    SportifyLog.UseDirectory(null);
+    try { Directory.Delete(logDir, true); File.Delete(blocker); } catch (IOException) { }
+
+    Console.WriteLine("\n===== finding the Generic Model family template in any language =====");
+    string[] Rank(params string[] names) => FamilyTemplateRanking.Rank(names.Select(n => @"C:\ProgramData\Autodesk\RVT 2025\Family Templates\" + n)).Select(Path.GetFileName).ToArray()!;
+    var en = Rank(@"English\Metric Generic Model wall based.rft", @"English\Metric Generic Model face based.rft", @"English\Metric Generic Model.rft", @"English\Metric Generic Model line based.rft",
+                  @"English\Metric Generic Model work plane based.rft", @"English\Metric Generic Model Adaptive.rft", @"English\Metric Door.rft", @"English\Metric Furniture.rft");
+    Check("English: the plain template first, the host-based variants and other categories never", en.Length >= 1 && en[0] == "Metric Generic Model.rft" && en.Length == 1, string.Join(" | ", en));
+    var de = Rank(@"German\Allgemeines Modell wandbasiert.rft", @"German\Allgemeines Modell flächenbasiert.rft", @"German\Allgemeines Modell.rft", @"German\Allgemeines Modell arbeitsebenenbasiert.rft",
+                  @"German\Allgemeines Modell deckenbasiert.rft", @"German\Tür.rft", @"German\Möbel.rft");
+    Check("German (Allgemeines Modell): the plain one, none of the wand-/flächen-/decken-/arbeitsebenenbasiert ones", de.Length == 1 && de[0] == "Allgemeines Modell.rft", string.Join(" | ", de));
+    var fr = Rank(@"French\Modèle générique métrique.rft", @"French\Modèle générique métrique basé sur un mur.rft", @"French\Modèle générique métrique basé sur une face.rft", @"French\Porte métrique.rft");
+    Check("French (Modèle générique): the plain one, accents and all, not the 'basé sur' ones", fr.Length == 1 && fr[0] == "Modèle générique métrique.rft", string.Join(" | ", fr));
+    var es = Rank(@"Spanish\Modelo genérico métrico.rft", @"Spanish\Modelo genérico métrico basado en pared.rft", @"Spanish\Puerta métrica.rft");
+    var it = Rank(@"Italian\Modello generico metrico.rft", @"Italian\Modello generico metrico basato su parete.rft", @"Italian\Porta metrica.rft");
+    Check("Spanish and Italian the same", es.Length == 1 && es[0] == "Modelo genérico métrico.rft" && it.Length == 1 && it[0] == "Modello generico metrico.rft", string.Join(" | ", es) + " / " + string.Join(" | ", it));
+    var both = FamilyTemplateRanking.Rank(new[] { @"C:\x\English-Imperial\Generic Model.rft", @"C:\x\English\Metric Generic Model.rft" }).Select(Path.GetFileName).ToArray();
+    Check("the metric template is preferred over the imperial one, but the imperial one is still a candidate", both.Length == 2 && both[0] == "Metric Generic Model.rft", string.Join(" | ", both));
+    Check("a language nobody listed gives no candidates (Revit's category check is then the way, on every template)", Rank(@"Klingon\Tlhab.rft").Length == 0);
+    Check("Normalise: accents and separators do not matter", FamilyTemplateRanking.Normalise("Modèle_générique-métrique") == "modele generique metrique");
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;

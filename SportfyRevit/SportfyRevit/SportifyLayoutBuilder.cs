@@ -92,17 +92,14 @@ namespace SportfyRevit
             return originYFt + CurrentRoofWidthFt - FeetFromMeters(webYM);
         }
 
-        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout)
+        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets)
         {
             var createdIds = new List<ElementId>();
 
-            // EnsureWorksharing is NOT called here on purpose — Document.EnableWorksharing
-            // throws ("Operation is not permitted when there is any open sub-transaction,
-            // transaction, or transaction group") if called while a transaction is open, and
-            // this method must be called from inside one (see the class doc comment above).
-            // Callers (ImportSportifyLayoutCommand, AutoImportSync) call EnsureWorksharing
-            // themselves, before opening their transaction.
-            var worksets = EnsureWorksets(doc);
+            // Worksharing is settled by the caller (LayoutImporter asks the person, and turns it on if they agree) BEFORE the transaction this
+            // runs in: Document.EnableWorksharing throws inside an open transaction. In a project without worksets (the person said no, or a
+            // caller that must not change the project) everything is simply left on the project's default workset.
+            var worksets = EnsureWorksets(doc, useWorksets);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
@@ -143,7 +140,7 @@ namespace SportfyRevit
             {
                 foreach (var p in layout.Placements)
                 {
-                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds, fireSafetyDistancesM))
+                    if (CreatePlacementGeometry(doc, p, originXFt, originYFt, worksets, textTypeId, createdIds, fireSafetyDistancesM, prepared))
                         pieceCount++;
                 }
             }
@@ -295,15 +292,11 @@ namespace SportfyRevit
         /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
         /// transaction internally and throws if called while one is already open.
         /// </summary>
-        internal static void EnsureWorksharing(Document doc)
-        {
-            if (!doc.IsWorkshared)
-                doc.EnableWorksharing("Sports", "Combine");
-        }
-
-        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc)
+        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets)
         {
             var names = new[] { "Sports", "Gardens", "Combine" };
+            if (!useWorksets || !doc.IsWorkshared)
+                return names.ToDictionary(n => n, n => WorksetId.InvalidWorksetId);
             var existing = new FilteredWorksetCollector(doc)
                 .OfKind(WorksetKind.UserWorkset)
                 .ToDictionary(w => w.Name, w => w.Id);
@@ -327,6 +320,7 @@ namespace SportfyRevit
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
         internal static void SetWorkset(Element el, WorksetId worksetId)
         {
+            if (worksetId == WorksetId.InvalidWorksetId) return;      // a project without worksets: the default workset stays
             var p = el.get_Parameter(BuiltInParameter.ELEM_PARTITION_PARAM);
             if (p != null && !p.IsReadOnly)
                 p.Set(worksetId.IntegerValue);
@@ -343,13 +337,25 @@ namespace SportfyRevit
         /// rather than extruded — the closest available stand-in for the
         /// "3D text" placeholder labels asked for here.
         /// </summary>
-        private static ElementId GetDefaultTextNoteTypeId(Document doc)
+        private static ElementId? GetDefaultTextNoteTypeId(Document doc)
         {
-            var existing = new FilteredElementCollector(doc)
-                .OfClass(typeof(TextNoteType))
-                .FirstOrDefault();
+            // A text note lives in a VIEW. It used to be created blindly in whichever view was active, and in a 3D view (or a schedule) Revit throws:
+            // one label rolled the whole import back. Now the labels are simply skipped there, and the report says so.
+            var view = doc.ActiveView;
+            bool holdsText = view != null && view.ViewType is ViewType.FloorPlan or ViewType.CeilingPlan or ViewType.EngineeringPlan or ViewType.AreaPlan
+                                                          or ViewType.Elevation or ViewType.Section or ViewType.Detail or ViewType.DraftingView or ViewType.Legend
+                                                          or ViewType.DrawingSheet;
+            if (!holdsText)
+            {
+                ImportDiagnostics.Note("labels were not created: the active view (" + (view?.ViewType.ToString() ?? "none") + ") cannot hold text notes; import from a plan view to get them");
+                return null;
+            }
+            var existing = new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).FirstOrDefault();
             if (existing == null)
-                throw new InvalidOperationException("No TextNoteType found in this project — every default template ships with one.");
+            {
+                ImportDiagnostics.Note("labels were not created: this project has no text note type");
+                return null;
+            }
             return existing.Id;
         }
 
@@ -361,8 +367,8 @@ namespace SportfyRevit
         /// </summary>
         private static bool CreatePlacementGeometry(
             Document doc, PlacementDto p, double originXFt, double originYFt,
-            Dictionary<string, WorksetId> worksets, ElementId textTypeId, List<ElementId> createdIds,
-            Dictionary<string, double> fireSafetyDistancesM)
+            Dictionary<string, WorksetId> worksets, ElementId? textTypeId, List<ElementId> createdIds,
+            Dictionary<string, double> fireSafetyDistancesM, PreparedFamilies prepared)
         {
             var bb = p.BoundingBox;
             if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0)
@@ -383,7 +389,7 @@ namespace SportfyRevit
             if (TryCreateAssemblyFloor(doc, p, bb, originXFt, originYFt, worksetId, createdIds))
                 return true;
 
-            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds, fireSafetyDistanceM);
+            FamilyPlacementBuilder.PlaceComponent(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds, fireSafetyDistanceM, prepared.For(p));
             return true;
         }
 
@@ -421,6 +427,7 @@ namespace SportfyRevit
             if (a.DistanceTo(b) < 1e-6) return;
             var plane = Plane.CreateByThreePoints(a, b, a + XYZ.BasisZ);
             var sketchPlane = SketchPlane.Create(doc, plane);
+            createdIds.Add(sketchPlane.Id);
             var line = doc.Create.NewModelCurve(Line.CreateBound(a, b), sketchPlane);
             SetWorkset(line, worksetId);
             createdIds.Add(line.Id);
@@ -519,6 +526,7 @@ namespace SportfyRevit
                 var center = PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt);
                 var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
                 var sketchPlane = SketchPlane.Create(doc, plane);
+                createdIds.Add(sketchPlane.Id);
                 var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
                 var curve = doc.Create.NewModelCurve(circle, sketchPlane);
                 SetWorkset(curve, worksetId);

@@ -8,31 +8,20 @@ using Autodesk.Revit.DB;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Builds (or reuses a cached) real Revit Family for a placement's
-    /// quality_key — an extrusion sized to its footprint, built from
-    /// Revit's own "Metric Generic Model" template so it works for any
-    /// placement category with no hand-built specialty family required,
-    /// carrying the full SportifyFamilyParameters data set. One Family per
-    /// quality_key, a single Type (named the same as the family) — the
-    /// user-confirmed grouping: simplest, a direct 1:1 mirror of the app's
-    /// own placements.
+    /// Builds (or reuses a cached) real Revit Family for a placement's quality_key — an extrusion sized to its footprint, built from Revit's own
+    /// Generic Model template (GenericFamilyTemplateLocator finds it in any language) so it works for any placement category with no hand-built
+    /// specialty family required, carrying the full SportifyFamilyParameters data set.
     ///
-    /// Two cache layers, since a fresh family document + geometry + ~28
-    /// parameters + save + load is real work (roughly a second, not
-    /// instant) — fine for an occasional manual Import, too slow to redo
-    /// on every one of AutoImportSync's 2-second ticks:
-    /// - In-memory, per (document, quality_key): reused for the rest of
-    ///   this Revit session without touching disk at all.
-    /// - On-disk, under %AppData%\...\SportifyGeneratedFamilies\: reused
-    ///   across Revit sessions/projects — the first time any user on this
-    ///   machine hits a given quality_key, every later sync/session/project
-    ///   just loads the saved .rfa directly, no regeneration.
+    /// One Family per quality_key AND size. The size is part of the name (POLYVALENT_MINI_MEDIUM__2000x1200): the extrusion is a fixed rectangle, so a
+    /// family cached under the quality_key alone gave every later layout the size of the first placement that ever asked for it (a 24 x 15 m
+    /// volleyball court got the 16 x 8 m file). Two cache layers, since a fresh family document + geometry + ~28 parameters + save + load is real
+    /// work (roughly a second):
+    /// - In-memory, per (document, family name): reused for the rest of this Revit session.
+    /// - On-disk, under %AppData%\...\SportifyGeneratedFamilies\: reused across sessions and projects.
     ///
-    /// Untested beyond compilation against the real RevitAPI.dll installed
-    /// on this machine — same honest caveat this project's other
-    /// first-real-mutation code (SportifySharedParameters) already carries;
-    /// creating/saving/loading a family document has no dry-run and
-    /// couldn't be exercised inside an actual Revit session from here.
+    /// This class never swallows a failure: it throws, with the reason in the message, and FamilyPreparation records it in the import report and
+    /// the log. It must run OUTSIDE the import transaction (FamilyPreparation opens its own small ones): creating and loading families is
+    /// real document mutation with real failure modes, and one bad family must not be able to abort the whole import.
     /// </summary>
     internal static class SportifyFamilyGenerator
     {
@@ -40,39 +29,77 @@ namespace SportfyRevit
 
         private static readonly Dictionary<string, ElementId> SessionCache = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Single entry point FamilyPlacementBuilder calls when no already-loaded family matched.</summary>
-        public static FamilySymbol? GetOrCreateSymbol(Document doc, PlacementDto p)
+        /// <summary>
+        /// The name this placement's generated family has, or null when it has no quality_key (then there is nothing stable to name or cache a family
+        /// by, and the piece is a placeholder box). quality_key, then the footprint in centimetres, then (gardens) the build-up depth.
+        /// </summary>
+        public static string? FamilyNameFor(PlacementDto p)
         {
             var qualityKey = p.Parameters?.QualityKey;
-            if (string.IsNullOrWhiteSpace(qualityKey)) return null; // nothing stable to name/cache a family by
+            if (string.IsNullOrWhiteSpace(qualityKey)) return null;
+            var (lengthM, widthM, depthM) = SizeOf(p);
+            var name = $"{SanitizeFileName(qualityKey)}__{Cm(lengthM)}x{Cm(widthM)}";
+            if (PlacementDataHelpers.GetGeneralities(p)?.BuildupDepthM != null) name += $"__d{Cm(depthM)}";
+            return name;
+        }
 
-            // Scoped by document too — an ElementId cached against a
-            // different open document is meaningless (and, rarely, could
-            // coincidentally resolve to an unrelated real element).
-            string sessionKey = (doc.PathName ?? doc.Title) + "::" + qualityKey;
+        private static int Cm(double meters) => (int)Math.Round(meters * 100.0);
+
+        /// <summary>Footprint and thickness the extrusion gets: the generalities block when the export has one, else the dimensions of the field/activity/garden, else the bounding box.</summary>
+        private static (double LengthM, double WidthM, double DepthM) SizeOf(PlacementDto p)
+        {
+            var gen = PlacementDataHelpers.GetGeneralities(p);
+            var (_, _, _, unifiedLengthM, unifiedWidthM) = PlacementDataHelpers.GetUnifiedFields(p);
+            double lengthM = gen?.LengthM ?? unifiedLengthM ?? p.BoundingBox?.WidthM ?? 1.0;
+            double widthM = gen?.WidthM ?? unifiedWidthM ?? p.BoundingBox?.HeightM ?? 1.0;
+            // Gardens: real buildup depth (sum of the theme's layer thicknesses) rather than an arbitrary placeholder — fields/activities have no
+            // buildup-depth data, so the same nominal thickness PlacePlaceholderBox uses stands in for those.
+            double depthM = gen?.BuildupDepthM ?? DefaultThicknessM;
+            return (lengthM, widthM, depthM);
+        }
+
+        /// <summary>The symbol of a family with exactly this name that is already in the project (a generated one loaded earlier), or null.</summary>
+        public static FamilySymbol? FindLoaded(Document doc, string familyName)
+        {
+            foreach (var symbol in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>())
+                if (string.Equals(symbol.Family?.Name, familyName, StringComparison.OrdinalIgnoreCase)) return symbol;
+            return null;
+        }
+
+        /// <summary>
+        /// Loads the family for this placement, generating and saving it first when it is not on disk yet. Must be called inside a transaction on
+        /// <paramref name="doc"/> (LoadFamily and Activate modify it) and NOT inside the import's. Throws with the reason when it cannot.
+        /// </summary>
+        public static FamilySymbol GetOrCreateSymbol(Document doc, PlacementDto p)
+        {
+            var familyName = FamilyNameFor(p) ?? throw new InvalidOperationException("the piece has no quality_key, so there is nothing to name a family by");
+
+            // Scoped by document too — an ElementId cached against a different open document is meaningless.
+            string sessionKey = (string.IsNullOrEmpty(doc.PathName) ? doc.Title : doc.PathName) + "::" + familyName;
             if (SessionCache.TryGetValue(sessionKey, out var cachedId) && doc.GetElement(cachedId) is FamilySymbol cachedSymbol)
                 return cachedSymbol;
 
-            var symbol = LoadOrGenerate(doc, p, qualityKey);
-            if (symbol != null) SessionCache[sessionKey] = symbol.Id;
+            var symbol = LoadOrGenerate(doc, p, familyName);
+            SessionCache[sessionKey] = symbol.Id;
             return symbol;
         }
 
-        private static FamilySymbol? LoadOrGenerate(Document doc, PlacementDto p, string qualityKey)
+        private static FamilySymbol LoadOrGenerate(Document doc, PlacementDto p, string familyName)
         {
-            string rfaPath = CachePath(qualityKey);
+            string rfaPath = CachePath(familyName);
 
             if (!File.Exists(rfaPath))
-                GenerateAndSaveFamily(doc.Application, p, qualityKey, rfaPath);
+                GenerateAndSaveFamily(doc.Application, p, p.Parameters!.QualityKey!, rfaPath);
 
-            if (!doc.LoadFamily(rfaPath, new OverwriteFamilyLoadOptions(), out Family family))
-                return null;
+            if (!doc.LoadFamily(rfaPath, new OverwriteFamilyLoadOptions(), out Family family) && family == null)
+                throw new InvalidOperationException("Revit did not load " + rfaPath);
 
             var symbolId = family.GetFamilySymbolIds().FirstOrDefault();
-            if (symbolId == null || symbolId == ElementId.InvalidElementId) return null;
+            if (symbolId == null || symbolId == ElementId.InvalidElementId)
+                throw new InvalidOperationException("the generated family " + familyName + " has no type");
 
-            var symbol = doc.GetElement(symbolId) as FamilySymbol;
-            if (symbol != null && !symbol.IsActive)
+            var symbol = doc.GetElement(symbolId) as FamilySymbol ?? throw new InvalidOperationException("the type of " + familyName + " could not be read");
+            if (!symbol.IsActive)
             {
                 symbol.Activate();
                 doc.Regenerate();
@@ -84,7 +111,7 @@ namespace SportfyRevit
         {
             string? templatePath = GenericFamilyTemplateLocator.Resolve();
             if (templatePath == null)
-                throw new InvalidOperationException("Couldn't locate (or pick) Revit's \"Metric Generic Model\" family template.");
+                throw new InvalidOperationException(GenericFamilyTemplateLocator.FailureReason ?? "Revit's Generic Model family template was not found");
 
             var familyDoc = app.NewFamilyDocument(templatePath);
             try
@@ -93,15 +120,7 @@ namespace SportfyRevit
                 {
                     t.Start();
 
-                    var gen = PlacementDataHelpers.GetGeneralities(p);
-                    var (_, _, _, unifiedLengthM, unifiedWidthM) = PlacementDataHelpers.GetUnifiedFields(p);
-                    double lengthM = gen?.LengthM ?? unifiedLengthM ?? p.BoundingBox?.WidthM ?? 1.0;
-                    double widthM = gen?.WidthM ?? unifiedWidthM ?? p.BoundingBox?.HeightM ?? 1.0;
-                    // Gardens: real buildup depth (sum of the theme's layer thicknesses) rather than an
-                    // arbitrary placeholder — fields/activities have no buildup-depth data, so the same
-                    // nominal thickness PlacePlaceholderBox already uses stands in for those.
-                    double depthM = gen?.BuildupDepthM ?? DefaultThicknessM;
-
+                    var (lengthM, widthM, depthM) = SizeOf(p);
                     BuildExtrusion(familyDoc, lengthM, widthM, depthM);
 
                     var fm = familyDoc.FamilyManager;
@@ -123,16 +142,10 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// A flat rectangle, centered on the family's own origin (not
-        /// corner-anchored), extruded upward — centered because
-        /// FamilyPlacementBuilder.PlaceFamilyInstance places every instance
-        /// at the placement's CENTER point, so the family's own origin has
-        /// to already BE that footprint's center for a placed instance to
-        /// land where the layout actually put it. Fixed-size, not
-        /// parameter-driven witness lines: since grouping is one Family per
-        /// quality_key, a Type here never needs to resize, so parametric
-        /// geometry constraints would add real complexity for no
-        /// behavioral benefit.
+        /// A flat rectangle, centered on the family's own origin (not corner-anchored), extruded upward — centered because
+        /// FamilyPlacementBuilder.PlaceFamilyInstance places every instance at the placement's CENTER point, so the family's own origin has to
+        /// already BE that footprint's center for a placed instance to land where the layout actually put it. Fixed-size, which is why the size
+        /// is part of the family's name.
         /// </summary>
         private static void BuildExtrusion(Document familyDoc, double lengthM, double widthM, double depthM)
         {
@@ -160,13 +173,13 @@ namespace SportfyRevit
             familyDoc.FamilyCreate.NewExtrusion(true, profile, sketchPlane, depthFt);
         }
 
-        /// <summary>%AppData%\Autodesk\Revit\Addins\2025\SportifyGeneratedFamilies\{quality_key}.rfa — same ApplicationData-folder convention SportifySharedParameters already uses for its own Sportify-owned file.</summary>
-        private static string CachePath(string qualityKey)
+        /// <summary>%AppData%\Autodesk\Revit\Addins\2025\SportifyGeneratedFamilies\{family name}.rfa — same ApplicationData-folder convention SportifySharedParameters uses.</summary>
+        private static string CachePath(string familyName)
         {
             string dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Autodesk", "Revit", "Addins", "2025", "SportifyGeneratedFamilies");
-            return Path.Combine(dir, SanitizeFileName(qualityKey) + ".rfa");
+            return Path.Combine(dir, familyName + ".rfa");
         }
 
         private static string SanitizeFileName(string name)

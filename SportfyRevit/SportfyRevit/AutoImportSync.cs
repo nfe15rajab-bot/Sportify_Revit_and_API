@@ -6,16 +6,14 @@ using Autodesk.Revit.UI.Events;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Live-sync half of the Combine-to-Revit import, toggled on/off from
-    /// the ribbon (ToggleAutoImportCommand). Revit API calls are only valid
-    /// from the main UI thread inside a proper API context, so this can't
-    /// use a background timer — UIControlledApplication.Idling (fires
-    /// repeatedly whenever Revit is otherwise idle, already on that thread)
-    /// is the standard way to run recurring API work like this. Each sync
-    /// deletes the elements the PREVIOUS auto-sync pass created before
-    /// rebuilding, so toggling this on doesn't pile up a fresh copy of the
-    /// whole layout every few seconds — unlike the manual Import command,
-    /// which is expected to be run occasionally and deliberately.
+    /// Live-sync half of the Combine-to-Revit import, toggled on/off from the ribbon (ToggleAutoImportCommand). Revit API calls are only valid
+    /// from the main UI thread inside a proper API context, so this can't use a background timer — UIControlledApplication.Idling (fires
+    /// repeatedly whenever Revit is otherwise idle, already on that thread) is the standard way to run recurring API work like this.
+    ///
+    /// It runs exactly the import the manual command runs (LayoutImporter), so every sync REPLACES what the previous import of the active project
+    /// created (ImportLedger, kept in the project itself). It used to keep a static list of ElementIds in memory and delete them by number in
+    /// whichever document was active: with two projects open that deleted unrelated elements of the second one, and after a restart it replaced
+    /// nothing. A push that fails is now reported (once, and in the log) instead of being marked applied in silence.
     /// </summary>
     internal static class AutoImportSync
     {
@@ -26,20 +24,18 @@ namespace SportfyRevit
 
         private static int _lastAppliedVersion = -1;
         private static DateTime _lastPollUtc = DateTime.MinValue;
-        private static List<ElementId> _lastCreatedIds = new();
 
         public static void SetEnabled(bool enabled)
         {
             IsEnabled = enabled;
+            SportifyLog.Info("auto-import", enabled ? "turned on" : "turned off");
             if (!enabled)
             {
-                // Turning off doesn't remove the last-synced geometry — it
-                // just stops watching for new pushes, same as pausing a live
-                // link elsewhere in this app.
+                // Turning off doesn't remove the last-synced geometry — it just stops watching for new pushes, same as pausing a live link
+                // elsewhere in this app.
                 return;
             }
-            // Force the next Idling tick to check immediately rather than
-            // waiting out whatever's left of the previous poll interval.
+            // Force the next Idling tick to check immediately rather than waiting out whatever's left of the previous poll interval.
             _lastPollUtc = DateTime.MinValue;
 
             UpdateButtonLabel();
@@ -50,7 +46,7 @@ namespace SportfyRevit
             if (ToggleButton == null) return;
             ToggleButton.ItemText = IsEnabled ? "Auto Import:\nON" : "Auto Import:\nOFF";
             ToggleButton.ToolTip = IsEnabled
-                ? "Live sync is ON — every Combine export from the web app is applied automatically. Click to turn off."
+                ? "Live sync is ON — every Combine export from the web app is applied automatically, replacing the previous import. Click to turn off."
                 : "Automatically apply every Combine export pushed from the web app, without opening a file picker. Click to turn on.";
         }
 
@@ -72,43 +68,31 @@ namespace SportfyRevit
             {
                 layout = JsonSerializer.Deserialize<SportifyLayout>(json);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return; // malformed push — wait for the next one rather than crash the idling loop
+                // A malformed push: wait for the next one rather than crash the idling loop — but say so.
+                _lastAppliedVersion = version;
+                SportifyLog.Error("auto-import", "push " + version + " is not a readable layout", ex);
+                return;
             }
-            if (layout?.Placements == null) return;
-
-            // Must run before the transaction opens — see ImportSportifyLayoutCommand's
-            // identical call for why (EnableWorksharing throws inside an open transaction).
-            SportifyLayoutBuilder.EnsureWorksharing(doc);
-
-            using (var t = new Transaction(doc, "Sportify auto-import"))
+            if (layout?.Placements == null)
             {
-                t.Start();
-
-                var stillValid = _lastCreatedIds.Where(id => doc.GetElement(id) != null).ToList();
-                if (stillValid.Count > 0)
-                    doc.Delete(stillValid);
-
-                try
-                {
-                    var summary = SportifyLayoutBuilder.BuildGeometry(doc, layout);
-                    _lastCreatedIds = summary.CreatedIds;
-                }
-                catch (Exception)
-                {
-                    // Best-effort, like every other step here: a bad build on this
-                    // tick shouldn't take down the Idling loop or leave it retrying
-                    // the same broken push every 2s — wait for the next real push instead.
-                    t.RollBack();
-                    _lastAppliedVersion = version;
-                    return;
-                }
-
-                t.Commit();
+                _lastAppliedVersion = version;
+                SportifyLog.Warn("auto-import", "push " + version + " has no placements array; ignored");
+                return;
             }
 
+            // Whatever the outcome, this push is dealt with: a failing one must not be retried every two seconds.
             _lastAppliedVersion = version;
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto);
+            if (outcome.Cancelled) return;
+
+            if (!outcome.Succeeded)
+            {
+                TaskDialog.Show("Sportify — Auto Import",
+                    "The layout pushed from the web app could not be imported into \"" + doc.Title + "\":\n" + outcome.Error +
+                    "\n\nThe project is as it was before. Details: " + SportifyLog.CurrentFile);
+            }
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Structure;
 
@@ -20,59 +19,33 @@ namespace SportfyRevit
         private const double ThicknessM = 0.1;
 
         /// <summary>
-        /// Single entry point SportifyLayoutBuilder calls per placement: try a
-        /// real family first, fall back to the placeholder box if nothing
-        /// loaded matches well enough.
+        /// Single entry point SportifyLayoutBuilder calls per placement. The family was settled BEFORE the import transaction opened
+        /// (FamilyPreparation: a specified-sport builder, a plant, a referenced family, a family already in the project that is exactly this
+        /// piece's, or a generated one); this places it, or, when there is none, a placeholder box, and says in the report which family the
+        /// piece got and how, or why it became a box. There is no keyword matching any more: sharing one word with some loaded family used to
+        /// be enough to place a piece as that family.
         /// </summary>
         public static void PlaceComponent(
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds,
-            double? fireSafetyDistanceM)
+            double originXFt, double originYFt, WorksetId worksetId, ElementId? textTypeId, List<ElementId> createdIds,
+            double? fireSafetyDistanceM, FamilyResolution resolution)
         {
-            // Priority: an already-loaded family a human curated/named well
-            // enough to match, wins outright (FindMatchingFamilySymbol's own
-            // exact-quality_key-then-keyword-scoring order, unchanged) —
-            // then a real SportifyFamilyGenerator-built family — and only if
-            // that itself fails does this fall back to the placeholder box.
-            // An explicit revit_family reference outranks everything: the user
-            // picked that family in the Families tab and configured it there,
-            // so there is nothing left to infer. Only a reference that can't be
-            // honored (family not loaded in this document) falls through to
-            // keyword matching and generation.
-            // A plant resolves to its species family before anything else: the
-            // species IS the answer, so keyword matching and the generic
-            // extrusion generator have nothing to contribute.
-            // A specified sport goes first: a padel court is not an extrusion of
-            // its footprint, and the generic path would happily make one.
-            var symbol = TryResolvePadelCourt(doc, p)
-                         ?? TryResolveBasketballCourt(doc, p)
-                         ?? TryResolveVolleyballCourt(doc, p)
-                         ?? TryResolvePlantFamily(doc, p)
-                         ?? TryResolveExplicitFamily(doc, p);
-            if (symbol != null) { /* diagnostics recorded inside the resolver */ }
+            var label = p.Label ?? p.Id ?? "(piece)";
+            FamilySymbol? symbol = resolution.SymbolId != null ? doc.GetElement(resolution.SymbolId) as FamilySymbol : null;
+            if (symbol != null)
+                ImportDiagnostics.Placed(label, resolution.FamilyName ?? symbol.Family?.Name ?? "(family)", resolution.TypeName ?? symbol.Name, resolution.How);
             else
-            {
-                symbol = FindMatchingFamilySymbol(doc, p, GetPlacementKeywords(p));
-                if (symbol != null) ImportDiagnostics.KeywordMatched(p.Label ?? p.Id ?? "(piece)");
-                else
-                {
-                    symbol = TryGenerateSymbol(doc, p);
-                    if (symbol != null) ImportDiagnostics.Generated(p.Label ?? p.Id ?? "(piece)");
-                    else ImportDiagnostics.Placeholder(p.Label ?? p.Id ?? "(piece)");
-                }
-            }
+                ImportDiagnostics.PlaceholderBecause(label, resolution.SymbolId != null
+                    ? "the family it was given is no longer in the project"
+                    : resolution.Reason ?? "no family could be resolved");
+
             Element placed = symbol != null
                 ? PlaceFamilyInstance(doc, p, bb, symbol, originXFt, originYFt, worksetId, textTypeId, createdIds)
                 : PlacePlaceholderBox(doc, p, bb, isGarden, originXFt, originYFt, worksetId, textTypeId, createdIds);
 
-            // Stamps the same unified parameter set on whatever got placed —
-            // real family instance or placeholder box alike — so Revit's own
-            // Properties panel/Schedules can already query category/quality/
-            // material data today, without waiting on real "sportified"
-            // families to exist. Defensive: EnsureBound returns false (and
-            // SetValues is then a no-op) if the shared-parameter file/binding
-            // fails for any reason — geometry placement above must never be
-            // broken by this.
+            // Stamps the same unified parameter set on whatever got placed — real family instance or placeholder box alike — so Revit's own
+            // Properties panel/Schedules can already query category/quality/material data. Defensive: EnsureBound returns false (and SetValues
+            // is then a no-op) if the shared-parameter file/binding fails for any reason — geometry placement above must never be broken by this.
             if (SportifySharedParameters.EnsureBound(doc))
             {
                 var (typeId, variant, norm, lengthM, widthM) = PlacementDataHelpers.GetUnifiedFields(p);
@@ -82,222 +55,9 @@ namespace SportfyRevit
                     p.Parameters?.QualityKey);
             }
 
-            // The richer generalities/materials(+LCA+provider)/analysis set —
-            // safe no-op wherever these Sportify_* parameters don't exist (a
-            // matched family that isn't one of ours, or the placeholder box);
-            // only actually populates on a SportifyFamilyGenerator instance.
+            // The richer generalities/materials(+LCA+provider)/analysis set — safe no-op wherever these Sportify_* parameters don't exist
+            // (a matched family that isn't one of ours, or the placeholder box); only actually populates on a SportifyFamilyGenerator instance.
             SportifyFamilyParameters.SetInstanceValues(placed, p, fireSafetyDistanceM);
-        }
-
-        /// <summary>
-        /// Best-effort: family generation is a real Revit document mutation
-        /// (new family document, geometry, ~28 parameters, save, load) with
-        /// no dry-run and genuine failure modes (template truly
-        /// unresolvable, disk/permissions) — any failure here must fall
-        /// through to the placeholder box rather than abort the whole
-        /// placement, same defensive posture as SportifySharedParameters.
-        /// </summary>
-        /// <summary>
-        /// Best-effort, same defensive posture as TryGenerateSymbol: resolving
-        /// a reference can duplicate a family type and write parameters, both
-        /// real document mutations with genuine failure modes. A failure here
-        /// must degrade to the normal matching path rather than abort the
-        /// placement — the piece still belongs on the roof either way.
-        /// </summary>
-        /// <summary>
-        /// Best-effort, same posture as the other resolvers: generating a family
-        /// document is real work with real failure modes, and a plant that
-        /// cannot be built should still reach the roof as something rather than
-        /// stopping the import.
-        /// </summary>
-        /// <summary>
-        /// Same best-effort posture as the plant resolver: a court that cannot
-        /// be built should still reach the roof as something rather than
-        /// stopping the import — but it is reported, because a padel court
-        /// arriving as a slab is a quieter failure than none at all.
-        /// </summary>
-        private static FamilySymbol? TryResolvePadelCourt(Document doc, PlacementDto p)
-        {
-            var padel = p.Parameters?.Padel;
-            if (padel == null) return null;
-
-            try
-            {
-                var symbol = SportifyPadelCourtBuilder.GetOrCreateSymbol(doc, padel);
-                if (symbol != null)
-                    ImportDiagnostics.PadelCourtBuilt(padel.CourtType ?? "double",
-                        padel.WallSystem ?? "panoramic", padel.Surface ?? "", padel.WeightKg);
-                return symbol;
-            }
-            catch (Exception ex)
-            {
-                ImportDiagnostics.ExplicitFailed("Padel court", $"{ex.GetType().Name}: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static FamilySymbol? TryResolveBasketballCourt(Document doc, PlacementDto p)
-        {
-            var court = p.Parameters?.Basketball;
-            if (court == null) return null;
-
-            try
-            {
-                var symbol = SportifyBasketballCourtBuilder.GetOrCreateSymbol(doc, court);
-                if (symbol != null)
-                    ImportDiagnostics.BasketballCourtBuilt(court.Variant ?? "standard", court.Hoops,
-                        court.Mounting ?? "", court.Surface ?? "", court.WeightKg);
-                return symbol;
-            }
-            catch (Exception ex)
-            {
-                ImportDiagnostics.ExplicitFailed("Basketball court", $"{ex.GetType().Name}: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static FamilySymbol? TryResolveVolleyballCourt(Document doc, PlacementDto p)
-        {
-            var court = p.Parameters?.Volleyball;
-            if (court == null) return null;
-
-            try
-            {
-                var symbol = SportifyVolleyballCourtBuilder.GetOrCreateSymbol(doc, court);
-                if (symbol != null)
-                    ImportDiagnostics.VolleyballCourtBuilt(court.PlayType ?? "indoor", court.NetHeightM,
-                        court.Surface ?? "", court.SandVolumeM3, court.WeightKg);
-                return symbol;
-            }
-            catch (Exception ex)
-            {
-                ImportDiagnostics.ExplicitFailed("Volleyball court", $"{ex.GetType().Name}: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static FamilySymbol? TryResolvePlantFamily(Document doc, PlacementDto p)
-        {
-            var plant = p.Parameters?.Vegetation;
-            if (plant == null) return null;
-
-            try
-            {
-                var symbol = SportifyPlantFamilyBuilder.GetOrCreateSymbol(doc, plant);
-                if (symbol != null)
-                    ImportDiagnostics.PlantPlaced(plant.BotanicalName ?? "(plant)", plant.CrownM, plant.HeightM);
-                return symbol;
-            }
-            catch (Exception ex)
-            {
-                ImportDiagnostics.ExplicitFailed(plant.BotanicalName ?? "(plant)",
-                    $"{ex.GetType().Name}: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static FamilySymbol? TryResolveExplicitFamily(Document doc, PlacementDto p)
-        {
-            var reference = p.Parameters?.RevitFamily;
-            if (reference == null) return null;
-
-            try
-            {
-                return RevitFamilyResolver.Resolve(doc, reference);
-            }
-            catch (Exception ex)
-            {
-                // Still non-fatal — but recorded, not swallowed. A silently
-                // discarded exception here is indistinguishable from "the user
-                // didn't ask for a family", which cost an evening of guessing.
-                ImportDiagnostics.ExplicitFailed(reference.FamilyName ?? "(unnamed)",
-                    $"{ex.GetType().Name}: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static FamilySymbol? TryGenerateSymbol(Document doc, PlacementDto p)
-        {
-            try
-            {
-                return SportifyFamilyGenerator.GetOrCreateSymbol(doc, p);
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Words split out of a placement's category/label/quality_key,
-        /// used to score every loaded FamilySymbol's family name and pick
-        /// the closest match. quality_key (e.g. "BASKETBALL_STANDARD_HIGH",
-        /// "GARDEN_ROOF_TREES_JAPANESE_HIGH") is included because it's
-        /// already the frontend's own designed-for-lookup identifier (see
-        /// ParametersDto) — label alone is free text a human wrote for the
-        /// sidebar, not a stable key.
-        /// </summary>
-        private static HashSet<string> GetPlacementKeywords(PlacementDto p)
-        {
-            var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            words.UnionWith(ExtractWords(p.Category));
-            words.UnionWith(ExtractWords(p.Label));
-            words.UnionWith(ExtractWords(p.Parameters?.QualityKey));
-            return words;
-        }
-
-        private static readonly Regex WordSplitter = new(@"[^A-Za-z0-9]+", RegexOptions.Compiled);
-
-        private static IEnumerable<string> ExtractWords(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) yield break;
-            foreach (var word in WordSplitter.Split(text))
-            {
-                if (word.Length >= 2)
-                    yield return word;
-            }
-        }
-
-        /// <summary>
-        /// Checks FamilyMatchRules.Lookup for an exact quality_key match
-        /// first (empty today, so this is a no-op until Moamen fills it in —
-        /// see that file's own TODO), then falls back to best-effort keyword
-        /// scoring: scores every FamilySymbol currently loaded in the
-        /// document by how many keywords its family name shares with this
-        /// placement, and returns the top scorer (null if nothing shares
-        /// even one word). Deliberately generic rather than a hardcoded
-        /// sport-name table, since this project has no bundled family
-        /// content — it has to work with whatever family names the user
-        /// loads in, whatever they're called.
-        /// </summary>
-        private static FamilySymbol? FindMatchingFamilySymbol(Document doc, PlacementDto p, HashSet<string> keywords)
-        {
-            var qualityKey = p.Parameters?.QualityKey;
-            if (!string.IsNullOrWhiteSpace(qualityKey) && FamilyMatchRules.Lookup.TryGetValue(qualityKey, out var exactFamilyName))
-            {
-                var exact = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
-                    .FirstOrDefault(s => string.Equals(s.Family?.Name, exactFamilyName, StringComparison.OrdinalIgnoreCase));
-                if (exact != null) return exact;
-            }
-
-            if (keywords.Count == 0) return null;
-
-            FamilySymbol? best = null;
-            int bestScore = 0;
-            var symbols = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>();
-            foreach (var symbol in symbols)
-            {
-                var familyName = symbol.Family?.Name;
-                if (string.IsNullOrWhiteSpace(familyName)) continue;
-
-                int score = ExtractWords(familyName).Count(w => keywords.Contains(w));
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = symbol;
-                }
-            }
-            return best;
         }
 
         /// <summary>
@@ -311,7 +71,7 @@ namespace SportfyRevit
         /// </summary>
         private static Element PlaceFamilyInstance(
             Document doc, PlacementDto p, BoundingBoxDto bb, FamilySymbol symbol,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
+            double originXFt, double originYFt, WorksetId worksetId, ElementId? textTypeId, List<ElementId> createdIds)
         {
             if (!symbol.IsActive)
             {
@@ -413,7 +173,7 @@ namespace SportfyRevit
         /// </summary>
         private static Element PlacePlaceholderBox(
             Document doc, PlacementDto p, BoundingBoxDto bb, bool isGarden,
-            double originXFt, double originYFt, WorksetId worksetId, ElementId textTypeId, List<ElementId> createdIds)
+            double originXFt, double originYFt, WorksetId worksetId, ElementId? textTypeId, List<ElementId> createdIds)
         {
             // The canvas box's TOP edge is its LOWEST Y once flipped, so the first
             // corner is the box's bottom-left on the canvas, and the loop runs counter-clockwise
@@ -456,11 +216,21 @@ namespace SportfyRevit
             return $"{safe}_{widthM:0.#}x{heightM:0.#}";
         }
 
-        private static void CreateLabelText(Document doc, string text, XYZ origin, ElementId textTypeId, WorksetId worksetId, List<ElementId> createdIds)
+        private static void CreateLabelText(Document doc, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId, List<ElementId> createdIds)
         {
-            var textNote = TextNote.Create(doc, doc.ActiveView.Id, origin, text, textTypeId);
-            SportifyLayoutBuilder.SetWorkset(textNote, worksetId);
-            createdIds.Add(textNote.Id);
+            // No text-note type, or an active view that cannot hold text notes (a 3D view): SportifyLayoutBuilder said so once in the report.
+            if (textTypeId == null) return;
+            try
+            {
+                var textNote = TextNote.Create(doc, doc.ActiveView.Id, origin, text, textTypeId);
+                SportifyLayoutBuilder.SetWorkset(textNote, worksetId);
+                createdIds.Add(textNote.Id);
+            }
+            catch (Exception ex)
+            {
+                // A label must never take the import with it (it used to: one label in a view that could not hold it rolled everything back).
+                ImportDiagnostics.Note($"the label \"{text}\" was not created: {ex.Message}");
+            }
         }
     }
 }

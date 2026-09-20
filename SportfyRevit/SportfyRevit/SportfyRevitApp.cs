@@ -34,6 +34,12 @@ namespace SportfyRevit
 
         public Result OnStartup(UIControlledApplication application)
         {
+            // The first thing, before anything can fail: the log, and every exception nobody catches ends up in it.
+            SportifyLog.Info("app", "Sportify add-in " + typeof(SportfyRevitApp).Assembly.GetName().Version + " starting in Revit " +
+                                     application.ControlledApplication.VersionNumber + " (" + application.ControlledApplication.VersionName + ")");
+            AppDomain.CurrentDomain.UnhandledException += (_, args) => SportifyLog.Error("app", "unhandled exception" + (args.IsTerminating ? " (Revit is terminating)" : ""), args.ExceptionObject as Exception);
+            TaskScheduler.UnobservedTaskException += (_, args) => { SportifyLog.Error("app", "unobserved task exception", args.Exception); args.SetObserved(); };
+
             RoofBoundaryServer.Start();
             StaticWebServer.Start();
             EnsureApiRunning();
@@ -132,6 +138,7 @@ namespace SportfyRevit
 
         public Result OnShutdown(UIControlledApplication application)
         {
+            SportifyLog.Info("app", "Sportify add-in shutting down");
             application.Idling -= AutoImportSync.OnIdling;
             RoofBoundaryServer.Stop();
             StaticWebServer.Stop();

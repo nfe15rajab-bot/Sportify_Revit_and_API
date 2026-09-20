@@ -29,6 +29,8 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLog.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\FamilyTemplateRanking.cs" />
     <Compile Include="WorkspaceStub.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />
