@@ -261,6 +261,9 @@ namespace SportfyRevit
         /// </summary>
         [JsonPropertyName("padel")] public PadelDto? Padel { get; set; }
 
+        /// <summary>Present when the placement is a basketball court.</summary>
+        [JsonPropertyName("basketball")] public BasketballDto? Basketball { get; set; }
+
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
@@ -379,6 +382,50 @@ namespace SportfyRevit
         [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
         [JsonPropertyName("clear_height_recommended_m")] public double ClearHeightRecommendedM { get; set; }
 
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A basketball court's specification, as configured. Like padel's, the
+    /// figures travel with the placement so a court rebuilds as the court it
+    /// was — the importer holds no opinion about what FIBA currently says.
+    /// </summary>
+    internal class BasketballDto
+    {
+        [JsonPropertyName("variant")] public string? Variant { get; set; }
+        [JsonPropertyName("hoops")] public int Hoops { get; set; }
+        [JsonPropertyName("mounting")] public string? Mounting { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        [JsonPropertyName("key_colour")] public string? KeyColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("key_fill_hex")] public string? KeyFillHex { get; set; }
+
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("play_length_m")] public double PlayLengthM { get; set; }
+        [JsonPropertyName("play_width_m")] public double PlayWidthM { get; set; }
+
+        [JsonPropertyName("rim_height_m")] public double RimHeightM { get; set; }
+        [JsonPropertyName("rim_inner_diameter_m")] public double RimInnerDiameterM { get; set; }
+        [JsonPropertyName("basket_centre_from_endline_m")] public double BasketCentreFromEndlineM { get; set; }
+        [JsonPropertyName("backboard_face_from_endline_m")] public double BackboardFaceFromEndlineM { get; set; }
+        [JsonPropertyName("backboard_width_m")] public double BackboardWidthM { get; set; }
+        [JsonPropertyName("backboard_height_m")] public double BackboardHeightM { get; set; }
+        [JsonPropertyName("backboard_lower_edge_m")] public double BackboardLowerEdgeM { get; set; }
+
+        [JsonPropertyName("key_width_m")] public double KeyWidthM { get; set; }
+        [JsonPropertyName("key_depth_m")] public double KeyDepthM { get; set; }
+        [JsonPropertyName("centre_circle_radius_m")] public double CentreCircleRadiusM { get; set; }
+        [JsonPropertyName("free_throw_circle_radius_m")] public double FreeThrowCircleRadiusM { get; set; }
+        [JsonPropertyName("no_charge_radius_m")] public double NoChargeRadiusM { get; set; }
+        [JsonPropertyName("three_point_radius_m")] public double ThreePointRadiusM { get; set; }
+        [JsonPropertyName("three_point_corner_from_sideline_m")] public double ThreePointCornerFromSidelineM { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
         [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
         [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
         [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }

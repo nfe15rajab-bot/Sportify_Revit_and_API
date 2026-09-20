@@ -45,6 +45,7 @@ namespace SportfyRevit
             // A specified sport goes first: a padel court is not an extrusion of
             // its footprint, and the generic path would happily make one.
             var symbol = TryResolvePadelCourt(doc, p)
+                         ?? TryResolveBasketballCourt(doc, p)
                          ?? TryResolvePlantFamily(doc, p)
                          ?? TryResolveExplicitFamily(doc, p);
             if (symbol != null) { /* diagnostics recorded inside the resolver */ }
@@ -130,6 +131,26 @@ namespace SportfyRevit
             catch (Exception ex)
             {
                 ImportDiagnostics.ExplicitFailed("Padel court", $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static FamilySymbol? TryResolveBasketballCourt(Document doc, PlacementDto p)
+        {
+            var court = p.Parameters?.Basketball;
+            if (court == null) return null;
+
+            try
+            {
+                var symbol = SportifyBasketballCourtBuilder.GetOrCreateSymbol(doc, court);
+                if (symbol != null)
+                    ImportDiagnostics.BasketballCourtBuilt(court.Variant ?? "standard", court.Hoops,
+                        court.Mounting ?? "", court.Surface ?? "", court.WeightKg);
+                return symbol;
+            }
+            catch (Exception ex)
+            {
+                ImportDiagnostics.ExplicitFailed("Basketball court", $"{ex.GetType().Name}: {ex.Message}");
                 return null;
             }
         }

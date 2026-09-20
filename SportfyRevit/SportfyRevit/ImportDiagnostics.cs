@@ -60,6 +60,12 @@ namespace SportfyRevit
             Lines.Add($"PDL  Padel court — {courtType}, {wallSystem}, {surface} — {weightKg:0} kg on the deck");
         }
 
+        public static void BasketballCourtBuilt(string variant, int hoops, string mounting, string surface, double weightKg)
+            => Lines.Add($"BBL  Basketball court — {variant}, {hoops} basket(s), {mounting}, {surface} — {weightKg:0} kg on the deck");
+
+        /// <summary>A remark that is neither a success nor a failure of one piece.</summary>
+        public static void Note(string message) => Lines.Add($"NOTE {message}");
+
         public static void FloorCreated(string label, string typeName, double areaM2)
         {
             _floorsDrawn++;
