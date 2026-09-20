@@ -32,6 +32,12 @@ namespace Sportify.Api.Data
         /// products belong where someone can maintain them.
         /// </summary>
         public DbSet<SportOption> SportOptions => Set<SportOption>();
+
+        /// <summary>
+        /// Site furniture. No standard to encode — a bench is 1,800 mm because
+        /// its manufacturer made it so — which is why all of it is catalog.
+        /// </summary>
+        public DbSet<FurnitureItem> FurnitureItems => Set<FurnitureItem>();
         public DbSet<RoofAssemblyLayer> RoofAssemblyLayers => Set<RoofAssemblyLayer>();
     }
 }
