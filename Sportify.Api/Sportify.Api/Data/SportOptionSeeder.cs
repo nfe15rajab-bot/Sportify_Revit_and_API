@@ -97,14 +97,13 @@ namespace Sportify.Api.Data
                 O("basketball", "hoops", "two", "Two — full court", "A basket at each end.", 0),
                 O("basketball", "hoops", "one", "One — half court", "The usual choice where space is short.", 1),
 
-                // The rooftop decision: you cannot dig a foundation on a roof,
-                // so the ballast IS the fixing, and it weighs what it weighs.
-                O("basketball", "mounting", "ballasted", "Ballasted, freestanding",
+                // On a roof the ballast IS the fixing — there is nothing to bolt
+                // into without penetrating the waterproofing. One row, so the
+                // panel shows no picker: a choice of one is not a choice, and
+                // offering "bolted" invited a court that cannot be built.
+                O("basketball", "basket", "ballasted", "Ballasted, freestanding",
                   "No fixing to the deck. The ballast is the weight.", 0,
                   kgEach: 900, price: 4200, unit: "EUR/each", kg276: "560"),
-                O("basketball", "mounting", "bolted", "Bolted to the structure",
-                  "Lighter, but it has to land on something that can take it.", 1,
-                  kgEach: 260, price: 2600, unit: "EUR/each", kg276: "560"),
 
                 O("basketball", "surface", "acrylic", "Acrylic hard court",
                   "Painted acrylic over a bound base. The outdoor default.", 0,
@@ -121,10 +120,7 @@ namespace Sportify.Api.Data
                 O("basketball", "court_colour", "terracotta", "Terracotta", null, 2, hex: "#b5613a"),
                 O("basketball", "court_colour", "grey", "Grey", null, 3, hex: "#6d737c"),
 
-                O("basketball", "key_colour", "contrast", "Contrasting",
-                  "The usual: a different colour inside the key.", 0),
-                O("basketball", "key_colour", "matching", "Same as court",
-                  "Markings only, no colour block.", 1),
+
             };
 
             bool added = false;

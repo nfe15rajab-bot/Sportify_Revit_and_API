@@ -179,15 +179,25 @@ namespace SportfyRevit
             int failed = 0;
             void Try(Action a) { try { a(); } catch { failed++; } }
 
+            int hoops = c.Hoops > 0 ? c.Hoops : 2;
+            bool half = hoops == 1;
+
             // ── Perimeter, centre line, centre circle ──
             Try(() => RectRing(fam, -halfPL, -halfPW, halfPL, halfPW, LineWidthM, 0, top, m.Marking));
-            Try(() => Box(fam, -LineWidthM / 2, -halfPW, LineWidthM / 2, halfPW, 0, top, m.Marking));
-            Try(() => CircleRing(fam, 0, 0, c.CentreCircleRadiusM > 0 ? c.CentreCircleRadiusM : 1.80,
-                                 LineWidthM, 0, top, m.Marking));
+
+            // On a half court the centre line IS the open edge, already drawn as
+            // part of the perimeter — a line down the middle of a half court
+            // would mark nothing. The centre circle is only the half that falls
+            // inside, so on a half court it is left off rather than drawn whole.
+            if (!half)
+            {
+                Try(() => Box(fam, -LineWidthM / 2, -halfPW, LineWidthM / 2, halfPW, 0, top, m.Marking));
+                Try(() => CircleRing(fam, 0, 0, c.CentreCircleRadiusM > 0 ? c.CentreCircleRadiusM : 1.80,
+                                     LineWidthM, 0, top, m.Marking));
+            }
 
             // ── Per basket end ──
-            int hoops = c.Hoops > 0 ? c.Hoops : 2;
-            var ends = hoops == 1 ? new[] { -1.0 } : new[] { -1.0, 1.0 };
+            var ends = half ? new[] { -1.0 } : new[] { -1.0, 1.0 };
 
             foreach (double sx in ends)
             {
