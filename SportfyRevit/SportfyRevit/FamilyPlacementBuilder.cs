@@ -46,6 +46,7 @@ namespace SportfyRevit
             // its footprint, and the generic path would happily make one.
             var symbol = TryResolvePadelCourt(doc, p)
                          ?? TryResolveBasketballCourt(doc, p)
+                         ?? TryResolveVolleyballCourt(doc, p)
                          ?? TryResolvePlantFamily(doc, p)
                          ?? TryResolveExplicitFamily(doc, p);
             if (symbol != null) { /* diagnostics recorded inside the resolver */ }
@@ -151,6 +152,26 @@ namespace SportfyRevit
             catch (Exception ex)
             {
                 ImportDiagnostics.ExplicitFailed("Basketball court", $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static FamilySymbol? TryResolveVolleyballCourt(Document doc, PlacementDto p)
+        {
+            var court = p.Parameters?.Volleyball;
+            if (court == null) return null;
+
+            try
+            {
+                var symbol = SportifyVolleyballCourtBuilder.GetOrCreateSymbol(doc, court);
+                if (symbol != null)
+                    ImportDiagnostics.VolleyballCourtBuilt(court.PlayType ?? "indoor", court.NetHeightM,
+                        court.Surface ?? "", court.SandVolumeM3, court.WeightKg);
+                return symbol;
+            }
+            catch (Exception ex)
+            {
+                ImportDiagnostics.ExplicitFailed("Volleyball court", $"{ex.GetType().Name}: {ex.Message}");
                 return null;
             }
         }

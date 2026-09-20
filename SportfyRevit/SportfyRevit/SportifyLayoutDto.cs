@@ -264,6 +264,9 @@ namespace SportfyRevit
         /// <summary>Present when the placement is a basketball court.</summary>
         [JsonPropertyName("basketball")] public BasketballDto? Basketball { get; set; }
 
+        /// <summary>Present when the placement is a volleyball court.</summary>
+        [JsonPropertyName("volleyball")] public VolleyballDto? Volleyball { get; set; }
+
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
@@ -426,6 +429,46 @@ namespace SportfyRevit
         [JsonPropertyName("three_point_corner_from_sideline_m")] public double ThreePointCornerFromSidelineM { get; set; }
 
         [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A volleyball court. The free zone is carried because it is part of the
+    /// court rather than a margin — play happens out there and it is the same
+    /// surface — and the sand is carried separately because on a roof it is
+    /// the whole question.
+    /// </summary>
+    internal class VolleyballDto
+    {
+        [JsonPropertyName("variant")] public string? Variant { get; set; }
+        [JsonPropertyName("play_type")] public string? PlayType { get; set; }
+        [JsonPropertyName("net_height_m")] public double NetHeightM { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+
+        [JsonPropertyName("court_length_m")] public double CourtLengthM { get; set; }
+        [JsonPropertyName("court_width_m")] public double CourtWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("free_zone_sides_m")] public double FreeZoneSidesM { get; set; }
+        [JsonPropertyName("free_zone_ends_m")] public double FreeZoneEndsM { get; set; }
+
+        /// <summary>Zero on a beach court, which has no attack line.</summary>
+        [JsonPropertyName("attack_line_from_centre_m")] public double AttackLineFromCentreM { get; set; }
+        [JsonPropertyName("net_depth_m")] public double NetDepthM { get; set; }
+        [JsonPropertyName("post_outside_sideline_m")] public double PostOutsideSidelineM { get; set; }
+        [JsonPropertyName("post_height_m")] public double PostHeightM { get; set; }
+        [JsonPropertyName("antenna_length_m")] public double AntennaLengthM { get; set; }
+        [JsonPropertyName("antenna_above_net_m")] public double AntennaAboveNetM { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("sand_depth_m")] public double SandDepthM { get; set; }
+        [JsonPropertyName("sand_volume_m3")] public double SandVolumeM3 { get; set; }
+
         [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
         [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
         [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }

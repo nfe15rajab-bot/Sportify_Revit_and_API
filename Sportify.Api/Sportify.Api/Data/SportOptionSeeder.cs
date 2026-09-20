@@ -121,6 +121,51 @@ namespace Sportify.Api.Data
                 O("basketball", "court_colour", "grey", "Grey", null, 3, hex: "#6d737c"),
 
 
+
+                // ── Volleyball ──
+                // Play type decides the court and its markings. Beach is not a
+                // variant of indoor: it is 16 x 8 with no attack lines, and it
+                // is laid on sand, which is the whole story on a roof.
+                O("volleyball", "play_type", "indoor", "Indoor — 18 × 9 m",
+                  "Attack lines 3 m from the net. A hard or synthetic surface.", 0),
+                O("volleyball", "play_type", "beach", "Beach — 16 × 8 m",
+                  "No attack lines. Laid on sand, which the deck has to carry.", 1),
+
+                // Net height is a real choice, not a detail — it is what makes
+                // the court a men's, women's or junior court.
+                O("volleyball", "net_height", "men", "Men — 2.43 m", "FIVB senior men.", 0, thicknessMm: 2430),
+                O("volleyball", "net_height", "women", "Women — 2.24 m", "FIVB senior women.", 1, thicknessMm: 2240),
+                O("volleyball", "net_height", "junior", "Junior / mixed — 2.35 m",
+                  "Between the two. Federations vary; confirm against the local rule.", 2, thicknessMm: 2350),
+
+                O("volleyball", "surface", "polyurethane", "Poured polyurethane",
+                  "Seamless and forgiving — the indoor default outdoors too.", 0,
+                  kgM2: 8, texture: "sheen", price: 70, unit: "EUR/m2", kg276: "530"),
+                O("volleyball", "surface", "acrylic", "Acrylic hard court",
+                  "Painted acrylic over a bound base.", 1,
+                  kgM2: 6, texture: "flat", price: 52, unit: "EUR/m2", kg276: "530"),
+                O("volleyball", "surface", "tiles", "Modular tiles",
+                  "Clipped polypropylene. Drains, and lifts for access.", 2,
+                  kgM2: 5, texture: "tiles", price: 44, unit: "EUR/m2", kg276: "530"),
+                // Sand is the reason a beach court is a structural question
+                // rather than a surface choice. 400 mm is the FIVB minimum, and
+                // washed silica runs about 1,600 kg/m3 dry — so this row alone
+                // is roughly 640 kg per square metre.
+                O("volleyball", "surface", "sand", "Beach sand, 400 mm",
+                  "FIVB minimum depth. Washed, rounded silica — and about 640 kg per m2.", 3,
+                  kgM2: 640, texture: "speckle", price: 58, unit: "EUR/m2", kg276: "570"),
+
+                O("volleyball", "court_colour", "blue", "Blue", null, 0, hex: "#2f6fb5"),
+                O("volleyball", "court_colour", "green", "Green", null, 1, hex: "#3f8f52"),
+                O("volleyball", "court_colour", "terracotta", "Terracotta", null, 2, hex: "#b5613a"),
+                O("volleyball", "court_colour", "sand", "Sand", null, 3, hex: "#d8c193"),
+
+                // Posts and net, as one counted item. Free-standing with
+                // ballast, for the same reason a basket is: you cannot socket a
+                // post into a roof deck.
+                O("volleyball", "net_system", "ballasted", "Ballasted posts and net",
+                  "Free-standing. No sockets cut into the deck.", 0,
+                  kgEach: 340, price: 2800, unit: "EUR/each", kg276: "560"),
             };
 
             bool added = false;
