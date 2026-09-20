@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs every automated check before a push (about two minutes). Opt in once per clone:
+#     git config core.hooksPath .githooks
+# Skip it for one push:   SKIP_CHECKS=1 git push        (CI runs the same checks on GitHub either way)
+[ -n "$SKIP_CHECKS" ] && exit 0
+root="$(git rev-parse --show-toplevel)"
+node "$root/Sportify.Simulation/Tools/run-checks.js" || {
+    echo ""
+    echo "The checks failed, so nothing was pushed. Fix them, or push anyway with:  SKIP_CHECKS=1 git push"
+    exit 1
+}

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The add-in's CirculationEngine (Fire Safety and Accessibility travel distances) is a C# port of the web app's rules.js computeCirculation. This tool runs the real
+       C# file on a layout and prints what it computes, for oracle.js to compare with the real rules.js. Not part of the Unity project or the add-in. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8632</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\CirculationEngine.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+  </ItemGroup>
+</Project>

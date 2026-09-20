@@ -31,7 +31,66 @@ function zoneFor(dist, along, e) {
   if (dist <= e / 2) return "H";
   return "I";
 }
+// the roof's outline in the plan's coordinates (y down), or null for the rectangle (the same reading as the structural oracle's)
+const r4 = v => Math.round(v * 1e4) / 1e4;
+function outlineOf() {
+  const poly = roof.source_boundary_polygon;
+  if (!poly || poly.length < 3) return null;
+  const pts = poly.map(p => [r4(p.x_m), r4(Wr - p.y_m)]);
+  const uniq = pts.filter((p, i) => i === 0 || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 1e-6);
+  if (uniq.length > 1 && Math.hypot(uniq[0][0] - uniq[uniq.length - 1][0], uniq[0][1] - uniq[uniq.length - 1][1]) < 1e-6) uniq.pop();
+  const onBox = uniq.every(p => (Math.abs(p[0]) < 0.05 || Math.abs(p[0] - Lr) < 0.05) && (Math.abs(p[1]) < 0.05 || Math.abs(p[1] - Wr) < 0.05));
+  if (uniq.length === 4 && onBox) return null;
+  let q = uniq, changed = true;
+  while (changed && q.length >= 3) {
+    changed = false;
+    for (let i = 0; i < q.length; i++) {
+      const a = q[(i + q.length - 1) % q.length], b = q[i], c = q[(i + 1) % q.length];
+      const cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]), dot = (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]);
+      if (Math.abs(cross) < 1e-9 && dot > 0) { q = q.filter((_, j) => j !== i); changed = true; break; }
+    }
+  }
+  return q.length >= 3 ? q : null;
+}
+const outline = outlineOf();
+const inPoly = (x, y) => {
+  let ins = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [xi, yi] = outline[i], [xj, yj] = outline[j];
+    const dx = xj - xi, dy = yj - yi, l2 = dx * dx + dy * dy, t = l2 < 1e-18 ? 0 : Math.max(0, Math.min(1, ((x - xi) * dx + (y - yi) * dy) / l2));
+    if (Math.hypot(xi + t * dx - x, yi + t * dy - y) < 1e-6) return true;        // on the boundary
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins;
+  }
+  return ins;
+};
+// edges with their outward normals (the shoelace sign says which side the inside is on)
+const outlineEdges = (() => {
+  if (!outline) return [];
+  let area2 = 0;
+  outline.forEach((p, i) => { const q = outline[(i + 1) % outline.length]; area2 += p[0] * q[1] - q[0] * p[1]; });
+  return outline.map((p, i) => {
+    const q = outline[(i + 1) % outline.length], dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy);
+    return { p, q, len, tx: dx / len, ty: dy / len, nx: (area2 > 0 ? dy : -dy) / len, ny: (area2 > 0 ? -dx : dx) / len };
+  });
+})();
+function classifyOutline(x, y, dirDeg) {
+  const a = dirDeg * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+  let best = "I";
+  for (const e of outlineEdges) {
+    if (-(e.nx * ux + e.ny * uy) <= 0.01) continue;                                // the wind does not blow in across this stretch
+    const t = (x - e.p[0]) * e.tx + (y - e.p[1]) * e.ty, d = -((x - e.p[0]) * e.nx + (y - e.p[1]) * e.ny);
+    if (t < 0 || t > e.len || d < -1e-9) continue;                                 // not behind it
+    let visible = true;                                                             // seen from the point without leaving the roof: sampled along the line to the foot
+    for (let k = 1; k < 200 && visible; k++) { const f = k / 200; if (!inPoly(x + (e.p[0] + t * e.tx - x) * f, y + (e.p[1] + t * e.ty - y) * f)) visible = false; }
+    if (!visible) continue;
+    const proj = outline.map(v => v[0] * e.tx + v[1] * e.ty), b = Math.max(...proj) - Math.min(...proj);
+    const z = zoneFor(Math.max(0, d), Math.min(t, e.len - t), Math.min(b, 2 * h));
+    if (rank[z] > rank[best]) best = z;
+  }
+  return best;
+}
 function classify(x, y, dirDeg) {
+  if (outline) return classifyOutline(x, y, dirDeg);
   const a = dirDeg * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
   let best = "I";
   const consider = z => { if (rank[z] > rank[best]) best = z; };
@@ -52,6 +111,7 @@ const dirs = [0, 45, 90, 135, 180, 225, 270, 315];
 
 // ---- build-ups
 const assemblies = {};
+layout.zones = layout.zones || []; layout.assemblies = layout.assemblies || [];      // an old export has neither: empty lists, as the readers have it
 for (const a of layout.assemblies) assemblies[a.key] = a;
 const isGravel = n => /gravel|kies|split|grit|sand/.test((n || "").toLowerCase());
 const density = (fn, intensive, name) => isGravel(name) ? 1700 : ({ vegetation: 150, substrate: intensive ? 1200 : 1000, filter: 300, drainage: 250, protection: 400, root_barrier: 1000, waterproofing: 1000, wearing: 2300, bedding: 150 }[fn] ?? 500);

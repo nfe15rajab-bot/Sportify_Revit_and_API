@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- "Does the Unity project still compile?" in about 5 seconds and without starting Unity: every script under Assets/Scripts, Editor scripts included, compiled by
+       the .NET SDK against the UnityEngine / UnityEditor modules the installed Unity ships. Catches what the Unity-free tools cannot (Unity-only code: the scene builders,
+       the visuals, the batch runner). Needs a Unity install, so it is a LOCAL check: Tools/run-checks.js runs it when it finds one and says so when it does not.
+       Point it at another install with  -p:UnityManaged=<...\Editor\Data\Managed\UnityEngine>  or the UNITY_MANAGED environment variable.
+       Only compiles: it does not run anything and does not replace a real Unity run (Tools/fixtures/regenerate-goldens.js). Not part of the Unity project. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <OutputType>Library</OutputType>
+    <DefineConstants>UNITY_EDITOR;UNITY_6000_0_OR_NEWER</DefineConstants>
+    <NoWarn>CS0649;CS0169;CS0414;CS8632</NoWarn>
+    <UnityManaged Condition="'$(UnityManaged)' == '' and '$(UNITY_MANAGED)' != ''">$(UNITY_MANAGED)</UnityManaged>
+    <UnityManaged Condition="'$(UnityManaged)' == ''">C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\Managed\UnityEngine</UnityManaged>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\Assets\Scripts\**\*.cs" />
+    <Reference Include="$(UnityManaged)\UnityEngine.CoreModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.PhysicsModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.TextRenderingModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.JSONSerializeModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.ImageConversionModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.AudioModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEngine.SharedInternalsModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEditor.CoreModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEditor.MediaModule.dll" />
+    <Reference Include="$(UnityManaged)\UnityEditor.VideoModule.dll" />
+  </ItemGroup>
+</Project>

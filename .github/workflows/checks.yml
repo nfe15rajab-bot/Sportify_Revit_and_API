@@ -1,0 +1,48 @@
+name: checks
+
+# Every automated check the analysis code has (Sportify.Simulation/Tools/README.md): the Revit-free analyses against their independent oracles, Unity's readers against the
+# add-in's, the Unity results contract, and the parity of the C# code with the web app's JavaScript (circulation, the assumptions register). Nothing here needs Unity or Revit.
+# What CI cannot run: Revit itself, and Unity (see "What is not automated" in Tools/README.md).
+#
+# The web app is a separate repository; the parity checks need its files. It is checked out next to this one:
+#   - the branch with the same name as this one if there is one (work that spans both repos uses the same branch name), else its default branch;
+#   - if that repository is private, add a repository secret WEB_REPO_TOKEN (a token that can read it). Without access the parity checks are skipped, loudly.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: windows-latest      # the Unity results contract compiles the add-in's WPF sources
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the web app
+        shell: pwsh
+        env:
+          WEB_REPO_TOKEN: ${{ secrets.WEB_REPO_TOKEN }}
+        run: |
+          $auth = if ($env:WEB_REPO_TOKEN) { "x-access-token:$($env:WEB_REPO_TOKEN)@" } else { "" }
+          $url = "https://${auth}github.com/nfe15rajab-bot/sportfify_goldbeck.git"
+          $branch = "${{ github.head_ref || github.ref_name }}"
+          git clone --depth 1 --branch $branch $url web 2>$null
+          if ($LASTEXITCODE -ne 0) { git clone --depth 1 $url web 2>$null }
+          if (-not (Test-Path web/rules.js)) { Write-Warning "The web app could not be checked out (private? add the WEB_REPO_TOKEN secret): its parity checks will be skipped." }
+          $global:LASTEXITCODE = 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run every check
+        shell: pwsh
+        run: |
+          if (Test-Path web/rules.js) { $web = @("--web", "web", "--require-web") } else { $web = @("--web", "none") }
+          node Sportify.Simulation/Tools/run-checks.js @web
+          exit $LASTEXITCODE

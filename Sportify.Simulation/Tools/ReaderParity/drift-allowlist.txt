@@ -1,0 +1,11 @@
+# Fields Unity's layout classes (GoldbeckLayoutData.cs) read that the add-in's DTOs (SportifyLayoutDto.cs) deliberately do not.
+# One per line, exactly as ReaderParity prints it, then "#" and why. An entry that stops being needed fails the check (delete it), and a field that is
+# missing and not listed here fails it too: that is the point, so a new field in one reader cannot be forgotten in the other.
+#
+# Every entry here is read only by Unity's scene builder (LayoutLoader: what to draw), never by an analysis. If an analysis ever reads one of them, give the
+# add-in's DTO the property (and the adapter the same rule) instead of listing it.
+
+version  (missing in the DTO)  # the file format's version string; nothing branches on it
+design_rules.quiet_buffer_m  (missing in the DTO)  # the Combine tab's quiet-zone buffer: drawn in Unity's scene, no analysis uses it
+placements.parameters.field.dimensions.runoff_m  (missing in the DTO)  # the run-off around a field: Unity draws it; the analyses use the field's footprint
+placements.parameters.field.dimensions.min_height_m  (missing in the DTO)  # the field's clear height: Unity's LayoutLoader sizes the hall with it; no analysis reads it

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Every analysis reads a layout twice: the Revit add-in with System.Text.Json (SportfyRevit/*LayoutAdapter.cs, SportifyLayoutDto.cs) and the Unity project with
+       JsonUtility (Assets/.../*LayoutAdapter.cs, GoldbeckLayoutData.cs). The two must agree on every number. Unity's readers are plain C# with no UnityEngine, so
+       this tool compiles them next to the add-in's and runs both on every fixture, with JsonUtility's behaviour emulated; it also checks the emulation against
+       real Unity output (fixtures/golden-unity) and that nothing the Unity classes read is missing from the add-in's DTOs. See README.md.
+       Not part of the Unity project or the add-in. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8632;CS8618;CS0649</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="UnityJson.cs" />
+    <!-- the cores, shared by Unity, the add-in and every check tool -->
+    <Compile Include="..\..\Assets\Scripts\Simulation\Roof\RoofShape.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\InputQuantiser.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
+    <!-- Unity's readers -->
+    <Compile Include="..\..\Assets\Scripts\Simulation\GoldbeckLayoutData.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindLayoutAdapter.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructureLayoutAdapter.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLayoutAdapter.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunLayoutAdapter.cs" />
+    <!-- the add-in's readers -->
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />
+  </ItemGroup>
+</Project>

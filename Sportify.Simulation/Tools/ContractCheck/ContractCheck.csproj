@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The results contract between the Unity runs and the Revit add-in, checked with no Revit and no Unity: every real Unity result in fixtures/golden-unity must parse
+       into the add-in's DTOs, agree with the add-in's own numbers for the same layout, publish through the add-in's builders (the merge into the analysis-results
+       document, the PDF rows) and read back. The sources compiled are the ones the add-in builds; only the few Revit types their signatures mention are stubbed
+       (RevitStubs.cs). WPF because AnalysisAssumptionsDialog.cs is part of the add-in's source set. Not part of the Unity project or the add-in. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8632;CS0649;CS8618;CS0169;CS0414</NoWarn>
+    <!-- keep in step with SportfyRevit.csproj -->
+    <QuestPdfVersion>2026.9.0</QuestPdfVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="RevitStubs.cs" />
+    <!-- the cores, shared by Unity, the add-in and every check tool -->
+    <Compile Include="..\..\Assets\Scripts\Simulation\Roof\RoofShape.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\InputQuantiser.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
+    <!-- the add-in's own sources, real -->
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SimulateBallTrajectoriesCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalyzeWindErosionRiskCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SimulateSoilPercolationCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalyzeStructuralLoadsCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalyzeDynamicLoadsCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalyzeSunShadeCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisMedia.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyWorkspace.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WorkspaceEndpoints.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\ScheduleCsv.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PhysicalAnalysisBatch.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PhysicalAnalysisPdf.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SvgChart.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SendPhysicalAnalysisToWebCommand.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\UnityHeadlessRunner.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureGeometry.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFrame.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofHeightAboveGround.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisResultDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisReportPdfBuilder.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsDialog.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PlacementDataHelpers.cs" />
+    <PackageReference Include="QuestPDF" Version="$(QuestPdfVersion)" />
+  </ItemGroup>
+</Project>

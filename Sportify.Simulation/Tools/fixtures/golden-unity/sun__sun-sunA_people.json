@@ -1,0 +1,454 @@
+{
+    "caseStudy": "Sun and shade on a 67.6 x 21 m roof at 53.6 deg N: 3 people zones, 4 gardens",
+    "layoutSource": "sunA_people.json",
+    "message": "",
+    "analysis": {
+        "ran": true,
+        "assumptions": [
+            "Screening model, not a daylight or thermal design: direct sun only, on the roof's plan, in 0.5 m cells, every half hour of SOLAR time (the sun is due south at 12:00; clock time differs by the longitude, the time zone, summer time and the equation of time).",
+            "Sun: declination by Spencer's series, hour angle 15 degrees per hour, counted above 2 degrees, at latitude 53.6 N on 21 June, 21 March and 21 December. Diffuse light, cloud, reflections and neighbouring buildings are not modelled.",
+            "Shadows: walls (their footprint swept along the shadow), equipment plates shifted by their height over the tangent of the sun's height, tree canopies as spheres (plants of 2 m or more; they let 0.25 of the sun through in summer, 0.5 in March, 0.7 bare in December).",
+            "Judgement: a people zone (play area, or the 2 m band around a court with seats) needs 50% shade on average between 11:00 and 16:00 on 21 June; a garden needs 4 h of direct sun on 21 June. The courts' play areas are neither shaded nor judged.",
+            "Equipment (all kinds; the lightest piece wins among those within 10% of the best shade): pergola 2.6 m (lets 15% through, 0.35 kN/m2), solid canopy 3.0 m (0%, 0.5), sail 3.5 m (10%, 0.03), parasol 2.8 m (10%, 0.05), tree in a deep bed (crown 5 m, 13.5 kN/m2 on 3 x 3 m). Tried at every 1 m around the zone, off the courts, drains, openings, entries and taller walls, posts 0.3 m from the walkways; at most 6 pieces, 3 per zone, each worth at least 3 points of shade; no garden may fall below its need.",
+            "Wind on the equipment: the wind analysis's peak pressure (692 Pa) x the piece's coefficient (1.2 to 1.5) x its area: the uplift its anchors carry, an estimate for the structural engineer. Weight and wind are not applied to the structural analysis's balance except as the added load in the deck check.",
+            "Input - Site latitude: 53.6 deg N, entered by the designer. Where the roof is: the height of the sun depends on it. Set by the Site tab's map; Germany spans about 47.3 to 55.1 deg N.",
+            "Input - Roof orientation: 20 deg, entered by the designer. The compass bearing of the top of the plan, clockwise from north (the Site tab's Roof orientation).",
+            "Input - Shade target for people zones: 50%, built-in value, NOT CONFIRMED (the author's assumption). No standard fixes it for a roof. DIN 5034-1 sets sunshine duration for dwellings, not for outdoor areas; sun-protection guidance asks for shade wherever people stay for long around midday.",
+            "Input - Sun the gardens need: 4 h, built-in value, NOT CONFIRMED (the author's assumption). Plant need: sedum and lawn want 6 h or more, half-shade planting 3 to 6 h (rule of thumb, not verified against the FLL guideline or the species data).",
+            "Input - Shading equipment that may be recommended: all kinds, built-in value, NOT CONFIRMED (the author's assumption). A choice for the project: fixed structures need the roof's approval and a deck check; light ones (sails, parasols) need anchoring and wind checks.",
+            "Input - Deck capacity: 8 kN/m2, built-in value, NOT CONFIRMED (PLACEHOLDER for a project figure). No code value: it is the structural engineer's figure for the deck (characteristic permanent + imposed load per m2).",
+            "1 column lies outside the roof and was left out."
+        ],
+        "assumptionUses": [
+            {
+                "key": "site_latitude",
+                "label": "Site latitude",
+                "value": "53.6 deg N",
+                "state": "entered",
+                "status": "assumed",
+                "reference": "Where the roof is: the height of the sun depends on it. Set by the Site tab's map; Germany spans about 47.3 to 55.1 deg N."
+            },
+            {
+                "key": "roof_north",
+                "label": "Roof orientation",
+                "value": "20 deg",
+                "state": "entered",
+                "status": "assumed",
+                "reference": "The compass bearing of the top of the plan, clockwise from north (the Site tab's Roof orientation)."
+            },
+            {
+                "key": "shade_target",
+                "label": "Shade target for people zones",
+                "value": "50%",
+                "state": "unconfirmed",
+                "status": "assumed",
+                "reference": "No standard fixes it for a roof. DIN 5034-1 sets sunshine duration for dwellings, not for outdoor areas; sun-protection guidance asks for shade wherever people stay for long around midday."
+            },
+            {
+                "key": "garden_min_sun",
+                "label": "Sun the gardens need",
+                "value": "4 h",
+                "state": "unconfirmed",
+                "status": "assumed",
+                "reference": "Plant need: sedum and lawn want 6 h or more, half-shade planting 3 to 6 h (rule of thumb, not verified against the FLL guideline or the species data)."
+            },
+            {
+                "key": "shade_equipment",
+                "label": "Shading equipment that may be recommended",
+                "value": "all kinds",
+                "state": "unconfirmed",
+                "status": "assumed",
+                "reference": "A choice for the project: fixed structures need the roof's approval and a deck check; light ones (sails, parasols) need anchoring and wind checks."
+            },
+            {
+                "key": "deck_capacity",
+                "label": "Deck capacity",
+                "value": "8 kN/m2",
+                "state": "unconfirmed",
+                "status": "placeholder",
+                "reference": "No code value: it is the structural engineer's figure for the deck (characteristic permanent + imposed load per m2)."
+            }
+        ],
+        "summary": {
+            "latitudeDeg": 53.55110168457031,
+            "northDeg": 20,
+            "latitudeAssumed": false,
+            "northAssumed": false,
+            "shadeTargetPercent": 50,
+            "gardenMinSunHours": 4,
+            "peopleZones": 3,
+            "peopleZonesTooSunny": 3,
+            "gardenZones": 4,
+            "gardenZonesTooShaded": 0,
+            "peopleZonesTooSunnyAfter": 1,
+            "gardenZonesTooShadedAfter": 0,
+            "pieces": 6,
+            "addedLoadKn": 134.10000610351562,
+            "peakWindPressurePa": 692.0199584960938,
+            "preliminary": true,
+            "preliminaryNote": "PRELIMINARY: not confirmed by the designer - shade target 50%; garden sun 4 h; equipment all kinds; deck capacity 8 kN/m2 (built-in values)",
+            "acceptedNote": ""
+        },
+        "days": [
+            {
+                "key": "jun",
+                "name": "21 June",
+                "dayOfYear": 172,
+                "declinationDeg": 23.452045440673828,
+                "sunriseH": 4,
+                "sunsetH": 20,
+                "noonElevationDeg": 59.90094757080078,
+                "noonBearingDeg": 180,
+                "roofMeanSunHours": 12.6771821975708,
+                "roofMeanSunHoursAfter": 11.246857643127441
+            },
+            {
+                "key": "mar",
+                "name": "21 March",
+                "dayOfYear": 80,
+                "declinationDeg": -0.0659240335226059,
+                "sunriseH": 6,
+                "sunsetH": 18,
+                "noonElevationDeg": 36.38297653198242,
+                "noonBearingDeg": 180,
+                "roofMeanSunHours": 9.205979347229004,
+                "roofMeanSunHoursAfter": 8.210614204406738
+            },
+            {
+                "key": "dec",
+                "name": "21 December",
+                "dayOfYear": 355,
+                "declinationDeg": -23.419891357421875,
+                "sunriseH": 8.5,
+                "sunsetH": 15.5,
+                "noonElevationDeg": 13.029009819030762,
+                "noonBearingDeg": 180,
+                "roofMeanSunHours": 4.5159010887146,
+                "roofMeanSunHoursAfter": 4.321532726287842
+            }
+        ],
+        "zones": [
+            {
+                "id": "zone_sample_1",
+                "label": "Green roof: Sloped Sedum",
+                "kind": "garden",
+                "areaM2": 377.76470947265625,
+                "sunHoursJune": 15.027960777282715,
+                "sunHoursMarch": 10.383223533630371,
+                "sunHoursDecember": 5.169407844543457,
+                "peakShadePercent": 0,
+                "status": "ok",
+                "afterSunHoursJune": 12.344934463500977,
+                "afterPeakShadePercent": 19.44671058654785,
+                "afterStatus": "ok"
+            },
+            {
+                "id": "zone_sample_2",
+                "label": "Green roof: Roof Garden",
+                "kind": "garden",
+                "areaM2": 166.7632293701172,
+                "sunHoursJune": 12.558308601379395,
+                "sunHoursMarch": 9.855253219604492,
+                "sunHoursDecember": 6.1682562828063965,
+                "peakShadePercent": 8.23770523071289,
+                "status": "ok",
+                "afterSunHoursJune": 12.465760231018066,
+                "afterPeakShadePercent": 9.55216121673584,
+                "afterStatus": "ok"
+            },
+            {
+                "id": "zone_sample_3",
+                "label": "Green roof: Naturdach",
+                "kind": "garden",
+                "areaM2": 166.7632293701172,
+                "sunHoursJune": 14.71646785736084,
+                "sunHoursMarch": 9.736587524414062,
+                "sunHoursDecember": 2.3636362552642822,
+                "peakShadePercent": 0,
+                "status": "ok",
+                "afterSunHoursJune": 11.92255973815918,
+                "afterPeakShadePercent": 14.123696327209473,
+                "afterStatus": "ok"
+            },
+            {
+                "id": "zone_sample_4",
+                "label": "Green roof: Deep tree bed (800 mm)",
+                "kind": "garden",
+                "areaM2": 224.17352294921875,
+                "sunHoursJune": 10.004807472229004,
+                "sunHoursMarch": 8.569913864135742,
+                "sunHoursDecember": 3.8335421085357666,
+                "peakShadePercent": 39.025604248046875,
+                "status": "ok",
+                "afterSunHoursJune": 9.985960006713867,
+                "afterPeakShadePercent": 39.025604248046875,
+                "afterStatus": "ok"
+            },
+            {
+                "id": "sample_court_1",
+                "label": "Badminton (standard)",
+                "kind": "court",
+                "areaM2": 80.52352905273438,
+                "sunHoursJune": 15.07638931274414,
+                "sunHoursMarch": 10.949845314025879,
+                "sunHoursDecember": 6.291666507720947,
+                "peakShadePercent": 0,
+                "status": "n/a",
+                "afterSunHoursJune": 12.944714546203613,
+                "afterPeakShadePercent": 17.348766326904297,
+                "afterStatus": "n/a"
+            },
+            {
+                "id": "sample_court_1_seats",
+                "label": "Badminton (standard) spectators",
+                "kind": "spectators",
+                "areaM2": 87.48235321044922,
+                "sunHoursJune": 15.075638771057129,
+                "sunHoursMarch": 10.802911758422852,
+                "sunHoursDecember": 5.994175910949707,
+                "peakShadePercent": 0,
+                "status": "too-sunny",
+                "afterSunHoursJune": 11.19186782836914,
+                "afterPeakShadePercent": 42.005680084228516,
+                "afterStatus": "too-sunny"
+            },
+            {
+                "id": "sample_court_2",
+                "label": "Badminton (standard)",
+                "kind": "court",
+                "areaM2": 80.52352905273438,
+                "sunHoursJune": 14.074363708496094,
+                "sunHoursMarch": 10.564814567565918,
+                "sunHoursDecember": 6.142283916473389,
+                "peakShadePercent": 0,
+                "status": "n/a",
+                "afterSunHoursJune": 13.965875625610352,
+                "afterPeakShadePercent": 0.06172839552164078,
+                "afterStatus": "n/a"
+            },
+            {
+                "id": "act_yoga",
+                "label": "Yoga",
+                "kind": "people",
+                "areaM2": 47.717647552490234,
+                "sunHoursJune": 15.447916984558105,
+                "sunHoursMarch": 10.927083015441895,
+                "sunHoursDecember": 6.5,
+                "peakShadePercent": 0,
+                "status": "too-sunny",
+                "afterSunHoursJune": 11.325455665588379,
+                "afterPeakShadePercent": 60.640625,
+                "afterStatus": "ok"
+            },
+            {
+                "id": "act_play",
+                "label": "Play area",
+                "kind": "people",
+                "areaM2": 29.823530197143555,
+                "sunHoursJune": 15.71875,
+                "sunHoursMarch": 10.711458206176758,
+                "sunHoursDecember": 4.25,
+                "peakShadePercent": 0,
+                "status": "too-sunny",
+                "afterSunHoursJune": 8.474374771118164,
+                "afterPeakShadePercent": 67.42500305175781,
+                "afterStatus": "ok"
+            }
+        ],
+        "equipment": [
+            {
+                "key": "sail",
+                "name": "Shade sail",
+                "shape": "rect",
+                "x": 22,
+                "y": 14,
+                "widthM": 6,
+                "depthM": 5,
+                "heightM": 3.5,
+                "transmission": 0.10000000149011612,
+                "weightKnM2": 0.029999999329447746,
+                "windCp": 1.5,
+                "zoneId": "sample_court_1_seats",
+                "zoneLabel": "Badminton (standard) spectators",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 42.005680084228516,
+                "addedLoadKn": 0.8999999761581421,
+                "windUpliftKn": 31.140897750854492,
+                "note": "tensioned fabric, taken down in storms"
+            },
+            {
+                "key": "sail",
+                "name": "Shade sail",
+                "shape": "rect",
+                "x": 4,
+                "y": 8,
+                "widthM": 5,
+                "depthM": 6,
+                "heightM": 3.5,
+                "transmission": 0.10000000149011612,
+                "weightKnM2": 0.029999999329447746,
+                "windCp": 1.5,
+                "zoneId": "act_yoga",
+                "zoneLabel": "Yoga",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 60.640625,
+                "addedLoadKn": 0.8999999761581421,
+                "windUpliftKn": 31.140897750854492,
+                "note": "tensioned fabric, taken down in storms"
+            },
+            {
+                "key": "sail",
+                "name": "Shade sail",
+                "shape": "rect",
+                "x": 15,
+                "y": 15,
+                "widthM": 6,
+                "depthM": 5,
+                "heightM": 3.5,
+                "transmission": 0.10000000149011612,
+                "weightKnM2": 0.029999999329447746,
+                "windCp": 1.5,
+                "zoneId": "act_play",
+                "zoneLabel": "Play area",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 67.42500305175781,
+                "addedLoadKn": 0.8999999761581421,
+                "windUpliftKn": 31.140897750854492,
+                "note": "tensioned fabric, taken down in storms"
+            },
+            {
+                "key": "sail",
+                "name": "Shade sail",
+                "shape": "rect",
+                "x": 19,
+                "y": 8,
+                "widthM": 5,
+                "depthM": 6,
+                "heightM": 3.5,
+                "transmission": 0.10000000149011612,
+                "weightKnM2": 0.029999999329447746,
+                "windCp": 1.5,
+                "zoneId": "sample_court_1_seats",
+                "zoneLabel": "Badminton (standard) spectators",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 42.005680084228516,
+                "addedLoadKn": 0.8999999761581421,
+                "windUpliftKn": 31.140897750854492,
+                "note": "tensioned fabric, taken down in storms"
+            },
+            {
+                "key": "canopy",
+                "name": "Solid canopy",
+                "shape": "rect",
+                "x": 30,
+                "y": 15,
+                "widthM": 6,
+                "depthM": 3,
+                "heightM": 3,
+                "transmission": 0,
+                "weightKnM2": 0.5,
+                "windCp": 1.2000000476837158,
+                "zoneId": "sample_court_1_seats",
+                "zoneLabel": "Badminton (standard) spectators",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 42.005680084228516,
+                "addedLoadKn": 9,
+                "windUpliftKn": 14.947630882263184,
+                "note": "opaque roof on posts"
+            },
+            {
+                "key": "tree",
+                "name": "Tree in a deep bed",
+                "shape": "tree",
+                "x": 9,
+                "y": 12,
+                "widthM": 3,
+                "depthM": 3,
+                "heightM": 6,
+                "transmission": 0.25,
+                "weightKnM2": 13.5,
+                "windCp": 0,
+                "zoneId": "act_yoga",
+                "zoneLabel": "Yoga",
+                "shadeBeforePercent": 0,
+                "shadeAfterPercent": 60.640625,
+                "addedLoadKn": 121.5,
+                "windUpliftKn": 0,
+                "note": "crown 5 m, bed 3 x 3 m; takes years to grow"
+            }
+        ],
+        "structure": {
+            "ran": true,
+            "addedKn": 134.10000610351562,
+            "peakUtilisationBefore": 1.8648403882980347,
+            "peakUtilisationAfter": 1.8648403882980347,
+            "baysOverBefore": 4,
+            "baysOverAfter": 4,
+            "worstBayAfter": "Bay 8.1"
+        },
+        "recommendations": [
+            {
+                "kind": "too-sunny",
+                "target": "Badminton (standard) spectators",
+                "text": "Badminton (standard) spectators: 0% in shade between 11 and 16 h on 21 June, against a target of 50% (15.1 h of sun in all). a shade sail (6 x 5 m, 3.5 m high) at x 25, y 16.5 and a shade sail (5 x 6 m, 3.5 m high) at x 21.5, y 11 and a solid canopy (6 x 3 m, 3 m high) at x 33, y 16.5 brings the shade to 42%, still short of the target."
+            },
+            {
+                "kind": "too-sunny",
+                "target": "Yoga",
+                "text": "Yoga: 0% in shade between 11 and 16 h on 21 June, against a target of 50% (15.4 h of sun in all). a shade sail (5 x 6 m, 3.5 m high) at x 6.5, y 11 and a tree in a deep bed (3 x 3 m, 6 m high) at x 10.5, y 13.5 brings the shade to 61%."
+            },
+            {
+                "kind": "too-sunny",
+                "target": "Play area",
+                "text": "Play area: 0% in shade between 11 and 16 h on 21 June, against a target of 50% (15.7 h of sun in all). a shade sail (6 x 5 m, 3.5 m high) at x 18, y 17.5 brings the shade to 67%."
+            },
+            {
+                "kind": "equipment",
+                "target": "Shade sail",
+                "text": "A shade sail (6 x 5 m, 3.5 m high) at x 25, y 16.5 for Badminton (standard) spectators: adds about 0.9 kN of permanent load and up to 31.1 kN of wind uplift on its anchors (tensioned fabric, taken down in storms)."
+            },
+            {
+                "kind": "equipment",
+                "target": "Shade sail",
+                "text": "A shade sail (5 x 6 m, 3.5 m high) at x 6.5, y 11 for Yoga: adds about 0.9 kN of permanent load and up to 31.1 kN of wind uplift on its anchors (tensioned fabric, taken down in storms)."
+            },
+            {
+                "kind": "equipment",
+                "target": "Shade sail",
+                "text": "A shade sail (6 x 5 m, 3.5 m high) at x 18, y 17.5 for Play area: adds about 0.9 kN of permanent load and up to 31.1 kN of wind uplift on its anchors (tensioned fabric, taken down in storms)."
+            },
+            {
+                "kind": "equipment",
+                "target": "Shade sail",
+                "text": "A shade sail (5 x 6 m, 3.5 m high) at x 21.5, y 11 for Badminton (standard) spectators: adds about 0.9 kN of permanent load and up to 31.1 kN of wind uplift on its anchors (tensioned fabric, taken down in storms)."
+            },
+            {
+                "kind": "equipment",
+                "target": "Solid canopy",
+                "text": "A solid canopy (6 x 3 m, 3 m high) at x 33, y 16.5 for Badminton (standard) spectators: adds about 9 kN of permanent load and up to 14.9 kN of wind uplift on its anchors (opaque roof on posts)."
+            },
+            {
+                "kind": "equipment",
+                "target": "Tree in a deep bed",
+                "text": "A tree in a deep bed (3 x 3 m, 6 m high) at x 10.5, y 13.5 for Yoga: adds about 121.5 kN of permanent load (crown 5 m, bed 3 x 3 m; takes years to grow)."
+            },
+            {
+                "kind": "structure",
+                "target": "Deck",
+                "text": "With the equipment the deck carries 134.1 kN more: the most loaded bay goes from 186% to 186% of the deck capacity, no bay more over it than before (against a capacity nobody has confirmed)."
+            }
+        ]
+    },
+    "video": {
+        "path": "video.mp4",
+        "posterPath": "",
+        "durationS": 83.19999694824219,
+        "fps": 30,
+        "width": 1920,
+        "height": 1080,
+        "frames": 2496,
+        "slowMotion": 1
+    },
+    "videoError": "",
+    "error": ""
+}

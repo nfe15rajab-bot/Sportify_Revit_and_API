@@ -13,6 +13,8 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Roof\RoofShape.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\InputQuantiser.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
@@ -21,9 +23,14 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFrame.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofPushScope.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />
+    <Compile Include="WorkspaceStub.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />
   </ItemGroup>
 </Project>

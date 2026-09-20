@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SportfyRevit;
+using Sportify.Simulation.Roof;
 using Sportify.Simulation.Structure;
 
 // usage: StructuralCheck <layout.json> [--json]
@@ -30,6 +31,9 @@ foreach (var i in report.items)
 Console.WriteLine();
 Console.WriteLine("  bay utilisation (rows = down the plan):");
 var xs = report.verticalLinesM.Length - 1;
+if (report.bays.Any(bay => bay.polygon != null))
+    foreach (var bay in report.bays) Console.WriteLine($"    {bay.label,-8} {bay.areaM2,7:0.0} m2  {bay.utilisation * 100,4:0}%  {bay.status}");
+else
 for (var r = 0; r < report.horizontalLinesM.Length - 1; r++)
     Console.WriteLine("    " + string.Join(" ", Enumerable.Range(0, xs).Select(c => $"{report.bays[r * xs + c].utilisation * 100,4:0}%{(report.bays[r * xs + c].status == "over" ? "!" : report.bays[r * xs + c].status == "marginal" ? "~" : " ")}")));
 foreach (var c in report.columns.Where(c => c.status == "high")) Console.WriteLine($"  HIGH {c.label} ({c.x:0.#}, {c.y:0.#}) {c.loadKn:0} kN = {c.ratioToMean:0.00}x mean");
@@ -41,14 +45,37 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 Console.WriteLine();
 
 // 1. conservation: what the layout puts on the roof is what the bays, the columns and the summary add up to
+var shape = inputs.Shape;
+// the part of a piece's footprint that is on the roof (all of it, up to the bounding rectangle, for a rectangular roof)
 double Overlap(LoadItem i)
 {
     var w = Math.Max(0, Math.Min(i.X + i.Width, inputs.RoofLength) - Math.Max(i.X, 0));
     var h = Math.Max(0, Math.Min(i.Y + i.Height, inputs.RoofWidth) - Math.Max(i.Y, 0));
-    return w * h;
+    if (shape.IsRectangle) return w * h;
+    return RoofShape.PolygonArea(RoofShape.ClipConvex(shape.Outline!, RoofShape.RectPoints(i.X, i.Y, i.X + i.Width, i.Y + i.Height)));
 }
-var deadExpected = StructureModel.RoofFinishesKnM2 * inputs.RoofLength * inputs.RoofWidth
-                   + inputs.Items.Sum(i => i.DeadKnM2 * Overlap(i) + (i.PointKn > 0 ? i.PointKn : 0));
+// a concentrated load is shared between the four cell centres around it, and each cell carries only its roof part
+double PointOnRoof(LoadItem i)
+{
+    if (i.PointKn <= 0) return 0;
+    if (shape.IsRectangle) return i.PointKn;
+    var nx = Math.Max(1, (int)Math.Floor(inputs.RoofLength / StructureModel.CellM + 0.5)); var ny = Math.Max(1, (int)Math.Floor(inputs.RoofWidth / StructureModel.CellM + 0.5));
+    double cw = inputs.RoofLength / nx, ch = inputs.RoofWidth / ny;
+    double gx = (i.X + i.Width / 2) / cw - 0.5, gy = (i.Y + i.Height / 2) / ch - 0.5;
+    int ix = (int)Math.Floor(gx), iy = (int)Math.Floor(gy);
+    double tx = gx - ix, ty = gy - iy, sum = 0;
+    for (var dy = 0; dy <= 1; dy++)
+        for (var dx = 0; dx <= 1; dx++)
+        {
+            var wgt = (dx == 0 ? 1 - tx : tx) * (dy == 0 ? 1 - ty : ty);
+            if (wgt <= 0) continue;
+            var cx = Math.Min(nx - 1, Math.Max(0, ix + dx)); var cy = Math.Min(ny - 1, Math.Max(0, iy + dy));
+            sum += i.PointKn * wgt * shape.Coverage(cx * cw, cy * ch, (cx + 1) * cw, (cy + 1) * ch);
+        }
+    return sum;
+}
+var deadExpected = StructureModel.RoofFinishesKnM2 * shape.Area
+                   + inputs.Items.Sum(i => i.DeadKnM2 * Overlap(i) + PointOnRoof(i));
 Check("permanent load = finishes + every piece over the roof", Math.Abs(s.deadKn - deadExpected) < 1e-3 * Math.Max(1, deadExpected) / 1000, $"({s.deadKn:0.000} vs {deadExpected:0.000} kN)");
 Check("bays add up to the roof total (G, Q, people)",
       Math.Abs(report.bays.Sum(x => x.deadKn) - s.deadKn) < 1e-3 && Math.Abs(report.bays.Sum(x => x.liveKn) - s.liveKn) < 1e-3 && Math.Abs(report.bays.Sum(x => x.persons) - s.expectedPersons) < 1e-3,
@@ -67,9 +94,22 @@ StructureInputs Mirror(StructureInputs a, string axis)
     {
         RoofLength = a.RoofLength, RoofWidth = a.RoofWidth, GridSource = a.GridSource, CapacityKnM2 = a.CapacityKnM2,
         Notes = a.Notes,
+        Outline = a.Outline?.Select(q => axis == "x" ? new[] { len - q[0], q[1] } : new[] { q[0], len - q[1] }).ToList(),
     };
-    foreach (var l in a.VerticalLines) m.VerticalLines.Add(new GridLineInput { Name = l.Name, Position = axis == "x" ? len - l.Position : l.Position });
-    foreach (var l in a.HorizontalLines) m.HorizontalLines.Add(new GridLineInput { Name = l.Name, Position = axis == "y" ? len - l.Position : l.Position });
+    GridLineInput MirrorLine(GridLineInput l, bool vertical)
+    {
+        var ml = new GridLineInput { Name = l.Name, HasGeometry = l.HasGeometry };
+        // a line's Position is where it crosses the middle of the roof: it flips only when the line is mirrored ACROSS its own kind of axis
+        ml.Position = (vertical ? axis == "x" : axis == "y") ? len - l.Position : l.Position;
+        if (l.HasGeometry)
+        {
+            ml.X0 = axis == "x" ? len - l.X0 : l.X0; ml.X1 = axis == "x" ? len - l.X1 : l.X1;
+            ml.Y0 = axis == "y" ? len - l.Y0 : l.Y0; ml.Y1 = axis == "y" ? len - l.Y1 : l.Y1;
+        }
+        return ml;
+    }
+    foreach (var l in a.VerticalLines) m.VerticalLines.Add(MirrorLine(l, true));
+    foreach (var l in a.HorizontalLines) m.HorizontalLines.Add(MirrorLine(l, false));
     foreach (var c in a.Columns) m.Columns.Add(axis == "x" ? new[] { len - c[0], c[1] } : new[] { c[0], len - c[1] });
     foreach (var e in a.Entries) m.Entries.Add(axis == "x" ? new[] { len - e[0], e[1] } : new[] { e[0], len - e[1] });
     foreach (var p in a.Paths)
@@ -99,7 +139,7 @@ foreach (var axis in new[] { "x", "y" })
 // 3. the capacity only rescales utilisation
 var doubled = StructureModel.Analyse(new StructureInputs
 {
-    RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
+    RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Outline = inputs.Outline, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
     Items = inputs.Items, Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = s.capacityKnM2 * 2,
 });
 Check("twice the capacity, half the utilisation, same loads", Math.Abs(doubled.summary.peakUtilisation * 2 - s.peakUtilisation) < 1e-4 && Math.Abs(doubled.summary.totalKn - s.totalKn) < 1e-3);
@@ -107,7 +147,7 @@ Check("twice the capacity, half the utilisation, same loads", Math.Abs(doubled.s
 // 4. the bays' boundaries don't change the totals: the same layout on its assumed grid carries the same load
 var gridless = StructureModel.Analyse(new StructureInputs
 {
-    RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Items = inputs.Items, Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = inputs.CapacityKnM2,
+    RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Outline = inputs.Outline, Items = inputs.Items, Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = inputs.CapacityKnM2,
 });
 Check("without a grid: the same load, on an assumed grid that says so", Math.Abs(gridless.summary.totalKn - s.totalKn) < 1e-3 && gridless.summary.gridAssumed && gridless.recommendations.Any(x => x.kind == "grid"),
       $"({gridless.bays.Count} bays)");
@@ -116,10 +156,21 @@ Check("without a grid: the same load, on an assumed grid that says so", Math.Abs
 {
     var lightest = report.bays.OrderBy(x => x.totalKn).First();
     // a metre clear of the bay's edges: the model's cells are half a metre wide, so load within a cell of a grid line is shared with the next bay
-    var slab = new LoadItem { Id = "test", Label = "test slab", Kind = LoadKind.Zone, X = lightest.x0 + 1.0, Y = lightest.y0 + 1.0, Width = Math.Min(3, lightest.x1 - lightest.x0 - 2.0), Height = Math.Min(3, lightest.y1 - lightest.y0 - 2.0), DeadKnM2 = 6.0, LiveKnM2 = StructureModel.RoofLiveKnM2 };
+    // (for a bay that is not a rectangle: the first spot in it, on a half-metre grid, where a 3 x 3 m slab and a metre around it lie wholly inside the bay)
+    double sx = lightest.x0 + 1.0, sy = lightest.y0 + 1.0, sw = Math.Min(3, lightest.x1 - lightest.x0 - 2.0), sh = Math.Min(3, lightest.y1 - lightest.y0 - 2.0);
+    if (lightest.polygon != null)
+    {
+        sw = 3; sh = 3;
+        var found = false;
+        for (double yy = lightest.y0; yy <= lightest.y1 - 5 && !found; yy += 0.5)
+            for (double xx = lightest.x0; xx <= lightest.x1 - 5 && !found; xx += 0.5)
+                if (StructureModel.BayOverlapM2(lightest, xx, yy, xx + 5, yy + 5) > 25 - 1e-6) { sx = xx + 1; sy = yy + 1; found = true; }
+        if (!found) { sw = 0; sh = 0; }
+    }
+    var slab = new LoadItem { Id = "test", Label = "test slab", Kind = LoadKind.Zone, X = sx, Y = sy, Width = sw, Height = sh, DeadKnM2 = 6.0, LiveKnM2 = StructureModel.RoofLiveKnM2 };
     var more = new StructureInputs
     {
-        RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
+        RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Outline = inputs.Outline, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
         Items = inputs.Items.Concat(new[] { slab }).ToList(), Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = s.capacityKnM2,
     };
     var after = StructureModel.Analyse(more);
@@ -141,11 +192,17 @@ foreach (var axis in new[] { "x", "y" })
     {
         n++;
         var piece = items.First(i => i.Id == rec.itemId);
-        if (rec.kind == "move") { if (axis == "x") piece.X += rec.moveM; else piece.Y += rec.moveM; }
+        var startCover = shape.Coverage(piece.X, piece.Y, piece.X + piece.Width, piece.Y + piece.Height);
+        if (rec.kind == "move")
+        {
+            if (axis == "x") piece.X += rec.moveM; else piece.Y += rec.moveM;
+            if (!shape.IsRectangle)
+                Check($"{axis}: step {n} moves '{rec.target}' without taking it off the roof", shape.Coverage(piece.X, piece.Y, piece.X + piece.Width, piece.Y + piece.Height) >= Math.Min(startCover, 0.999) - 1e-9);
+        }
         else piece.DeadKnM2 = rec.newDeadKnM2;
         var again = StructureModel.Analyse(new StructureInputs
         {
-            RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
+            RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Outline = inputs.Outline, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
             Items = items, Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = inputs.CapacityKnM2, GridSource = inputs.GridSource,
         });
         var e = axis == "x" ? again.balance.totalEccentricityX : again.balance.totalEccentricityY;

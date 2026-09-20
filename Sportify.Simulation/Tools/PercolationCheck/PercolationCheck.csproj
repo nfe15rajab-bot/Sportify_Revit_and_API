@@ -13,6 +13,8 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Roof\RoofShape.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\InputQuantiser.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Water\PercolationCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />

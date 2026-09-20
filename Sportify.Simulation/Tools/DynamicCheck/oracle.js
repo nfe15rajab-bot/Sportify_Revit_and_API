@@ -19,7 +19,7 @@ const sk = (zone, a) => {
 };
 const site = layout.site_conditions || {};
 const zone = site.snow_zone ? String(site.snow_zone).trim().toLowerCase() : "2";
-const alt = site.altitude_m != null && site.altitude_set !== false && site.altitude_m !== null ? site.altitude_m : 100;
+const alt = site.altitude_set === true && typeof site.altitude_m === "number" ? site.altitude_m : 100;      // by the flag: Unity cannot read a null, so its reader needs altitude_set, and the add-in agrees (ReaderParity)
 const skWant = sk(zone, alt);
 let worst = 0, n = 0; const bad = [];
 const cmp = (name, a, b, tol) => { n++; const err = Math.abs(a - b) / Math.max(1e-3, Math.abs(a), Math.abs(b)); worst = Math.max(worst, err); if (err > tol) bad.push(`${name}: oracle ${a} vs C# ${b}`); };
@@ -46,7 +46,8 @@ const worstAcc = (a, force, mass, fn) => { let best = 0, at = a.fpLowHz; for (le
 const estimated = report.resonance.estimated;
 for (const b of report.resonance.bays) {
   // frequency from span, depth, mass (estimated) and the depth rule
-  const depth = Math.min(0.6, Math.max(0.2, b.spanM / 25));
+  const slab = layout.roof_context && layout.roof_context.features && layout.roof_context.features.slab ? Math.round(layout.roof_context.features.slab.structural_thickness_m * 1e4) / 1e4 : 0;
+  const depth = slab >= 0.1 && slab <= 1.5 ? slab : Math.min(0.6, Math.max(0.2, b.spanM / 25));
   cmp(`${b.label} depth`, depth, b.depthM, 1e-5);
   if (estimated) cmp(`${b.label} frequency`, Math.PI / 2 * Math.sqrt(E * depth ** 3 / 12 / (b.massKgM2 * b.spanM ** 4)), b.frequencyHz, 1e-5);
   for (const r of b.activities) {

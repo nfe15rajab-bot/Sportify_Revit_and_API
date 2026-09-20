@@ -1,0 +1,183 @@
+{
+ "version": "1.3",
+ "generator": "Sportify-Combine",
+ "roof_context": {
+  "length_m": 46,
+  "width_m": 36,
+  "source_boundary_polygon": null,
+  "world_origin_x_m": 0,
+  "world_origin_y_m": 0
+ },
+ "design_rules": {
+  "clearance_m": 1,
+  "boundary_setback_m": 1.5,
+  "circulation_width_m": 1,
+  "min_entry_points": 4,
+  "quiet_buffer_m": 3
+ },
+ "entry_points": [
+  {
+   "x_m": 23,
+   "y_m": 0,
+   "edge": "top"
+  },
+  {
+   "x_m": 23,
+   "y_m": 36,
+   "edge": "bottom"
+  },
+  {
+   "x_m": 0,
+   "y_m": 18,
+   "edge": "left"
+  },
+  {
+   "x_m": 46,
+   "y_m": 18,
+   "edge": "right"
+  }
+ ],
+ "circulation_paths": [],
+ "site_location": null,
+ "placements": [
+  {
+   "id": "g0",
+   "category": "garden",
+   "label": "Garden bed",
+   "bounding_box": {
+    "top_left_x_m": 2,
+    "top_left_y_m": 28,
+    "width_m": 20,
+    "height_m": 4
+   },
+   "transform": {
+    "rotation_deg": 0
+   },
+   "parameters": {}
+  },
+  {
+   "id": "f0",
+   "category": "field",
+   "label": "basketball",
+   "insertion_point": {
+    "center_x_m": 8.5,
+    "center_y_m": 13
+   },
+   "bounding_box": {
+    "top_left_x_m": 2,
+    "top_left_y_m": 2,
+    "width_m": 13,
+    "height_m": 22
+   },
+   "transform": {
+    "rotation_deg": 90
+   },
+   "parameters": {
+    "field": {
+     "sport": "basketball",
+     "variant": "mini",
+     "norm": "FIBA / DIN 18032",
+     "dimensions": {
+      "length_m": 22,
+      "width_m": 13,
+      "runoff_m": 2,
+      "min_height_m": 7
+     }
+    }
+   }
+  },
+  {
+   "id": "f1",
+   "category": "field",
+   "label": "volleyball",
+   "insertion_point": {
+    "center_x_m": 25,
+    "center_y_m": 6
+   },
+   "bounding_box": {
+    "top_left_x_m": 17,
+    "top_left_y_m": 2,
+    "width_m": 16,
+    "height_m": 8
+   },
+   "transform": {
+    "rotation_deg": 0
+   },
+   "parameters": {
+    "field": {
+     "sport": "volleyball",
+     "variant": "mini",
+     "norm": "FIVB / DIN 18032",
+     "dimensions": {
+      "length_m": 16,
+      "width_m": 8,
+      "runoff_m": 3,
+      "min_height_m": 7
+     }
+    }
+   }
+  },
+  {
+   "id": "f2",
+   "category": "field",
+   "label": "polyvalent",
+   "insertion_point": {
+    "center_x_m": 27,
+    "center_y_m": 20
+   },
+   "bounding_box": {
+    "top_left_x_m": 17,
+    "top_left_y_m": 14,
+    "width_m": 20,
+    "height_m": 12
+   },
+   "transform": {
+    "rotation_deg": 0
+   },
+   "parameters": {
+    "field": {
+     "sport": "polyvalent",
+     "variant": "mini",
+     "norm": "DIN 18032",
+     "dimensions": {
+      "length_m": 20,
+      "width_m": 12,
+      "runoff_m": 1.5,
+      "min_height_m": 5.5
+     }
+    }
+   }
+  },
+  {
+   "id": "f3",
+   "category": "field",
+   "label": "badminton",
+   "insertion_point": {
+    "center_x_m": 41.05,
+    "center_y_m": 8.7
+   },
+   "bounding_box": {
+    "top_left_x_m": 38,
+    "top_left_y_m": 2,
+    "width_m": 6.1,
+    "height_m": 13.4
+   },
+   "transform": {
+    "rotation_deg": 90
+   },
+   "parameters": {
+    "field": {
+     "sport": "badminton",
+     "variant": "standard",
+     "norm": "BWF / DIN 18032",
+     "dimensions": {
+      "length_m": 13.4,
+      "width_m": 6.1,
+      "runoff_m": 2,
+      "min_height_m": 9
+     }
+    }
+   }
+  }
+ ]
+}

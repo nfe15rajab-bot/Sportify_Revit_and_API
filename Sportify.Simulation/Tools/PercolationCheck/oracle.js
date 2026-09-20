@@ -10,6 +10,7 @@ const K = { cell: 10, surface: 2, wetStart: 1.0, fcOfSat: 0.7, resOfSat: 0.2, ex
 const scenarios = [[10, 180], [40, 30], [108, 10]];   // mm/h, minutes
 
 const assemblies = {};
+layout.zones = layout.zones || []; layout.assemblies = layout.assemblies || [];      // an old export has neither: empty lists, as the readers have it
 for (const a of layout.assemblies) assemblies[a.key] = a;
 const isGravel = n => /gravel|kies|split|grit|sand/.test((n || "").toLowerCase());
 

@@ -1,0 +1,159 @@
+{
+    "caseStudy": "2 courts on a 67.6 x 21 m roof",
+    "shotsSimulated": 8,
+    "violations": [],
+    "landings": [
+        {
+            "courtIndex": 0,
+            "shotLabel": "Smash",
+            "endedBy": "landed",
+            "flightTimeS": 0.4874997138977051,
+            "rangeM": 7.901823043823242,
+            "x_m": 36.59182357788086,
+            "y_m": 10.5
+        },
+        {
+            "courtIndex": 0,
+            "shotLabel": "Wide-Mishit",
+            "endedBy": "landed",
+            "flightTimeS": 2.0955066680908203,
+            "rangeM": 9.105180740356445,
+            "x_m": 33.7366828918457,
+            "y_m": 3.8530824184417725
+        },
+        {
+            "courtIndex": 0,
+            "shotLabel": "Clear-Long-X",
+            "endedBy": "landed",
+            "flightTimeS": 2.333340644836426,
+            "rangeM": 8.62618637084961,
+            "x_m": 26.763813018798828,
+            "y_m": 10.5
+        },
+        {
+            "courtIndex": 0,
+            "shotLabel": "Clear-Long+X",
+            "endedBy": "landed",
+            "flightTimeS": 2.333340644836426,
+            "rangeM": 8.626214981079102,
+            "x_m": 34.63621520996094,
+            "y_m": 10.5
+        },
+        {
+            "courtIndex": 1,
+            "shotLabel": "Smash",
+            "endedBy": "landed",
+            "flightTimeS": 0.4874997138977051,
+            "rangeM": 7.901821136474609,
+            "x_m": 50.991825103759766,
+            "y_m": 10.5
+        },
+        {
+            "courtIndex": 1,
+            "shotLabel": "Wide-Mishit",
+            "endedBy": "landed",
+            "flightTimeS": 2.0955066680908203,
+            "rangeM": 9.105189323425293,
+            "x_m": 48.136695861816406,
+            "y_m": 3.8530824184417725
+        },
+        {
+            "courtIndex": 1,
+            "shotLabel": "Clear-Long-X",
+            "endedBy": "landed",
+            "flightTimeS": 2.333340644836426,
+            "rangeM": 8.626209259033203,
+            "x_m": 41.16379165649414,
+            "y_m": 10.5
+        },
+        {
+            "courtIndex": 1,
+            "shotLabel": "Clear-Long+X",
+            "endedBy": "landed",
+            "flightTimeS": 2.333340644836426,
+            "rangeM": 8.626209259033203,
+            "x_m": 49.03621292114258,
+            "y_m": 10.5
+        }
+    ],
+    "shotsLeavingRoof": 0,
+    "percentShotsLeavingRoof": 0,
+    "roofExit": {
+        "ran": true,
+        "assumptions": "Swept 810 stray shots from 2 court(s): 9 directions (+/-60 deg around each scenario), 3 speeds (60-100% of the scenario's), 3 launch angles (+/-8 deg) per shot type. Percentages are shares of this shot set, a way to compare layouts and edges - not the probability that a real ball leaves the roof.",
+        "shotsSwept": 810,
+        "shotsLeavingRoof": 20,
+        "percentLeavingRoof": 2.4691357612609863,
+        "percentLeavingAfterFences": 0,
+        "percentEnteringOtherCourts": 0,
+        "percentEnteringCirculation": 0.7407407164573669,
+        "byEdge": [
+            {
+                "edge": "top",
+                "shots": 10,
+                "percentOfShots": 1.2345678806304932,
+                "alongMinM": 25.71631622314453,
+                "alongMaxM": 42.42121505737305,
+                "heightP95M": 3.4185752868652344,
+                "heightMaxM": 3.4185752868652344,
+                "courts": [
+                    0,
+                    1
+                ]
+            },
+            {
+                "edge": "bottom",
+                "shots": 10,
+                "percentOfShots": 1.2345678806304932,
+                "alongMinM": 25.71631622314453,
+                "alongMaxM": 42.42121505737305,
+                "heightP95M": 3.418578863143921,
+                "heightMaxM": 3.418578863143921,
+                "courts": [
+                    0,
+                    1
+                ]
+            }
+        ],
+        "fences": [
+            {
+                "edge": "top",
+                "fromM": 23.5,
+                "toM": 44.5,
+                "lengthM": 21,
+                "heightM": 3.5,
+                "fullHeightM": 3.5,
+                "stopsPercentOfExits": 100,
+                "courts": [
+                    0,
+                    1
+                ]
+            },
+            {
+                "edge": "bottom",
+                "fromM": 23.5,
+                "toM": 44.5,
+                "lengthM": 21,
+                "heightM": 3.5,
+                "fullHeightM": 3.5,
+                "stopsPercentOfExits": 100,
+                "courts": [
+                    0,
+                    1
+                ]
+            }
+        ]
+    },
+    "video": {
+        "path": "video.mp4",
+        "posterPath": "video.png",
+        "durationS": 27.83333396911621,
+        "fps": 30,
+        "width": 1920,
+        "height": 1080,
+        "frames": 835,
+        "slowMotion": 0.25
+    },
+    "videoError": "",
+    "error": ""
+}

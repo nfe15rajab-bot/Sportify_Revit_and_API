@@ -8,7 +8,7 @@ using Sportify.Simulation.Wind;
 var layoutPath = args[0];
 var layout = JsonSerializer.Deserialize<SportifyLayout>(File.ReadAllText(layoutPath))!;
 var windInputs = WindLayoutAdapter.ToInputs(layout);
-var inputs = new WaterInputs { RoofLength = windInputs.RoofLength, RoofWidth = windInputs.RoofWidth, Zones = windInputs.Zones };
+var inputs = new WaterInputs { RoofLength = windInputs.RoofLength, RoofWidth = windInputs.RoofWidth, RoofAreaM2 = windInputs.Shape.Area, Zones = windInputs.Zones };
 
 if (args.Contains("--json"))
 {

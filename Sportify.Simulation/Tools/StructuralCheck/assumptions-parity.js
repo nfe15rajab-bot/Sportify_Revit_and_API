@@ -13,7 +13,7 @@ if (!jsPath) { console.error("usage: node assumptions-parity.js <assumptions.js>
 
 const ctx = {};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(jsPath, "utf8") + "\nthis.REGISTER = ANALYSIS_ASSUMPTIONS;", ctx);
+vm.runInContext(fs.readFileSync(jsPath, "utf8") + "\nthis.REGISTER = ANALYSIS_ASSUMPTIONS; this.GROUPS = typeof ASSUMPTION_GROUPS === 'undefined' ? null : ASSUMPTION_GROUPS;", ctx);
 const web = JSON.parse(JSON.stringify(ctx.REGISTER));
 
 const out = execFileSync("dotnet", ["run", "--project", "Tools/StructuralCheck", "-c", "Release", "--", "--assumptions-json"], { encoding: "utf8" });
@@ -29,6 +29,18 @@ for (const list of ["editable", "fixed"]) {
     const a = cs[list][i], b = web[list][i];
     const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
     for (const k of keys) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) differ(`${list}[${i}] ${a.key}.${k}`, a[k], b[k]);
+  }
+}
+
+// The web app shows the inputs in two tabs (ASSUMPTION_GROUPS): every input and every constant must be in exactly one of them, or a tab silently drops it.
+if (!ctx.GROUPS) differ("ASSUMPTION_GROUPS", "a group list", null);
+else {
+  const groups = Object.values(JSON.parse(JSON.stringify(ctx.GROUPS)));
+  const inputs = groups.flatMap(g => g.sections.flatMap(sec => sec.keys));
+  const constants = groups.flatMap(g => g.fixed);
+  for (const [label, listed, all] of [["input", inputs, web.editable.map(d => d.key)], ["constant", constants, web.fixed.map(d => d.key)]]) {
+    for (const key of all) { const n = listed.filter(k => k === key).length; if (n !== 1) differ(`${label} "${key}" is in ${n} tab group(s), not exactly one`, 1, n); }
+    for (const key of listed) if (!all.includes(key)) differ(`a tab group lists ${label} "${key}", which is not in the register`, null, key);
   }
 }
 

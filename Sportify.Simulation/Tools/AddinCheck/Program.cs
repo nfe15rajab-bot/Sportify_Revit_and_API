@@ -2,12 +2,23 @@ using System.Text.Json;
 using SportfyRevit;
 using Sportify.Simulation.Dynamics;
 using Sportify.Simulation.Structure;
+using Sportify.Simulation.Sun;
 
-// usage: AddinCheck <layout.json> [<out dir for a sample roof push>]
+// usage: AddinCheck [<layout.json> [<out dir for a sample roof push>]]      (no arguments: the bundled sample layout, no push written)
 // Checks the Revit-free parts of the add-in that turn what the designer decided and what the Revit model says into data:
 //   - the assumptions dialog's logic (AnalysisAssumptionsPatcher: read, apply, validate, session) against the add-in's own reader of the layout and the analyses,
 //   - the roof features (RoofFeaturesGeometry: openings, entries, edge, drains, slab, levels in the roof's canvas coordinates).
 // What needs Revit itself (the collectors, the WPF window) is not here; the sources compiled are the ones the add-in builds.
+if (args.Length == 0)
+{
+    // no arguments: run from anywhere, on the sample layout the Unity project bundles
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+    {
+        var sample = Path.Combine(dir.FullName, "Assets", "StreamingAssets", "sample_layout_roofgarden.json");
+        if (File.Exists(sample)) { args = new[] { sample }; break; }
+    }
+    if (args.Length == 0) { Console.WriteLine("no layout given and Assets/StreamingAssets/sample_layout_roofgarden.json not found above " + AppContext.BaseDirectory); return 2; }
+}
 var fails = 0;
 void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name} {extra}"); if (!ok) fails++; }
 
@@ -157,6 +168,15 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("a level the model names as the roof's own wins; no ground gives no above-ground figure", named.Levels.Single(l => l.IsRoofLevel).Name == "Technik" && named.Levels.All(l => l.AboveGroundM == null));
     Check("notes travel", f.Notes.SequenceEqual(new[] { "a note" }));
 
+    // the walls that cast shadows
+    var shading = RoofFeaturesGeometry.Build(roof, outline, new RoofFeaturesGeometry.OpeningLoop[0], new RoofFeaturesGeometry.EntryRecord[0], walls, new RoofFeaturesGeometry.DrainRecord[0], null, new RoofFeaturesGeometry.LevelRecord[0], 12.0, null, null, null,
+        new[] { new RoofFeaturesGeometry.EdgeElement("wall", "Stair house N", 110, 215, 114, 215, 3.0, 0.3), new RoofFeaturesGeometry.EdgeElement("wall", "Far wall", 300, 300, 304, 300, 3.0, 0.3), new RoofFeaturesGeometry.EdgeElement("wall", "Beyond the edge", 141, 210, 141, 214, 2.5, 0.2) });
+    Check("a wall standing on the roof is an obstacle in canvas coordinates (y flipped); a far one is dropped, one just beyond the edge is kept",
+        shading.Obstacles.Count == 2 && Math.Abs(shading.Obstacles[0].StartM.XM - 10) < 0.01 && Math.Abs(shading.Obstacles[0].StartM.YM - 5) < 0.01 && Math.Abs(shading.Obstacles[0].EndM.XM - 14) < 0.01 && shading.Obstacles[0].HeightM == 3 && Math.Abs(shading.Obstacles[0].ThicknessM - 0.3) < 1e-9
+        && shading.Obstacles[1].Name == "Beyond the edge");
+    var shadingJson = JsonSerializer.Serialize(new { roof_context = new { length_m = 40, width_m = 20, features = shading } });
+    Check("obstacles travel in the roof context JSON the model reads", shadingJson.Contains("\"obstacles\"") && JsonSerializer.Deserialize<SportifyLayout>(shadingJson)!.RoofContext!.Features!.Obstacles.Count == 2);
+
     // no outline: the bounding box is the edge
     var boxed = RoofFeaturesGeometry.Build(roof, new RoofFeaturesGeometry.PointM[0], new RoofFeaturesGeometry.OpeningLoop[0], new RoofFeaturesGeometry.EntryRecord[0], walls, new RoofFeaturesGeometry.DrainRecord[0], null, new RoofFeaturesGeometry.LevelRecord[0], 12.0, null, null);
     Check("without an outline the bounding box gives four edges, the parapet still on the top one", boxed.Edges.Count == 4 && boxed.Edges.Count(e => e.Kind == "parapet") == 1 && boxed.Slab == null);
@@ -176,6 +196,38 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         File.WriteAllText(Path.Combine(args[1], "roof_features_push.json"), JsonSerializer.Serialize(new { roof = new { length_m = 40.0, width_m = 20.0, origin_x_m = 100.0, origin_y_m = 200.0, origin_z_m = 12.0, source_element_name = "Flat roof (test)", height_above_ground_m = 11.7, height_source = "test", features = f } }));
         Console.WriteLine("   wrote roof_features_push.json to " + args[1]);
     }
+}
+
+// the sun and shade analysis: its inputs through the dialog's logic, the add-in's reader and the model
+{
+    var baseSun = File.ReadAllText(args[0]);
+    var sunRows = AnalysisAssumptionsPatcher.Read(baseSun, "sun");
+    var st = sunRows.ToDictionary(r => r.Def.Key, r => r.Decision.State);
+    Check("the sun analysis asks about the site, the orientation, the shade target, the garden sun, the equipment and the deck capacity", sunRows.Count == 6 && new[] { "site_latitude", "roof_north", "shade_target", "garden_min_sun", "shade_equipment", "deck_capacity" }.All(st.ContainsKey));
+    Check("the sample already has a site and an orientation (entered); the rest is unconfirmed", st["site_latitude"] == "entered" && st["roof_north"] == "entered" && st["shade_target"] == "unconfirmed" && st["shade_equipment"] == "unconfirmed" && st["deck_capacity"] == "unconfirmed");
+
+    var sunDecisions = new List<AssumptionDecision>
+    {
+        new() { Key = "site_latitude", State = "entered", Value = "47.5" }, new() { Key = "roof_north", State = "entered", Value = "90" },
+        new() { Key = "shade_target", State = "entered", Value = "65" }, new() { Key = "garden_min_sun", State = "entered", Value = "5.5" },
+        new() { Key = "shade_equipment", State = "entered", Value = "light" }, new() { Key = "deck_capacity", State = "accepted" },
+    };
+    var sunPatched = AnalysisAssumptionsPatcher.Apply(baseSun, sunDecisions);
+    var sunInputs = SunLayoutAdapter.ToInputs(JsonSerializer.Deserialize<SportifyLayout>(sunPatched)!);
+    Check("what was decided is what the add-in's reader hands the model (a typed latitude beats the map's)", sunInputs.LatitudeDeg == 47.5 && sunInputs.NorthDeg == 90 && sunInputs.ShadeTargetPercent == 65 && sunInputs.GardenMinSunHours == 5.5 && sunInputs.Equipment == "light" && sunInputs.Structure.AcceptedAssumptions.Contains("deck_capacity"));
+    var sunReport = SunModel.Analyse(sunInputs);
+    var sunState = sunReport.assumptionUses.ToDictionary(u => u.key, u => u.state);
+    Check("the analysis reports each input as decided, and is not preliminary", sunReport.assumptionUses.Count == 6 && sunState.Values.All(v => v != "unconfirmed") && !sunReport.summary.preliminary && sunState["deck_capacity"] == "accepted");
+    Check("the latitude and orientation reach the report", Math.Abs(sunReport.summary.latitudeDeg - 47.5) < 1e-4 && Math.Abs(sunReport.summary.northDeg - 90) < 1e-4 && !sunReport.summary.latitudeAssumed);
+
+    var sunBack = AnalysisAssumptionsPatcher.Apply(sunPatched, new[] { new AssumptionDecision { Key = "roof_north", State = "unconfirmed" }, new AssumptionDecision { Key = "site_latitude", State = "unconfirmed" } });
+    var back2 = SunLayoutAdapter.ToInputs(JsonSerializer.Deserialize<SportifyLayout>(sunBack)!);
+    Check("un-deciding the orientation removes it; the latitude falls back to the site's own (the map)", back2.NorthDeg == null && back2.LatitudeDeg is { } l && Math.Abs(l - 53.5511) < 1e-4);
+    var sunNoSite = JsonSerializer.Deserialize<SportifyLayout>(baseSun)!; sunNoSite.SiteLocation = null; sunNoSite.SiteConditions!.NorthDeg = null;
+    Check("no site, no orientation: none given (the model assumes and says so)", SunLayoutAdapter.ToInputs(sunNoSite).LatitudeDeg == null && SunLayoutAdapter.ToInputs(sunNoSite).NorthDeg == null && SunModel.Analyse(SunLayoutAdapter.ToInputs(sunNoSite)).summary.latitudeAssumed);
+    Check("the sample has no people zone, so no equipment; its gardens all have their sun", sunReport.summary.pieces == 0 && sunReport.summary.gardenZonesTooShaded == 0);
+    foreach (var bad in new[] { ("shade_target", "0"), ("shade_target", "150"), ("garden_min_sun", "30"), ("site_latitude", "80"), ("roof_north", "400"), ("shade_equipment", "everything") })
+        Check($"{bad.Item1} = {bad.Item2} is refused", !AnalysisAssumptionsPatcher.TryParse(AnalysisAssumptions.Find(bad.Item1)!, bad.Item2, out _, out _));
 }
 
 // the recordings the web app plays beside the numbers (RoofBoundaryServer: GET /recording)
@@ -224,6 +276,236 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     {
         File.Delete(mp4); File.Delete(secret);
     }
+}
+
+// the roof's own plan frame: a roof turned against the model's axes gets a plan of its own (RoofFrame), and everything pushed and imported goes through it
+{
+    Console.WriteLine("\n===== the roof's plan frame (turned roofs) =====");
+    bool Near(double a, double b, double tol = 1e-6) => Math.Abs(a - b) <= tol;
+    (double x, double y) Rot(double x, double y, double deg) { var t = deg * Math.PI / 180; return (x * Math.Cos(t) - y * Math.Sin(t), x * Math.Sin(t) + y * Math.Cos(t)); }
+    // a length x width rectangle whose long side runs at deg from the model's X axis, its corner at (ox, oy)
+    List<(double X, double Y)> TurnedRect(double length, double width, double deg, double ox, double oy)
+    {
+        var pts = new[] { (0.0, 0.0), (length, 0.0), (length, width), (0.0, width) };
+        return pts.Select(q => { var r = Rot(q.Item1, q.Item2, deg); return (r.x + ox, r.y + oy); }).ToList();
+    }
+    (double, double, double, double) Box(IEnumerable<(double X, double Y)> pts) => (pts.Min(q => q.X), pts.Min(q => q.Y), pts.Max(q => q.X), pts.Max(q => q.Y));
+
+    // ---- a roof square to the model keeps the frame it always had
+    var square = TurnedRect(40, 20, 0, 100, 200);
+    var (sx0, sy0, sx1, sy1) = Box(square);
+    var f0 = RoofFrame.Fit(square, sx0, sy0, sx1, sy1);
+    Check("a roof square to the model is not turned: origin at the box's minimum corner, the box's size", !f0.IsTurned && Near(f0.OriginX, 100) && Near(f0.OriginY, 200) && Near(f0.Length, 40) && Near(f0.Width, 20));
+    var okOld = true;
+    foreach (var (mx, my) in new[] { (100.0, 200.0), (140.0, 220.0), (117.3, 203.9), (99.9, 221.0) })
+    {
+        var (px, py) = f0.ToPlan(mx, my);
+        okOld &= Near(px, mx - 100) && Near(py, 20 - (my - 200));                 // the old formula: canvas y = width - (Y - minimum Y)
+    }
+    Check("and its plan coordinates are the old formula exactly (x - minimum, width - (Y - minimum))", okOld);
+    Check("a turn under a quarter degree is no turn", !RoofFrame.Fit(TurnedRect(40, 20, 0.1, 100, 200), 100, 200, 140.1, 220.1).IsTurned);
+    var round = Enumerable.Range(0, 24).Select(i => (Math.Cos(i * Math.PI / 12) * 10 + 50, Math.Sin(i * Math.PI / 12) * 10 + 50)).ToList();
+    Check("a round roof has no axis to follow", !RoofFrame.Fit(round, 40, 40, 60, 60).IsTurned);
+
+    // ---- a roof turned 30 degrees
+    foreach (var (deg, expectAngle, expectL, expectW) in new[] { (30.0, 30.0, 30.0, 12.0), (-20.0, -20.0, 30.0, 12.0), (60.0, -30.0, 12.0, 30.0), (10.0, 10.0, 30.0, 12.0) })
+    {
+        var pts = TurnedRect(30, 12, deg, 350.5, -120.25);
+        var (bx0, by0, bx1, by1) = Box(pts);
+        var f = RoofFrame.Fit(pts, bx0, by0, bx1, by1);
+        Check($"a 30 x 12 m roof turned {deg} degrees: the plan turns {expectAngle} degrees and is {expectL} x {expectW} m", f.IsTurned && Near(f.AngleDeg, expectAngle, 1e-6) && Near(f.Length, expectL, 1e-6) && Near(f.Width, expectW, 1e-6),
+              $"(angle {f.AngleDeg:0.####}, {f.Length:0.###} x {f.Width:0.###})");
+        // every corner is a corner of the plan rectangle, and the plan's origin (bottom-left) is a corner of the roof
+        var plan = pts.Select(q => f.ToPlan(q.X, q.Y)).ToList();
+        var corners = new[] { (0.0, 0.0), (f.Length, 0.0), (f.Length, f.Width), (0.0, f.Width) };
+        Check("  its corners are the plan's corners", plan.All(q => corners.Any(c => Near(q.X, c.Item1, 1e-6) && Near(q.Y, c.Item2, 1e-6))));
+        // model -> plan -> model, and plan -> model -> plan
+        var (mx, my) = f.ToModel(7.25, 3.5);
+        var (px, py) = f.ToPlan(mx, my);
+        var (ax, ay) = f.ToLocalUp(mx, my);
+        var (rx, ry) = f.FromLocalUp(ax, ay);
+        Check("  plan -> model -> plan (and y up -> model -> y up) returns the same point", Near(px, 7.25, 1e-9) && Near(py, 3.5, 1e-9) && Near(rx, mx, 1e-9) && Near(ry, my, 1e-9) && Near(ay, f.Width - 3.5, 1e-9));
+    }
+    var f30 = RoofFrame.Fit(TurnedRect(30, 12, 30, 350.5, -120.25), 0, 0, 0, 0);
+    var o = f30.ToModel(0, f30.Width);
+    var along = f30.ToModel(5, f30.Width);
+    var down = f30.ToModel(0, f30.Width - 1);       // one metre UP on the roof in plan y terms (y is measured down from the top)
+    Check("the plan's bottom-left corner is the frame's origin; 5 m along x runs along the roof at 30 degrees", Near(o.X, f30.OriginX) && Near(o.Y, f30.OriginY) && Near(along.X - o.X, 5 * Math.Cos(Math.PI / 6), 1e-9) && Near(along.Y - o.Y, 5 * Math.Sin(Math.PI / 6), 1e-9));
+    Check("a step up the plan (y decreasing) is a step along the roof's own +v, 90 degrees left of x", Near(down.X - o.X, -Math.Sin(Math.PI / 6), 1e-9) && Near(down.Y - o.Y, Math.Cos(Math.PI / 6), 1e-9));
+    // a piece turned 90 degrees clockwise on the canvas points its x axis DOWN the canvas; in the model that is the world angle (frame angle - 90 degrees)
+    var top = f30.ToModel(0, 0); var below = f30.ToModel(0, 1);
+    var dirDeg = Math.Atan2(below.Y - top.Y, below.X - top.X) * 180 / Math.PI;
+    Check("a piece turned 90 degrees clockwise on the canvas lies at (frame angle - 90) in the model: the import's rotation is frame - rotation", Near(dirDeg, 30 - 90, 1e-6), $"({dirDeg:0.###} degrees)");
+
+    // ---- structure: grid lines and columns of a turned roof are square in the plan
+    {
+        var pts = TurnedRect(30, 12, 30, 350.5, -120.25);
+        var (bx0, by0, bx1, by1) = Box(pts);
+        var f = RoofFrame.Fit(pts, bx0, by0, bx1, by1);
+        // model-space points of the roof's own grid: three lines across (every 10 m along x) and two along (every 6 m along y), in roof-local metres
+        (double X, double Y) M(double a, double b) { var r = Rot(a, b, 30); return (r.x + 350.5, r.y - 120.25); }
+        var grids = new List<StructureGeometry.GridSegment>();
+        foreach (var a in new[] { 0.0, 10.0, 20.0, 30.0 }) { var p0 = M(a, -3); var p1 = M(a, 15); grids.Add(new StructureGeometry.GridSegment("V" + a, p0.X, p0.Y, p1.X, p1.Y)); }
+        foreach (var b in new[] { 0.0, 6.0, 12.0 }) { var p0 = M(-3, b); var p1 = M(33, b); grids.Add(new StructureGeometry.GridSegment("H" + b, p0.X, p0.Y, p1.X, p1.Y)); }
+        var far = M(500, 500); grids.Add(new StructureGeometry.GridSegment("far", far.X, far.Y, far.X + 10, far.Y));
+        var cols = new List<StructureGeometry.ColumnPoint>();
+        foreach (var a in new[] { 0.0, 10.0, 20.0, 30.0 }) foreach (var b in new[] { 0.0, 6.0, 12.0 }) { var q = M(a, b); cols.Add(new StructureGeometry.ColumnPoint($"C{a}-{b}", q.X, q.Y)); }
+        var farCol = M(300, 300); cols.Add(new StructureGeometry.ColumnPoint("far", farCol.X, farCol.Y));
+        var dto = StructureGeometry.ToRoofLocal(grids, cols, f);
+        var vertical = dto.GridLines!.Where(l => l.Name!.StartsWith("V")).ToList();
+        var horizontal = dto.GridLines!.Where(l => l.Name!.StartsWith("H")).ToList();
+        Check("the grid of a turned roof is exactly vertical and horizontal in the plan (no line is 'skewed' any more)", vertical.Count == 4 && horizontal.Count == 3 &&
+              vertical.All(l => Near(l.StartM.XM, l.EndM.XM, 0.005)) && horizontal.All(l => Near(l.StartM.YM, l.EndM.YM, 0.005)), $"({dto.GridLines!.Count} lines)");
+        Check("a grid line far from the roof is dropped; the others are cut to the roof's box (3 m of overhang gone)", dto.GridLines!.All(l => l.Name != "far") &&
+              vertical.All(l => Near(Math.Min(l.StartM.YM, l.EndM.YM), 0, 0.26) && Near(Math.Max(l.StartM.YM, l.EndM.YM), 12, 0.26)));
+        Check("the columns land on the grid's intersections, in the plan, and the far one is dropped", dto.Columns!.Count == 12 && dto.Columns!.All(c => new[] { 0.0, 10.0, 20.0, 30.0 }.Any(x => Near(c.XM, x, 0.005)) && new[] { 0.0, 6.0, 12.0 }.Any(y => Near(c.YM, y, 0.005))));
+        var flipped = dto.Columns!.First(c => c.Label == "C0-0");
+        Check("y is measured DOWN from the top: the column at the roof's origin corner is at the plan's bottom-left", Near(flipped.XM, 0, 0.005) && Near(flipped.YM, 12, 0.005));
+    }
+
+    // ---- features of a turned roof
+    {
+        var pts = TurnedRect(30, 12, 30, 350.5, -120.25);
+        var (bx0, by0, bx1, by1) = Box(pts);
+        var f = RoofFrame.Fit(pts, bx0, by0, bx1, by1);
+        (double X, double Y) M(double a, double b) { var r = Rot(a, b, 30); return (r.x + 350.5, r.y - 120.25); }
+        RoofFeaturesGeometry.PointM PM(double a, double b) { var q = M(a, b); return new(q.X, q.Y); }
+        var outline = new[] { PM(0, 0), PM(30, 0), PM(30, 12), PM(0, 12) };
+        var openings = new[] { new RoofFeaturesGeometry.OpeningLoop(new[] { PM(10, 4), PM(12, 4), PM(12, 6), PM(10, 6) }) };
+        var e1 = M(5, 6); var e2 = M(31.5, 6); var e3 = M(60, 6);
+        var entries = new[] { new RoofFeaturesGeometry.EntryRecord("stair", "Stair", e1.X, e1.Y, 1.2, 1), new RoofFeaturesGeometry.EntryRecord("door", "Beyond the edge", e2.X, e2.Y, 0.9, 2), new RoofFeaturesGeometry.EntryRecord("door", "Far", e3.X, e3.Y, 0.9, 3) };
+        var w0 = M(0, 12); var w1 = M(30, 12);
+        var walls = new[] { new RoofFeaturesGeometry.EdgeElement("parapet", "Parapet on the top edge", w0.X, w0.Y, w1.X, w1.Y, 0.6, 0.25) };
+        var ob0 = M(20, 3); var ob1 = M(24, 3);
+        var obstacles = new[] { new RoofFeaturesGeometry.EdgeElement("parapet", "Stair house", ob0.X, ob0.Y, ob1.X, ob1.Y, 3.0, 0.3) };
+        var dr = M(3, 3); var drFar = M(80, 3);
+        var drains = new[] { new RoofFeaturesGeometry.DrainRecord("drain", "Drain", dr.X, dr.Y, 9), new RoofFeaturesGeometry.DrainRecord("drain", "Far drain", drFar.X, drFar.Y, 10) };
+        var dto = RoofFeaturesGeometry.Build(f, outline, openings, entries, walls, drains, null, Array.Empty<RoofFeaturesGeometry.LevelRecord>(), 12, 0, null, null, obstacles);
+        Check("an opening keeps its size and lands in the plan (10 to 12 m along, 4 to 6 m up from the origin edge)", dto.Openings.Count == 1 && Near(dto.Openings[0].AreaM2, 4, 0.01) && Near(dto.Openings[0].WidthM, 2, 0.02) && Near(dto.Openings[0].XM, 10, 0.02) && Near(dto.Openings[0].YM, 12 - 6, 0.02));
+        Check("the stair is on the roof, the door beyond the edge is kept but off it, the far door is not the roof's", dto.Entries.Count == 2 && dto.Entries.First(e => e.Kind == "stair").OnRoof && !dto.Entries.First(e => e.Kind == "door").OnRoof);
+        Check("the outline has four edges of 30, 12, 30 and 12 m, and the parapet on the top edge makes exactly one of them a parapet", dto.Edges.Count == 4 && dto.Edges.Count(e => e.Kind == "parapet") == 1 && dto.Edges.Count(e => e.Kind == "open") == 3 &&
+              dto.Edges.Where(e => e.Kind == "parapet").All(e => Near(e.StartM.YM, 0, 0.02) && Near(e.EndM.YM, 0, 0.02)), $"({string.Join(", ", dto.Edges.Select(e => e.Kind + " " + e.LengthM))})");
+        Check("an obstacle keeps its length (4 m), height and thickness, and stands 9 m from the plan's bottom (3 m up from the origin edge)", dto.Obstacles.Count == 1 && Near(Math.Sqrt(Math.Pow(dto.Obstacles[0].EndM.XM - dto.Obstacles[0].StartM.XM, 2) + Math.Pow(dto.Obstacles[0].EndM.YM - dto.Obstacles[0].StartM.YM, 2)), 4, 0.02) &&
+              Near(dto.Obstacles[0].StartM.YM, 12 - 3, 0.02) && Near(dto.Obstacles[0].EndM.YM, 12 - 3, 0.02) && Near(dto.Obstacles[0].StartM.XM, 20, 0.02));
+        Check("the drain lands at (3, 9) and the far one is dropped", dto.Drains.Count == 1 && Near(dto.Drains[0].XM, 3, 0.02) && Near(dto.Drains[0].YM, 9, 0.02));
+    }
+
+    // ---- an L-shaped roof turned 20 degrees
+    {
+        var lLocal = new[] { (0.0, 0.0), (40.0, 0.0), (40.0, 10.0), (20.0, 10.0), (20.0, 20.0), (0.0, 20.0) };
+        var pts = lLocal.Select(q => { var r = Rot(q.Item1, q.Item2, 20); return (X: r.x + 500, Y: r.y + 300); }).ToList();
+        var (bx0, by0, bx1, by1) = Box(pts);
+        var f = RoofFrame.Fit(pts, bx0, by0, bx1, by1);
+        var plan = pts.Select(q => f.ToPlan(q.X, q.Y)).ToList();
+        var area = Math.Abs(plan.Select((q, i) => q.X * plan[(i + 1) % plan.Count].Y - plan[(i + 1) % plan.Count].X * q.Y).Sum()) / 2;
+        Check("an L turned 20 degrees: the plan follows it (20 degrees, 40 x 20 m) and the outline keeps its area", Near(f.AngleDeg, 20, 1e-6) && Near(f.Length, 40, 1e-6) && Near(f.Width, 20, 1e-6) && Near(area, 600, 1e-6), $"(angle {f.AngleDeg:0.###}, {f.Length:0.##} x {f.Width:0.##}, area {area:0.###})");
+    }
+
+    // ---- the contract: rotation_deg travels in the layout
+    {
+        var json = "{\"roof_context\":{\"length_m\":30,\"width_m\":12,\"rotation_deg\":30.5,\"world_origin_x_m\":350.5,\"world_origin_y_m\":-120.25}}";
+        var layout = System.Text.Json.JsonSerializer.Deserialize<SportifyLayout>(json)!;
+        var old = System.Text.Json.JsonSerializer.Deserialize<SportifyLayout>("{\"roof_context\":{\"length_m\":30,\"width_m\":12}}")!;
+        Check("roof_context.rotation_deg is read; an older export without it is not turned", Near(layout.RoofContext!.RotationDeg, 30.5) && old.RoofContext!.RotationDeg == 0);
+    }
+}
+
+// the "Push to Sportify" drop-down: what each part carries, and how a part pushed alone is laid onto the roof pushed before
+{
+    Console.WriteLine("\n===== push scopes, beams, walls, equipment =====");
+    bool Near(double a, double b, double tol = 1e-6) => Math.Abs(a - b) <= tol;
+
+    // ---- scopes
+    Check("the scope's names round-trip and Everything is all eight parts", RoofPushScopes.FromNames(RoofPushScopes.Names(RoofPushScope.All)) == RoofPushScope.All && RoofPushScopes.Names(RoofPushScope.All).Count == 8 &&
+          RoofPushScopes.IsEverything(RoofPushScope.All) && !RoofPushScopes.IsEverything(RoofPushScope.Roof | RoofPushScope.Structure));
+    Check("a scope is described in words for the dialog", RoofPushScopes.Describe(RoofPushScope.Roof | RoofPushScope.Entries) == "roof outline and size, entries (stairs, lifts, doors)", RoofPushScopes.Describe(RoofPushScope.Roof | RoofPushScope.Entries));
+
+    // ---- a turned roof (30 x 12 m at 30 degrees) with beams, walls and equipment
+    (double X, double Y) Rot(double x, double y, double deg) { var t = deg * Math.PI / 180; return (x * Math.Cos(t) - y * Math.Sin(t), x * Math.Sin(t) + y * Math.Cos(t)); }
+    (double X, double Y) M(double a, double b) { var r = Rot(a, b, 30); return (r.X + 350.5, r.Y - 120.25); }
+    var corners = new[] { M(0, 0), M(30, 0), M(30, 12), M(0, 12) };
+    var frame = RoofFrame.Fit(corners.ToList(), corners.Min(q => q.X), corners.Min(q => q.Y), corners.Max(q => q.X), corners.Max(q => q.Y));
+
+    var beams = new[]
+    {
+        new StructureGeometry.BeamRecord("IPE 300", M(0, 6).X, M(0, 6).Y, M(30, 6).X, M(30, 6).Y, 0.15, 0.30, 11.2),            // a beam along the roof, in the middle
+        new StructureGeometry.BeamRecord("HEA 200", M(10, -3).X, M(10, -3).Y, M(10, 15).X, M(10, 15).Y, 0.2, 0.19, 11.2),      // across it, overhanging both edges by 3 m
+        new StructureGeometry.BeamRecord("far", M(200, 200).X, M(200, 200).Y, M(230, 200).X, M(230, 200).Y, 0.2, 0.3, 11.2),   // nowhere near
+    };
+    var walls = new[]
+    {
+        new StructureGeometry.WallRecord("Concrete wall", M(20, 0).X, M(20, 0).Y, M(20, 12).X, M(20, 12).Y, 0.25, 3.2, true),
+        new StructureGeometry.WallRecord("Partition", M(5, 3).X, M(5, 3).Y, M(5, 9).X, M(5, 9).Y, 0.1, 3.0, false),
+    };
+    var dto = StructureGeometry.ToRoofLocal(new List<StructureGeometry.GridSegment>(), new List<StructureGeometry.ColumnPoint>(), frame, beams, walls);
+    var along = dto.Beams!.First(b => b.Name == "IPE 300");
+    var across = dto.Beams!.First(b => b.Name == "HEA 200");
+    Check("beams keep their section, are cut to the roof's box, and the far one is dropped", dto.Beams!.Count == 2 && Near(along.WidthM, 0.15) && Near(along.DepthM, 0.30) && Near(along.TopElevationM, 11.2) &&
+          Near(Math.Min(across.StartM!.YM, across.EndM!.YM), 0, 0.26) && Near(Math.Max(across.StartM!.YM, across.EndM!.YM), 12, 0.26));
+    Check("a beam along the turned roof is horizontal in the plan, half way down it; the one across is vertical, 10 m from the left", Near(along.StartM!.YM, 6, 0.005) && Near(along.EndM!.YM, 6, 0.005) &&
+          Near(across.StartM!.XM, 10, 0.005) && Near(across.EndM!.XM, 10, 0.005));
+    Check("walls keep thickness, height and whether they bear", dto.Walls!.Count == 2 && dto.Walls!.First(w => w.Name == "Concrete wall").Bearing && !dto.Walls!.First(w => w.Name == "Partition").Bearing &&
+          Near(dto.Walls!.First(w => w.Name == "Concrete wall").ThicknessM, 0.25) && Near(dto.Walls!.First(w => w.Name == "Concrete wall").HeightM, 3.2));
+    var noExtras = StructureGeometry.ToRoofLocal(new List<StructureGeometry.GridSegment>(), new List<StructureGeometry.ColumnPoint>(), frame);
+    Check("without beams or walls the structure block has none (a roof whose model has none is not given empty ones)", noExtras.Beams == null && noExtras.Walls == null);
+
+    var equipment = new[]
+    {
+        // a 4 x 2.5 m unit, 1.8 m high, 300 kg-force, standing square to the roof (its width runs at the roof's own 30 degrees)
+        new RoofFeaturesGeometry.EquipmentRecord("mechanical", "Air handler", M(10, 5.25).X, M(10, 5.25).Y, 4.0, 2.5, 30 * Math.PI / 180, 1.8, 2.94, 7001),
+        new RoofFeaturesGeometry.EquipmentRecord("electrical", "Switchboard", M(25, 2).X, M(25, 2).Y, 0.8, 0.8, 30 * Math.PI / 180, 2.0, null, 7002),
+        new RoofFeaturesGeometry.EquipmentRecord("mechanical", "Not on this roof", M(90, 90).X, M(90, 90).Y, 2, 2, 0, 1.0, null, 7003),
+        // the same unit standing at 90 degrees to the roof: its plan box swaps its sides
+        new RoofFeaturesGeometry.EquipmentRecord("mechanical", "Turned unit", M(20, 9).X, M(20, 9).Y, 4.0, 2.5, 120 * Math.PI / 180, 1.5, null, 7004),
+    };
+    var outline = corners.Select(q => new RoofFeaturesGeometry.PointM(q.X, q.Y)).ToList();
+    var features = RoofFeaturesGeometry.Build(frame, outline, Array.Empty<RoofFeaturesGeometry.OpeningLoop>(), Array.Empty<RoofFeaturesGeometry.EntryRecord>(), Array.Empty<RoofFeaturesGeometry.EdgeElement>(),
+        Array.Empty<RoofFeaturesGeometry.DrainRecord>(), null, Array.Empty<RoofFeaturesGeometry.LevelRecord>(), 12, 0, null, null, null, equipment);
+    Check("equipment on the roof is kept (the far one is not), with its kind, name, height and weight", features.Equipment.Count == 3 && features.Equipment.Any(e => e.Kind == "mechanical" && e.Name == "Air handler" && Near(e.HeightM, 1.8) && e.WeightKn == 2.94) &&
+          features.Equipment.Any(e => e.Kind == "electrical" && e.WeightKn == null));
+    var unit = features.Equipment.First(e => e.Name == "Air handler");
+    Check("a unit square to the turned roof is 4 x 2.5 m in the plan, centred at (10, 6.75) (y is measured down: 12 - 5.25)", Near(unit.XM, 10, 0.01) && Near(unit.YM, 12 - 5.25, 0.01) && Near(unit.WidthM, 4, 0.01) && Near(unit.DepthM, 2.5, 0.01),
+          $"(at {unit.XM:0.##}, {unit.YM:0.##}; {unit.WidthM:0.##} x {unit.DepthM:0.##})");
+    var turned = features.Equipment.First(e => e.Name == "Turned unit");
+    Check("the same unit turned 90 degrees to the roof swaps its sides in the plan (2.5 x 4)", Near(turned.WidthM, 2.5, 0.01) && Near(turned.DepthM, 4, 0.01), $"({turned.WidthM:0.##} x {turned.DepthM:0.##})");
+    Check("equipment ids are numbered by kind", features.Equipment.Select(e => e.Id).OrderBy(i => i).SequenceEqual(new[] { "electrical_1", "mechanical_1", "mechanical_2" }));
+
+    // ---- the merge: a part pushed alone is laid onto the roof pushed before, the app always gets the roof whole
+    string Roof(double ox, string extra) => "{\"roof\":{\"length_m\":30,\"width_m\":12,\"rotation_deg\":30,\"origin_x_m\":" + ox.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"origin_y_m\":-120.25,\"boundary_m\":[{\"x_m\":0,\"y_m\":0},{\"x_m\":30,\"y_m\":0},{\"x_m\":30,\"y_m\":12},{\"x_m\":0,\"y_m\":12}],\"origin_z_m\":12,\"source_element_name\":\"Roof\"" + extra + "}}";
+    var full = Roof(350.5, ",\"structure\":{\"source\":\"revit\",\"grid_lines\":[{\"name\":\"A\"}],\"columns\":[]},\"features\":{\"source\":\"revit\",\"notes\":[\"first\"],\"entries\":[{\"id\":\"stair_1\"}],\"openings\":[{\"id\":\"opening_1\"}],\"edges\":[],\"obstacles\":[],\"drains\":[{\"id\":\"drain_1\"}],\"equipment\":[],\"levels\":[]}");
+    var fullMerged = RoofPushMerge.Merge(null, full, RoofPushScope.All, out var keptFull);
+    var fullNode = System.Text.Json.Nodes.JsonNode.Parse(fullMerged)!["roof"]!;
+    Check("Everything is sent as it is, with the list of what the roof now has", !keptFull && fullNode["structure"] != null && ((System.Text.Json.Nodes.JsonArray)fullNode["pushed_scope"]!).Count == 8);
+
+    var entriesOnly = Roof(350.5, ",\"features\":{\"source\":\"revit\",\"notes\":[\"second\"],\"entries\":[{\"id\":\"stair_1\"},{\"id\":\"door_1\"}],\"openings\":[],\"edges\":[],\"obstacles\":[],\"drains\":[],\"equipment\":[],\"levels\":[]}");
+    var m1 = RoofPushMerge.Merge(fullMerged, entriesOnly, RoofPushScope.Roof | RoofPushScope.Entries, out var kept1);
+    var r1 = System.Text.Json.Nodes.JsonNode.Parse(m1)!["roof"]!;
+    Check("the entries pushed alone replace the entries and keep the rest (structure, openings, drains)", kept1 && ((System.Text.Json.Nodes.JsonArray)r1["features"]!["entries"]!).Count == 2 &&
+          ((System.Text.Json.Nodes.JsonArray)r1["features"]!["openings"]!).Count == 1 && ((System.Text.Json.Nodes.JsonArray)r1["features"]!["drains"]!).Count == 1 && r1["structure"] != null);
+    Check("the notes of both pushes are kept, once each", string.Join("|", ((System.Text.Json.Nodes.JsonArray)r1["features"]!["notes"]!).Select(n => n!.ToString())) == "first|second");
+
+    var structureOnly = Roof(350.5, ",\"structure\":{\"source\":\"revit\",\"grid_lines\":[{\"name\":\"B\"},{\"name\":\"C\"}],\"columns\":[],\"beams\":[{\"name\":\"IPE\"}]}");
+    var m2 = RoofPushMerge.Merge(m1, structureOnly, RoofPushScope.Roof | RoofPushScope.Structure, out _);
+    var r2 = System.Text.Json.Nodes.JsonNode.Parse(m2)!["roof"]!;
+    Check("the structure pushed alone replaces the structure and leaves every feature alone", ((System.Text.Json.Nodes.JsonArray)r2["structure"]!["grid_lines"]!).Count == 2 && r2["structure"]!["beams"] != null &&
+          ((System.Text.Json.Nodes.JsonArray)r2["features"]!["entries"]!).Count == 2 && ((System.Text.Json.Nodes.JsonArray)r2["features"]!["drains"]!).Count == 1);
+
+    var outlineOnly = Roof(350.5, "");
+    var m3 = RoofPushMerge.Merge(m2, outlineOnly, RoofPushScope.Roof, out var kept3);
+    var r3 = System.Text.Json.Nodes.JsonNode.Parse(m3)!["roof"]!;
+    Check("the outline pushed alone refreshes the outline and keeps everything else of the same roof", kept3 && r3["structure"] != null && r3["features"]!["entries"] != null && r3["boundary_m"] != null);
+    Check("what the roof has so far is listed", ((System.Text.Json.Nodes.JsonArray)r3["pushed_scope"]!).Select(n => n!.ToString()).OrderBy(x => x).SequenceEqual(new[] { "entries", "roof", "structure", "openings", "drains", "edge", "equipment", "slab_levels" }.Where(x => x == "entries" || x == "roof" || x == "structure" || x == "openings" || x == "drains" || x == "edge" || x == "equipment" || x == "slab_levels").OrderBy(x => x)));
+
+    var otherRoof = Roof(999.0, ",\"features\":{\"source\":\"revit\",\"entries\":[{\"id\":\"stair_9\"}],\"openings\":[],\"edges\":[],\"obstacles\":[],\"drains\":[],\"equipment\":[],\"levels\":[]}");
+    var m4 = RoofPushMerge.Merge(m3, otherRoof, RoofPushScope.Roof | RoofPushScope.Entries, out var kept4);
+    var r4 = System.Text.Json.Nodes.JsonNode.Parse(m4)!["roof"]!;
+    Check("a push of ANOTHER roof starts again: the old roof's structure and features are gone", !kept4 && r4["structure"] == null && ((System.Text.Json.Nodes.JsonArray)r4["features"]!["entries"]!).Count == 1 &&
+          ((System.Text.Json.Nodes.JsonArray)r4["pushed_scope"]!).Count == 2);
+    Check("garbage from the server does not stop a push", RoofPushMerge.Merge("not json", entriesOnly, RoofPushScope.Roof | RoofPushScope.Entries, out var kept5).Length > 10 && !kept5);
+
+    // ---- the contract: beams, walls and equipment are read from a layout
+    var layout = System.Text.Json.JsonSerializer.Deserialize<SportifyLayout>("{\"roof_context\":{\"length_m\":30,\"width_m\":12,\"features\":{\"equipment\":[{\"id\":\"mechanical_1\",\"kind\":\"mechanical\",\"name\":\"AHU\",\"x_m\":10,\"y_m\":5,\"width_m\":4,\"depth_m\":2,\"height_m\":1.8,\"weight_kn\":3.5}]}},\"structure\":{\"beams\":[{\"name\":\"IPE\",\"start_m\":{\"x_m\":0,\"y_m\":6},\"end_m\":{\"x_m\":30,\"y_m\":6},\"width_m\":0.15,\"depth_m\":0.3,\"top_elevation_m\":11.2}],\"walls\":[{\"name\":\"W\",\"bearing\":true,\"thickness_m\":0.25}]}}")!;
+    Check("equipment, beams and walls are read back from the layout", layout.RoofContext!.Features!.Equipment.Count == 1 && layout.RoofContext.Features.Equipment[0].WeightKn == 3.5 && layout.Structure!.Beams![0].DepthM == 0.3 && layout.Structure.Walls![0].Bearing);
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
