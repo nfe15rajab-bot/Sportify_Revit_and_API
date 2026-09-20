@@ -1,0 +1,782 @@
+{
+  "version": "1.3",
+  "generator": "Sportify-Combine",
+  "build": "2026-09-20-14",
+  "roof_context": {
+    "length_m": 60,
+    "width_m": 40,
+    "source_boundary_polygon": null,
+    "world_origin_x_m": 0,
+    "world_origin_y_m": 0,
+    "rotation_deg": 0,
+    "world_origin_z_m": 0,
+    "height_above_ground_m": 0,
+    "height_source": ""
+  },
+  "design_rules": {
+    "clearance_m": 1,
+    "boundary_setback_m": 1.5,
+    "circulation_width_m": 1.2,
+    "min_entry_points": 1,
+    "quiet_buffer_m": 3
+  },
+  "entry_points": [],
+  "circulation_paths": [],
+  "site_location": null,
+  "site_conditions": {
+    "wind_zone": null,
+    "wind_zone_manual": false,
+    "wind_zone_confidence": "none",
+    "wind_zone_source": null,
+    "north_deg": null,
+    "north_set": false,
+    "snow_zone": null,
+    "altitude_m": null,
+    "altitude_set": false,
+    "day_schedule": null
+  },
+  "assemblies": [
+    {
+      "key": "bauder_extensive_sedum",
+      "provider": "Bauder",
+      "provider_country": "Germany",
+      "system_name": "BauderEXTENSIVE Lightweight Sedum",
+      "category": "extensive",
+      "revit_type_name": "Sportify - Bauder BauderEXTENSIVE Lightweight Sedum",
+      "build_up_mm": null,
+      "saturated_kg_m2": null,
+      "water_storage_l_m2": null,
+      "source_url": "https://www.bauder.co.uk/green-and-blue-roofs/green-roofs/extensive-lightweight-sedum",
+      "total_thickness_m": 0.069,
+      "layers": [
+        {
+          "order": 0,
+          "name": "Mature sedum blanket",
+          "function": "vegetation",
+          "thickness_m": 0.025,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 1,
+          "name": "Extensive substrate",
+          "function": "substrate",
+          "thickness_m": 0.02,
+          "thickness_source": "published"
+        },
+        {
+          "order": 2,
+          "name": "Water retention and filter layer",
+          "function": "drainage",
+          "thickness_m": 0.02,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 3,
+          "name": "Root-resistant waterproofing",
+          "function": "waterproofing",
+          "thickness_m": 0.004,
+          "thickness_source": "typical"
+        }
+      ]
+    },
+    {
+      "key": "timber_deck_pedestals",
+      "provider": "Generic",
+      "provider_country": "Germany",
+      "system_name": "Timber Deck on Pedestals",
+      "category": "finish",
+      "revit_type_name": "Sportify - Generic Timber Deck on Pedestals",
+      "build_up_mm": null,
+      "saturated_kg_m2": null,
+      "water_storage_l_m2": null,
+      "source_url": null,
+      "total_thickness_m": 0.14,
+      "layers": [
+        {
+          "order": 0,
+          "name": "Hardwood deck boards",
+          "function": "wearing",
+          "thickness_m": 0.025,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 1,
+          "name": "Aluminium joists",
+          "function": "bedding",
+          "thickness_m": 0.06,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 2,
+          "name": "Adjustable pedestals",
+          "function": "bedding",
+          "thickness_m": 0.05,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 3,
+          "name": "Protection mat",
+          "function": "protection",
+          "thickness_m": 0.005,
+          "thickness_source": "typical"
+        }
+      ]
+    }
+  ],
+  "unresolved_assemblies": [],
+  "roof_finish": {
+    "assembly_key": "timber_deck_pedestals",
+    "revit_type_name": "Sportify - Generic Timber Deck on Pedestals",
+    "net_area_m2": 879.56,
+    "roof_area_m2": 2400,
+    "openings": [
+      {
+        "source": "zone",
+        "id": "zone_1789935025890_0",
+        "x_m": 14,
+        "y_m": 14,
+        "length_m": 12,
+        "width_m": 6
+      },
+      {
+        "source": "zone",
+        "id": "zone_1789935025890_1",
+        "x_m": 30,
+        "y_m": 14,
+        "length_m": 14,
+        "width_m": 6
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025800_0",
+        "x_m": 1,
+        "y_m": 1,
+        "length_m": 28,
+        "width_m": 15
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025815_1",
+        "x_m": 36,
+        "y_m": 1,
+        "length_m": 24,
+        "width_m": 15
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025817_2",
+        "x_m": 1,
+        "y_m": 24,
+        "length_m": 23,
+        "width_m": 15
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025819_3",
+        "x_m": 30,
+        "y_m": 24,
+        "length_m": 20,
+        "width_m": 10
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025821_4",
+        "x_m": 46,
+        "y_m": 24,
+        "length_m": 10,
+        "width_m": 5
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025823_5",
+        "x_m": 20,
+        "y_m": 30,
+        "length_m": 1.8,
+        "width_m": 0.7
+      },
+      {
+        "source": "piece",
+        "id": "item_1789935025867_6",
+        "x_m": 24,
+        "y_m": 30,
+        "length_m": 0.42,
+        "width_m": 0.42
+      }
+    ]
+  },
+  "zones": [
+    {
+      "id": "zone_1789935025890_0",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 14,
+        "top_left_y_m": 14,
+        "width_m": 12,
+        "height_m": 6
+      },
+      "points": [
+        {
+          "x_m": 14,
+          "y_m": 14
+        },
+        {
+          "x_m": 26,
+          "y_m": 14
+        },
+        {
+          "x_m": 26,
+          "y_m": 20
+        },
+        {
+          "x_m": 14,
+          "y_m": 20
+        }
+      ],
+      "area_m2": 72,
+      "assembly_key": "bauder_extensive_sedum"
+    },
+    {
+      "id": "zone_1789935025890_1",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 30,
+        "top_left_y_m": 14,
+        "width_m": 14,
+        "height_m": 6
+      },
+      "points": [
+        {
+          "x_m": 30,
+          "y_m": 14
+        },
+        {
+          "x_m": 40,
+          "y_m": 14
+        },
+        {
+          "x_m": 44,
+          "y_m": 16
+        },
+        {
+          "x_m": 40,
+          "y_m": 20
+        },
+        {
+          "x_m": 30,
+          "y_m": 20
+        }
+      ],
+      "area_m2": 72,
+      "assembly_key": "bauder_extensive_sedum"
+    }
+  ],
+  "placements": [
+    {
+      "id": "item_1789935025800_0",
+      "category": "field",
+      "label": "basketball (standard)",
+      "insertion_point": {
+        "center_x_m": 15,
+        "center_y_m": 8.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 1,
+        "top_left_y_m": 1,
+        "width_m": 28,
+        "height_m": 15
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "quality_key": "BASKETBALL_STANDARD_MEDIUM",
+        "field": {
+          "sport": "basketball",
+          "variant": "standard",
+          "norm": "FIBA / DIN 18032",
+          "dimensions": {
+            "length_m": 28,
+            "width_m": 15,
+            "runoff_m": 2,
+            "min_height_m": 7
+          },
+          "capacity": {
+            "seats": 0,
+            "side_stands": false
+          }
+        },
+        "materials": {
+          "floor_surface": "Sports vinyl (2-layer)",
+          "line_marking": "Adhesive tape",
+          "gradin_type": "Steel coated",
+          "quality_level": "medium",
+          "reference_material": "Sports vinyl / PVC flooring",
+          "reference_provider": null
+        },
+        "basketball": {
+          "variant": "standard",
+          "hoops": 2,
+          "surface": "acrylic",
+          "court_colour": "blue",
+          "appearance_hex": "#2f6fb5",
+          "key_fill_hex": "#76a0ce",
+          "length_m": 28,
+          "width_m": 15,
+          "play_length_m": 28,
+          "play_width_m": 15,
+          "rim_height_m": 3.05,
+          "rim_inner_diameter_m": 0.45,
+          "basket_centre_from_endline_m": 1.575,
+          "backboard_face_from_endline_m": 1.2,
+          "backboard_width_m": 1.8,
+          "backboard_height_m": 1.05,
+          "backboard_lower_edge_m": 2.9,
+          "key_width_m": 4.9,
+          "key_depth_m": 5.8,
+          "three_point_radius_m": 6.75,
+          "three_point_corner_from_sideline_m": 0.9,
+          "centre_circle_radius_m": 1.8,
+          "free_throw_circle_radius_m": 1.8,
+          "no_charge_radius_m": 1.25,
+          "clear_height_min_m": 7,
+          "weight_kg": 4320,
+          "weight_kg_m2": 10.3,
+          "weight_breakdown": [
+            {
+              "part": "Playing surface",
+              "kg": 2520
+            },
+            {
+              "part": "Baskets (2)",
+              "kg": 1800
+            }
+          ],
+          "weight_basis": "estimated",
+          "source": "FIBA Official Basketball Rules — playing court"
+        },
+        "layers": [
+          "field_boundary",
+          "center_line",
+          "center_circle",
+          "goal_area",
+          "penalty_area",
+          "run_off_zone",
+          "stands"
+        ]
+      }
+    },
+    {
+      "id": "item_1789935025815_1",
+      "category": "field",
+      "label": "volleyball (standard)",
+      "insertion_point": {
+        "center_x_m": 48,
+        "center_y_m": 8.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 36,
+        "top_left_y_m": 1,
+        "width_m": 24,
+        "height_m": 15
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "quality_key": "VOLLEYBALL_STANDARD_MEDIUM",
+        "field": {
+          "sport": "volleyball",
+          "variant": "standard",
+          "norm": "FIVB / DIN 18032",
+          "dimensions": {
+            "length_m": 18,
+            "width_m": 9,
+            "runoff_m": 3,
+            "min_height_m": 7
+          },
+          "capacity": {
+            "seats": 0,
+            "side_stands": false
+          }
+        },
+        "materials": {
+          "floor_surface": "Sports vinyl (2-layer)",
+          "line_marking": "Adhesive tape",
+          "gradin_type": "Steel coated",
+          "quality_level": "medium",
+          "reference_material": "Sports vinyl / PVC flooring",
+          "reference_provider": null
+        },
+        "volleyball": {
+          "variant": "standard",
+          "play_type": "indoor",
+          "net_height_key": "men",
+          "net_height_m": 2.43,
+          "surface": "polyurethane",
+          "court_colour": "blue",
+          "appearance_hex": "#2b70bb",
+          "court_length_m": 18,
+          "court_width_m": 9,
+          "length_m": 24,
+          "width_m": 15,
+          "free_zone_sides_m": 3,
+          "free_zone_ends_m": 3,
+          "attack_line_from_centre_m": 3,
+          "net_depth_m": 1,
+          "post_outside_sideline_m": 1,
+          "post_height_m": 2.55,
+          "antenna_length_m": 1.8,
+          "antenna_above_net_m": 0.8,
+          "clear_height_min_m": 7,
+          "sand_depth_m": 0,
+          "sand_volume_m3": 0,
+          "weight_kg": 3220,
+          "weight_kg_m2": 8.9,
+          "weight_breakdown": [
+            {
+              "part": "Playing surface",
+              "kg": 2880
+            },
+            {
+              "part": "Net and posts",
+              "kg": 340
+            }
+          ],
+          "weight_basis": "estimated",
+          "source": "FIVB Official Volleyball Rules — the playing area"
+        },
+        "layers": [
+          "field_boundary",
+          "center_line",
+          "center_circle",
+          "goal_area",
+          "penalty_area",
+          "run_off_zone",
+          "stands"
+        ]
+      }
+    },
+    {
+      "id": "item_1789935025817_2",
+      "category": "field",
+      "label": "polyvalent (mini)",
+      "insertion_point": {
+        "center_x_m": 12.5,
+        "center_y_m": 31.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 1,
+        "top_left_y_m": 24,
+        "width_m": 23,
+        "height_m": 15
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "quality_key": "POLYVALENT_MINI_MEDIUM",
+        "field": {
+          "sport": "polyvalent",
+          "variant": "mini",
+          "norm": "DIN 18032",
+          "dimensions": {
+            "length_m": 20,
+            "width_m": 12,
+            "runoff_m": 1.5,
+            "min_height_m": 5.5
+          },
+          "capacity": {
+            "seats": 0,
+            "side_stands": false
+          }
+        },
+        "materials": {
+          "floor_surface": "Sports vinyl (2-layer)",
+          "line_marking": "Adhesive tape",
+          "gradin_type": "Steel coated",
+          "quality_level": "medium",
+          "reference_material": "Sports vinyl / PVC flooring",
+          "reference_provider": null
+        },
+        "layers": [
+          "field_boundary",
+          "center_line",
+          "center_circle",
+          "goal_area",
+          "penalty_area",
+          "run_off_zone",
+          "stands"
+        ]
+      }
+    },
+    {
+      "id": "item_1789935025819_3",
+      "category": "activity",
+      "label": "Padel Court",
+      "insertion_point": {
+        "center_x_m": 40,
+        "center_y_m": 29
+      },
+      "bounding_box": {
+        "top_left_x_m": 30,
+        "top_left_y_m": 24,
+        "width_m": 20,
+        "height_m": 10
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "quality_key": "ACTIVITY_PADEL_COURT",
+        "activity": {
+          "type_id": "padel_court",
+          "category": "court",
+          "norm": "Reference sheet",
+          "dimensions": {
+            "length_m": 20,
+            "width_m": 10
+          }
+        },
+        "materials": {
+          "surface": "Reinforced synthetic surface",
+          "structure": "Galvanized steel",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        },
+        "padel": {
+          "court_type": "double",
+          "wall_system": "panoramic",
+          "surface": "artificial_grass",
+          "surface_colour": "blue",
+          "appearance_hex": "#366daa",
+          "length_m": 20,
+          "width_m": 10,
+          "net_centre_height_m": 0.88,
+          "net_post_height_m": 0.92,
+          "service_line_from_net_m": 6.95,
+          "back_wall_glass_height_m": 3,
+          "back_wall_mesh_height_m": 1,
+          "side_corner_glass": {
+            "length_m": 2,
+            "height_m": 3
+          },
+          "side_step_glass": {
+            "length_m": 2,
+            "height_m": 2
+          },
+          "side_centre_mesh_height_m": 3,
+          "glass_thickness_mm": 12,
+          "clear_height_min_m": 6,
+          "clear_height_recommended_m": 8,
+          "weight_kg": 8314,
+          "weight_kg_m2": 41.6,
+          "weight_breakdown": [
+            {
+              "part": "Tempered glass",
+              "kg": 3000
+            },
+            {
+              "part": "Mesh panels",
+              "kg": 434
+            },
+            {
+              "part": "Steel frame",
+              "kg": 1800
+            },
+            {
+              "part": "Net and posts",
+              "kg": 80
+            },
+            {
+              "part": "Playing surface",
+              "kg": 3000
+            }
+          ],
+          "weight_basis": "estimated",
+          "source": "FIP Rules of Padel (2026 revision)"
+        }
+      }
+    },
+    {
+      "id": "item_1789935025821_4",
+      "category": "activity",
+      "label": "Yoga / Stretching Deck",
+      "insertion_point": {
+        "center_x_m": 51,
+        "center_y_m": 26.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 46,
+        "top_left_y_m": 24,
+        "width_m": 10,
+        "height_m": 5
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "quality_key": "ACTIVITY_YOGA_DECK",
+        "activity": {
+          "type_id": "yoga_deck",
+          "category": "wellness",
+          "norm": "Reference sheet",
+          "dimensions": {
+            "length_m": 10,
+            "width_m": 5
+          }
+        },
+        "materials": {
+          "surface": "Reinforced synthetic surface",
+          "structure": "Galvanized steel",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        }
+      }
+    },
+    {
+      "id": "item_1789935025823_5",
+      "category": "furniture",
+      "label": "Parkbank 1.114",
+      "insertion_point": {
+        "center_x_m": 20.9,
+        "center_y_m": 30.35
+      },
+      "bounding_box": {
+        "top_left_x_m": 20,
+        "top_left_y_m": 30,
+        "width_m": 1.8,
+        "height_m": 0.7
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "furniture": {
+          "key": "abes_parkbank_1114",
+          "manufacturer": "ABES Public Design",
+          "product": "Parkbank 1.114",
+          "label": "ABES Public Design Parkbank 1.114",
+          "category": "bench",
+          "length_m": 1.8,
+          "width_m": 0.7,
+          "height_m": 0.8,
+          "dimensions_published": true,
+          "seats": 3,
+          "weight_kg": 49,
+          "weight_published": true,
+          "capacity_l": null,
+          "price": 560,
+          "price_quoted": false,
+          "cost_group": "560",
+          "material": "Hot-dip galvanised and powder-coated steel",
+          "description": "Three-seat park bench with backrest and armrests.",
+          "source_url": "https://abes-online.com/produkt/stadtmobiliar-parkbank-1-114",
+          "image_url": null,
+          "image_credit": null,
+          "revit_family_name": "Sportify - ABES Public Design Parkbank 1.114"
+        }
+      }
+    },
+    {
+      "id": "item_1789935025867_6",
+      "category": "furniture",
+      "label": "CAMBIO 90",
+      "insertion_point": {
+        "center_x_m": 24.21,
+        "center_y_m": 30.21
+      },
+      "bounding_box": {
+        "top_left_x_m": 24,
+        "top_left_y_m": 30,
+        "width_m": 0.42,
+        "height_m": 0.42
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify",
+        "furniture": {
+          "key": "erlau_cambio_90",
+          "manufacturer": "ERLAU (RUD Erlau AG)",
+          "product": "CAMBIO 90",
+          "label": "ERLAU CAMBIO 90",
+          "category": "bin",
+          "length_m": 0.42,
+          "width_m": 0.42,
+          "height_m": 0.95,
+          "dimensions_published": false,
+          "seats": 0,
+          "weight_kg": 24,
+          "weight_published": false,
+          "capacity_l": 90,
+          "price": 410,
+          "price_quoted": false,
+          "cost_group": "560",
+          "material": "Metal, galvanised steel inner container",
+          "description": "Octagonal bin, 90 litres, all-metal with a stabilising inner frame.",
+          "source_url": "https://erlau-freiraum.de/abfallbehaelter",
+          "image_url": null,
+          "image_credit": null,
+          "revit_family_name": "Sportify - ERLAU CAMBIO 90"
+        }
+      }
+    },
+    {
+      "id": "item_1789935025884_7",
+      "category": "vegetation",
+      "label": "Cornus mas",
+      "insertion_point": {
+        "center_x_m": 57.75,
+        "center_y_m": 37.75
+      },
+      "bounding_box": {
+        "top_left_x_m": 55,
+        "top_left_y_m": 35,
+        "width_m": 5.5,
+        "height_m": 5.5
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Vegetation",
+        "vegetation": {
+          "species_key": "cornus_mas",
+          "botanical_name": "Cornus mas",
+          "common_name": "Cornelian cherry",
+          "form": "tree",
+          "crown_m": 5.5,
+          "height_m": 6,
+          "height_range": "5-6 m",
+          "min_substrate_mm": 800,
+          "revit_family_name": "Sportify - Cornus mas",
+          "source": "Van den Berk",
+          "source_url": "https://www.vdberk.com/trees/cornus-mas/",
+          "dimensions_published": true,
+          "price_eur": 420,
+          "price_quoted": false,
+          "cost_group": "570"
+        }
+      }
+    }
+  ]
+}

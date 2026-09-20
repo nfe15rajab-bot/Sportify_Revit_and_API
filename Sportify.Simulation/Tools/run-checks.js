@@ -70,7 +70,7 @@ function layoutsOf(groups) {
   }
   return list;
 }
-const analysisGroups = ["struct", "dyn", "roof", "sun", "wind"];        // "ball" is for real Unity runs only, "circ" for the circulation check
+const analysisGroups = ["struct", "dyn", "roof", "sun", "wind", "export"];        // "ball" is for real Unity runs only, "circ" for the circulation check
 
 // A tiny pool: runs the async task functions, at most `n` at a time.
 async function pool(tasks, n) {
@@ -200,6 +200,14 @@ step("algorithmic placement: the packing core against the Rhino tool's results",
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/algoplacement-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT CHECKS PASSED /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("algorithmic placement: how it meets the rest of Combine (zones, specified courts, build-up)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "algoplacement-ui-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/algoplacement-ui-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT UI CHECKS PASSED/, "the real scripts, the real packer, Apply") } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
 // ---- local only: they need an installed Unity / Revit (CI has neither)

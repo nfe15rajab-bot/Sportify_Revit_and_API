@@ -4,6 +4,9 @@
 //   node Tools/fixtures/make-fixtures.js --check    regenerates in memory-safe fashion and FAILS if a committed fixture no longer matches its generator
 //
 // layouts/wind holds three hand-made layouts (no generator): a variant with two more zones, one with no garden at all, and an old export.
+// layouts/export holds a REAL export of the web app (build 2026-09-20-14, after the merge of moamen/design-panel) with what that merge added to it: specified basketball, volleyball
+// and padel courts with their own payloads, site furniture, a tree, a polygon zone, a roof finish. It cannot be generated (it needs the browser): when the export format
+// changes on purpose, build such a layout in the web app again and replace the file.
 // Order matters: dyn and roof are derived from struct, sun from the sample.
 const fs = require("fs");
 const path = require("path");
