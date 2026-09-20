@@ -163,8 +163,18 @@ namespace Sportify.Api.Data
                     PriceSource          TEXT    NULL,
                     PriceIsQuoted        INTEGER NOT NULL DEFAULT 0,
                     CostGroupDin276      TEXT    NULL,
-                    SourceUrl            TEXT    NULL
+                    SourceUrl            TEXT    NULL,
+                    ImageUrl             TEXT    NULL,
+                    ImageCredit          TEXT    NULL
                 )");
+
+            // And for a database that already has the table from before these
+            // two existed — CREATE TABLE IF NOT EXISTS does nothing to it.
+            foreach (var col in new[] { "ImageUrl TEXT NULL", "ImageCredit TEXT NULL" })
+            {
+                try { db.Database.ExecuteSqlRaw($"ALTER TABLE FurnitureItems ADD COLUMN {col}"); }
+                catch { /* already there */ }
+            }
         }
     }
 }

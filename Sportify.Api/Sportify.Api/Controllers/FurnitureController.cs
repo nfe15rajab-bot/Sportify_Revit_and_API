@@ -65,6 +65,7 @@ namespace Sportify.Api.Controllers
             e.PriceValue = incoming.PriceValue; e.PriceUnit = incoming.PriceUnit;
             e.PriceSource = incoming.PriceSource; e.PriceIsQuoted = incoming.PriceIsQuoted;
             e.CostGroupDin276 = incoming.CostGroupDin276; e.SourceUrl = incoming.SourceUrl;
+            e.ImageUrl = incoming.ImageUrl; e.ImageCredit = incoming.ImageCredit;
 
             await _db.SaveChangesAsync();
             return Ok(e);

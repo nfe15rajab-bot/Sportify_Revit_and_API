@@ -75,5 +75,20 @@ namespace Sportify.Api.Models
         public string? CostGroupDin276 { get; set; }
 
         public string? SourceUrl { get; set; }
+
+        /// <summary>
+        /// A photograph of the product, if there is one that may be used.
+        ///
+        /// Empty for everything seeded, deliberately. The manufacturers own
+        /// their product photos, so this is filled in per product by whoever
+        /// has cleared that particular picture — a supplier sends one, or
+        /// Goldbeck photographs an installed bench. Until then the configurator
+        /// draws the piece to scale from the dimensions above, which needs
+        /// nobody's permission and cannot disagree with the numbers.
+        /// </summary>
+        public string? ImageUrl { get; set; }
+
+        /// <summary>Who the photograph is credited to, shown under it.</summary>
+        public string? ImageCredit { get; set; }
     }
 }
