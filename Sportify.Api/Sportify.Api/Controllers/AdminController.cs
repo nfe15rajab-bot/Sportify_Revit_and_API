@@ -34,7 +34,11 @@ namespace Sportify.Api.Controllers
         // empty list rather than becoming accidental duplicate inserts.
         private static readonly HashSet<string> AllowedEntityTypes = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Sport", "Material", "Provider", "Norm", "Plant", "PlantPalette", "FacilityGuideline", "FieldVariant", "AnalysisParameter"
+            "Sport", "Material", "Provider", "Norm", "Plant", "PlantPalette", "FacilityGuideline", "FieldVariant", "AnalysisParameter",
+            // Court options — the surfaces, wall systems and baskets each sport
+            // offers. Without this the Data tab's form built a valid request
+            // and the endpoint refused it as an unknown type.
+            "SportOption"
         };
 
         public AdminController(ReferenceDbContext db)
@@ -67,6 +71,7 @@ namespace Sportify.Api.Controllers
                     // here — CreateRecord fell through to "unreachable" for
                     // every AnalysisParameter create attempt.
                     "AnalysisParameter" => JsonSerializer.Deserialize<AnalysisParameter>(raw, JsonOpts)!,
+                    "SportOption" => JsonSerializer.Deserialize<SportOption>(raw, JsonOpts)!,
                     _ => throw new InvalidOperationException("unreachable"),
                 };
 
@@ -106,6 +111,7 @@ namespace Sportify.Api.Controllers
                 "FacilityGuideline" => await _db.FacilityGuidelines.FindAsync(id),
                 "FieldVariant" => await _db.FieldVariants.FindAsync(id),
                 "AnalysisParameter" => await _db.AnalysisParameters.FindAsync(id),
+                "SportOption" => await _db.SportOptions.FindAsync(id),
                 _ => null,
             };
             if (existing is null) return NotFound($"No {entityType} with id {id}.");
