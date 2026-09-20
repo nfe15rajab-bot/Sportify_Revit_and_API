@@ -221,7 +221,13 @@ namespace SportfyRevit
                 var label = zone.Label ?? zone.Kind ?? "(zone)";
                 if (zone.AssemblyKey == null || !CurrentFloorTypes.TryGetValue(zone.AssemblyKey, out var floorType))
                 {
-                    ImportDiagnostics.FloorFailed(label, "no floor type was built for its build-up system");
+                    // Three different causes used to arrive as one message.
+                    // Which one it is decides who can fix it.
+                    bool unresolved = layout.UnresolvedAssemblies?.Contains(zone.AssemblyKey ?? "") == true;
+                    ImportDiagnostics.FloorFailed(label,
+                        zone.AssemblyKey == null ? "no build-up system was chosen for it"
+                        : unresolved ? $"build-up \"{zone.AssemblyKey}\" was not in the export — the web app's catalog was not loaded when it was exported (start Sportify.Api and re-export)"
+                        : $"the floor type for \"{zone.AssemblyKey}\" could not be built");
                     continue;
                 }
 

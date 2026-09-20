@@ -43,6 +43,14 @@ namespace SportfyRevit
         [JsonPropertyName("roof_finish")] public RoofFinishDto? RoofFinish { get; set; }
 
         /// <summary>
+        /// Build-up keys the export referred to but could not describe, because
+        /// the web app's catalog was not loaded. Without this, "no build-up
+        /// chosen" and "the catalog was offline when this was exported" arrive
+        /// here looking identical, and only one of them is the user's doing.
+        /// </summary>
+        [JsonPropertyName("unresolved_assemblies")] public List<string>? UnresolvedAssemblies { get; set; }
+
+        /// <summary>
         /// The roof's structural grid and columns, pulled from the Revit model by the push (or drawn by hand in the Combine tab),
         /// and the deck capacity when the structural engineer's figure has been entered. Absent in older exports and when the
         /// push found no grids: the structural analysis then assumes a regular grid and says so.
