@@ -38,7 +38,10 @@ namespace Sportify.Api.Controllers
             // Court options — the surfaces, wall systems and baskets each sport
             // offers. Without this the Data tab's form built a valid request
             // and the endpoint refused it as an unknown type.
-            "SportOption"
+            "SportOption",
+            // Site furniture. Same reason, and it is the only way to attach a
+            // product photograph without a developer.
+            "FurnitureItem"
         };
 
         public AdminController(ReferenceDbContext db)
@@ -72,6 +75,7 @@ namespace Sportify.Api.Controllers
                     // every AnalysisParameter create attempt.
                     "AnalysisParameter" => JsonSerializer.Deserialize<AnalysisParameter>(raw, JsonOpts)!,
                     "SportOption" => JsonSerializer.Deserialize<SportOption>(raw, JsonOpts)!,
+                    "FurnitureItem" => JsonSerializer.Deserialize<FurnitureItem>(raw, JsonOpts)!,
                     _ => throw new InvalidOperationException("unreachable"),
                 };
 
@@ -112,6 +116,7 @@ namespace Sportify.Api.Controllers
                 "FieldVariant" => await _db.FieldVariants.FindAsync(id),
                 "AnalysisParameter" => await _db.AnalysisParameters.FindAsync(id),
                 "SportOption" => await _db.SportOptions.FindAsync(id),
+                "FurnitureItem" => await _db.FurnitureItems.FindAsync(id),
                 _ => null,
             };
             if (existing is null) return NotFound($"No {entityType} with id {id}.");
