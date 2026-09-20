@@ -247,6 +247,13 @@ namespace SportfyRevit
         [JsonPropertyName("revit_family")] public RevitFamilyRefDto? RevitFamily { get; set; }
 
         /// <summary>
+        /// Present when the placement is a padel court. Like RevitFamily it
+        /// short-circuits the generic path — a padel court is not an extrusion
+        /// of its footprint, it is a specified object with glass, mesh and a net.
+        /// </summary>
+        [JsonPropertyName("padel")] public PadelDto? Padel { get; set; }
+
+        /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
         /// </summary>
@@ -334,6 +341,48 @@ namespace SportfyRevit
     /// not a slab underneath the others: coplanar, nothing overlapping, which
     /// is how the exposed surface would be drawn by hand.
     /// </summary>
+    /// <summary>
+    /// A padel court's specification, as configured. The FIP geometry travels
+    /// with the placement rather than being re-derived here: a court saved last
+    /// month should rebuild as the court it was, even if the rules are revised.
+    /// </summary>
+    internal class PadelDto
+    {
+        [JsonPropertyName("court_type")] public string? CourtType { get; set; }
+        [JsonPropertyName("wall_system")] public string? WallSystem { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("surface_colour")] public string? SurfaceColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        [JsonPropertyName("net_centre_height_m")] public double NetCentreHeightM { get; set; }
+        [JsonPropertyName("net_post_height_m")] public double NetPostHeightM { get; set; }
+        [JsonPropertyName("service_line_from_net_m")] public double ServiceLineFromNetM { get; set; }
+
+        [JsonPropertyName("back_wall_glass_height_m")] public double BackWallGlassHeightM { get; set; }
+        [JsonPropertyName("back_wall_mesh_height_m")] public double BackWallMeshHeightM { get; set; }
+        [JsonPropertyName("side_corner_glass")] public PadelPanelDto? SideCornerGlass { get; set; }
+        [JsonPropertyName("side_step_glass")] public PadelPanelDto? SideStepGlass { get; set; }
+        [JsonPropertyName("side_centre_mesh_height_m")] public double SideCentreMeshHeightM { get; set; }
+        [JsonPropertyName("glass_thickness_mm")] public double GlassThicknessMm { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("clear_height_recommended_m")] public double ClearHeightRecommendedM { get; set; }
+
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    internal class PadelPanelDto
+    {
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+    }
+
     internal class RoofFinishDto
     {
         [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }

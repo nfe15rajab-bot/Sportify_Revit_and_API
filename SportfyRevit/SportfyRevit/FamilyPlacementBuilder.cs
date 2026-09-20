@@ -42,7 +42,11 @@ namespace SportfyRevit
             // A plant resolves to its species family before anything else: the
             // species IS the answer, so keyword matching and the generic
             // extrusion generator have nothing to contribute.
-            var symbol = TryResolvePlantFamily(doc, p) ?? TryResolveExplicitFamily(doc, p);
+            // A specified sport goes first: a padel court is not an extrusion of
+            // its footprint, and the generic path would happily make one.
+            var symbol = TryResolvePadelCourt(doc, p)
+                         ?? TryResolvePlantFamily(doc, p)
+                         ?? TryResolveExplicitFamily(doc, p);
             if (symbol != null) { /* diagnostics recorded inside the resolver */ }
             else
             {
@@ -104,6 +108,32 @@ namespace SportfyRevit
         /// cannot be built should still reach the roof as something rather than
         /// stopping the import.
         /// </summary>
+        /// <summary>
+        /// Same best-effort posture as the plant resolver: a court that cannot
+        /// be built should still reach the roof as something rather than
+        /// stopping the import — but it is reported, because a padel court
+        /// arriving as a slab is a quieter failure than none at all.
+        /// </summary>
+        private static FamilySymbol? TryResolvePadelCourt(Document doc, PlacementDto p)
+        {
+            var padel = p.Parameters?.Padel;
+            if (padel == null) return null;
+
+            try
+            {
+                var symbol = SportifyPadelCourtBuilder.GetOrCreateSymbol(doc, padel);
+                if (symbol != null)
+                    ImportDiagnostics.PadelCourtBuilt(padel.CourtType ?? "double",
+                        padel.WallSystem ?? "panoramic", padel.Surface ?? "", padel.WeightKg);
+                return symbol;
+            }
+            catch (Exception ex)
+            {
+                ImportDiagnostics.ExplicitFailed("Padel court", $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        }
+
         private static FamilySymbol? TryResolvePlantFamily(Document doc, PlacementDto p)
         {
             var plant = p.Parameters?.Vegetation;

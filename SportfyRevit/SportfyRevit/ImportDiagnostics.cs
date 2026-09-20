@@ -54,6 +54,12 @@ namespace SportfyRevit
             Lines.Add($"PLT  {species} — {crownM:0.#} m crown, {heightM:0.#} m tall");
         }
 
+        public static void PadelCourtBuilt(string courtType, string wallSystem, string surface, double weightKg)
+        {
+            _plantsPlaced += 0;   // not a plant; counted in the piece total like any other placement
+            Lines.Add($"PDL  Padel court — {courtType}, {wallSystem}, {surface} — {weightKg:0} kg on the deck");
+        }
+
         public static void FloorCreated(string label, string typeName, double areaM2)
         {
             _floorsDrawn++;
