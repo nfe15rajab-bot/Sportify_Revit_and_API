@@ -143,8 +143,10 @@ namespace SportfyRevit
             double netH = p.NetCentreHeightM > 0 ? p.NetCentreHeightM : 0.88;
             double postH = p.NetPostHeightM > 0 ? p.NetPostHeightM : 0.92;
 
+            var mats = BuildMaterials(fam, p);
+
             // ── Playing surface ──
-            Box(fam, -halfL, -halfW, halfL, halfW, -SurfaceThicknessM, 0);
+            Box(fam, -halfL, -halfW, halfL, halfW, -SurfaceThicknessM, 0, mats.Surface);
 
             // ── Back walls: glass below, mesh above, full width ──
             foreach (double sx in new[] { -1.0, 1.0 })
@@ -152,8 +154,8 @@ namespace SportfyRevit
                 double xOuter = sx * halfL;
                 double xInner = xOuter - sx * glassT;
                 double x0 = Math.Min(xOuter, xInner), x1 = Math.Max(xOuter, xInner);
-                Box(fam, x0, -halfW, x1, halfW, 0, backGlassH);
-                Box(fam, x0, -halfW, x1, halfW, backGlassH, backGlassH + backMeshH);
+                Box(fam, x0, -halfW, x1, halfW, 0, backGlassH, mats.Glass);
+                Box(fam, x0, -halfW, x1, halfW, backGlassH, backGlassH + backMeshH, mats.Mesh);
             }
 
             // ── Side walls ──
@@ -174,29 +176,29 @@ namespace SportfyRevit
                     double cornerFrom = sx < 0 ? -halfL : halfL - cornerLen;
                     double stepFrom = sx < 0 ? -halfL + cornerLen : halfL - cornerLen - stepLen;
 
-                    Box(fam, cornerFrom, y0, cornerFrom + cornerLen, y1, 0, cornerH);
-                    Box(fam, stepFrom, y0, stepFrom + stepLen, y1, 0, stepH);
+                    Box(fam, cornerFrom, y0, cornerFrom + cornerLen, y1, 0, cornerH, mats.Glass);
+                    Box(fam, stepFrom, y0, stepFrom + stepLen, y1, 0, stepH, mats.Glass);
 
                     // Mesh fills back up to the corner height above both steps.
                     double meshY0 = sy < 0 ? yOuter : yOuter - MeshThicknessM;
                     double meshY1 = meshY0 + MeshThicknessM;
                     if (backGlassH + backMeshH > cornerH)
-                        Box(fam, cornerFrom, meshY0, cornerFrom + cornerLen, meshY1, cornerH, backGlassH + backMeshH);
+                        Box(fam, cornerFrom, meshY0, cornerFrom + cornerLen, meshY1, cornerH, backGlassH + backMeshH, mats.Mesh);
                     if (cornerH > stepH)
-                        Box(fam, stepFrom, meshY0, stepFrom + stepLen, meshY1, stepH, cornerH);
+                        Box(fam, stepFrom, meshY0, stepFrom + stepLen, meshY1, stepH, cornerH, mats.Mesh);
                 }
 
                 // Centre run: mesh only, no glass.
                 double cy0 = sy < 0 ? yOuter : yOuter - MeshThicknessM;
-                Box(fam, meshStart, cy0, meshEnd, cy0 + MeshThicknessM, 0, centreMeshH);
+                Box(fam, meshStart, cy0, meshEnd, cy0 + MeshThicknessM, 0, centreMeshH, mats.Mesh);
             }
 
             // ── Net, across the court at the halfway line ──
-            Box(fam, -NetThicknessM / 2, -halfW, NetThicknessM / 2, halfW, 0, netH);
+            Box(fam, -NetThicknessM / 2, -halfW, NetThicknessM / 2, halfW, 0, netH, mats.Net);
             foreach (double sy in new[] { -1.0, 1.0 })
             {
                 double py = sy * halfW;
-                Box(fam, -PostSizeM / 2, py - PostSizeM / 2, PostSizeM / 2, py + PostSizeM / 2, 0, postH);
+                Box(fam, -PostSizeM / 2, py - PostSizeM / 2, PostSizeM / 2, py + PostSizeM / 2, 0, postH, mats.Steel);
             }
 
             // ── Posts where the frame really is: the four corners and each
@@ -210,12 +212,119 @@ namespace SportfyRevit
             foreach (double px in postXs)
                 foreach (double sy in new[] { -1.0, 1.0 })
                     Box(fam, px - PostSizeM / 2, sy * halfW - PostSizeM / 2,
-                             px + PostSizeM / 2, sy * halfW + PostSizeM / 2, 0, fullH);
+                             px + PostSizeM / 2, sy * halfW + PostSizeM / 2, 0, fullH, mats.Steel);
+        }
+
+
+        /* ── Materials ───────────────────────────────────────────────────────
+           Named before coloured. A model where every element says "Default" is
+           useless for takeoff; one with consistent names is valuable even
+           rendering entirely grey — and names are what survive IFC export,
+           where appearance assets mostly do not.
+
+           The names match the catalog, so a Revit material takeoff and the web
+           app's receipt group by the same thing and cannot disagree.
+
+           No physical properties: density and thermal only matter when Revit
+           itself runs the analysis, and the weight is already computed from the
+           parts and carried on the family. Asking Revit to re-derive a number
+           we have, less accurately, buys nothing. */
+
+        private sealed class CourtMaterials
+        {
+            public ElementId Glass = ElementId.InvalidElementId;
+            public ElementId Mesh = ElementId.InvalidElementId;
+            public ElementId Steel = ElementId.InvalidElementId;
+            public ElementId Surface = ElementId.InvalidElementId;
+            public ElementId Net = ElementId.InvalidElementId;
+        }
+
+        private static CourtMaterials BuildMaterials(Document fam, PadelDto p)
+        {
+            double glassMm = p.GlassThicknessMm > 0 ? p.GlassThicknessMm : 10;
+            var surfaceRgb = ParseHex(p.AppearanceHex) ?? (0x2F, 0x6F, 0xB5);
+            string surfaceName = SurfaceMaterialName(p);
+
+            return new CourtMaterials
+            {
+                // Transparency is what makes a padel court read as one. The
+                // enclosure is most of the object, and opaque it is a box.
+                Glass   = Make(fam, $"Sportify - Tempered glass {glassMm:0}mm", (0xBF, 0xD9, 0xE8), 78, 96),
+                Mesh    = Make(fam, "Sportify - Fence mesh, galvanised",        (0x8C, 0x93, 0x99), 55, 40),
+                Steel   = Make(fam, "Sportify - Steel frame, galvanised",       (0x9A, 0xA0, 0xA6),  0, 72),
+                Surface = Make(fam, surfaceName,                                surfaceRgb,          0, 12),
+                Net     = Make(fam, "Sportify - Padel net",                     (0x35, 0x39, 0x40), 35, 10),
+            };
+        }
+
+        /// <summary>The surface names the material it actually is, and its colour.</summary>
+        private static string SurfaceMaterialName(PadelDto p)
+        {
+            string what = (p.Surface ?? "artificial_grass") switch
+            {
+                "concrete" => "Porous concrete",
+                "acrylic"  => "Acrylic sports surface",
+                _          => "Artificial grass, sand-filled",
+            };
+            string colour = string.IsNullOrWhiteSpace(p.SurfaceColour) ? "" : $", {p.SurfaceColour}";
+            return $"Sportify - {what}{colour}";
+        }
+
+        private static ElementId Make(Document fam, string name, (int R, int G, int B) rgb,
+                                      int transparency, int shininess)
+        {
+            string safe = SanitizeName(name);
+            var existing = new FilteredElementCollector(fam).OfClass(typeof(Material))
+                .Cast<Material>().FirstOrDefault(m => m.Name.Equals(safe, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) return existing.Id;
+
+            try
+            {
+                var id = Material.Create(fam, safe);
+                if (fam.GetElement(id) is Material m)
+                {
+                    // Fully qualified: UseWindowsForms pulls System.Drawing.Color
+                    // into scope and the two are ambiguous otherwise.
+                    m.Color = new Autodesk.Revit.DB.Color((byte)rgb.R, (byte)rgb.G, (byte)rgb.B);
+                    m.Transparency = Math.Max(0, Math.Min(100, transparency));
+                    m.Shininess = Math.Max(0, Math.Min(128, shininess));
+                    m.SurfaceForegroundPatternColor = new Autodesk.Revit.DB.Color((byte)rgb.R, (byte)rgb.G, (byte)rgb.B);
+                }
+                return id;
+            }
+            catch (Exception)
+            {
+                // A material Revit will not take is not worth failing the court
+                // over — the geometry is still right, it just arrives grey.
+                return ElementId.InvalidElementId;
+            }
+        }
+
+        private static (int, int, int)? ParseHex(string? hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return null;
+            var h = hex.TrimStart('#');
+            if (h.Length != 6) return null;
+            try
+            {
+                return (Convert.ToInt32(h.Substring(0, 2), 16),
+                        Convert.ToInt32(h.Substring(2, 2), 16),
+                        Convert.ToInt32(h.Substring(4, 2), 16));
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Revit rejects these in a material name, same list as a type name.</summary>
+        private static string SanitizeName(string name)
+        {
+            foreach (char c in new[] { '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~', ':', '\\', '/' })
+                name = name.Replace(c, '-');
+            return name.Trim();
         }
 
         /// <summary>A rectangular solid, in metres, extruded along Z.</summary>
         private static void Box(Document fam, double x0M, double y0M, double x1M, double y1M,
-                                double zBaseM, double zTopM)
+                                double zBaseM, double zTopM, ElementId? materialId = null)
         {
             double h = zTopM - zBaseM;
             if (h <= 0 || Math.Abs(x1M - x0M) < 1e-6 || Math.Abs(y1M - y0M) < 1e-6) return;
@@ -236,7 +345,12 @@ namespace SportfyRevit
 
             var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, new XYZ(0, 0, z));
             var sketchPlane = SketchPlane.Create(fam, plane);
-            fam.FamilyCreate.NewExtrusion(true, profile, sketchPlane, F(h));
+            var solid = fam.FamilyCreate.NewExtrusion(true, profile, sketchPlane, F(h));
+            if (materialId != null && materialId != ElementId.InvalidElementId)
+            {
+                var mp = solid.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM);
+                if (mp != null && !mp.IsReadOnly) mp.Set(materialId);
+            }
         }
 
         /// <summary>
@@ -283,9 +397,22 @@ namespace SportfyRevit
             SanitizeFileName($"Sportify - Padel {p.CourtType ?? "double"} " +
                              $"{p.WallSystem ?? "panoramic"} {p.Surface ?? "grass"} {p.SurfaceColour ?? "blue"}");
 
+        /// <summary>
+        /// Bump when the geometry or the materials change.
+        ///
+        /// The cache exists because building a family document is a second of
+        /// real work, and it is keyed on the specification — which does not
+        /// change when this builder does. Without a version here, improving the
+        /// court would silently keep handing out the old one, and the bug would
+        /// look like the new code not working.
+        ///
+        /// v2: every part carries its own material.
+        /// </summary>
+        private const string BuilderVersion = "v2";
+
         private static string CachePath(string familyName) =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                         "Sportify", "SportifyGeneratedFamilies", familyName + ".rfa");
+                         "Sportify", "SportifyGeneratedFamilies", BuilderVersion, familyName + ".rfa");
 
         /// <summary>
         /// Revit rejects these in a type or family name, and they are also
