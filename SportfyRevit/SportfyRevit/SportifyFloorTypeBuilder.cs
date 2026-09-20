@@ -424,35 +424,72 @@ namespace SportfyRevit
 
                 var loops = new List<CurveLoop> { CurveLoop.Create(outer) };
 
-                int skipped = 0;
+                // Revit rejects the whole sketch if any opening crosses the
+                // boundary or another opening, and the exception names six
+                // possible causes without saying which. So each one is checked
+                // before it goes in, and the ones that cannot work are named.
+                var placed = new List<(double X0, double Y0, double X1, double Y1)>();
+                var rejected = new List<string>();
+
                 foreach (var o in openings ?? Enumerable.Empty<OpeningDto>())
                 {
                     double x0 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM);
                     double x1 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM + o.LengthM);
                     double y0 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM + o.WidthM);
                     double y1 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM);
-                    if (Math.Abs(x1 - x0) < doc.Application.ShortCurveTolerance ||
-                        Math.Abs(y1 - y0) < doc.Application.ShortCurveTolerance) { skipped++; continue; }
+                    double ax0 = Math.Min(x0, x1), ax1 = Math.Max(x0, x1);
+                    double ay0 = Math.Min(y0, y1), ay1 = Math.Max(y0, y1);
+                    string what = $"{o.Source ?? "opening"} {o.Id ?? ""}".Trim();
+
+                    if (ax1 - ax0 < doc.Application.ShortCurveTolerance ||
+                        ay1 - ay0 < doc.Application.ShortCurveTolerance)
+                    { rejected.Add($"{what} has no area"); continue; }
+
+                    // Fully inside, or the sketch is invalid — an opening that
+                    // pokes through the edge is not a hole, it is a notch, and
+                    // Revit will not take it as either.
+                    if (!RectInsidePolygon(boundaryFt, ax0, ay0, ax1, ay1))
+                    { rejected.Add($"{what} is not fully inside the roof"); continue; }
+
+                    var clash = placed.FirstOrDefault(r => ax0 < r.X1 && ax1 > r.X0 && ay0 < r.Y1 && ay1 > r.Y0);
+                    if (clash != default)
+                    { rejected.Add($"{what} overlaps another opening"); continue; }
+
                     try
                     {
                         loops.Add(CurveLoop.Create(new List<Curve>
                         {
-                            Line.CreateBound(new XYZ(x0, y0, z), new XYZ(x1, y0, z)),
-                            Line.CreateBound(new XYZ(x1, y0, z), new XYZ(x1, y1, z)),
-                            Line.CreateBound(new XYZ(x1, y1, z), new XYZ(x0, y1, z)),
-                            Line.CreateBound(new XYZ(x0, y1, z), new XYZ(x0, y0, z)),
+                            Line.CreateBound(new XYZ(ax0, ay0, z), new XYZ(ax1, ay0, z)),
+                            Line.CreateBound(new XYZ(ax1, ay0, z), new XYZ(ax1, ay1, z)),
+                            Line.CreateBound(new XYZ(ax1, ay1, z), new XYZ(ax0, ay1, z)),
+                            Line.CreateBound(new XYZ(ax0, ay1, z), new XYZ(ax0, ay0, z)),
                         }));
+                        placed.Add((ax0, ay0, ax1, ay1));
                     }
-                    catch { skipped++; }
+                    catch (Exception ex) { rejected.Add($"{what}: {ex.Message}"); }
                 }
 
-                var floor = Floor.Create(doc, loops, floorType.Id, level.Id);
+                Floor? floor;
+                try
+                {
+                    floor = Floor.Create(doc, loops, floorType.Id, level.Id);
+                }
+                catch (Exception ex)
+                {
+                    // A finish with no holes beats no finish at all: the surface
+                    // is most of the roof, and losing it to one bad rectangle
+                    // would be a poor trade.
+                    rejected.Add("the openings were refused together (" + FirstLine(ex.Message) + ") — drawn solid instead");
+                    floor = Floor.Create(doc, new List<CurveLoop> { loops[0] }, floorType.Id, level.Id);
+                }
                 if (floor == null) { failure = "Revit returned no floor"; return null; }
 
                 var offset = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
                 if (offset != null && !offset.IsReadOnly) offset.Set(elevationFt - level.Elevation);
 
-                if (skipped > 0) failure = $"{skipped} opening(s) were unusable and left solid";
+                if (rejected.Count > 0)
+                    failure = string.Join("; ", rejected.Take(4))
+                            + (rejected.Count > 4 ? $" (+{rejected.Count - 4} more)" : "");
                 return floor;
             }
             catch (Exception ex)
@@ -460,6 +497,45 @@ namespace SportfyRevit
                 failure = $"{ex.GetType().Name}: {ex.Message}";
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Every corner of the rectangle inside the boundary polygon, by ray
+        /// casting. Corners alone would pass a rectangle that straddles a
+        /// concave notch, so the centre is checked too — enough for the
+        /// rectangles this importer actually receives, and honest about not
+        /// being a general polygon clipper.
+        /// </summary>
+        private static bool RectInsidePolygon(IList<XYZ> poly, double x0, double y0, double x1, double y1)
+        {
+            var probes = new[]
+            {
+                (x0, y0), (x1, y0), (x1, y1), (x0, y1),
+                ((x0 + x1) / 2, (y0 + y1) / 2),
+            };
+            foreach (var (px, py) in probes)
+                if (!PointInPolygon(poly, px, py)) return false;
+            return true;
+        }
+
+        /// <summary>Revit's exceptions run to six lines; the first says enough.</summary>
+        private static string FirstLine(string message)
+        {
+            int i = message.IndexOfAny(Environment.NewLine.ToCharArray());
+            return i < 0 ? message : message.Substring(0, i);
+        }
+
+        private static bool PointInPolygon(IList<XYZ> poly, double px, double py)
+        {
+            bool inside = false;
+            for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+            {
+                double xi = poly[i].X, yi = poly[i].Y, xj = poly[j].X, yj = poly[j].Y;
+                if (((yi > py) != (yj > py)) &&
+                    (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi))
+                    inside = !inside;
+            }
+            return inside;
         }
 
         /// <summary>
