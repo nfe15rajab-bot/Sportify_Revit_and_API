@@ -76,6 +76,9 @@ using (var scope = app.Services.CreateScope())
     // Before the price backfill, so the finishes' own layers get priced in the
     // same pass rather than waiting for the next start.
     RoofFinishSeeder.Seed(refDb);
+    // The choices padel and basketball offer, moved out of the web app's
+    // JavaScript so a fourth surface is a row rather than a code change.
+    SportOptionSeeder.Seed(refDb);
     // Runs every start, not just on an empty catalog: the price columns were
     // added after there was already data, and it only fills what is missing.
     PriceSeeder.Backfill(refDb);

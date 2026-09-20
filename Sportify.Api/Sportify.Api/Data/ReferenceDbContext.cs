@@ -25,6 +25,13 @@ namespace Sportify.Api.Data
 
         /// <summary>Provider roof build-ups and their ordered layers — what a drawn green roof zone is made of.</summary>
         public DbSet<RoofAssembly> RoofAssemblies => Set<RoofAssembly>();
+
+        /// <summary>
+        /// The choices each sport offers. Geometry stays in code because it is
+        /// a standard; which surface or wall system is a product decision, and
+        /// products belong where someone can maintain them.
+        /// </summary>
+        public DbSet<SportOption> SportOptions => Set<SportOption>();
         public DbSet<RoofAssemblyLayer> RoofAssemblyLayers => Set<RoofAssemblyLayer>();
     }
 }
