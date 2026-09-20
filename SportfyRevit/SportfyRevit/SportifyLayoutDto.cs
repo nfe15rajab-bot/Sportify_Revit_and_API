@@ -40,6 +40,15 @@ namespace SportfyRevit
         /// to be placements: a zone has no fixed size and is not an object.
         /// </summary>
         [JsonPropertyName("zones")] public List<ZoneDto>? Zones { get; set; }
+        [JsonPropertyName("roof_finish")] public RoofFinishDto? RoofFinish { get; set; }
+
+        /// <summary>
+        /// Build-up keys the export referred to but could not describe, because
+        /// the web app's catalog was not loaded. Without this, "no build-up
+        /// chosen" and "the catalog was offline when this was exported" arrive
+        /// here looking identical, and only one of them is the user's doing.
+        /// </summary>
+        [JsonPropertyName("unresolved_assemblies")] public List<string>? UnresolvedAssemblies { get; set; }
 
         /// <summary>
         /// The roof's structural grid and columns, pulled from the Revit model by the push (or drawn by hand in the Combine tab),
@@ -321,6 +330,19 @@ namespace SportfyRevit
         [JsonPropertyName("revit_family")] public RevitFamilyRefDto? RevitFamily { get; set; }
 
         /// <summary>
+        /// Present when the placement is a padel court. Like RevitFamily it
+        /// short-circuits the generic path — a padel court is not an extrusion
+        /// of its footprint, it is a specified object with glass, mesh and a net.
+        /// </summary>
+        [JsonPropertyName("padel")] public PadelDto? Padel { get; set; }
+
+        /// <summary>Present when the placement is a basketball court.</summary>
+        [JsonPropertyName("basketball")] public BasketballDto? Basketball { get; set; }
+
+        /// <summary>Present when the placement is a volleyball court.</summary>
+        [JsonPropertyName("volleyball")] public VolleyballDto? Volleyball { get; set; }
+
+        /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
         /// </summary>
@@ -402,6 +424,159 @@ namespace SportfyRevit
         [JsonPropertyName("layers")] public List<AssemblyLayerDto>? Layers { get; set; }
     }
 
+    /// <summary>
+    /// The surface everything else sits in — what is left of the roof once the
+    /// courts and the planted zones are taken out. One floor with holes in it,
+    /// not a slab underneath the others: coplanar, nothing overlapping, which
+    /// is how the exposed surface would be drawn by hand.
+    /// </summary>
+    /// <summary>
+    /// A padel court's specification, as configured. The FIP geometry travels
+    /// with the placement rather than being re-derived here: a court saved last
+    /// month should rebuild as the court it was, even if the rules are revised.
+    /// </summary>
+    internal class PadelDto
+    {
+        [JsonPropertyName("court_type")] public string? CourtType { get; set; }
+        [JsonPropertyName("wall_system")] public string? WallSystem { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("surface_colour")] public string? SurfaceColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        [JsonPropertyName("net_centre_height_m")] public double NetCentreHeightM { get; set; }
+        [JsonPropertyName("net_post_height_m")] public double NetPostHeightM { get; set; }
+        [JsonPropertyName("service_line_from_net_m")] public double ServiceLineFromNetM { get; set; }
+
+        [JsonPropertyName("back_wall_glass_height_m")] public double BackWallGlassHeightM { get; set; }
+        [JsonPropertyName("back_wall_mesh_height_m")] public double BackWallMeshHeightM { get; set; }
+        [JsonPropertyName("side_corner_glass")] public PadelPanelDto? SideCornerGlass { get; set; }
+        [JsonPropertyName("side_step_glass")] public PadelPanelDto? SideStepGlass { get; set; }
+        [JsonPropertyName("side_centre_mesh_height_m")] public double SideCentreMeshHeightM { get; set; }
+        [JsonPropertyName("glass_thickness_mm")] public double GlassThicknessMm { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("clear_height_recommended_m")] public double ClearHeightRecommendedM { get; set; }
+
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A basketball court's specification, as configured. Like padel's, the
+    /// figures travel with the placement so a court rebuilds as the court it
+    /// was — the importer holds no opinion about what FIBA currently says.
+    /// </summary>
+    internal class BasketballDto
+    {
+        [JsonPropertyName("variant")] public string? Variant { get; set; }
+        [JsonPropertyName("hoops")] public int Hoops { get; set; }
+        [JsonPropertyName("mounting")] public string? Mounting { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        [JsonPropertyName("key_colour")] public string? KeyColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("key_fill_hex")] public string? KeyFillHex { get; set; }
+
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("play_length_m")] public double PlayLengthM { get; set; }
+        [JsonPropertyName("play_width_m")] public double PlayWidthM { get; set; }
+
+        [JsonPropertyName("rim_height_m")] public double RimHeightM { get; set; }
+        [JsonPropertyName("rim_inner_diameter_m")] public double RimInnerDiameterM { get; set; }
+        [JsonPropertyName("basket_centre_from_endline_m")] public double BasketCentreFromEndlineM { get; set; }
+        [JsonPropertyName("backboard_face_from_endline_m")] public double BackboardFaceFromEndlineM { get; set; }
+        [JsonPropertyName("backboard_width_m")] public double BackboardWidthM { get; set; }
+        [JsonPropertyName("backboard_height_m")] public double BackboardHeightM { get; set; }
+        [JsonPropertyName("backboard_lower_edge_m")] public double BackboardLowerEdgeM { get; set; }
+
+        [JsonPropertyName("key_width_m")] public double KeyWidthM { get; set; }
+        [JsonPropertyName("key_depth_m")] public double KeyDepthM { get; set; }
+        [JsonPropertyName("centre_circle_radius_m")] public double CentreCircleRadiusM { get; set; }
+        [JsonPropertyName("free_throw_circle_radius_m")] public double FreeThrowCircleRadiusM { get; set; }
+        [JsonPropertyName("no_charge_radius_m")] public double NoChargeRadiusM { get; set; }
+        [JsonPropertyName("three_point_radius_m")] public double ThreePointRadiusM { get; set; }
+        [JsonPropertyName("three_point_corner_from_sideline_m")] public double ThreePointCornerFromSidelineM { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A volleyball court. The free zone is carried because it is part of the
+    /// court rather than a margin — play happens out there and it is the same
+    /// surface — and the sand is carried separately because on a roof it is
+    /// the whole question.
+    /// </summary>
+    internal class VolleyballDto
+    {
+        [JsonPropertyName("variant")] public string? Variant { get; set; }
+        [JsonPropertyName("play_type")] public string? PlayType { get; set; }
+        [JsonPropertyName("net_height_m")] public double NetHeightM { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+
+        [JsonPropertyName("court_length_m")] public double CourtLengthM { get; set; }
+        [JsonPropertyName("court_width_m")] public double CourtWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("free_zone_sides_m")] public double FreeZoneSidesM { get; set; }
+        [JsonPropertyName("free_zone_ends_m")] public double FreeZoneEndsM { get; set; }
+
+        /// <summary>Zero on a beach court, which has no attack line.</summary>
+        [JsonPropertyName("attack_line_from_centre_m")] public double AttackLineFromCentreM { get; set; }
+        [JsonPropertyName("net_depth_m")] public double NetDepthM { get; set; }
+        [JsonPropertyName("post_outside_sideline_m")] public double PostOutsideSidelineM { get; set; }
+        [JsonPropertyName("post_height_m")] public double PostHeightM { get; set; }
+        [JsonPropertyName("antenna_length_m")] public double AntennaLengthM { get; set; }
+        [JsonPropertyName("antenna_above_net_m")] public double AntennaAboveNetM { get; set; }
+
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("sand_depth_m")] public double SandDepthM { get; set; }
+        [JsonPropertyName("sand_volume_m3")] public double SandVolumeM3 { get; set; }
+
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("weight_basis")] public string? WeightBasis { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    internal class PadelPanelDto
+    {
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+    }
+
+    internal class RoofFinishDto
+    {
+        [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
+        [JsonPropertyName("revit_type_name")] public string? RevitTypeName { get; set; }
+        [JsonPropertyName("net_area_m2")] public double NetAreaM2 { get; set; }
+        [JsonPropertyName("roof_area_m2")] public double RoofAreaM2 { get; set; }
+
+        /// <summary>Every zone and court, as a hole in the finish.</summary>
+        [JsonPropertyName("openings")] public List<OpeningDto>? Openings { get; set; }
+    }
+
+    internal class OpeningDto
+    {
+        [JsonPropertyName("source")] public string? Source { get; set; }   // "zone" | "piece"
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+    }
+
     internal class ZoneDto
     {
         [JsonPropertyName("id")] public string? Id { get; set; }
@@ -410,6 +585,14 @@ namespace SportfyRevit
         [JsonPropertyName("bounding_box")] public BoundingBoxDto? BoundingBox { get; set; }
         [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
         [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
+
+        /// <summary>
+        /// The zone's real outline. A bed is not a rectangle once its corners
+        /// can be moved, and bounding_box would draw the floor as the box it
+        /// happens to fit inside. Absent on exports from before zones had
+        /// corners, which is why the box is still carried.
+        /// </summary>
+        [JsonPropertyName("points")] public List<PointDto>? Points { get; set; }
     }
 
     internal class AssemblyLayerDto

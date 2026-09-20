@@ -54,6 +54,26 @@ namespace SportfyRevit
             Lines.Add($"PLT  {species} — {crownM:0.#} m crown, {heightM:0.#} m tall");
         }
 
+        public static void PadelCourtBuilt(string courtType, string wallSystem, string surface, double weightKg)
+        {
+            _plantsPlaced += 0;   // not a plant; counted in the piece total like any other placement
+            Lines.Add($"PDL  Padel court — {courtType}, {wallSystem}, {surface} — {weightKg:0} kg on the deck");
+        }
+
+        public static void BasketballCourtBuilt(string variant, int hoops, string mounting, string surface, double weightKg)
+            => Lines.Add($"BBL  Basketball court — {variant}, {hoops} basket(s), {mounting}, {surface} — {weightKg:0} kg on the deck");
+
+        public static void VolleyballCourtBuilt(string playType, double netM, string surface, double sandM3, double weightKg)
+        {
+            // The sand is called out because it is the number that decides
+            // whether a beach court can be on this roof at all.
+            string sand = sandM3 > 0 ? $", {sandM3:0} m3 of sand" : "";
+            Lines.Add($"VBL  Volleyball court — {playType}, net {netM:0.00} m, {surface}{sand} — {weightKg:0} kg on the deck");
+        }
+
+        /// <summary>A remark that is neither a success nor a failure of one piece.</summary>
+        public static void Note(string message) => Lines.Add($"NOTE {message}");
+
         public static void FloorCreated(string label, string typeName, double areaM2)
         {
             _floorsDrawn++;

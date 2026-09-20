@@ -137,6 +137,19 @@ namespace SportfyRevit
 
         public (double X, double Y) FromLocalUp(double a, double b) => (OriginX + a * _cos - b * _sin, OriginY + a * _sin + b * _cos);
 
+        /// <summary>
+        /// A point that was worked out as if the roof were square to the model (the origin plus the plan's x, the origin plus the height above the roof's bottom edge:
+        /// what the plain convention gives) turned about the origin into the model, as the frame turns it: the same point as FromLocalUp of its offset from the origin.
+        /// For code that computes in the roof's own axes and in the origin's own unit (the floor builder works in feet) and turns only what it has finished, so that
+        /// what it computed, tested and compared is exactly what it was before roofs could be turned. Free of the instance so that it takes the origin in that unit.
+        /// </summary>
+        public static (double X, double Y) TurnAbout(double originX, double originY, double angleRad, double x, double y)
+        {
+            if (angleRad == 0) return (x, y);
+            double dx = x - originX, dy = y - originY, c = Math.Cos(angleRad), s = Math.Sin(angleRad);
+            return (originX + dx * c - dy * s, originY + dx * s + dy * c);
+        }
+
         /// <summary>Whether plan coordinates lie within the roof's bounding rectangle, grown by the tolerance.</summary>
         public bool InsidePlan(double x, double y, double tol) => x >= -tol && x <= Length + tol && y >= -tol && y <= Width + tol;
     }

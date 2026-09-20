@@ -15,6 +15,11 @@
     <Compile Include="Program.cs" />
     <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDbContext.cs" />
     <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDataSeeder.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\CatalogSeeding.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\RoofFinishSeeder.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\SportOptionSeeder.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\FurnitureSeeder.cs" />
+    <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\PriceSeeder.cs" />
     <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Data\ReferenceDbGuard.cs" />
     <Compile Include="..\..\..\Sportify.Api\Sportify.Api\Models\*.cs" Exclude="..\..\..\Sportify.Api\Sportify.Api\Models\AuthDtos.cs;..\..\..\Sportify.Api\Sportify.Api\Models\User.cs;..\..\..\Sportify.Api\Sportify.Api\Models\SavedConfigurations.cs" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />

@@ -7,7 +7,8 @@ using Sportify.Api.Data;
 //        ReferenceDbCheck --dry-run <reference.db>   what the guard would do to that file (on a copy)
 // Runs ReferenceDbGuard (what Sportify.Api does at startup on reference.db) on throw-away database files: a fresh one, one made before the guard, one missing a column
 // (the "no such column: p.CrownM" case), one with rows added through the Data tab, one held open by another program, and the three policies. Each must end with the
-// old file kept somewhere when it was replaced, and left alone when it was not.
+// old file kept somewhere when it was replaced, and left alone when it was not. What the catalog seeders add is added IN PLACE (CatalogSeeding: tables, columns, rows by
+// key), so a file that only lacks that is brought up to date with everything entered kept, and a rebuild is only for what cannot be added that way.
 // --dry-run <path to reference.db>: what the guard WOULD do to that file, tried on a copy (the file itself is not touched)
 if (args.Length == 2 && args[0] == "--dry-run")
 {
@@ -33,6 +34,7 @@ string NewDir(string name) { var d = Path.Combine(root, name); Directory.CreateD
 SqliteConnection Open(string path, bool pooled = false) { var c = new SqliteConnection($"Data Source={path};Pooling={pooled}"); c.Open(); return c; }
 long Scalar(string path, string sql) { using var c = Open(path); using var cmd = c.CreateCommand(); cmd.CommandText = sql; return Convert.ToInt64(cmd.ExecuteScalar() ?? 0); }
 void Run(string path, string sql) { using var c = Open(path); using var cmd = c.CreateCommand(); cmd.CommandText = sql; cmd.ExecuteNonQuery(); }
+string Text(string path, string sql) { using var c = Open(path); using var cmd = c.CreateCommand(); cmd.CommandText = sql; return Convert.ToString(cmd.ExecuteScalar()) ?? ""; }
 string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 string[] Backups(string dir) => Directory.GetFiles(dir, "reference.*.backup.db");
 
@@ -42,6 +44,8 @@ string[] Backups(string dir) => Directory.GetFiles(dir, "reference.*.backup.db")
     var a = ReferenceDbGuard.Prepare(db);
     Check("no file: created and seeded", a.Action == "created" && File.Exists(db) && Scalar(db, "SELECT count(*) FROM Sports") > 0 && Scalar(db, "SELECT count(*) FROM RoofAssemblies") > 0);
     Check("the seed digest is recorded in the file", Scalar(db, "SELECT count(*) FROM __SportifyMeta WHERE key = 'seed_digest'") == 1);
+    Check("it holds what the whole catalog sequence seeds: sport options, furniture, prices",
+          Scalar(db, "SELECT count(*) FROM SportOptions") > 0 && Scalar(db, "SELECT count(*) FROM FurnitureItems") > 0 && Scalar(db, "SELECT count(*) FROM Materials WHERE PriceValue IS NOT NULL") > 0);
     var before = Hash(db);
     var b = ReferenceDbGuard.Prepare(db);
     Check("started again: nothing to do, the file is not touched", b.Action == "ok" && Hash(db) == before && Backups(dir).Length == 0);
@@ -77,7 +81,10 @@ string[] Backups(string dir) => Directory.GetFiles(dir, "reference.*.backup.db")
     var same = ReferenceDbGuard.Prepare(db);
     Check("a row added by hand does not make the file 'out of date'", same.Action == "ok" && Scalar(db, "SELECT count(*) FROM Providers WHERE Name = 'Test Provider AG'") == 1, same.Reason);
 
-    Run(db, "UPDATE __SportifyMeta SET value = 'not the digest of this build' WHERE key = 'seed_digest'");     // as if the seed had changed since
+    // as if the seed had changed since: the current catalog has a row of the base seed that this file lacks. That cannot be added in place (the base seeder only seeds an empty
+    // database), so it is what a rebuild is for. A digest that merely differs is not enough: see the "in place" cases below.
+    Run(db, "DELETE FROM Plants WHERE rowid = (SELECT min(rowid) FROM Plants)");
+    Run(db, "UPDATE __SportifyMeta SET value = 'not the digest of this build' WHERE key = 'seed_digest'");
     var r = ReferenceDbGuard.Prepare(db);
     Check("when the seed has changed the file is rebuilt", r.Action == "rebuilt" && r.Reason.Contains("seed"), r.Reason);
     Check("the row added by hand is not in the new file", Scalar(db, "SELECT count(*) FROM Providers WHERE Name = 'Test Provider AG'") == 0);
@@ -97,6 +104,56 @@ string[] Backups(string dir) => Directory.GetFiles(dir, "reference.*.backup.db")
     Run(db, "DELETE FROM Plants WHERE rowid = (SELECT min(rowid) FROM Plants)");
     var behind = ReferenceDbGuard.Prepare(db);
     Check("an older file that lacks a seed row is rebuilt", behind.Action == "rebuilt" && behind.Reason.Contains("seed rows"), behind.Reason);
+}
+
+// ---- 5b. what the catalog seeders add is added in place: an older file is brought up to date, and what was entered stays
+{
+    var dir = NewDir("inplace"); var db = Path.Combine(dir, "reference.db");
+    ReferenceDbGuard.Prepare(db);
+    var options = Scalar(db, "SELECT count(*) FROM SportOptions"); var furniture = Scalar(db, "SELECT count(*) FROM FurnitureItems");
+    var priced = Scalar(db, "SELECT count(*) FROM Materials WHERE PriceValue IS NOT NULL");
+    const string Finishes = "'timber_deck_pedestals', 'gravel_ballast', 'resin_bound_paving'";
+    var finishes = Scalar(db, $"SELECT count(*) FROM RoofAssemblies WHERE Key IN ({Finishes})");
+    var finishLayers = Scalar(db, $"SELECT count(*) FROM RoofAssemblyLayers WHERE RoofAssemblyId IN (SELECT Id FROM RoofAssemblies WHERE Key IN ({Finishes}))");
+    var pricedLayers = Scalar(db, "SELECT count(*) FROM RoofAssemblyLayers WHERE PriceValue IS NOT NULL");
+    Run(db, "INSERT INTO Providers (Name, Country, Specialty, Website, Category) VALUES ('Test Provider AG', 'DE', 'Hand made', 'https://example.org', 'floor')");
+
+    // a file as it was before the sport options, the furniture, the roof finishes and the prices existed: no such tables, no price column anywhere, none of the finishes.
+    // (The finishes matter: putting them back inserts layers, and an INSERT that names a price column the file does not have yet fails.)
+    Run(db, "DROP TABLE SportOptions"); Run(db, "DROP TABLE FurnitureItems");
+    Run(db, $"DELETE FROM RoofAssemblyLayers WHERE RoofAssemblyId IN (SELECT Id FROM RoofAssemblies WHERE Key IN ({Finishes}))");
+    Run(db, $"DELETE FROM RoofAssemblies WHERE Key IN ({Finishes})");
+    foreach (var table in new[] { "Materials", "Plants", "RoofAssemblyLayers" })
+        foreach (var column in new[] { "PriceValue", "PriceUnit", "PriceSource", "PriceIsQuoted", "CostGroupDin276" }) Run(db, $"ALTER TABLE {table} DROP COLUMN {column}");
+    var r = ReferenceDbGuard.Prepare(db);
+    Check("a file that lacks only what the seeders add is not rebuilt: no backup, the guard says it is fine", r.Action != "rebuilt" && Backups(dir).Length == 0, r.Action + " " + r.Reason);
+    Check("the tables, the columns and the rows they add are back",
+          Scalar(db, "SELECT count(*) FROM SportOptions") == options && Scalar(db, "SELECT count(*) FROM FurnitureItems") == furniture
+          && Scalar(db, "SELECT count(*) FROM pragma_table_info('Materials') WHERE name = 'PriceValue'") == 1
+          && Scalar(db, "SELECT count(*) FROM Materials WHERE PriceValue IS NOT NULL") == priced && priced > 0
+          && finishes == 3 && Scalar(db, $"SELECT count(*) FROM RoofAssemblies WHERE Key IN ({Finishes})") == finishes
+          && Scalar(db, $"SELECT count(*) FROM RoofAssemblyLayers WHERE RoofAssemblyId IN (SELECT Id FROM RoofAssemblies WHERE Key IN ({Finishes}))") == finishLayers
+          && Scalar(db, "SELECT count(*) FROM RoofAssemblyLayers WHERE PriceValue IS NOT NULL") == pricedLayers && pricedLayers > 0);
+    Check("and the row that was entered by hand is still there", Scalar(db, "SELECT count(*) FROM Providers WHERE Name = 'Test Provider AG'") == 1);
+    SqliteConnection.ClearAllPools();
+}
+
+// ---- 5c. the same for a file the build before them made: its recorded digest is the old one, and that alone is not a reason to rebuild
+{
+    var dir = NewDir("olddigest"); var db = Path.Combine(dir, "reference.db");
+    ReferenceDbGuard.Prepare(db);
+    var current = Text(db, "SELECT value FROM __SportifyMeta WHERE key = 'seed_digest'");
+    Run(db, "INSERT INTO Providers (Name, Country, Specialty, Website, Category) VALUES ('Test Provider AG', 'DE', 'Hand made', 'https://example.org', 'floor')");
+    Run(db, "DROP TABLE FurnitureItems");
+    Run(db, "UPDATE __SportifyMeta SET value = 'the digest the build before the furniture catalogue wrote' WHERE key = 'seed_digest'");
+    var r = ReferenceDbGuard.Prepare(db);
+    Check("a differing digest is accepted when the file has every row of the current catalog once the seeders have run", r.Action == "adopted" && Backups(dir).Length == 0, r.Action + " " + r.Reason);
+    Check("the digest is now this build's, and the hand-entered row is kept",
+          Text(db, "SELECT value FROM __SportifyMeta WHERE key = 'seed_digest'") == current && Scalar(db, "SELECT count(*) FROM Providers WHERE Name = 'Test Provider AG'") == 1 && Scalar(db, "SELECT count(*) FROM FurnitureItems") > 0);
+    SqliteConnection.ClearAllPools();
+    var before = Hash(db);
+    var again = ReferenceDbGuard.Prepare(db);
+    Check("started again: nothing to do, the file is not touched", again.Action == "ok" && Hash(db) == before && Backups(dir).Length == 0, again.Action + " " + again.Reason);
 }
 
 // ---- 6. the other policies leave the file alone

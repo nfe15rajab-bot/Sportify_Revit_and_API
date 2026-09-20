@@ -332,6 +332,31 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var down = f30.ToModel(0, f30.Width - 1);       // one metre UP on the roof in plan y terms (y is measured down from the top)
     Check("the plan's bottom-left corner is the frame's origin; 5 m along x runs along the roof at 30 degrees", Near(o.X, f30.OriginX) && Near(o.Y, f30.OriginY) && Near(along.X - o.X, 5 * Math.Cos(Math.PI / 6), 1e-9) && Near(along.Y - o.Y, 5 * Math.Sin(Math.PI / 6), 1e-9));
     Check("a step up the plan (y decreasing) is a step along the roof's own +v, 90 degrees left of x", Near(down.X - o.X, -Math.Sin(Math.PI / 6), 1e-9) && Near(down.Y - o.Y, Math.Cos(Math.PI / 6), 1e-9));
+    // the floor builder works out a floor in the roof's own axes (origin + plan x, origin + height above the bottom edge: the plain convention) and turns the finished
+    // points about the origin (RoofFrame.TurnAbout): that must be the frame's own mapping, in metres and in the feet the builder uses
+    {
+        var okTurn = true; var okFeet = true; var worst = 0.0;
+        foreach (var deg in new[] { 0.0, 30.0, -20.0, 60.0, 10.0 })
+        {
+            var pts = TurnedRect(30, 12, deg, 350.5, -120.25);
+            var (bx0, by0, bx1, by1) = Box(pts);
+            var f = RoofFrame.Fit(pts, bx0, by0, bx1, by1);
+            const double Ft = 3.280839895013123;
+            foreach (var (px, py) in new[] { (0.0, 0.0), (7.25, 3.5), (30.0, 12.0), (12.5, 0.0), (0.0, 12.0), (21.1, 9.9) })
+            {
+                var (mx, my) = f.ToModel(px, py);
+                var (tx, ty) = RoofFrame.TurnAbout(f.OriginX, f.OriginY, f.AngleRad, f.OriginX + px, f.OriginY + (f.Width - py));
+                okTurn &= Near(tx, mx, 1e-9) && Near(ty, my, 1e-9);
+                worst = Math.Max(worst, Math.Max(Math.Abs(tx - mx), Math.Abs(ty - my)));
+                var (fx, fy) = RoofFrame.TurnAbout(f.OriginX * Ft, f.OriginY * Ft, f.AngleRad, (f.OriginX + px) * Ft, (f.OriginY + (f.Width - py)) * Ft);
+                okFeet &= Near(fx, mx * Ft, 1e-6) && Near(fy, my * Ft, 1e-6);
+            }
+        }
+        Check("the floor builder's own-axes points, turned about the origin, are the frame's plan -> model mapping (roof finish and zone outlines of a turned roof)", okTurn, $"(worst {worst:0.#e+0} m)");
+        Check("  and the same in feet, the unit the builder works in", okFeet);
+        Check("  a roof square to the model is left exactly as it was", RoofFrame.TurnAbout(100, 200, 0, 117.3, 203.9) == (117.3, 203.9));
+    }
+
     // a piece turned 90 degrees clockwise on the canvas points its x axis DOWN the canvas; in the model that is the world angle (frame angle - 90 degrees)
     var top = f30.ToModel(0, 0); var below = f30.ToModel(0, 1);
     var dirDeg = Math.Atan2(below.Y - top.Y, below.X - top.X) * 180 / Math.PI;

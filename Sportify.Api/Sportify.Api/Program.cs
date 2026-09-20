@@ -68,8 +68,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// The catalog is created and seeded once, so an existing reference.db never got what a later build added. The guard compares it with what this build would create and,
-// by default, backs the old file up and rebuilds it (ReferenceDbGuard.cs). ReferenceDb:OnDrift = Rebuild | Fail | Ignore.
+// The catalog is created and seeded once by EnsureCreated, so an existing reference.db never got what a later build added. Everything the API seeds is ONE sequence
+// (CatalogSeeding.Run, Moamen's seeders included): its steps add what is missing in place (tables, columns, rows by key), which keeps whatever was entered through the Data
+// tab, and the guard runs it on an existing file before comparing it with what this build would create. Only what cannot be added in place is rebuilt: by default the old file
+// is backed up first (ReferenceDbGuard.cs). ReferenceDb:OnDrift = Rebuild | Fail | Ignore.
 var onDrift = Enum.TryParse<DriftPolicy>(app.Configuration["ReferenceDb:OnDrift"], ignoreCase: true, out var configured) ? configured : DriftPolicy.Rebuild;
 ReferenceDbGuard.Prepare(refDbPath, app.Logger, onDrift);
 

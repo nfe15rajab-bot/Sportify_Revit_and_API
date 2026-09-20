@@ -41,6 +41,11 @@ namespace Sportify.Api.Data
     /// What it does about it (see <see cref="DriftPolicy"/>): the default rebuilds, but never silently and never without a way back: the old file is copied to
     /// reference.&lt;time&gt;.backup.db beside it, and rows that were in it but are not in the new catalog (what the Data tab added) are listed in a text file, so nothing typed
     /// in is lost without a trace. Backups match the *.db rule of .gitignore.
+    ///
+    /// A rebuild is the last resort, not the first: the catalog seeders add what a newer build has IN PLACE (<see cref="CatalogSeeding"/>: tables, columns, rows by key), which
+    /// keeps everything that was entered. So on an existing file they run first, and only then is the file compared. A file that merely lacks what they add is thereby brought
+    /// up to date, and a file whose seed digest differs is accepted as long as it has every row of the current catalog (what the seeders added is in it, what was entered
+    /// besides stays). What in-place cannot fix is still rebuilt: a table or column of the older catalog that is missing, or a seed row whose content the code has changed.
     /// </summary>
     public static class ReferenceDbGuard
     {
@@ -66,6 +71,8 @@ namespace Sportify.Api.Data
                 return report;
             }
 
+            UpgradeInPlace(dbPath, log);
+
             var problem = Compare(dbPath, fresh, freshDigest, out var adopt);
             if (problem == null)
             {
@@ -73,7 +80,7 @@ namespace Sportify.Api.Data
                 {
                     WriteDigest(dbPath, freshDigest);
                     report.Action = "adopted";
-                    report.Reason = "reference.db predates the schema guard but has everything the current catalog has; its seed digest is now recorded.";
+                    report.Reason = "reference.db has everything the current catalog has (it predates the guard, or what this build added was added in place); its seed digest is now recorded.";
                     log?.LogInformation("reference.db is up to date (recorded its seed digest).");
                 }
                 return report;
@@ -105,7 +112,7 @@ namespace Sportify.Api.Data
             var options = new DbContextOptionsBuilder<ReferenceDbContext>().UseSqlite(connection).Options;
             using var db = new ReferenceDbContext(options);
             db.Database.EnsureCreated();
-            ReferenceDataSeeder.Seed(db);
+            CatalogSeeding.Run(db);
         }
 
         static void CreateOnDisk(string dbPath, string digest)
@@ -114,9 +121,32 @@ namespace Sportify.Api.Data
             using (var db = new ReferenceDbContext(options))
             {
                 db.Database.EnsureCreated();
-                ReferenceDataSeeder.Seed(db);
+                CatalogSeeding.Run(db);
             }
             WriteDigest(dbPath, digest);
+        }
+
+        /// <summary>
+        /// The catalog seeding, run on the file as it is. Its steps add in place what a newer build has (tables, columns, rows by key) and touch nothing else, so a file that only
+        /// lacks what they add comes out up to date with everything entered kept. A file they cannot work on (a table or column of the older catalog is missing, or it is not a
+        /// database at all) makes one of them throw: that is not an error here, the comparison that follows says what is wrong and the policy decides.
+        /// </summary>
+        static void UpgradeInPlace(string dbPath, ILogger? log)
+        {
+            try
+            {
+                var options = new DbContextOptionsBuilder<ReferenceDbContext>().UseSqlite($"Data Source={dbPath};Pooling=False").Options;
+                using var db = new ReferenceDbContext(options);
+                CatalogSeeding.Run(db);
+            }
+            catch (Exception ex)
+            {
+                log?.LogInformation("reference.db could not be brought up to date in place ({Message}); comparing it as it is.", ex.Message);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+            }
         }
 
         static void Rebuild(string dbPath, SqliteConnection fresh, string freshDigest, ReferenceDbReport report)
@@ -200,12 +230,14 @@ namespace Sportify.Api.Data
 
             var stored = ReadDigest(disk);
             if (stored == freshDigest) return null;
-            if (stored != null) return "the seed data of this build differs from the one this file was seeded with";
 
-            // made before the guard: fine when every row of the new catalog is in it
+            // The digest differs, or there is none (a file made before the guard). That is fine when every row of the new catalog is in the file: rows a newer build adds are
+            // added in place by the seeders (UpgradeInPlace), so a file that only lacked those has them by now, and what was entered besides is not a reason to rebuild.
             var absent = RowsNotIn(fresh, disk, limit: 1);
             if (absent.Count == 0) { adopt = true; return null; }
-            return "it lacks seed rows the current catalog has (" + absent[0] + ")";
+            return stored != null
+                ? "the seed data of this build differs from the one this file was seeded with (" + absent[0] + " is not in it)"
+                : "it lacks seed rows the current catalog has (" + absent[0] + ")";
         }
 
         static Dictionary<string, List<string>> Schema(SqliteConnection c)
