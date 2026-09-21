@@ -29,8 +29,13 @@ namespace SportfyRevit
     /// </summary>
     public static class RoofBoundaryServer
     {
+        private const int Port = 5679;
         private const string Prefix = "http://localhost:5679/";
         private static HttpListener? _listener;
+
+        /// <summary>Who may talk to this server and how much they may send (see LocalRequestGuard). Replaced in tests.</summary>
+        internal static LocalRequestGuard Guard { get; set; } = LocalRequestGuard.FromEnvironment(Port);
+        private static int _refusals;
         private static readonly object PayloadLock = new();
         private static string? _payloadJson;
 
@@ -63,7 +68,17 @@ namespace SportfyRevit
             if (_listener != null) return;
             _listener = new HttpListener();
             _listener.Prefixes.Add(Prefix);
+            try
+            {
+                // A client that sends its headers or its body at a trickle must not hold a connection (and this loop) for ever.
+                var t = _listener.TimeoutManager;
+                t.HeaderWait = TimeSpan.FromSeconds(30);
+                t.EntityBody = TimeSpan.FromSeconds(60);
+                t.IdleConnection = TimeSpan.FromMinutes(2);
+            }
+            catch (Exception ex) { SportifyLog.Warn("server", "the listener's time limits could not be set: " + ex.Message); }
             _listener.Start();
+            SportifyLog.Info("server", "listening on " + Prefix + " for " + string.Join(", ", Guard.Origins));
             _ = Task.Run(ListenLoop);
         }
 
@@ -277,11 +292,24 @@ namespace SportfyRevit
             finally { try { ctx.Response.Close(); } catch (Exception) { /* already gone */ } }
         }
 
-        private static byte[] ReadAll(Stream input)
+        /// <summary>Logs a refused request: the first few, then one in a hundred, so that a page hammering the port cannot fill the disk.</summary>
+        private static void NoteRefusal(HttpListenerContext ctx, LocalRequestGuard.Verdict verdict)
         {
-            using var ms = new MemoryStream();
-            input.CopyTo(ms);
-            return ms.ToArray();
+            var n = Interlocked.Increment(ref _refusals);
+            if (n > 20 && n % 100 != 0) return;
+            SportifyLog.Warn("server", $"refused {ctx.Request.HttpMethod} {ctx.Request.Url?.AbsolutePath} ({verdict.Status}): {verdict.Reason}" + (n > 20 ? $" [{n} refusals so far]" : ""));
+        }
+
+        private static async Task RefuseTooLarge(HttpListenerContext ctx, long limit)
+        {
+            SportifyLog.Warn("server", $"refused {ctx.Request.HttpMethod} {ctx.Request.Url?.AbsolutePath}: the body is larger than {limit} bytes");
+            var bytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new { error = new LocalRequestGuard.BodyTooLargeException(limit).Message }));
+            ctx.Response.StatusCode = 413;
+            ctx.Response.ContentType = "application/json";
+            ctx.Response.ContentLength64 = bytes.Length;
+            ctx.Response.KeepAlive = false;
+            try { await ctx.Response.OutputStream.WriteAsync(bytes); } catch (Exception) { /* the sender is still sending: it gets the closed connection */ }
+            ctx.Response.Close();
         }
 
         private static async Task Write(HttpListenerContext ctx, EndpointResponse answer)
@@ -329,31 +357,70 @@ namespace SportfyRevit
 
                 try
                 {
-                    // The frontend's fetch runs from http://localhost:8123 — a
-                    // different origin — so every response needs an explicit
-                    // CORS header or the browser blocks the JS from reading it,
-                    // even though the request itself succeeds.
-                    ctx.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                    var path = ctx.Request.Url?.AbsolutePath;
                     ctx.Response.Headers.Add("Cache-Control", "no-store");
+                    ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
 
-                    if (ctx.Request.HttpMethod == "OPTIONS")
+                    // Who is asking. The web app's fetch runs from another origin (localhost:8123), so the browser needs CORS headers to let its script read the
+                    // answer; they name the asking origin when it is one of the app's, and are never "*". Everything but the handshake needs the session token.
+                    var verdict = Guard.Judge(ctx.Request.HttpMethod, ctx.Request.Headers["Host"], ctx.Request.Headers["Origin"], path,
+                        ctx.Request.Headers[LocalRequestGuard.TokenHeader], ctx.Request.QueryString[LocalRequestGuard.TokenQuery]);
+                    if (verdict.CorsOrigin != null)
                     {
-                        // A JSON POST (combined-layout push) is a non-simple
-                        // request, so the browser preflights it and needs
-                        // these two extra headers before it'll send the POST.
-                        ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                        ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+                        ctx.Response.Headers.Add("Access-Control-Allow-Origin", verdict.CorsOrigin);
+                        ctx.Response.Headers.Add("Vary", "Origin");
+                    }
+
+                    if (verdict.Outcome == LocalRequestGuard.Outcome.Preflight)
+                    {
+                        // A JSON POST (combined-layout push) is a non-simple request, so the browser preflights it and needs these headers before it'll send the POST.
+                        if (verdict.CorsOrigin != null)
+                        {
+                            ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                            ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, " + LocalRequestGuard.TokenHeader);
+                            ctx.Response.Headers.Add("Access-Control-Max-Age", "600");
+                        }
                         ctx.Response.StatusCode = 204;
                         ctx.Response.Close();
                         continue;
                     }
 
-                    var path = ctx.Request.Url?.AbsolutePath;
+                    if (verdict.Outcome == LocalRequestGuard.Outcome.Refuse)
+                    {
+                        NoteRefusal(ctx, verdict);
+                        var refusedBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new { error = verdict.Reason }));
+                        ctx.Response.StatusCode = verdict.Status;
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = refusedBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(refusedBytes);
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (verdict.Outcome == LocalRequestGuard.Outcome.Session)
+                    {
+                        var sessionBytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new { token = Guard.Token, header = LocalRequestGuard.TokenHeader, query = LocalRequestGuard.TokenQuery }));
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = sessionBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(sessionBytes);
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    // Whatever body there is, it is read up to what this endpoint takes and no further (a Content-Length beyond it is refused before a byte is read).
+                    var bodyLimit = LocalRequestGuard.BodyLimit(ctx.Request.HttpMethod, path);
+                    if (ctx.Request.ContentLength64 > bodyLimit)
+                    {
+                        await RefuseTooLarge(ctx, bodyLimit);
+                        continue;
+                    }
 
                     if (path == "/combined-layout" && ctx.Request.HttpMethod == "POST")
                     {
-                        using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
-                        var body = await reader.ReadToEndAsync();
+                        string body;
+                        try { body = Encoding.UTF8.GetString(LocalRequestGuard.ReadBounded(ctx.Request.InputStream, bodyLimit, ctx.Request.ContentLength64)); }
+                        catch (LocalRequestGuard.BodyTooLargeException) { await RefuseTooLarge(ctx, bodyLimit); continue; }
                         var draft = ctx.Request.QueryString["draft"] == "1";
                         if (draft) SetDraftLayoutPayload(body); else SetCombinedLayoutPayload(body);
                         // The identity of what was just received, so that the web app knows which layout the results that follow are about.
@@ -417,7 +484,9 @@ namespace SportfyRevit
                     // the workspace: what is in it, saving into it, the analyses and their charts, the PDFs (WorkspaceEndpoints: plain functions of the request)
                     {
                         var request = ctx.Request;
-                        var answer = await Task.Run(() => WorkspaceEndpoints.Handle(request.HttpMethod, path, request.QueryString, () => ReadAll(request.InputStream)));
+                        EndpointResponse? answer;
+                        try { answer = await Task.Run(() => WorkspaceEndpoints.Handle(request.HttpMethod, path, request.QueryString, () => LocalRequestGuard.ReadBounded(request.InputStream, bodyLimit, request.ContentLength64))); }
+                        catch (Exception ex) when (ex is LocalRequestGuard.BodyTooLargeException || ex is AggregateException { InnerException: LocalRequestGuard.BodyTooLargeException }) { await RefuseTooLarge(ctx, bodyLimit); continue; }
                         if (answer != null)
                         {
                             await Write(ctx, answer);

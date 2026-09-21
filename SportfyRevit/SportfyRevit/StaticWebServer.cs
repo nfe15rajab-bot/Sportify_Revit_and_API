@@ -33,7 +33,14 @@ namespace SportfyRevit
             [".json"] = "application/json; charset=utf-8",
             [".svg"] = "image/svg+xml",
             [".png"] = "image/png",
+            [".jpg"] = "image/jpeg",
+            [".webp"] = "image/webp",
+            [".gif"] = "image/gif",
             [".ico"] = "image/x-icon",
+            [".woff2"] = "font/woff2",
+            [".woff"] = "font/woff",
+            [".ttf"] = "font/ttf",
+            [".txt"] = "text/plain; charset=utf-8",
         };
 
         public static void Start()
@@ -97,16 +104,22 @@ namespace SportfyRevit
                 return;
             }
 
+            // A file server: reading only. Anything else is refused before it looks at a path.
+            var method = ctx.Request.HttpMethod;
+            if (method != "GET" && method != "HEAD")
+            {
+                ctx.Response.StatusCode = 405;
+                ctx.Response.Headers.Add("Allow", "GET, HEAD");
+                ctx.Response.Close();
+                return;
+            }
+
             var requestPath = ctx.Request.Url?.AbsolutePath ?? "/";
             if (requestPath == "/") requestPath = "/index.html";
 
-            var webRootFull = Path.GetFullPath(_webRoot);
-            var fullPath = Path.GetFullPath(Path.Combine(webRootFull, requestPath.TrimStart('/')));
-
-            // Confirms the resolved path is still inside webRoot — blocks a
-            // crafted "/../../something" request path from escaping the
-            // served folder.
-            if (!fullPath.StartsWith(webRootFull, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath))
+            // The file must be inside the web folder: a crafted "/../../something" request, or a sibling folder whose name begins with the web folder's, is a 404.
+            var fullPath = LocalRequestGuard.ResolveInside(_webRoot, requestPath);
+            if (fullPath == null)
             {
                 ctx.Response.StatusCode = 404;
                 ctx.Response.Close();
@@ -124,10 +137,12 @@ namespace SportfyRevit
             // These files are served from the local disk, so there is nothing to
             // gain from caching them anyway.
             ctx.Response.Headers.Add("Cache-Control", "no-store, must-revalidate");
+            ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+            ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
 
             var bytes = await File.ReadAllBytesAsync(fullPath);
             ctx.Response.ContentLength64 = bytes.Length;
-            await ctx.Response.OutputStream.WriteAsync(bytes);
+            if (method != "HEAD") await ctx.Response.OutputStream.WriteAsync(bytes);
             ctx.Response.Close();
         }
 

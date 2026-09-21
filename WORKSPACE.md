@@ -48,6 +48,18 @@ Not connected is a normal state: exports download through the browser as before;
 | `POST /revit-command?name=diagrams` | asks Revit (which owns its API thread) to draw the diagrams; 202, 501 outside Revit |
 | `POST /open-folder?kind=` | opens the folder in Explorer |
 
+### Who may ask (`LocalRequestGuard`)
+
+The server answers only the web app, and only so much:
+
+- **Host** must be `localhost:5679` (or `127.0.0.1`/`[::1]` with the port): a page that reaches the server through a name it controls (DNS rebinding) is refused.
+- **Origin**, when the request has one (every browser fetch has), must be one of the app's: `http://localhost:8123` and `:8124` (the add-in's web server and the presentation copy), also as `127.0.0.1`. `SPORTIFY_ALLOWED_ORIGINS` (semicolon-separated) adds more for a dev server elsewhere; `*` and `null` are never accepted. The CORS header names the asking origin, never `*`.
+- **Token**: every request except `GET /session` needs `X-Sportify-Token` (or `?token=` for a video's `src` and download links, which cannot send a header). The token is 256 random bits made when the add-in starts. `GET /session` gives it only to a request whose Origin is one of the app's, so a page from any other origin cannot get it, and cannot read the answer of a request it has no token for. It stops the browser's other pages; it is not a defence against software already running as the user.
+- **Size**: a body is counted while it is read: a layout and a saved file 64 MB, anything else 1 MB (`413`; a `Content-Length` beyond the cap is refused before a byte is read). Header and body time limits close a connection that sends at a trickle.
+- The static web server (`:8123`) answers `GET`/`HEAD` only, and a file only inside the web folder (a sibling folder whose name begins with it, an encoded `..` and a directory are `404`).
+
+The web app does all this in `localSession.js` (`localFetch`, `localUrl`); no other script calls the add-in directly (`tools/local-session-test.js` fails if one does). Refusals are logged (the first 20, then one in a hundred) in `%APPDATA%\Sportify\logs`.
+
 `Tools/ContractCheck` calls the endpoints as plain functions (no listener) and `ContractCheck/endpoints-parity.js` checks that every path the web app calls is served. `ContractCheck serve-workspace <folder>` starts the real server on a scratch folder to try the web app against.
 
 ## What is not proven

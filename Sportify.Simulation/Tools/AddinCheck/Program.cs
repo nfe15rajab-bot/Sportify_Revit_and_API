@@ -256,6 +256,14 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         if (started)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            // the session: the app asks for its token, and every other request carries it
+            string Token(string origin)
+            {
+                var r = new HttpRequestMessage(HttpMethod.Get, "http://localhost:5679/session"); r.Headers.Add("Origin", origin);
+                return JsonDocument.Parse(http.Send(r).Content.ReadAsStringAsync().Result).RootElement.GetProperty("token").GetString()!;
+            }
+            var token = Token("http://localhost:8123");
+            http.DefaultRequestHeaders.Add("X-Sportify-Token", token);
             var url = "http://localhost:5679/recording?path=" + Uri.EscapeDataString(mp4);
             var whole = await http.GetAsync(url);
             var body = await whole.Content.ReadAsByteArrayAsync();
@@ -269,6 +277,66 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
             var denied = await http.GetAsync("http://localhost:5679/recording?path=" + Uri.EscapeDataString(secret));
             Check("a file no result names is not served", denied.StatusCode == System.Net.HttpStatusCode.NotFound);
             Check("the results document itself is still served", (await http.GetStringAsync("http://localhost:5679/analysis-results")).Contains("video_path"));
+
+            // ---- the lock on the local servers, against the real listener
+            Console.WriteLine("\n===== the local server admits only the app, with its token, and only so much =====");
+            HttpRequestMessage Ask(HttpMethod m, string path, string? origin = null, string? tokenHeader = null, HttpContent? content = null)
+            {
+                var r = new HttpRequestMessage(m, "http://localhost:5679" + path) { Content = content };
+                if (origin != null) r.Headers.Add("Origin", origin);
+                if (tokenHeader != null) r.Headers.Add("X-Sportify-Token", tokenHeader);
+                return r;
+            }
+            using var bare = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };          // no default headers: a client that has no token
+            var noToken = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results"));
+            Check("a request with no token is refused (401), so a page that has none reads nothing", (int)noToken.StatusCode == 401);
+            var wrongToken = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123", "0000"));
+            Check("a wrong token is refused too", (int)wrongToken.StatusCode == 401);
+            var foreign = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "https://evil.example", token));
+            Check("a page from another origin is refused (403) even holding the token, and gets no CORS header (the browser then hides the answer)", (int)foreign.StatusCode == 403 && !foreign.Headers.Contains("Access-Control-Allow-Origin"));
+            var foreignSession = await bare.SendAsync(Ask(HttpMethod.Get, "/session", "https://evil.example"));
+            Check("the session token is not given to another origin", (int)foreignSession.StatusCode == 403 && !(await foreignSession.Content.ReadAsStringAsync()).Contains(token));
+            var noOriginSession = await bare.SendAsync(Ask(HttpMethod.Get, "/session"));
+            Check("...nor to a request that has no Origin at all (a page always has one)", (int)noOriginSession.StatusCode == 403 && !(await noOriginSession.Content.ReadAsStringAsync()).Contains(token));
+            var nullOrigin = await bare.SendAsync(Ask(HttpMethod.Get, "/session", "null"));
+            Check("...nor to the opaque origin \"null\" (a sandboxed frame, a local file)", (int)nullOrigin.StatusCode == 403);
+            foreach (var origin in new[] { "http://localhost:8123", "http://127.0.0.1:8123", "http://localhost:8124" })
+            {
+                var ok = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", origin, token));
+                Check($"the app at {origin} with its token is served, and the CORS header names that origin, never *",
+                    ok.StatusCode == System.Net.HttpStatusCode.OK && ok.Headers.GetValues("Access-Control-Allow-Origin").Single() == origin);
+            }
+            var refusedButReadable = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123"));
+            Check("the app's own refusal (no token) is readable by the app, so that it can fetch a new session after Revit restarted", (int)refusedButReadable.StatusCode == 401 && refusedButReadable.Headers.GetValues("Access-Control-Allow-Origin").Single() == "http://localhost:8123");
+            var media = await bare.GetAsync("http://localhost:5679/recording?path=" + Uri.EscapeDataString(mp4) + "&token=" + token);
+            Check("a video or a download link, which cannot send a header, carries the token in the address", media.StatusCode == System.Net.HttpStatusCode.OK);
+            var pre = await bare.SendAsync(Ask(HttpMethod.Options, "/combined-layout", "http://localhost:8123"));
+            Check("the preflight of the app is answered, and allows the token header", (int)pre.StatusCode == 204 && string.Join(",", pre.Headers.GetValues("Access-Control-Allow-Headers")).Contains("X-Sportify-Token") && pre.Headers.GetValues("Access-Control-Allow-Origin").Single() == "http://localhost:8123");
+            var preForeign = await bare.SendAsync(Ask(HttpMethod.Options, "/combined-layout", "https://evil.example"));
+            Check("the preflight of another origin is refused, so its POST is never sent", (int)preForeign.StatusCode == 403);
+
+            // sizes
+            var smallLayout = await bare.SendAsync(Ask(HttpMethod.Post, "/combined-layout?draft=1", "http://localhost:8123", token, new StringContent("{\"placements\":[]}", System.Text.Encoding.UTF8, "application/json")));
+            Check("a layout of ordinary size is taken and its identity answered", smallLayout.StatusCode == System.Net.HttpStatusCode.OK && (await smallLayout.Content.ReadAsStringAsync()).Contains("layout_id"));
+            var big = new byte[LocalRequestGuard.MaxOtherBytes + 1];
+            var bigOther = await bare.SendAsync(Ask(HttpMethod.Post, "/run-analysis", "http://localhost:8123", token, new ByteArrayContent(big)));
+            Check("a body beyond what an endpoint takes (1 MB for the ones that take none) is refused with 413", (int)bigOther.StatusCode == 413);
+            System.Net.HttpStatusCode? chunkedStatus = null;
+            try { chunkedStatus = (await bare.SendAsync(Ask(HttpMethod.Post, "/run-analysis", "http://localhost:8123", token, new StreamContent(new MemoryStream(new byte[LocalRequestGuard.MaxOtherBytes * 2]))))).StatusCode; }
+            catch (Exception) { /* the server closed the connection while the body was still being sent: refused as well */ }
+            Check("a body sent in chunks, with no length to check up front, is cut off as it passes the cap", chunkedStatus == null || (int)chunkedStatus == 413);
+            using (var tcp = new System.Net.Sockets.TcpClient("localhost", 5679))
+            {
+                var stream = tcp.GetStream();
+                var head = $"POST /combined-layout HTTP/1.1\r\nHost: localhost:5679\r\nOrigin: http://localhost:8123\r\nX-Sportify-Token: {token}\r\nContent-Type: application/json\r\nContent-Length: 70000000\r\n\r\n";
+                stream.Write(System.Text.Encoding.ASCII.GetBytes(head));
+                stream.ReadTimeout = 5000;
+                var answerBuf = new byte[512]; var got = 0;
+                try { got = stream.Read(answerBuf, 0, answerBuf.Length); } catch (IOException) { }
+                Check("a Content-Length of 70 MB is answered 413 before a byte of the body is sent", System.Text.Encoding.ASCII.GetString(answerBuf, 0, got).StartsWith("HTTP/1.1 413"));
+            }
+            var after = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123", token));
+            Check("the server is still serving after the refused bodies", after.StatusCode == System.Net.HttpStatusCode.OK);
             RoofBoundaryServer.Stop();
         }
     }
@@ -276,6 +344,38 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     {
         File.Delete(mp4); File.Delete(secret);
     }
+}
+
+// the guard's rules on their own (no listener): origins, hosts, tokens, sizes and the web folder's walls
+{
+    Console.WriteLine("\n===== who may ask, and how much =====");
+    var g = new LocalRequestGuard(5679, new[] { "http://dev.local:9000/", "*", "null", "ftp://x", "http://a.b/path" }, "tok");
+    Check("the app's four addresses are allowed; a stranger is not", new[] { "http://localhost:8123", "http://127.0.0.1:8123", "http://localhost:8124", "http://127.0.0.1:8124" }.All(g.IsAllowedOrigin)
+        && !g.IsAllowedOrigin("http://localhost:9999") && !g.IsAllowedOrigin("https://localhost:8123") && !g.IsAllowedOrigin("http://localhost.evil.example:8123") && !g.IsAllowedOrigin(null) && !g.IsAllowedOrigin(""));
+    Check("an origin added by the environment is allowed, normalised; a wildcard, \"null\", another scheme and a path are never added", g.IsAllowedOrigin("HTTP://Dev.Local:9000") && !g.IsAllowedOrigin("*") && !g.IsAllowedOrigin("null") && !g.IsAllowedOrigin("ftp://x") && !g.IsAllowedOrigin("http://a.b"));
+    LocalRequestGuard.Verdict J(string method, string? host, string? origin, string? path, string? th = null, string? tq = null) => g.Judge(method, host, origin, path, th, tq);
+    Check("a Host that is not this machine's name for the port is refused (DNS rebinding)", J("GET", "evil.example:5679", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse && J("GET", null, null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse && J("GET", "localhost:1234", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse);
+    Check("with the token, no Origin (a local tool) or the app's Origin proceeds; another Origin does not", J("GET", "localhost:5679", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "127.0.0.1:5679", "http://localhost:8123", "/x", "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "localhost:5679", "http://evil.example", "/x", "tok").Status == 403);
+    Check("the token may also come in the query; a token of another length, or empty, never matches", J("GET", "localhost:5679", null, "/x", null, "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "localhost:5679", null, "/x", "to").Status == 401 && J("GET", "localhost:5679", null, "/x", "").Status == 401 && J("GET", "localhost:5679", null, "/x", "tok0").Status == 401);
+    Check("the session goes only to a GET carrying an allowed Origin", J("GET", "localhost:5679", "http://localhost:8123", "/session").Outcome == LocalRequestGuard.Outcome.Session && J("GET", "localhost:5679", null, "/session").Status == 403 && J("POST", "localhost:5679", "http://localhost:8123", "/session").Status == 405);
+    Check("a preflight of a foreign origin is refused, of the app's answered without a token, of no origin answered with no CORS", J("OPTIONS", "localhost:5679", "http://evil.example", "/x").Status == 403 && J("OPTIONS", "localhost:5679", "http://localhost:8123", "/x") is { Outcome: LocalRequestGuard.Outcome.Preflight, CorsOrigin: "http://localhost:8123" } && J("OPTIONS", "localhost:5679", null, "/x").CorsOrigin == null);
+    var g2 = new LocalRequestGuard(5679); var g3 = new LocalRequestGuard(5679);
+    Check("the token is 256 random bits, different for every guard", g2.Token.Length == 64 && g2.Token.All(Uri.IsHexDigit) && g2.Token != g3.Token);
+
+    Check("limits: a layout and a saved file 64 MB, everything else 1 MB", LocalRequestGuard.BodyLimit("POST", "/combined-layout") == 64L * 1024 * 1024 && LocalRequestGuard.BodyLimit("POST", "/deliverable") == 64L * 1024 * 1024 && LocalRequestGuard.BodyLimit("POST", "/run-analysis") == 1024 * 1024 && LocalRequestGuard.BodyLimit("GET", "/combined-layout") == 1024 * 1024);
+    Check("a body inside the limit is read whole", LocalRequestGuard.ReadBounded(new MemoryStream(new byte[1000]), 1000).Length == 1000);
+    var tooBig = false; try { LocalRequestGuard.ReadBounded(new MemoryStream(new byte[1001]), 1000); } catch (LocalRequestGuard.BodyTooLargeException) { tooBig = true; }
+    var claimed = false; var untouched = new MemoryStream(new byte[10]); try { LocalRequestGuard.ReadBounded(untouched, 1000, 5000); } catch (LocalRequestGuard.BodyTooLargeException) { claimed = untouched.Position == 0; }
+    Check("one byte over is refused while reading, and a length that is over is refused before any byte is read", tooBig && claimed);
+
+    var web = Path.Combine(Path.GetTempPath(), "sportify-web-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    var sibling = web + "-secrets";
+    Directory.CreateDirectory(Path.Combine(web, "vendor")); Directory.CreateDirectory(sibling);
+    File.WriteAllText(Path.Combine(web, "index.html"), "x"); File.WriteAllText(Path.Combine(web, "vendor", "a b.js"), "x"); File.WriteAllText(Path.Combine(sibling, "key.txt"), "secret");
+    Check("the web server serves a file in the folder and in a subfolder, with a space in its name", LocalRequestGuard.ResolveInside(web, "/index.html") != null && LocalRequestGuard.ResolveInside(web, "/vendor/a%20b.js") != null);
+    Check("...but not one outside it: .. , an encoded .. , a sibling folder whose name begins with the web folder's, or a folder", LocalRequestGuard.ResolveInside(web, "/../" + Path.GetFileName(sibling) + "/key.txt") == null
+        && LocalRequestGuard.ResolveInside(web, "/%2e%2e/" + Path.GetFileName(sibling) + "/key.txt") == null && LocalRequestGuard.ResolveInside(web, "/vendor") == null && LocalRequestGuard.ResolveInside(web, "/nothing.js") == null);
+    try { Directory.Delete(web, true); Directory.Delete(sibling, true); } catch (IOException) { }
 }
 
 // the roof's own plan frame: a roof turned against the model's axes gets a plan of its own (RoofFrame), and everything pushed and imported goes through it
