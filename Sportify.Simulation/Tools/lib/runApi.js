@@ -11,9 +11,29 @@ const apiProject = path.join(__dirname, "..", "..", "..", "Sportify.Api", "Sport
 /** Builds the API into a new temp folder (its content root: a fresh reference.db is seeded there on first start). Returns the folder, or throws with the build output. */
 function buildApi() {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "sportify-api-check-"));
-  const build = spawnSync("dotnet", ["build", apiProject, "-c", "Release", "-o", out, "--nologo", "-v", "q"], { encoding: "utf8" });
-  if (build.status !== 0) throw new Error("the API does not build: " + build.stdout + build.stderr);
-  return out;
+  // Two checks build the API at the same time (each is its own process): both write the project's obj\ folder (the static web assets cache), and on GitHub's runner one of them lost
+  // the file ("Microsoft.NET.Sdk.StaticWebAssets.targets ... File.OpenWrite"). So the builds queue up; the second one is an incremental build and takes seconds.
+  return withBuildLock(() => {
+    const build = spawnSync("dotnet", ["build", apiProject, "-c", "Release", "-o", out, "--nologo", "-v", "q"], { encoding: "utf8" });
+    if (build.status !== 0) throw new Error("the API does not build: " + build.stdout + build.stderr);
+    return out;
+  });
+}
+
+/** Runs fn while holding a lock every process on this machine shares (a folder: creating it is atomic). A lock left behind by a run that died is taken over after ten minutes. */
+function withBuildLock(fn) {
+  const lock = path.join(os.tmpdir(), "sportify-api-build.lock");
+  const started = Date.now();
+  for (;;) {
+    try { fs.mkdirSync(lock); break; }
+    catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      try { if (Date.now() - fs.statSync(lock).mtimeMs > 600000) { fs.rmdirSync(lock); continue; } } catch (e2) { /* released in the meantime */ }
+      if (Date.now() - started > 600000) throw new Error("waited ten minutes for another build of the API to finish");
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    }
+  }
+  try { return fn(); } finally { try { fs.rmdirSync(lock); } catch (e) { /* already gone */ } }
 }
 
 function freePort() {
