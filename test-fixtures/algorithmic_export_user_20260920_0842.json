@@ -1,0 +1,543 @@
+{
+  "version": "1.3",
+  "generator": "Sportify-Combine",
+  "build": "2026-09-20-workspace",
+  "roof_context": {
+    "length_m": 67.6,
+    "width_m": 21,
+    "source_boundary_polygon": null,
+    "world_origin_x_m": 0,
+    "world_origin_y_m": 0,
+    "rotation_deg": 0,
+    "world_origin_z_m": 0,
+    "height_above_ground_m": 0,
+    "height_source": ""
+  },
+  "design_rules": {
+    "clearance_m": 1,
+    "boundary_setback_m": 1.5,
+    "circulation_width_m": 1,
+    "min_entry_points": 4,
+    "quiet_buffer_m": 3
+  },
+  "entry_points": [
+    {
+      "x_m": 33.8,
+      "y_m": 0,
+      "edge": "top"
+    },
+    {
+      "x_m": 33.8,
+      "y_m": 21,
+      "edge": "bottom"
+    },
+    {
+      "x_m": 0,
+      "y_m": 10.5,
+      "edge": "left"
+    },
+    {
+      "x_m": 67.6,
+      "y_m": 10.5,
+      "edge": "right"
+    }
+  ],
+  "circulation_paths": [
+    {
+      "item_id": "algo_1789918908227_0",
+      "points_m": [
+        {
+          "x_m": 33.6875,
+          "y_m": 20.5625
+        },
+        {
+          "x_m": 29.3125,
+          "y_m": 20.5625
+        }
+      ]
+    },
+    {
+      "item_id": "algo_1789918908227_1",
+      "points_m": [
+        {
+          "x_m": 33.6875,
+          "y_m": 20.5625
+        },
+        {
+          "x_m": 40.6875,
+          "y_m": 20.5625
+        }
+      ]
+    },
+    {
+      "item_id": "algo_1789918908227_2",
+      "points_m": [
+        {
+          "x_m": 66.9375,
+          "y_m": 10.9375
+        },
+        {
+          "x_m": 66.9375,
+          "y_m": 10.0625
+        },
+        {
+          "x_m": 58.1875,
+          "y_m": 10.0625
+        }
+      ]
+    },
+    {
+      "item_id": "algo_1789918908227_3",
+      "points_m": [
+        {
+          "x_m": 33.6875,
+          "y_m": 20.5625
+        }
+      ]
+    },
+    {
+      "item_id": "algo_1789918908227_4",
+      "points_m": [
+        {
+          "x_m": 33.6875,
+          "y_m": 0.4375
+        },
+        {
+          "x_m": 33.6875,
+          "y_m": 2.1875
+        },
+        {
+          "x_m": 35.4375,
+          "y_m": 2.1875
+        }
+      ]
+    }
+  ],
+  "site_location": null,
+  "site_conditions": {
+    "wind_zone": null,
+    "wind_zone_manual": false,
+    "wind_zone_confidence": "none",
+    "wind_zone_source": null,
+    "north_deg": null,
+    "north_set": false,
+    "snow_zone": null,
+    "altitude_m": null,
+    "altitude_set": false,
+    "day_schedule": null
+  },
+  "assemblies": [],
+  "zones": [
+    {
+      "id": "zone_algo_1789918908227_0",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 0,
+        "top_left_y_m": 0,
+        "width_m": 67.6,
+        "height_m": 1.5
+      },
+      "area_m2": 101.39999999999999,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_1",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 0,
+        "top_left_y_m": 19.5,
+        "width_m": 67.6,
+        "height_m": 1.5
+      },
+      "area_m2": 101.39999999999999,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_2",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 0,
+        "top_left_y_m": 1.5,
+        "width_m": 1.5,
+        "height_m": 18
+      },
+      "area_m2": 27,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_3",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 66.1,
+        "top_left_y_m": 1.5,
+        "width_m": 1.5,
+        "height_m": 18
+      },
+      "area_m2": 27,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_4",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 49,
+        "top_left_y_m": 3.5,
+        "width_m": 8,
+        "height_m": 2
+      },
+      "area_m2": 16,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_5",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 8.5,
+        "top_left_y_m": 3.5,
+        "width_m": 25,
+        "height_m": 4
+      },
+      "area_m2": 100,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_6",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 1.5,
+        "top_left_y_m": 1.5,
+        "width_m": 5,
+        "height_m": 6.5
+      },
+      "area_m2": 32.5,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_7",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 59,
+        "top_left_y_m": 1.5,
+        "width_m": 7.1,
+        "height_m": 7
+      },
+      "area_m2": 49.699999999999996,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_8",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 35.5,
+        "top_left_y_m": 6.5,
+        "width_m": 2,
+        "height_m": 3.5
+      },
+      "area_m2": 7,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_9",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 28.5,
+        "top_left_y_m": 7.5,
+        "width_m": 5,
+        "height_m": 2.5
+      },
+      "area_m2": 12.5,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_10",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 1.5,
+        "top_left_y_m": 8,
+        "width_m": 1,
+        "height_m": 5.5
+      },
+      "area_m2": 5.5,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_11",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 28.5,
+        "top_left_y_m": 10,
+        "width_m": 3.5,
+        "height_m": 9.5
+      },
+      "area_m2": 33.25,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_12",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 57,
+        "top_left_y_m": 13.5,
+        "width_m": 9.1,
+        "height_m": 6
+      },
+      "area_m2": 54.599999999999994,
+      "assembly_key": null
+    },
+    {
+      "id": "zone_algo_1789918908227_13",
+      "kind": "green_roof",
+      "label": "Green roof",
+      "bounding_box": {
+        "top_left_x_m": 1.5,
+        "top_left_y_m": 14,
+        "width_m": 7,
+        "height_m": 5.5
+      },
+      "area_m2": 38.5,
+      "assembly_key": null
+    }
+  ],
+  "placements": [
+    {
+      "id": "algo_1789918908227_0",
+      "category": "field",
+      "label": "Multi Sport Court",
+      "insertion_point": {
+        "center_x_m": 18.5,
+        "center_y_m": 13.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 8.5,
+        "top_left_y_m": 7.5,
+        "width_m": 20,
+        "height_m": 12
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Algorithmic-Placement",
+        "quality_key": "POLYVALENT_MINI_MEDIUM",
+        "field": {
+          "sport": "polyvalent",
+          "variant": "mini",
+          "norm": "DIN 18032",
+          "dimensions": {
+            "length_m": 20,
+            "width_m": 12,
+            "runoff_m": 0,
+            "min_height_m": 5.5
+          },
+          "capacity": {
+            "seats": 0,
+            "side_stands": false
+          }
+        },
+        "materials": {
+          "floor_surface": "Sports vinyl (2-layer)",
+          "line_marking": "Adhesive tape",
+          "gradin_type": "Steel coated",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        },
+        "layers": [
+          "field_boundary",
+          "center_line",
+          "center_circle",
+          "goal_area",
+          "penalty_area",
+          "run_off_zone",
+          "stands"
+        ]
+      }
+    },
+    {
+      "id": "algo_1789918908227_1",
+      "category": "field",
+      "label": "Volleyball",
+      "insertion_point": {
+        "center_x_m": 49,
+        "center_y_m": 15.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 41,
+        "top_left_y_m": 11.5,
+        "width_m": 16,
+        "height_m": 8
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Algorithmic-Placement",
+        "quality_key": "VOLLEYBALL_MINI_MEDIUM",
+        "field": {
+          "sport": "volleyball",
+          "variant": "mini",
+          "norm": "FIVB / DIN 18032",
+          "dimensions": {
+            "length_m": 16,
+            "width_m": 8,
+            "runoff_m": 0,
+            "min_height_m": 7
+          },
+          "capacity": {
+            "seats": 0,
+            "side_stands": false
+          }
+        },
+        "materials": {
+          "floor_surface": "Sports vinyl (2-layer)",
+          "line_marking": "Adhesive tape",
+          "gradin_type": "Steel coated",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        },
+        "layers": [
+          "field_boundary",
+          "center_line",
+          "center_circle",
+          "goal_area",
+          "penalty_area",
+          "run_off_zone",
+          "stands"
+        ]
+      }
+    },
+    {
+      "id": "algo_1789918908227_2",
+      "category": "activity",
+      "label": "Bocce Court",
+      "insertion_point": {
+        "center_x_m": 48,
+        "center_y_m": 8.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 39,
+        "top_left_y_m": 7,
+        "width_m": 18,
+        "height_m": 3
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Algorithmic-Placement",
+        "quality_key": "ACTIVITY_URBAN_BOCCE",
+        "activity": {
+          "type_id": "urban_bocce",
+          "category": "court",
+          "norm": "Reference sheet",
+          "dimensions": {
+            "length_m": 18,
+            "width_m": 3
+          }
+        },
+        "materials": {
+          "surface": "Reinforced synthetic surface",
+          "structure": "Galvanized steel",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        }
+      }
+    },
+    {
+      "id": "algo_1789918908227_3",
+      "category": "activity",
+      "label": "Calisthenics",
+      "insertion_point": {
+        "center_x_m": 36.5,
+        "center_y_m": 15.5
+      },
+      "bounding_box": {
+        "top_left_x_m": 33.5,
+        "top_left_y_m": 11.5,
+        "width_m": 6,
+        "height_m": 8
+      },
+      "transform": {
+        "rotation_deg": 90
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Algorithmic-Placement",
+        "quality_key": "ACTIVITY_CALISTHENICS",
+        "activity": {
+          "type_id": "calisthenics",
+          "category": "fitness",
+          "norm": "Reference sheet",
+          "dimensions": {
+            "length_m": 8,
+            "width_m": 6
+          }
+        },
+        "materials": {
+          "surface": "Reinforced synthetic surface",
+          "structure": "Galvanized steel",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        }
+      }
+    },
+    {
+      "id": "algo_1789918908227_4",
+      "category": "activity",
+      "label": "Mini Golf",
+      "insertion_point": {
+        "center_x_m": 41.5,
+        "center_y_m": 4.25
+      },
+      "bounding_box": {
+        "top_left_x_m": 35.5,
+        "top_left_y_m": 3.5,
+        "width_m": 12,
+        "height_m": 1.5
+      },
+      "transform": {
+        "rotation_deg": 0
+      },
+      "parameters": {
+        "version": "1.0",
+        "generator": "Sportify-Algorithmic-Placement",
+        "quality_key": "ACTIVITY_MINIGOLF_LANE",
+        "activity": {
+          "type_id": "minigolf_lane",
+          "category": "leisure",
+          "norm": "Reference sheet",
+          "dimensions": {
+            "length_m": 12,
+            "width_m": 1.5
+          }
+        },
+        "materials": {
+          "surface": "Reinforced synthetic surface",
+          "structure": "Galvanized steel",
+          "quality_level": "medium",
+          "reference_material": null,
+          "reference_provider": null
+        }
+      }
+    }
+  ]
+}

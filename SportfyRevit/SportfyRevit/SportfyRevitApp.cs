@@ -116,6 +116,13 @@ namespace SportfyRevit
 
             application.Idling += AutoImportSync.OnIdling;
 
+            // An unattended run (a test, a script) has nobody to click the ribbon: SPORTIFY_AUTO_IMPORT=1 turns Auto Import on at startup, as the button does.
+            if (Environment.GetEnvironmentVariable("SPORTIFY_AUTO_IMPORT") == "1")
+            {
+                AutoImportSync.SetEnabled(true);
+                SportifyLog.Info("app", "Auto Import turned on at startup (SPORTIFY_AUTO_IMPORT=1)");
+            }
+
             // Auto-opens the docked Sportify pane the first time Revit goes
             // idle after startup, so a freshly-installed add-in shows the web
             // app immediately instead of waiting for someone to find the
@@ -128,8 +135,16 @@ namespace SportfyRevit
             {
                 application.Idling -= ShowPaneOnce;
                 if (sender is not UIApplication uiApp) return;
-                var pane = uiApp.GetDockablePane(SportifyDockablePaneProvider.PaneId);
-                if (!pane.IsShown()) pane.Show();
+                try
+                {
+                    var pane = uiApp.GetDockablePane(SportifyDockablePaneProvider.PaneId);
+                    if (!pane.IsShown()) pane.Show();
+                }
+                catch (Exception ex)
+                {
+                    // "The requested dockable pane has not been created yet": Revit is not showing its UI frame (an unattended run). The pane is one ribbon click away.
+                    SportifyLog.Warn("app", "the Sportify pane was not opened automatically: " + ex.Message);
+                }
             }
             application.Idling += ShowPaneOnce;
 
