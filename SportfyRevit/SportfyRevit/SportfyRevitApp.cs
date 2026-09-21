@@ -12,21 +12,13 @@ namespace SportfyRevit
     /// (not a panel tucked under Add-Ins), so "Sportify" is what you
     /// actually see in the ribbon.
     ///
-    /// Four panels, matching the project's own scope split rather than
-    /// "whatever's been built so far": App & Data Import (getting a layout
-    /// into Revit), Analysis (rule/geometry checks — no engine involved),
-    /// Physical Analysis (Unity based) (checks that specifically need a physics/
-    /// rendering engine — real rigidbody/particle simulation, not just a
-    /// calculation), and Data Export / Deliverables (getting results back
-    /// out). Most Unity/Export buttons are still placeholders for features
-    /// that don't exist yet (see PlaceholderCommand) — wired into the
-    /// ribbon anyway so the tab shows the project's full intended shape,
-    /// not just what's been built. Toggle Auto Import and Set Sun +
-    /// Location, from the previous Import/Sun & Site panels, dropped out
-    /// of this ribbon shape during the restructure even though their
-    /// command classes kept working — both are back in App & Data Import
-    /// below now that they're needed again (Set Sun + Location as a plain
-    /// setup action; Auto Import as the live-sync toggle).
+    /// Five panels, matching the project's own scope split (the layout itself is data, RibbonLayout):
+    /// App & Data Import (getting a layout into Revit); Algorithmic Analysis (rules and
+    /// calculations on the layout - fire safety, accessibility, LCA, carbon - no engine involved);
+    /// Simulation & Analytics (the physical analyses, which specifically need a physics/rendering
+    /// engine - Unity - kept apart from the algorithmic ones, in drop-downs by kind: Structural,
+    /// Environmental); BIM & Documentation (schedules, view filters, phasing and worksets of what
+    /// Sportify put in the model); and Data Export / Deliverables (getting results back out).
     /// </summary>
     public class SportfyRevitApp : IExternalApplication
     {
@@ -55,64 +47,9 @@ namespace SportfyRevit
             application.RegisterDockablePane(SportifyDockablePaneProvider.PaneId, "Sportify App",
                 new SportifyDockablePaneProvider());
 
-            application.CreateRibbonTab(TabName);
-
-            var importPanel = application.CreateRibbonPanel(TabName, "App & Data Import");
-            AddButton(importPanel, "OpenSportifyApp", "Open\nSportify App", typeof(OpenSportifyAppCommand),
-                $"Opens the Sportify web app in a docked pane inside Revit ({SportifyBrowserPane.DefaultUrl}).");
-            AddPushMenu(importPanel);
-            AddButton(importPanel, "ImportSportifyLayout", "Import\nConfiguration", typeof(ImportSportifyLayoutCommand),
-                "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.");
-            AddButton(importPanel, "LoadFamilies", "Load\nFamilies", typeof(LoadFamiliesCommand),
-                "Pick your own .rfa families, load them into this project, and publish their types and writable parameters to the Sportify web app so they can be placed from the Combine tab.");
-            AddButton(importPanel, "ImportDxf", "Import\nDXF", typeof(ImportDxfCommand),
-                "Imports a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry, placed in meters at the origin.");
-            AddButton(importPanel, "SetSunAndLocation", "Set Sun +\nLocation", typeof(SetSunAndLocationCommand),
-                "Sets this project's real Site Location and Sun Settings from the web app's Site tab data.");
-            AutoImportSync.ToggleButton = AddButton(importPanel, "ToggleAutoImport", "Auto Import:\nOFF", typeof(ToggleAutoImportCommand),
-                "Automatically apply every Combine export pushed from the web app, without opening a file picker. Click to turn on.");
-
-            var analysisPanel = application.CreateRibbonPanel(TabName, "Analysis");
-            AddButton(analysisPanel, "AnalyzeFireSafety", "Fire Safety\nAnalysis", typeof(AnalyzeFireSafetyCommand),
-                "Checks evacuation travel distance from every piece to its nearest entry point against a reference figure from Sportify.Api.");
-            AddButton(analysisPanel, "AnalyzeCarbonImpact", "Carbon Impact\nAnalysis", typeof(AnalyzeCarbonImpactCommand),
-                "Illustrative kinetic-to-electrical energy-harvesting ceiling across active playing surface, assuming piezoelectric-capable flooring.");
-            AddButton(analysisPanel, "AnalyzeLca", "LCA\nAnalysis", typeof(AnalyzeLcaCommand),
-                "Sums embodied carbon from each piece's picked reference material, using Sportify.Api's Materials table.");
-            AddButton(analysisPanel, "AnalyzeAccessibility", "Accessibility\nAnalysis", typeof(AnalyzeAccessibilityCommand),
-                "Checks circulation width against a wheelchair two-way reference and whether every piece is reachable from an entry point.");
-
-            // Adjacent to Analysis on purpose: everything here specifically needs a
-            // physics/rendering engine (real rigidbody or particle simulation) rather
-            // than a rule check or calculation, which is what sets it apart from the
-            // plain Analysis panel — see the project notes on why each of these was
-            // judged a genuine Unity fit and the rest weren't.
-            var unityAnalysisPanel = application.CreateRibbonPanel(TabName, "Physical Analysis (Unity based)");
-            AddButton(unityAnalysisPanel, "SendPhysicalAnalysisToWeb", "Send All to\nWeb App", typeof(SendPhysicalAnalysisToWebCommand),
-                "Sends the physical analyses to the Sportify web app (Analysis tab) in one go, with no questions asked: wind and erosion, rain and soil percolation, static loads, dynamic analysis, sun and shade, run on the layout the web app pushed. Uses whatever inputs you already decided (in this session or in the app's Structure and Site conditions tabs); what is still unconfirmed is marked PRELIMINARY, and a summary offers to review it. Needs no Unity and takes a few seconds. The ball trajectories and the 3D videos need Unity and keep their own buttons below; a video already made for exactly these numbers stays with them.");
-            unityAnalysisPanel.AddSeparator();
-            AddButton(unityAnalysisPanel, "SimulateBallTrajectories", "Ball Trajectory\nSimulation", typeof(SimulateBallTrajectoriesCommand),
-                "Runs the current layout through Sportify.Simulation (Unity): stray shots from every placed court, checking crossings into neighboring courts, the roof edge and circulation space. Records the flights as an MP4 video, and works out what share of shots leave the roof and where fences should go. Needs the Unity Editor (its physics makes the numbers, so there is no PDF alternative). Takes ~30-90s with a progress window you can cancel. Close the Unity Editor first if it has Sportify.Simulation open.");
-            AddButton(unityAnalysisPanel, "AnalyzeStructuralLoads", "Structural\nLoads", typeof(AnalyzeStructuralLoadsCommand),
-                "Static loads on the roof structure: pulls the structural grid and columns from the Revit model (with Push Roof), adds up the weight of the build-ups, courts, trees and the expected crowds bay by bay, and shows which bays are most loaded against the deck capacity and whether the load sits to one side, with the move or lightening that would balance it. The numbers appear at once and need no Unity; a 3D video is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs, a window asks for the values the layout cannot know (the deck capacity, above all): enter your own or accept the built-in one knowingly; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Structure and Site conditions tabs.");
-            AddButton(unityAnalysisPanel, "AnalyzeDynamicLoads", "Dynamic\nAnalysis", typeof(AnalyzeDynamicLoadsCommand),
-                "The dynamic half of the structural analysis, in three scenarios one after the other: (1) crowds - how people move over the roof through a day and how much they weigh where; (2) weather - a cloudburst soaking the green roofs, snow and wind as load cases with the crowd, and the governing case of every bay; (3) resonance - the deck's natural frequency and what walking, court play or a jumping crowd does to it, ending on the frequency spectrum and the vibrating deck. The numbers appear at once and need no Unity; a 3D video is offered afterwards: the video if you have Unity (about two minutes, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs, a window asks for the values the layout cannot know (deck capacity, natural frequency, snow zone and altitude, the day's schedule, the comfort limits): enter your own or accept the built-in ones knowingly, each with its source; whatever is left unconfirmed marks the results PRELIMINARY. The same choice is in the app's Structure and Site conditions tabs.");
-            AddButton(unityAnalysisPanel, "AnalyzeSunShade", "Sun & Shade\nAnalysis", typeof(AnalyzeSunShadeCommand),
-                "Direct sun on the roof through the year's design days (21 June, 21 March, 21 December): the hours of sun every part gets, which play areas and spectator zones are too sunny at midday and which gardens too shaded, and the shading equipment (pergolas, canopies, sails, parasols, a tree) that would fix it without taking the sun from the gardens, with its weight, the wind on it and the deck's answer. The numbers appear at once and need no Unity; a 3D video of the shadows sweeping the roof and the equipment going up is offered afterwards: the video if you have Unity (about two minutes, with a progress window you can cancel), or the charts as a PDF if you don't. Before it runs a window asks for the site, the orientation, the shade target and the sun the gardens need: enter your own or accept the built-in ones; whatever is left unconfirmed marks the results PRELIMINARY.");
-            AddButton(unityAnalysisPanel, "AnalyzeWindErosionRisk", "Wind & Erosion\nAnalysis", typeof(AnalyzeWindErosionRiskCommand),
-                "Screens the roof garden for wind (EN 1991-1-4 roof zones, FLL guideline): would trees be blown over, would a build-up lift off the roof, would growing medium blow away — with fixes (ballast, anchoring, gravel strips). The numbers appear at once and need no Unity; a 3D video of the wind crossing the roof is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't.");
-            AddButton(unityAnalysisPanel, "SimulateSoilPercolation", "Soil Percolation\nSimulation", typeof(SimulateSoilPercolationCommand),
-                "Steps three rain events (steady, heavy shower, cloudburst) through the real layers of each roof-garden build-up: how much rain each keeps, how much runs off and how much later, and whether any fills up — with advice (more water-storing drainage layer or substrate). The numbers appear at once and need no Unity; a cross-section video of the water soaking down is offered afterwards: the video if you have Unity (about a minute, with a progress window you can cancel), or the charts as a PDF if you don't.");
-
-            var exportPanel = application.CreateRibbonPanel(TabName, "Data Export / Deliverables");
-            AddButton(exportPanel, "GenerateAnalysisReport", "Analysis\nReport\n(PDF)", typeof(GenerateAnalysisReportCommand),
-                "Generates and opens a PDF report: every Analysis check run this session, the component schedule, and the circulation/axonometric diagrams — auto-exported, no manual picking. Saved in the Analysis reports folder of your Sportify folder.");
-            AddButton(exportPanel, "GenerateFunctionalDiagrams", "Functional\nDiagrams", typeof(GenerateFunctionalDiagramsCommand),
-                "Generates a circulation-only floor plan and a 3D massing axonometric, saved as PNG in the Diagrams folder of your Sportify folder (the web app's Deliverables tab can ask for them too). Bubble diagram not built yet.");
-            AddButton(exportPanel, "GenerateSchedules", "Schedules\n(CSV)", typeof(GenerateSchedulesCommand),
-                "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area) into the Schedules folder of your Sportify folder.");
-            AddButton(exportPanel, "OpenSportifyFolder", "Open Sportify\nFolder", typeof(OpenSportifyFolderCommand),
-                "Opens your Sportify folder (chosen when Sportify was installed, by default Documents\\Sportify Workspace) in Explorer: layouts, sport and garden data, analysis charts (PDF), videos, analysis reports, schedules and diagrams, one subfolder each. The web app's Deliverables tab lists the same files.");
+            // The tab, its panels and their buttons come from RibbonLayout (data), and each entry is added on its own: one that cannot be added (an icon that will not draw,
+            // a command class that is gone) is logged and skipped, it never takes the add-in down with it.
+            BuildRibbon(application);
 
             application.Idling += AutoImportSync.OnIdling;
 
@@ -121,6 +58,44 @@ namespace SportfyRevit
             {
                 AutoImportSync.SetEnabled(true);
                 SportifyLog.Info("app", "Auto Import turned on at startup (SPORTIFY_AUTO_IMPORT=1)");
+            }
+
+            // An unattended run has nobody to click a ribbon button either. SPORTIFY_RUN_COMMAND=<internal names separated by ;> (for example
+            // "GenerateRevitSchedules;ApplyViewFilters") posts those commands as if they had been clicked, one every few seconds, once a project is open. SPORTIFY_RUN_COMMAND=watch
+            // instead waits for a file %APPDATA%\Sportify\run-commands.txt (the same names, one per line or separated by ;), runs what it names and deletes it: a test can import a
+            // layout first and only then ask for the commands.
+            var runCommands = Environment.GetEnvironmentVariable("SPORTIFY_RUN_COMMAND");
+            if (!string.IsNullOrWhiteSpace(runCommands))
+            {
+                var watch = runCommands.Trim().Equals("watch", StringComparison.OrdinalIgnoreCase);
+                var triggerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sportify", "run-commands.txt");
+                var queue = new Queue<string>(watch ? Array.Empty<string>() : runCommands.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                var notBefore = DateTime.MinValue;
+                void RunNext(object? sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
+                {
+                    if (sender is not UIApplication uiApp || uiApp.ActiveUIDocument == null || DateTime.UtcNow < notBefore) return;
+                    if (queue.Count == 0 && watch && File.Exists(triggerFile))
+                    {
+                        try
+                        {
+                            foreach (var name in File.ReadAllText(triggerFile).Split(new[] { ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) queue.Enqueue(name);
+                            File.Delete(triggerFile);
+                        }
+                        catch (Exception ex) { SportifyLog.Warn("app", "SPORTIFY_RUN_COMMAND: " + triggerFile + " could not be read: " + ex.Message); notBefore = DateTime.UtcNow.AddSeconds(5); return; }
+                    }
+                    if (queue.Count == 0) { if (!watch) application.Idling -= RunNext; return; }
+                    var next = queue.Dequeue();
+                    try
+                    {
+                        var id = CommandIdFor(next);
+                        if (id == null) { SportifyLog.Warn("app", "SPORTIFY_RUN_COMMAND: no ribbon command named \"" + next + "\""); return; }
+                        SportifyLog.Info("app", "SPORTIFY_RUN_COMMAND: running " + next);
+                        uiApp.PostCommand(id);
+                        notBefore = DateTime.UtcNow.AddSeconds(8);
+                    }
+                    catch (Exception ex) { SportifyLog.Warn("app", "SPORTIFY_RUN_COMMAND: " + next + " could not be posted: " + ex.Message); }
+                }
+                application.Idling += RunNext;
             }
 
             // Auto-opens the docked Sportify pane the first time Revit goes
@@ -243,13 +218,90 @@ namespace SportfyRevit
                 "The layers of the roof slab (its structural thickness is what the deck's resonance estimate needs) and the project's levels.");
         }
 
-        private static PushButton AddButton(RibbonPanel panel, string internalName, string text, Type commandType, string tooltip)
+        /// <summary>The Sportify tab from RibbonLayout: panels, buttons, drop-downs, separators, with their tooltips and icons.</summary>
+        private static void BuildRibbon(UIControlledApplication application)
         {
-            var data = new PushButtonData(internalName, text, typeof(SportfyRevitApp).Assembly.Location, commandType.FullName)
+            application.CreateRibbonTab(TabName);
+            var assembly = typeof(SportfyRevitApp).Assembly;
+            foreach (var spec in RibbonLayout.Panels)
             {
-                ToolTip = tooltip,
-            };
-            return (PushButton)panel.AddItem(data);
+                RibbonPanel panel;
+                try { panel = application.CreateRibbonPanel(TabName, spec.Name); }
+                catch (Exception ex) { SportifyLog.Error("ribbon", "the panel \"" + spec.Name + "\" could not be created", ex); continue; }
+                foreach (var entry in spec.Entries)
+                {
+                    try { AddEntry(panel, assembly, entry); }
+                    catch (Exception ex) { SportifyLog.Error("ribbon", "an entry of the panel \"" + spec.Name + "\" could not be added (" + Describe(entry) + ")", ex); }
+                }
+            }
+        }
+
+        private static string Describe(RibbonEntry entry) => entry switch
+        {
+            RibbonButtonSpec b => "button " + b.InternalName,
+            RibbonPulldownSpec p => "drop-down " + p.InternalName,
+            _ => entry.GetType().Name,
+        };
+
+        private static void AddEntry(RibbonPanel panel, System.Reflection.Assembly assembly, RibbonEntry entry)
+        {
+            switch (entry)
+            {
+                case RibbonButtonSpec button:
+                    var pushButton = (PushButton)panel.AddItem(ButtonData(assembly, button, item: false));
+                    if (button.InternalName == "ToggleAutoImport") AutoImportSync.ToggleButton = pushButton;
+                    break;
+                case RibbonPulldownSpec pulldown:
+                    var data = new PulldownButtonData(pulldown.InternalName, pulldown.Text) { ToolTip = Tooltip(pulldown.Tooltip) };
+                    var large = RibbonIcons.Large(pulldown.Icon);
+                    if (large != null) data.LargeImage = large;
+                    var small = RibbonIcons.Small(pulldown.Icon);
+                    if (small != null) data.Image = small;
+                    var menu = (PulldownButton)panel.AddItem(data);
+                    foreach (var item in pulldown.Items)
+                    {
+                        try { menu.AddPushButton(ButtonData(assembly, item, item: true)); }
+                        catch (Exception ex) { SportifyLog.Error("ribbon", "the item " + item.InternalName + " of " + pulldown.InternalName + " could not be added", ex); }
+                    }
+                    break;
+                case RibbonSeparatorSpec:
+                    panel.AddSeparator();
+                    break;
+                case RibbonPushMenuSpec:
+                    AddPushMenu(panel);
+                    break;
+            }
+        }
+
+        private static PushButtonData ButtonData(System.Reflection.Assembly assembly, RibbonButtonSpec spec, bool item)
+        {
+            var type = assembly.GetType("SportfyRevit." + spec.CommandClass) ?? throw new InvalidOperationException("the command class SportfyRevit." + spec.CommandClass + " does not exist");
+            var data = new PushButtonData(spec.InternalName, spec.Text, assembly.Location, type.FullName) { ToolTip = Tooltip(spec.Tooltip) };
+            // 32 x 32 for a button on the panel, 16 x 16 for an item inside a drop-down (a large image is still given to an item: Revit shows it in the wider menu style)
+            var large = RibbonIcons.Large(spec.Icon);
+            var small = RibbonIcons.Small(spec.Icon);
+            if (item) { if (small != null) data.Image = small; if (large != null) data.LargeImage = large; }
+            else { if (large != null) data.LargeImage = large; if (small != null) data.Image = small; }
+            return data;
+        }
+
+        private static string Tooltip(string text) => text.Replace("{APP_URL}", SportifyBrowserPane.DefaultUrl);
+
+        /// <summary>The id Revit gives a ribbon command of this add-in (what PostCommand takes), found by the button's internal name, or null.</summary>
+        internal static RevitCommandId? CommandIdFor(string internalName)
+        {
+            foreach (var panel in RibbonLayout.Panels)
+                foreach (var entry in panel.Entries)
+                {
+                    string? path = entry switch
+                    {
+                        RibbonButtonSpec b when b.InternalName == internalName => b.InternalName,
+                        RibbonPulldownSpec p when p.Items.Any(i => i.InternalName == internalName) => p.InternalName + "%" + internalName,
+                        _ => null,
+                    };
+                    if (path != null) return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%" + TabName + "%" + panel.Name + "%" + path);
+                }
+            return null;
         }
     }
 }

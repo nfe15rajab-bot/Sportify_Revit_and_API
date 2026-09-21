@@ -65,7 +65,7 @@ namespace SportfyRevit
             TaskDialog.Show(title,
                 $"Report saved and opened:\n{outputPath}" +
                 (results == null
-                    ? "\n\nNo Analysis panel checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
+                    ? "\n\nNo Algorithmic Analysis checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
                     : "\n\nIncludes every check that's been run so far this session — run more Analysis commands and regenerate to add them."));
 
             return Result.Succeeded;

@@ -87,6 +87,29 @@ namespace SportfyRevit
             }
         }
 
+        /// <summary>
+        /// The elements the last import of this project created and that still exist (read only: nothing is changed). The BIM & Documentation commands (schedules, view filters,
+        /// phasing, worksets) act on exactly these, so they never touch anything of the user's own.
+        /// </summary>
+        public static List<Element> ReadElements(Document doc)
+        {
+            var schema = GetSchema();
+            var found = new List<Element>();
+            var seen = new HashSet<ElementId>();
+            foreach (var storage in Find(doc, schema))
+            {
+                IList<string> uniqueIds;
+                try { uniqueIds = storage.GetEntity(schema).Get<IList<string>>("ElementUniqueIds"); }
+                catch (Exception ex) { SportifyLog.Warn("ledger", "a ledger could not be read: " + ex.Message); continue; }
+                foreach (var uid in uniqueIds)
+                {
+                    var el = string.IsNullOrEmpty(uid) ? null : doc.GetElement(uid);
+                    if (el != null && el.Id != storage.Id && seen.Add(el.Id)) found.Add(el);
+                }
+            }
+            return found;
+        }
+
         /// <summary>Records what this import created. Inside the import transaction.</summary>
         public static void Write(Document doc, IEnumerable<ElementId> created, string source)
         {

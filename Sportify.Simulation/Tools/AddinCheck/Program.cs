@@ -743,5 +743,160 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("Normalise: accents and separators do not matter", FamilyTemplateRanking.Normalise("Modèle_générique-métrique") == "modele generique metrique");
 }
 
+{
+    Console.WriteLine("\n===== the ribbon (RibbonLayout, RibbonIconData) and the rules of the BIM & Documentation panel (BimRules) =====");
+    // the add-in's sources, found from here
+    string? sources = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && sources == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) sources = candidate;
+    }
+    Check("the add-in's sources are found from the check", sources != null);
+    var allSources = sources == null ? new Dictionary<string, string>() : Directory.GetFiles(sources, "*.cs", SearchOption.AllDirectories)
+        .Where(f => !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) && !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
+        .ToDictionary(f => f, File.ReadAllText);
+    var commandClasses = new Dictionary<string, string>();       // class name -> "public" or "other", for every class that implements IExternalCommand
+    foreach (var kv in allSources)
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(kv.Value, @"(?<vis>public\s+|internal\s+)?(?:sealed\s+)?class\s+(?<name>\w+)\s*:\s*IExternalCommand\b"))
+            commandClasses[m.Groups["name"].Value] = m.Groups["vis"].Value.Trim() == "public" ? "public" : "other";
+
+    var panels = RibbonLayout.Panels;
+    var everyButton = panels.SelectMany(pn => pn.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b },
+        RibbonPulldownSpec pd => pd.Items.ToArray(),
+        _ => Array.Empty<RibbonButtonSpec>(),
+    }).ToList();
+    var everyName = panels.SelectMany(pn => pn.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName).Append(pd.InternalName).ToArray(),
+        _ => Array.Empty<string>(),
+    }).ToList();
+
+    Check("the panels are, in order: App & Data Import, Algorithmic Analysis, Simulation & Analytics, BIM & Documentation, Data Export / Deliverables",
+          panels.Select(pn => pn.Name).SequenceEqual(new[] { "App & Data Import", "Algorithmic Analysis", "Simulation & Analytics", "BIM & Documentation", "Data Export / Deliverables" }));
+    Check("every internal name (buttons, drop-downs, items) is unique: Revit refuses a second item of the same name in one tab", everyName.Distinct().Count() == everyName.Count,
+          string.Join(", ", everyName.GroupBy(n => n).Where(g => g.Count() > 1).Select(g => g.Key)));
+    Check("every command class the ribbon names exists and implements IExternalCommand", everyButton.All(b => commandClasses.ContainsKey(b.CommandClass)),
+          string.Join(", ", everyButton.Where(b => !commandClasses.ContainsKey(b.CommandClass)).Select(b => b.CommandClass)));
+    Check("...and is public (Revit cannot load a command that is not)", everyButton.All(b => commandClasses.GetValueOrDefault(b.CommandClass) == "public"),
+          string.Join(", ", everyButton.Where(b => commandClasses.GetValueOrDefault(b.CommandClass) != "public").Select(b => b.CommandClass)));
+    Check("every button and drop-down has text and a tooltip, and every tooltip uses only the {APP_URL} placeholder",
+          everyButton.All(b => b.Text.Length > 0 && b.Tooltip.Length > 10 && System.Text.RegularExpressions.Regex.Matches(b.Tooltip, @"\{[^}]*\}").All(m => m.Value == "{APP_URL}"))
+          && panels.SelectMany(pn => pn.Entries).OfType<RibbonPulldownSpec>().All(pd => pd.Text.Length > 0 && pd.Tooltip.Length > 10));
+    var icons = everyButton.Select(b => b.Icon).Concat(panels.SelectMany(pn => pn.Entries).OfType<RibbonPulldownSpec>().Select(pd => pd.Icon)).ToList();
+    Check("every button, item and drop-down has an icon that exists", icons.All(i => RibbonIconData.Paths.ContainsKey(i)), string.Join(", ", icons.Where(i => !RibbonIconData.Paths.ContainsKey(i)).Distinct()));
+
+    // the algorithmic analyses (rules and calculations, no simulation engine) are one group of their own, and the physical (Unity based) ones are not in it
+    var algorithmic = panels.First(pn => pn.Name == "Algorithmic Analysis");
+    var algorithmicClasses = algorithmic.Entries.OfType<RibbonButtonSpec>().Select(b => b.CommandClass).ToList();
+    var physicalPanel = panels.First(pn => pn.Name == "Simulation & Analytics");
+    var physicalClasses = physicalPanel.Entries.SelectMany(e => e switch { RibbonButtonSpec b => new[] { b.CommandClass }, RibbonPulldownSpec pd => pd.Items.Select(i => i.CommandClass).ToArray(), _ => Array.Empty<string>() }).ToList();
+    Check("Algorithmic Analysis holds exactly the four rule-based analyses: fire safety, carbon impact, LCA, accessibility",
+          algorithmicClasses.OrderBy(c => c).SequenceEqual(new[] { "AnalyzeAccessibilityCommand", "AnalyzeCarbonImpactCommand", "AnalyzeFireSafetyCommand", "AnalyzeLcaCommand" }));
+    Check("...and the physical (Unity based) analyses stay independent of it: none of them in Algorithmic Analysis, none of the algorithmic ones in Simulation & Analytics",
+          !algorithmicClasses.Intersect(physicalClasses).Any() && physicalClasses.ToHashSet().IsSupersetOf(new[] { "AnalyzeStructuralLoadsCommand", "AnalyzeDynamicLoadsCommand", "AnalyzeSunShadeCommand", "AnalyzeWindErosionRiskCommand", "SimulateSoilPercolationCommand", "SimulateBallTrajectoriesCommand", "SendPhysicalAnalysisToWebCommand" })
+          && !physicalClasses.Any(c => algorithmicClasses.Contains(c)));
+
+    // the layout of the request: Simulation & Analytics
+    var sim = panels.First(pn => pn.Name == "Simulation & Analytics");
+    var structural = sim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text == "Structural");
+    var environmental = sim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text == "Environmental");
+    Check("Simulation & Analytics has a Structural drop-down: Run Bay Utilization Check (AnalyzeStructuralLoadsCommand), Dynamic Frequency & Vibration (AnalyzeDynamicLoadsCommand)",
+          structural != null && structural.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[] { ("Run Bay Utilization Check", "AnalyzeStructuralLoadsCommand"), ("Dynamic Frequency & Vibration", "AnalyzeDynamicLoadsCommand") }));
+    Check("...and an Environmental one that starts with Sun & Shade Analysis (AnalyzeSunShadeCommand) and the wind analysis (AnalyzeWindErosionRiskCommand)",
+          environmental != null && environmental.Items.Count >= 2 && environmental.Items[0].CommandClass == "AnalyzeSunShadeCommand" && environmental.Items[0].Text == "Sun & Shade Analysis"
+          && environmental.Items[1].CommandClass == "AnalyzeWindErosionRiskCommand");
+    Check("the wind button is not called \"comfort\": the analysis checks uplift, overturning and erosion", environmental != null && !environmental.Items.Any(i => i.Text.Contains("Comfort", StringComparison.OrdinalIgnoreCase)));
+
+    // BIM & Documentation
+    var bim = panels.First(pn => pn.Name == "BIM & Documentation");
+    var schedulesButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "GenerateRevitSchedulesCommand");
+    var filtersButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "ApplyViewFiltersCommand");
+    var phasing = bim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text.Replace("\n", " ") == "Phasing & Worksets");
+    Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
+          && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
+    Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
+    Check("...and a Phasing & Worksets drop-down: Batch Assign Phasing (AssignPhasingCommand), Organize Multi-Worksets (AssignWorksetsCommand)",
+          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[] { ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand") }));
+
+    // nothing that was on the ribbon before is gone, and the CSV schedule command keeps its name
+    var before = new Dictionary<string, string>
+    {
+        ["OpenSportifyApp"] = "OpenSportifyAppCommand", ["ImportSportifyLayout"] = "ImportSportifyLayoutCommand", ["LoadFamilies"] = "LoadFamiliesCommand", ["ImportDxf"] = "ImportDxfCommand",
+        ["SetSunAndLocation"] = "SetSunAndLocationCommand", ["ToggleAutoImport"] = "ToggleAutoImportCommand", ["AnalyzeFireSafety"] = "AnalyzeFireSafetyCommand",
+        ["AnalyzeCarbonImpact"] = "AnalyzeCarbonImpactCommand", ["AnalyzeLca"] = "AnalyzeLcaCommand", ["AnalyzeAccessibility"] = "AnalyzeAccessibilityCommand",
+        ["SendPhysicalAnalysisToWeb"] = "SendPhysicalAnalysisToWebCommand", ["SimulateBallTrajectories"] = "SimulateBallTrajectoriesCommand", ["AnalyzeStructuralLoads"] = "AnalyzeStructuralLoadsCommand",
+        ["AnalyzeDynamicLoads"] = "AnalyzeDynamicLoadsCommand", ["AnalyzeSunShade"] = "AnalyzeSunShadeCommand", ["AnalyzeWindErosionRisk"] = "AnalyzeWindErosionRiskCommand",
+        ["SimulateSoilPercolation"] = "SimulateSoilPercolationCommand", ["GenerateAnalysisReport"] = "GenerateAnalysisReportCommand", ["GenerateFunctionalDiagrams"] = "GenerateFunctionalDiagramsCommand",
+        ["GenerateSchedules"] = "GenerateSchedulesCommand", ["OpenSportifyFolder"] = "OpenSportifyFolderCommand",
+    };
+    var missing = before.Where(kv => !everyButton.Any(b => b.InternalName == kv.Key && b.CommandClass == kv.Value)).Select(kv => kv.Key).ToList();
+    Check("all 21 buttons the ribbon had before are still on it, with the same internal name and the same command class (only re-mounted)", missing.Count == 0, string.Join(", ", missing));
+    Check("the CSV export keeps its class name (GenerateSchedulesCommand) and the native schedules have their own (GenerateRevitSchedulesCommand)",
+          commandClasses.ContainsKey("GenerateSchedulesCommand") && commandClasses.ContainsKey("GenerateRevitSchedulesCommand"));
+
+    // the four new commands, as requested
+    var bimSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("BimCommands.cs")).Value ?? "";
+    foreach (var cls in new[] { "GenerateRevitSchedulesCommand", "ApplyViewFiltersCommand", "AssignPhasingCommand", "AssignWorksetsCommand" })
+        Check($"{cls} is in Commands/BimCommands.cs, [Transaction(TransactionMode.Manual)], and catches its own errors",
+              System.Text.RegularExpressions.Regex.IsMatch(bimSource, @"\[Transaction\(TransactionMode\.Manual\)\][\s\S]{0,80}?class\s+" + cls + @"\s*:\s*IExternalCommand")
+              && System.Text.RegularExpressions.Regex.IsMatch(bimSource, "class " + cls + @"[\s\S]*?catch \(Exception ex\)"));
+    Check("GenerateRevitSchedulesCommand is also [Regeneration(RegenerationOption.Manual)] and calls BimScheduleBuilder.CreateSportifySchedules(doc, null) inside a transaction",
+          bimSource.Contains("[Regeneration(RegenerationOption.Manual)]") && bimSource.Contains("BimScheduleBuilder.CreateSportifySchedules(doc, null)") && bimSource.Contains("new Transaction(doc, \"Sportify: generate schedules\")"));
+    Check("ApplyViewFiltersCommand calls ViewFilterManager.ApplySportifyViewFilters(doc, doc.ActiveView) inside a transaction", bimSource.Contains("ViewFilterManager.ApplySportifyViewFilters(doc, doc.ActiveView)") && bimSource.Contains("new Transaction(doc, \"Sportify: apply view filters\")"));
+
+    // OnStartup: the ribbon is built from the layout, entry by entry, and OnStartup still returns Succeeded
+    var appSource = sources == null ? "" : File.ReadAllText(Path.Combine(sources, "SportfyRevitApp.cs"));
+    Check("OnStartup builds the ribbon from RibbonLayout, each entry inside its own try/catch, and returns Result.Succeeded",
+          appSource.Contains("BuildRibbon(application);") && appSource.Contains("try { AddEntry(panel, assembly, entry); }") && appSource.Contains("return Result.Succeeded;"));
+
+    // the icons: every path is well formed SVG path data (commands with the right number of numbers)
+    var arity = new Dictionary<char, int> { ['M'] = 2, ['L'] = 2, ['H'] = 1, ['V'] = 1, ['C'] = 6, ['S'] = 4, ['Q'] = 4, ['T'] = 2, ['A'] = 7, ['Z'] = 0 };
+    string? Malformed(string d)
+    {
+        var tokens = System.Text.RegularExpressions.Regex.Matches(d, @"[MmLlHhVvCcSsQqTtAaZz]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?");
+        var rest = System.Text.RegularExpressions.Regex.Replace(d, @"[MmLlHhVvCcSsQqTtAaZz]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?|[\s,]", "");
+        if (rest.Length > 0) return "stray text \"" + rest + "\"";
+        char cmd = ' '; int count = 0; bool first = true;
+        foreach (System.Text.RegularExpressions.Match t in tokens)
+        {
+            if (char.IsLetter(t.Value[0]))
+            {
+                if (cmd != ' ' && count % Math.Max(1, arity[char.ToUpperInvariant(cmd)]) != 0) return "wrong number of numbers for " + cmd;
+                if (cmd != ' ' && arity[char.ToUpperInvariant(cmd)] > 0 && count == 0) return cmd + " has no numbers";
+                cmd = t.Value[0]; count = 0;
+                if (first && char.ToUpperInvariant(cmd) != 'M') return "does not start with M";
+                first = false;
+            }
+            else count++;
+        }
+        if (cmd != ' ' && arity[char.ToUpperInvariant(cmd)] > 0 && (count == 0 || count % arity[char.ToUpperInvariant(cmd)] != 0)) return "wrong number of numbers for " + cmd;
+        return null;
+    }
+    var badIcons = RibbonIconData.Paths.Select(kv => (kv.Key, Problem: Malformed(kv.Value))).Where(x => x.Problem != null).ToList();
+    Check($"all {RibbonIconData.Paths.Count} icon paths are well formed (known commands, the right number of numbers, start with M)", badIcons.Count == 0, string.Join("; ", badIcons.Select(x => x.Key + ": " + x.Problem)));
+    Check("the checker itself catches a bad path", Malformed("M1 2 L3") != null && Malformed("L1 2") != null && Malformed("M1 2 x") != null && Malformed("M1 2 l3 4 h5") == null);
+
+    // the rules
+    Check("workset rules follow the import: floors and planting on Gardens, courts, activities and furniture on Sports, everything else (outline, paths, entries) on Combine",
+          BimRules.WorksetFor(BimRules.ElementKind.Floor, null, false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "field", false) == "Sports"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "furniture", false) == "Sports" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "activity", false) == "Sports"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "vegetation", false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "Garden", false) == "Gardens"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, null, true) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.Other, null, false) == "Combine");
+    Check("the three workset names are the ones SportifyLayoutBuilder makes", BimRules.WorksetNames.SequenceEqual(new[] { "Sports", "Gardens", "Combine" })
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyLayoutBuilder.cs") && kv.Value.Contains("new[] { \"Sports\", \"Gardens\", \"Combine\" }")));
+    Check("a Sportify floor type is one whose name starts with \"Sportify - \" (as SportifyFloorTypeBuilder names them), and only that",
+          BimRules.IsSportifyTypeName("Sportify - Gravel") && !BimRules.IsSportifyTypeName("Generic 150mm") && !BimRules.IsSportifyTypeName("sportify - x") && !BimRules.IsSportifyTypeName(null)
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyFloorTypeBuilder.cs") && kv.Value.Contains("Sportify - {assembly.Provider}")));
+    var zoneColours = Enumerable.Range(0, BimRules.ZonePaletteSize).Select(BimRules.ColorForZoneType).Distinct().Count();
+    Check("the zone-type palette has distinct colours and repeats after its last (and never fails on a negative index)", zoneColours == BimRules.ZonePaletteSize && BimRules.ColorForZoneType(BimRules.ZonePaletteSize) == BimRules.ColorForZoneType(0) && BimRules.ColorForZoneType(-1) == BimRules.ColorForZoneType(BimRules.ZonePaletteSize - 1));
+    var kinds = new[] { "field", "activity", "garden", "vegetation", "furniture" }.Select(BimRules.ColorForCategory).Distinct().Count();
+    Check("each kind of piece has its own colour, and an unknown one a grey", kinds == 5 && BimRules.ColorForCategory("nothing") == (150, 150, 150) && BimRules.ColorForCategory(null) == (150, 150, 150));
+    Check("filter and schedule names lose the characters Revit refuses, and keep the words", BimRules.SafeName("Sportify Zone - Bauder {extensive}: 69|mm") == "Sportify Zone - Bauder extensive 69 mm");
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;

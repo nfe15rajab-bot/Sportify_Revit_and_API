@@ -247,7 +247,7 @@ namespace SportfyRevit
 
                 if (rows.Count == 0)
                 {
-                    col.Item().PaddingTop(4).Text("No Analysis panel checks have been run yet this session.").Italic();
+                    col.Item().PaddingTop(4).Text("No Algorithmic Analysis checks have been run yet this session.").Italic();
                     return;
                 }
 
