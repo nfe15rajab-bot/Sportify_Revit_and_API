@@ -29,28 +29,11 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            var materials = AnalysisReferenceData.GetMaterials();
-            double totalKg = 0;
-            int coveredCount = 0;
-
-            foreach (var it in items)
-            {
-                var bb = it.BoundingBox;
-                if (bb == null) continue;
-
-                string? materialName = PlacementDataHelpers.GetReferenceMaterialName(it);
-                var material = materialName != null
-                    ? materials.FirstOrDefault(m => m.Name == materialName)
-                    : null;
-
-                if (material?.EmbodiedCarbonValue is double carbonPerM2)
-                {
-                    totalKg += carbonPerM2 * bb.WidthM * bb.HeightM;
-                    coveredCount++;
-                }
-            }
-
-            int missingCount = items.Count - coveredCount;
+            // The sum is EmbodiedCarbon.Compute: the same function as the web app's carbon.js (Tools/AnalysisParity runs both on every fixture layout).
+            var carbon = EmbodiedCarbon.Compute(items, AnalysisReferenceData.GetMaterials());
+            double totalKg = carbon.TotalKg;
+            int coveredCount = carbon.CoveredCount;
+            int missingCount = carbon.MissingCount;
 
             AnalysisResultPublisher.PublishLca(new LcaResultDto
             {

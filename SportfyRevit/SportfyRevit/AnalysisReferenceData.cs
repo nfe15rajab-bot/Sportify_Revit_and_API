@@ -51,7 +51,15 @@ namespace SportfyRevit
             // via GetParam, so without a default here it would silently compute 0/0 offline. (The Live Loads command that also read them was
             // retired: the Structural Loads analysis is the reference for loads on the roof.)
             ["Live Loads"] = new() { ["assumed_load_per_person_kg"] = 90, ["reference_capacity_kn_per_m2"] = 4.0 },
+            // The Carbon Impact analysis reads these two; with no default here it computed 0 kWh whenever the API was not running.
+            ["Carbon Impact"] = new() { ["energy_density_wh_per_m2_per_hour"] = 0.5, ["assumed_daily_usage_hours"] = 4 },
         };
+
+        /// <summary>
+        /// The offline fallbacks as data, for Tools/SourceParity: the database (Sportify.Api's ReferenceDataSeeder), the web app (analysisController.js ANALYSIS_PARAM_DEFAULTS)
+        /// and this list must hold the same categories, keys and values. The database is the source at run time; these are what is used when it cannot be reached.
+        /// </summary>
+        public static IReadOnlyDictionary<string, Dictionary<string, double>> FallbackValues => Defaults;
 
         public static double GetParam(string category, string key)
         {

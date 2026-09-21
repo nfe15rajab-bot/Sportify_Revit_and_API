@@ -34,12 +34,12 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
+            // The decision is SafetyAnalysis.Access: the same as the web app's analyzeAccessibility() (Tools/AnalysisParity runs both on every fixture layout).
             double minWidth = AnalysisReferenceData.GetParam("Accessibility", "min_circulation_width_m");
-            double currentWidth = layout.DesignRules?.CirculationWidthM ?? 0;
-            bool widthOk = currentWidth >= minWidth;
-
-            var (_, unreachable) = CirculationEngine.ComputeTravelDistances(layout);
-            bool reachOk = (layout.EntryPoints?.Count ?? 0) > 0 && unreachable.Count == 0;
+            var outcome = SafetyAnalysis.Access(layout, minWidth);
+            double currentWidth = outcome.CurrentWidthM;
+            bool widthOk = outcome.WidthOk;
+            bool reachOk = outcome.ReachOk;
 
             AnalysisResultPublisher.PublishAccessibility(new AccessibilityResultDto
             {

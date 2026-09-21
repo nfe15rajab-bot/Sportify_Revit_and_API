@@ -34,27 +34,28 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            var (distancesM, unreachable) = CirculationEngine.ComputeTravelDistances(layout);
+            // The decision is SafetyAnalysis.Fire: the same as the web app's analyzeFireSafety() (Tools/AnalysisParity runs both on every fixture layout).
             double maxTravelDistance = AnalysisReferenceData.GetParam("Fire Safety", "max_travel_distance_m");
+            var outcome = SafetyAnalysis.Fire(layout, maxTravelDistance);
 
-            if (unreachable.Count > 0)
+            if (outcome.Status == "fail")
             {
                 AnalysisResultPublisher.PublishFireSafety(new FireSafetyResultDto
                 {
                     MaxDistM = 0,
                     MaxTravelDistanceM = maxTravelDistance,
                     WithinLimit = false,
-                    UnreachableCount = unreachable.Count,
+                    UnreachableCount = outcome.UnreachableCount,
                 });
 
                 TaskDialog.Show(title,
-                    $"{unreachable.Count} of {layout.Placements.Count} piece(s) have no walkable route to any entry point " +
+                    $"{outcome.UnreachableCount} of {layout.Placements.Count} piece(s) have no walkable route to any entry point " +
                     "— blocked by clearance/circulation width. Fix circulation before a travel-distance figure is meaningful.");
                 return Result.Succeeded;
             }
 
-            double maxDist = distancesM.Count > 0 ? distancesM.Values.Max() : 0;
-            bool withinLimit = maxDist <= maxTravelDistance;
+            double maxDist = outcome.MaxDistM;
+            bool withinLimit = outcome.WithinLimit;
 
             AnalysisResultPublisher.PublishFireSafety(new FireSafetyResultDto
             {

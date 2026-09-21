@@ -5,57 +5,16 @@
 //          origin of the app), SQL import is off, accounts are off, another origin's CORS preflight is refused, the Host header and the body size are checked
 //   run 2  configured: Api:WriteKey chosen, Admin:AllowSqlImport, a real Jwt:Key -> the chosen key is not handed out, SQL import works but not ATTACH/PRAGMA/VACUUM,
 //          accounts still refuse without a database
-const { spawn, spawnSync } = require("child_process");
-const http = require("http");
 const fs = require("fs");
-const os = require("os");
-const path = require("path");
-const net = require("net");
-
-const api = path.join(__dirname, "..", "..", "..", "Sportify.Api", "Sportify.Api");
 let fails = 0;
 const check = (name, ok, extra = "") => { if (!ok) fails++; console.log((ok ? "PASS  " : "FAIL  ") + name + (extra ? "  " + extra : "")); };
 
-function freePort() {
-  return new Promise(resolve => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); }); });
-}
-
-function request(port, method, url, opts) {
-  const o = opts || {};
-  return new Promise(resolve => {
-    const data = o.body == null ? null : Buffer.isBuffer(o.body) ? o.body : Buffer.from(typeof o.body === "string" ? o.body : JSON.stringify(o.body));
-    const headers = Object.assign({}, o.headers || {});
-    if (data) { headers["Content-Length"] = data.length; if (!headers["Content-Type"]) headers["Content-Type"] = "application/json"; }
-    const req = http.request({ host: "127.0.0.1", port, method, path: url, headers }, res => {
-      const chunks = [];
-      res.on("data", c => chunks.push(c));
-      res.on("end", () => { const text = Buffer.concat(chunks).toString("utf8"); let json = null; try { json = JSON.parse(text); } catch (e) { /* not JSON */ } resolve({ status: res.statusCode, headers: res.headers, text, json }); });
-    });
-    req.on("error", e => resolve({ status: 0, error: e.message, headers: {}, text: "", json: null }));
-    req.setTimeout(30000, () => req.destroy(new Error("timeout")));
-    req.end(data);
-  });
-}
-
-async function startApi(out, port, env) {
-  const child = spawn("dotnet", [path.join(out, "Sportify.Api.dll"), "--urls", `http://localhost:${port}`, "--contentRoot", out], { env: Object.assign({}, process.env, { ASPNETCORE_ENVIRONMENT: "Production" }, env), stdio: ["ignore", "pipe", "pipe"] });
-  let log = "";
-  child.stdout.on("data", d => { log += d; });
-  child.stderr.on("data", d => { log += d; });
-  for (let i = 0; i < 120; i++) {
-    await new Promise(r => setTimeout(r, 500));
-    const r = await request(port, "GET", "/api/Norms", { headers: { Host: `localhost:${port}` } });
-    if (r.status === 200) return { child, log: () => log };
-    if (child.exitCode != null) throw new Error("the API exited: " + log.slice(-800));
-  }
-  throw new Error("the API did not start: " + log.slice(-800));
-}
+const { buildApi, startApi, request, freePort } = require("../lib/runApi.js");
 
 (async () => {
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), "sportify-api-check-"));
-  console.log("building the API into " + out);
-  const build = spawnSync("dotnet", ["build", path.join(api, "Sportify.Api.csproj"), "-c", "Release", "-o", out, "--nologo", "-v", "q"], { encoding: "utf8" });
-  if (build.status !== 0) { console.log(build.stdout + build.stderr); console.log("FAIL  the API builds"); process.exit(1); }
+  let out;
+  try { out = buildApi(); } catch (e) { console.log(String(e.message)); console.log("FAIL  the API builds"); process.exit(1); }
+  console.log("built the API into " + out);
 
   const app = "http://localhost:8123", evil = "https://evil.example";
   let first, second;

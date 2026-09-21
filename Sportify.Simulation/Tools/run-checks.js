@@ -92,7 +92,7 @@ step("fixtures match their generators", async () => {
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1) } : { status: "fail", output: r.out + r.err };
 });
 
-const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "ReaderParity"];
+const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "AnalysisParity", "ReaderParity"];
 if (isWin) toolNames.push("ContractCheck");
 
 step("build the check tools", async () => {
@@ -157,6 +157,27 @@ step("circulation: the add-in's engine against the web's rules.js", async () => 
     }), jobs);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   return failures.length ? { status: "fail", output: failures.sort().join("\n") } : { status: "pass", detail: `${layouts.length} layouts` };
+}, { needsWeb: true });
+
+step("embodied carbon, fire safety, accessibility: the web's carbon.js / analysisController.js against the add-in (AnalysisParity)", async () => {
+  if (!web) return noWeb();
+  const layouts = layoutsOf(["circ", "export"]);
+  const r = await node([path.join(tools, "AnalysisParity", "check.js"), web, ...layouts.map(l => l[1])]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("one source: the API's seed, the web app's tables and the add-in's fallbacks (SourceParity, runs the real API)", async () => {
+  if (!web) return noWeb();
+  const r = await node([path.join(tools, "SourceParity", "check.js"), web]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: sport dimensions come from the database once the API answers (data.js)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "field-source-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/field-source-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the Data tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("assumptions register: the C# list against the web's assumptions.js", async () => {
