@@ -48,7 +48,7 @@ namespace Sportify.Simulation.Structure
     //  Units: metres, kN, kN/m2. Plan coordinates as everywhere: x right, y DOWN from the top edge.
     // ---------------------------------------------------------------------------------------
 
-    public enum LoadKind { Court, Activity, Zone, Tree }
+    public enum LoadKind { Court, Activity, Zone, Tree, Furniture }
 
     public class GridLineInput
     {
@@ -112,6 +112,15 @@ namespace Sportify.Simulation.Structure
         public double Persons;               // expected people on it
         public double Players, Seats;        // a court's players and seated spectators (Persons is their sum)
         public string Basis = "";            // where the numbers come from, for the report
+
+        /// <summary>The item's real outline (x, y in layout metres) when it is not its box: a bed whose corners were moved. Null = the rectangle X, Y, Width, Height (which is then the outline's bounding box).</summary>
+        public List<double[]> Polygon;
+
+        /// <summary>The area the item covers: its outline's, else its box's.</summary>
+        public double AreaM2 { get { return Polygon != null && Polygon.Count >= 3 ? RoofShape.PolygonArea(Polygon) : Width * Height; } }
+
+        /// <summary>A tree or a piece of furniture: an object with a weight, not a surface with a use. It carries its weight as a point load, is never moved by the balance advice and is not a place people stand.</summary>
+        public bool IsObject { get { return Kind == LoadKind.Tree || Kind == LoadKind.Furniture; } }
 
         public LoadItem Copy() { return (LoadItem)MemberwiseClone(); }
     }
@@ -669,9 +678,10 @@ namespace Sportify.Simulation.Structure
                 Id = zone.Id, Label = zone.Label, Kind = LoadKind.Zone,
                 Name = "Green roof: " + (a != null && !string.IsNullOrEmpty(a.SystemName) ? a.SystemName : (a != null && !string.IsNullOrEmpty(a.System) ? a.System : "no build-up")),
                 X = zone.X, Y = zone.Y, Width = zone.Width, Height = zone.Height,
+                Polygon = zone.Points != null && zone.Points.Count >= 3 ? zone.Points : null,
                 DeadKnM2 = kgM2 * Gravity / 1000.0,
                 LiveKnM2 = accessible ? AccessibleLiveKnM2 : RoofLiveKnM2,
-                Persons = accessible ? zone.Width * zone.Height * AccessiblePersonsPerM2 : 0,
+                Persons = accessible ? zone.AreaM2 * AccessiblePersonsPerM2 : 0,
                 Basis = (a != null && !string.IsNullOrEmpty(a.System) ? a.System : "no build-up") + ": " + F0(kgM2) + " kg/m2 saturated (" + source + "); " +
                         (accessible ? "accessible, " + F1(AccessibleLiveKnM2) : "not accessible, " + F2(RoofLiveKnM2)) + " kN/m2 imposed",
             };
@@ -688,6 +698,24 @@ namespace Sportify.Simulation.Structure
                 PointKn = kn,
                 LiveKnM2 = RoofLiveKnM2,
                 Basis = plant.Species + ", " + F1(plant.HeightM) + " m: " + F1(kn) + " kN above ground",
+            };
+        }
+
+        /// <summary>
+        /// A piece of site furniture (a bench, a table, a bin, a bollard, a light) at its catalogue weight, as a point load at the middle of its footprint, like a tree: the piece's
+        /// weight is small next to a court's, but a roof with sixty bins and thirty benches carries them, and a catalogue that has the weight should not be ignored. Its footprint keeps the
+        /// roof's own imposed load (it does not make it "occupied"). A product with no weight is not a load: the caller leaves it out.
+        /// </summary>
+        public static LoadItem FurnitureItem(string id, string label, double x, double y, double w, double h, double weightKg)
+        {
+            var kn = weightKg * Gravity / 1000.0;
+            return new LoadItem
+            {
+                Id = id, Label = label, Name = label, Kind = LoadKind.Furniture,
+                X = x, Y = y, Width = w, Height = h,
+                PointKn = kn,
+                LiveKnM2 = RoofLiveKnM2,
+                Basis = label + ": " + F0(weightKg) + " kg (catalogue weight) as a point load, " + F2(kn) + " kN",
             };
         }
 
@@ -731,7 +759,7 @@ namespace Sportify.Simulation.Structure
 
             foreach (var item in inputs.Items)
             {
-                var area = item.Width * item.Height;
+                var area = item.AreaM2;
                 var claim = new Claim { Q = item.LiveKnM2 };
                 if (area > 1e-12)
                 {
@@ -747,7 +775,11 @@ namespace Sportify.Simulation.Structure
                         {
                             var ox = Math.Min(item.X + item.Width, (ix + 1) * cw) - Math.Max(item.X, ix * cw);
                             if (ox <= 0) continue;
-                            var a = ox * oy;
+                            // the part of this cell the item really covers: the box's overlap, or the outline's (a bed with moved corners does not load the corner of its box)
+                            var a = item.Polygon != null && item.Polygon.Count >= 3
+                                ? RoofShape.PolygonArea(RoofShape.ClipConvex(item.Polygon, RoofShape.RectPoints(ix * cw, iy * ch, (ix + 1) * cw, (iy + 1) * ch)))
+                                : ox * oy;
+                            if (a <= 1e-12) continue;
                             var k = f.Index(ix, iy);
                             f.Dead[k] += item.DeadKnM2 * a;
                             f.Persons[k] += item.Persons * a / area;
@@ -1058,7 +1090,7 @@ namespace Sportify.Simulation.Structure
             // ---- items
             foreach (var item in inputs.Items)
             {
-                var area = item.Width * item.Height;
+                var area = item.AreaM2;      // a bed with its own outline weighs that outline, not its box
                 report.items.Add(new ItemLoadResult
                 {
                     id = item.Id, label = item.Label, kind = item.Kind.ToString(), basis = item.Basis,
@@ -1154,11 +1186,21 @@ namespace Sportify.Simulation.Structure
             var bestKn = 0.0;
             foreach (var item in inputs.Items)
             {
-                var wh = BayOverlapM2(bay, item.X, item.Y, item.X + item.Width, item.Y + item.Height);
-                var kn = (item.DeadKnM2 + item.LiveKnM2) * wh + (item.PointKn > 0 && wh > 0 ? item.PointKn * wh / Math.Max(1e-9, item.Width * item.Height) : 0);
+                var wh = item.Polygon != null && item.Polygon.Count >= 3 ? BayOverlapPolygonM2(bay, item.Polygon) : BayOverlapM2(bay, item.X, item.Y, item.X + item.Width, item.Y + item.Height);
+                var kn = (item.DeadKnM2 + item.LiveKnM2) * wh + (item.PointKn > 0 && wh > 0 ? item.PointKn * wh / Math.Max(1e-9, item.AreaM2) : 0);
                 if (kn > bestKn) { bestKn = kn; best = item; overlapM2 = wh; }
             }
             return best;
+        }
+
+        /// <summary>The area of a reported bay under an outline (a zone with moved corners).</summary>
+        public static double BayOverlapPolygonM2(BayResult bay, IList<double[]> outline)
+        {
+            var bayPoly = new List<double[]>();
+            if (bay.polygon != null && bay.polygon.Length >= 6)
+                for (var i = 0; i + 1 < bay.polygon.Length; i += 2) bayPoly.Add(new[] { (double)bay.polygon[i], (double)bay.polygon[i + 1] });
+            else bayPoly = RoofShape.RectPoints(bay.x0, bay.y0, bay.x1, bay.y1);
+            return RoofShape.PolygonArea(RoofShape.ClipConvex(outline, bayPoly));
         }
 
         /// <summary>The area of a reported bay under a rectangle: the rectangles' overlap, or, for a skewed or cut bay, the overlap with its polygon.</summary>
@@ -1487,7 +1529,7 @@ namespace Sportify.Simulation.Structure
             for (var k = 0; k < state.Items.Count; k++)
             {
                 var o = state.Items[k];
-                if (k == index || o.Kind == LoadKind.Tree) continue;
+                if (k == index || o.IsObject) continue;
                 double olo = x ? o.X : o.Y, osize = x ? o.Width : o.Height;
                 double ocrossLo = x ? o.Y : o.X, ocrossSize = x ? o.Height : o.Width;
                 if (Math.Min(crossLo + crossSize, ocrossLo + ocrossSize) - Math.Max(crossLo, ocrossLo) <= 0.05) continue;   // beside it, not in its way
@@ -1508,13 +1550,13 @@ namespace Sportify.Simulation.Structure
             for (var i = 0; i < state.Items.Count; i++)
             {
                 var item = state.Items[i];
-                if (item.Kind == LoadKind.Tree) continue;
-                var kn = (item.DeadKnM2 + item.LiveKnM2) * item.Width * item.Height;
+                if (item.IsObject) continue;
+                var kn = (item.DeadKnM2 + item.LiveKnM2) * item.AreaM2;
                 var pos = axis == "x" ? item.X + item.Width / 2 : item.Y + item.Height / 2;
                 if (kn < MinItemShare * cur.summary.totalKn || (pos - centre) * sign <= 0) continue;
                 candidates.Add(i);
             }
-            candidates = candidates.OrderByDescending(i => (state.Items[i].DeadKnM2 + state.Items[i].LiveKnM2) * state.Items[i].Width * state.Items[i].Height).Take(4).ToList();
+            candidates = candidates.OrderByDescending(i => (state.Items[i].DeadKnM2 + state.Items[i].LiveKnM2) * state.Items[i].AreaM2).Take(4).ToList();
 
             Step best = null;
             Action<Step> consider = s =>

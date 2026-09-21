@@ -30,6 +30,7 @@ namespace Sportify.Simulation.Structure
 
             var courts = 0;
             var activities = 0;
+            var furnitureCount = 0;
             if (payload.placements != null)
             {
                 foreach (var p in payload.placements)
@@ -50,6 +51,17 @@ namespace Sportify.Simulation.Structure
                         activities++;
                         inputs.Items.Add(StructureModel.ActivityItem(InputQuantiser.Or(p.id, "activity_" + activities), InputQuantiser.Or(p.label, "Activity " + activities),
                             InputQuantiser.Q(bb.top_left_x_m), InputQuantiser.Q(bb.top_left_y_m), InputQuantiser.Q(bb.width_m), InputQuantiser.Q(bb.height_m)));
+                    }
+                    else if (string.Equals(p.category, "furniture", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // a piece of furniture at its catalogue weight (a product with no weight is not a load)
+                        var furniture = p.parameters != null ? p.parameters.furniture : null;
+                        if (furniture != null && furniture.weight_kg > 0f)
+                        {
+                            furnitureCount++;
+                            inputs.Items.Add(StructureModel.FurnitureItem(InputQuantiser.Or(p.id, "furniture_" + furnitureCount), InputQuantiser.Or(p.label, "Furniture " + furnitureCount),
+                                InputQuantiser.Q(bb.top_left_x_m), InputQuantiser.Q(bb.top_left_y_m), InputQuantiser.Q(bb.width_m), InputQuantiser.Q(bb.height_m), InputQuantiser.Q(furniture.weight_kg)));
+                        }
                     }
                 }
             }

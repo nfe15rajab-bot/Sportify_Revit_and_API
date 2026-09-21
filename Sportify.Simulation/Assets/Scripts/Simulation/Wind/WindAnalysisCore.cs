@@ -56,8 +56,27 @@ namespace Sportify.Simulation.Wind
     {
         public string Id;
         public string Label;
-        public double X, Y, Width, Height;   // rectangle in layout metres (top-left corner, x extent, y extent)
+        public double X, Y, Width, Height;   // rectangle in layout metres (top-left corner, x extent, y extent): the bounding box of the outline
         public AssemblyInput Assembly;
+        /// <summary>The zone's real outline in layout metres (x, y), when it is not the rectangle (a bed whose corners were moved); null = the rectangle.</summary>
+        public List<double[]> Points;
+
+        /// <summary>The zone's area: the outline's, else the rectangle's. Everything measured per square metre of build-up (weights, rain volumes, the share flagged) is measured on this.</summary>
+        public double AreaM2 { get { return Points != null && Points.Count >= 3 ? RoofShape.PolygonArea(Points) : Width * Height; } }
+
+        /// <summary>Whether a point of the layout lies in the zone (in its outline when it has one).</summary>
+        public bool Contains(double x, double y)
+        {
+            if (x < X - 1e-9 || x > X + Width + 1e-9 || y < Y - 1e-9 || y > Y + Height + 1e-9) return false;
+            if (Points == null || Points.Count < 3) return true;
+            var inside = false;
+            for (int i = 0, j = Points.Count - 1; i < Points.Count; j = i++)
+            {
+                var a = Points[i]; var b = Points[j];
+                if ((a[1] > y) != (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+            }
+            return inside;
+        }
     }
 
     public class PlantInput
@@ -789,12 +808,15 @@ namespace Sportify.Simulation.Wind
             var erosionDepth = new double[4];
             var zoneFlaggedInDir = new bool[dirs.Length];
 
+            var cellsInZone = 0;
             for (var iy = 0; iy < ny; iy++)
             {
                 for (var ix = 0; ix < nx; ix++)
                 {
                     var x = zone.X + (ix + 0.5) * cw;
                     var y = zone.Y + (iy + 0.5) * ch;
+                    if (!zone.Contains(x, y)) continue;            // a bed that is not a rectangle: the cells of its box outside it are not the bed
+                    cellsInZone++;
                     var cellMaxU = 0.0;
                     var cellMinBare = double.PositiveInfinity;
                     var cellMinEstablished = double.PositiveInfinity;
@@ -854,7 +876,7 @@ namespace Sportify.Simulation.Wind
 
             var upliftEdge = MostCells(upliftPerEdge);
             var erosionEdge = MostCells(erosionPerEdge);
-            var total = nx * ny;
+            var total = Math.Max(1, cellsInZone);
 
             var res = new ZoneWindResult
             {
@@ -863,7 +885,7 @@ namespace Sportify.Simulation.Wind
                 assemblyKey = a.Key,
                 system = a.System,
                 category = a.Category,
-                areaM2 = (float)(zone.Width * zone.Height),
+                areaM2 = (float)zone.AreaM2,
                 dryWeightKgM2 = (float)dry,
                 weightSource = weightSource,
                 substrateMm = (float)SubstrateMm(a),
@@ -949,7 +971,7 @@ namespace Sportify.Simulation.Wind
         static ZoneInput ZoneAtPoint(WindInputs inputs, double x, double y)
         {
             foreach (var z in inputs.Zones)
-                if (x >= z.X && x <= z.X + z.Width && y >= z.Y && y <= z.Y + z.Height) return z;
+                if (z.Contains(x, y)) return z;
             return null;
         }
 

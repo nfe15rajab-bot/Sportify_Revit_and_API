@@ -39,6 +39,7 @@ namespace SportfyRevit
 
             var courts = 0;
             var activities = 0;
+            var furnitureCount = 0;
             foreach (var p in layout.Placements ?? new List<PlacementDto>())
             {
                 var bb = p.BoundingBox;
@@ -56,6 +57,17 @@ namespace SportfyRevit
                     activities++;
                     inputs.Items.Add(StructureModel.ActivityItem(InputQuantiser.Or(p.Id, "activity_" + activities), InputQuantiser.Or(p.Label, "Activity " + activities),
                         InputQuantiser.Q(bb.TopLeftXM), InputQuantiser.Q(bb.TopLeftYM), InputQuantiser.Q(bb.WidthM), InputQuantiser.Q(bb.HeightM)));
+                }
+                else if (string.Equals(p.Category, "furniture", StringComparison.OrdinalIgnoreCase))
+                {
+                    // a piece of furniture at its catalogue weight (a product with no weight is not a load); Unity's reader does the same
+                    var furniture = p.Parameters?.Furniture;
+                    if (furniture?.WeightKg is > 0)
+                    {
+                        furnitureCount++;
+                        inputs.Items.Add(StructureModel.FurnitureItem(InputQuantiser.Or(p.Id, "furniture_" + furnitureCount), InputQuantiser.Or(p.Label, "Furniture " + furnitureCount),
+                            InputQuantiser.Q(bb.TopLeftXM), InputQuantiser.Q(bb.TopLeftYM), InputQuantiser.Q(bb.WidthM), InputQuantiser.Q(bb.HeightM), InputQuantiser.Q(furniture.WeightKg.Value)));
+                    }
                 }
             }
 

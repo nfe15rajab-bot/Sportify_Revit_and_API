@@ -180,6 +180,45 @@ Check("without a grid: the same load, on an assumed grid that says so", Math.Abs
           $"(+{bayAfter.deadKn - lightest.deadKn:0.000} of {added:0.000} kN in {lightest.label})");
 }
 
+// 5b. a bed whose corners were moved weighs its own outline, not its bounding box; a piece of furniture adds its catalogue weight, at its centre, once
+{
+    var lightest = report.bays.OrderBy(x => x.totalKn).First();
+    double fx = 0, fy = 0; var room = false;
+    if (lightest.polygon == null) { fx = lightest.x0 + 1.0; fy = lightest.y0 + 1.0; room = lightest.x1 - lightest.x0 >= 5 && lightest.y1 - lightest.y0 >= 5; }
+    else
+        for (double yy = lightest.y0; yy <= lightest.y1 - 5 && !room; yy += 0.5)
+            for (double xx = lightest.x0; xx <= lightest.x1 - 5 && !room; xx += 0.5)
+                if (StructureModel.BayOverlapM2(lightest, xx, yy, xx + 5, yy + 5) > 25 - 1e-6) { fx = xx + 1; fy = yy + 1; room = true; }
+    if (room)
+    {
+        StructureInputs With(LoadItem extra) => new StructureInputs
+        {
+            RoofLength = inputs.RoofLength, RoofWidth = inputs.RoofWidth, Outline = inputs.Outline, VerticalLines = inputs.VerticalLines, HorizontalLines = inputs.HorizontalLines, Columns = inputs.Columns,
+            Items = inputs.Items.Concat(new[] { extra }).ToList(), Paths = inputs.Paths, Entries = inputs.Entries, CapacityKnM2 = s.capacityKnM2,
+        };
+        // an L: a 3 x 1 bar and a 1 x 2 leg = 5 m2 inside a 3 x 3 box (9 m2)
+        var bed = new LoadItem
+        {
+            Id = "test_l", Label = "test L bed", Kind = LoadKind.Zone, X = fx, Y = fy, Width = 3, Height = 3, DeadKnM2 = 6.0, LiveKnM2 = StructureModel.RoofLiveKnM2,
+            Polygon = new List<double[]> { new[] { fx, fy }, new[] { fx + 3, fy }, new[] { fx + 3, fy + 1 }, new[] { fx + 1, fy + 1 }, new[] { fx + 1, fy + 3 }, new[] { fx, fy + 3 } },
+        };
+        var withBed = StructureModel.Analyse(With(bed));
+        var bedBay = withBed.bays.First(x => x.label == lightest.label);
+        Check("an L-shaped bed of 5 m2 in a 3 x 3 m box weighs 6 x 5 kN, not 6 x 9", Math.Abs(bed.AreaM2 - 5) < 1e-9 && Math.Abs(bedBay.deadKn - lightest.deadKn - 30.0) < 1e-3 && Math.Abs(withBed.summary.deadKn - s.deadKn - 30.0) < 1e-3,
+              $"(+{bedBay.deadKn - lightest.deadKn:0.000} kN in {lightest.label}, +{withBed.summary.deadKn - s.deadKn:0.000} kN in all)");
+        var bedItem = withBed.items.First(x => x.id == "test_l");
+        Check("the report gives the L's own area (5 m2) and its 30 kN", Math.Abs(bedItem.areaM2 - 5) < 1e-9 && Math.Abs(bedItem.deadKn - 30.0) < 1e-6, $"({bedItem.areaM2:0.###} m2, {bedItem.deadKn:0.###} kN)");
+
+        var chair = StructureModel.FurnitureItem("test_chair", "test chair", fx + 1, fy + 1, 1, 1, 250.0);
+        var withChair = StructureModel.Analyse(With(chair));
+        var chairBay = withChair.bays.First(x => x.label == lightest.label);
+        var kn = 250.0 * StructureModel.Gravity / 1000.0;
+        Check("a 250 kg piece of furniture adds 250 x 9.81 N, all of it, in the bay it stands in", Math.Abs(withChair.summary.deadKn - s.deadKn - kn) < 1e-3 && Math.Abs(chairBay.deadKn - lightest.deadKn - kn) < 1e-3,
+              $"(+{withChair.summary.deadKn - s.deadKn:0.000} of {kn:0.000} kN)");
+        Check("the piece keeps the roof's own imposed load (it does not make its footprint occupied) and adds no people", Math.Abs(withChair.summary.liveKn - s.liveKn) < 1e-3 && Math.Abs(withChair.summary.expectedPersons - s.expectedPersons) < 1e-6);
+    }
+}
+
 // 6. the steps recommended for an axis, applied in order, do what each says: the balance and the busiest bay afterwards are the ones it states
 foreach (var axis in new[] { "x", "y" })
 {

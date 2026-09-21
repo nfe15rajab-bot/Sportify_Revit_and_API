@@ -59,13 +59,13 @@ function scan(poly, x) {
   for (let i = 0; i + 1 < ys.length; i += 2) out.push([ys[i], ys[i + 1]]);
   return out;
 }
-function region(rect, half) {
+function region(rect, half, poly = roofPoly) {
   const [X0, Y0, X1, Y1] = rect;
   const xs = [X0, X1];
   const cutY = (xa, ya, xb, yb, y) => (ya - y) * (yb - y) < 0 ? xa + (y - ya) * (xb - xa) / (yb - ya) : null;
   const lines = half.map(h => ({ a: h[0], b: h[1], c: h[2] }));
-  const segs = roofPoly.map((p, i) => [p, roofPoly[(i + 1) % roofPoly.length]]);
-  for (const p of roofPoly) xs.push(p[0]);
+  const segs = poly.map((p, i) => [p, poly[(i + 1) % poly.length]]);
+  for (const p of poly) xs.push(p[0]);
   for (const [p, q] of segs) for (const y of [Y0, Y1]) { const x = cutY(p[0], p[1], q[0], q[1], y); if (x !== null) xs.push(x); }
   for (const h of lines) {
     for (const y of [Y0, Y1]) if (Math.abs(h.a) > 1e-12) xs.push(-(h.b * y + h.c) / h.a);
@@ -86,7 +86,7 @@ function region(rect, half) {
     if (span < 1e-13) continue;
     for (const [t, w] of nodes) {
       const x = a + t * span;
-      let iv = scan(roofPoly, x).map(([lo, hi]) => [Math.max(lo, Y0), Math.min(hi, Y1)]).filter(([lo, hi]) => hi > lo);
+      let iv = scan(poly, x).map(([lo, hi]) => [Math.max(lo, Y0), Math.min(hi, Y1)]).filter(([lo, hi]) => hi > lo);
       for (const h of lines) {
         iv = iv.map(([lo, hi]) => {
           if (Math.abs(h.b) < 1e-12) return h.a * x + h.c >= 0 ? [lo, hi] : [1, 0];
@@ -104,7 +104,8 @@ function region(rect, half) {
 
 // ---- geometry of every piece the C# report lists, by id
 const byId = new Map();
-for (const z of layout.zones || []) byId.set(z.id, { x: z.bounding_box.top_left_x_m, y: z.bounding_box.top_left_y_m, w: z.bounding_box.width_m, h: z.bounding_box.height_m });
+for (const z of layout.zones || []) byId.set(z.id, { x: z.bounding_box.top_left_x_m, y: z.bounding_box.top_left_y_m, w: z.bounding_box.width_m, h: z.bounding_box.height_m,
+  poly: z.points && z.points.length >= 3 ? z.points.map(p => [p.x_m, p.y_m]) : null });
 for (const p of layout.placements || []) {
   const bb = p.bounding_box;
   if (!bb) continue;
@@ -117,7 +118,7 @@ for (const p of layout.placements || []) {
 const items = report.items.map(i => {
   const g = byId.get(i.id);
   if (!g) throw new Error("no geometry for " + i.id);
-  const isTree = i.kind === "Tree";
+  const isTree = i.kind === "Tree" || i.kind === "Furniture";       // a concentrated load: the piece's weight at its centre
   return { ...g, dead: isTree ? 0 : i.deadKnM2, point: isTree ? i.deadKn : 0, live: i.liveKnM2, persons: i.persons };
 });
 
@@ -135,7 +136,7 @@ if (outline) for (let iy = 0; iy < Ny; iy++) for (let ix = 0; ix < Nx; ix++) cov
 const claims = [];
 for (const it of items) {
   const claim = { q: it.live, cells: [] };
-  const area = it.w * it.h;
+  const area = it.poly ? region([-1e4, -1e4, 1e4, 1e4], [], it.poly).area : it.w * it.h;
   if (area > 1e-12) {
     for (let iy = clampCell(it.y, ch, Ny); iy <= clampCell(it.y + it.h, ch, Ny); iy++) {
       const oy = Math.min(it.y + it.h, (iy + 1) * ch) - Math.max(it.y, iy * ch);
@@ -143,7 +144,8 @@ for (const it of items) {
       for (let ix = clampCell(it.x, cw, Nx); ix <= clampCell(it.x + it.w, cw, Nx); ix++) {
         const ox = Math.min(it.x + it.w, (ix + 1) * cw) - Math.max(it.x, ix * cw);
         if (ox <= 0) continue;
-        const k = idx(ix, iy), a = ox * oy;
+        const k = idx(ix, iy), a = it.poly ? region([ix * cw, iy * ch, (ix + 1) * cw, (iy + 1) * ch], [], it.poly).area : ox * oy;
+        if (a <= 1e-12) continue;
         dead[k] += it.dead * a; persons[k] += it.persons * a / area; claim.cells.push([k, a / cellArea]);
       }
     }

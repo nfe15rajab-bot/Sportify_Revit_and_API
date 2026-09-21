@@ -16,6 +16,7 @@ Prints the load totals, each piece's load, the utilisation of every bay against 
 - mirroring the whole layout flips the sign of the eccentricity and changes nothing else;
 - twice the capacity halves the utilisation; a layout with no grid carries the same load on an assumed one, and says so;
 - a slab put in the lightest bay adds its weight to that bay and no other;
+- an L-shaped bed weighs its own outline (5 m2 of a 3 x 3 m box), a 250 kg piece of furniture adds exactly 250 x 9.81 N in the bay it stands in and no people;
 - every recommended move or lightening, applied in order, leaves the balance and the busiest bay where its text says.
 
 Add `--json` to print the whole report instead.

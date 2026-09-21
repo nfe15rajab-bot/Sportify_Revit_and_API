@@ -20,7 +20,7 @@ if (args.Contains("--json"))
         {
             latitude = inputs.LatitudeDeg, north = inputs.NorthDeg, shadeTarget = inputs.ShadeTargetPercent, gardenMinSun = inputs.GardenMinSunHours, equipment = inputs.Equipment,
             roofLength = st.RoofLength, roofWidth = st.RoofWidth, outline = inputs.Outline, obstacles = inputs.Obstacles, drains = inputs.Drains, openings = inputs.Openings,
-            items = st.Items.Select(i => new { id = i.Id, kind = i.Kind.ToString(), name = i.Name, label = i.Label, x = i.X, y = i.Y, w = i.Width, h = i.Height, seats = i.Seats }),
+            items = st.Items.Select(i => new { id = i.Id, kind = i.Kind.ToString(), name = i.Name, label = i.Label, x = i.X, y = i.Y, w = i.Width, h = i.Height, seats = i.Seats, poly = i.Polygon != null && i.Polygon.Count >= 3 ? i.Polygon : null }),
             plants = inputs.Wind.Plants.Select(p => new { id = p.Id, form = p.Form, x = p.X, y = p.Y, height = p.HeightM, crown = p.CrownM }),
             entries = st.Entries, paths = st.Paths.Select(p => new { points = p.Points, width = p.WidthM }),
         },

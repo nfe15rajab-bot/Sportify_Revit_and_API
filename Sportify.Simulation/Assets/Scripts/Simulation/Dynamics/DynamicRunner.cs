@@ -427,7 +427,7 @@ namespace Sportify.Simulation.Dynamics
                 var spec = PercolationModel.SpecFor(zones[i].Assembly);
                 cols.Add(new SoilColumn(spec));
                 caps.Add(Math.Max(1e-6, PercolationModel.StorageAt(spec, spec.ThetaS) - PercolationModel.StorageAt(spec, spec.ThetaFc)));
-                areas.Add(zones[i].Width * zones[i].Height);
+                areas.Add(zones[i].AreaM2);
             }
             for (var iy = 0; iy < _field.Ny; iy++)
                 for (var ix = 0; ix < _field.Nx; ix++)
@@ -883,7 +883,7 @@ namespace Sportify.Simulation.Dynamics
             var markers = new List<GameObject>();
             foreach (var it in _inputs.Structure.Items)
             {
-                if (it.Kind == LoadKind.Tree) continue;
+                if (it.IsObject) continue;
                 var host = (it.Kind == LoadKind.Court || it.Kind == LoadKind.Activity) && it.Persons > 0;
                 var h = 2.0f;
                 var x0 = (float)it.X; var x1 = (float)(it.X + it.Width); var y0 = (float)it.Y; var y1 = (float)(it.Y + it.Height);

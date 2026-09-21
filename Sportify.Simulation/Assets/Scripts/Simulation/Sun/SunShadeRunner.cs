@@ -263,7 +263,7 @@ namespace Sportify.Simulation.Sun
         {
             foreach (var item in _inputs.Structure.Items)
             {
-                if (item.Kind == LoadKind.Tree) continue;
+                if (item.IsObject) continue;
                 Color color;
                 if (item.Kind == LoadKind.Court) color = SceneBuilder.SportColor((item.Label ?? "").Split(' ')[0]);
                 else if (item.Kind == LoadKind.Activity) color = SceneBuilder.ActivityColor;

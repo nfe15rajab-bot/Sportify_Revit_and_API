@@ -351,7 +351,7 @@ namespace Sportify.Simulation.Dynamics
             for (var i = 0; i < inputs.Items.Count; i++)
             {
                 var it = inputs.Items[i];
-                if (it.Kind == LoadKind.Tree || it.Persons <= 0 || it.Width <= 0 || it.Height <= 0) continue;
+                if (it.IsObject || it.Persons <= 0 || it.Width <= 0 || it.Height <= 0) continue;
                 Destinations.Add(new Destination { Item = i, Kind = it.Kind, Label = it.Label, X = it.X, Y = it.Y, Width = it.Width, Height = it.Height, Players = it.Players, Seats = it.Seats, Persons = it.Persons });
             }
             _assigned = new int[Destinations.Count];
@@ -951,8 +951,8 @@ namespace Sportify.Simulation.Dynamics
                 run.ZoneFieldCapacityKnM2[it.Id] = fcKn;
                 specs[it.Id] = spec;
                 columns[it.Id] = new SoilColumn(spec);
-                areas[it.Id] = it.Width * it.Height;
-                dryTot += dryKn * it.Width * it.Height; fcTot += fcKn * it.Width * it.Height; satTot += satKnM2 * it.Width * it.Height;
+                areas[it.Id] = it.AreaM2;
+                dryTot += dryKn * it.AreaM2; fcTot += fcKn * it.AreaM2; satTot += satKnM2 * it.AreaM2;
             }
 
             var steps = (int)(RainTotalMinutes * 60);

@@ -264,6 +264,22 @@ namespace Sportify.Simulation
         public string label;
         public BoundingBox bounding_box;
         public string assembly_key;
+
+        /// <summary>The zone's real outline (plan metres), when it is not its bounding box: a bed whose corners were moved. Absent in older exports.</summary>
+        public PointM[] points;
+    }
+
+    /// <summary>A catalogue product of site furniture (parameters.furniture). weight_kg is 0 when the catalogue has none.</summary>
+    [Serializable]
+    public class FurnitureData
+    {
+        public string key;
+        public string label;
+        public string category;
+        public float length_m;
+        public float width_m;
+        public float height_m;
+        public float weight_kg;
     }
 
     [Serializable]
@@ -272,6 +288,7 @@ namespace Sportify.Simulation
         public FieldInfo field;
         public VegetationData vegetation;
         public GardenParameters garden;
+        public FurnitureData furniture;
     }
 
     [Serializable]

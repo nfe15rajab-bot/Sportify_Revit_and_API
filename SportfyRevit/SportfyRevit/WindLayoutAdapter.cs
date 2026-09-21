@@ -29,6 +29,13 @@ namespace SportfyRevit
             return poly.Select(p => new[] { Math.Round(p.XM, 4), Math.Round(roof.WidthM - p.YM, 4) }).ToList();
         }
 
+        /// <summary>A zone's outline as the model takes it (rounded like every input, see InputQuantiser), or null for the rectangle: fewer than three points is no outline. Unity's reader does the same.</summary>
+        internal static List<double[]>? PointsOf(List<PointDto>? points)
+        {
+            if (points == null || points.Count < 3) return null;
+            return points.Select(p => new[] { InputQuantiser.Q(p.XM), InputQuantiser.Q(p.YM) }).ToList();
+        }
+
         public static WindInputs ToInputs(SportifyLayout layout)
         {
             var roof = layout.RoofContext;
@@ -82,6 +89,7 @@ namespace SportfyRevit
                     Y = bb.TopLeftYM,
                     Width = bb.WidthM,
                     Height = bb.HeightM,
+                    Points = PointsOf(z.Points),
                     Assembly = assembly ?? Unknown(z.AssemblyKey),
                 });
             }
