@@ -4,7 +4,7 @@ namespace SportfyRevit
     /// Plan-view polygon tests for the roof finish's holes, without Revit: is a hole a real polygon, is it inside the roof, does it overlap another hole. Coordinates are plain
     /// numbers in any one consistent unit (the builder passes feet); the tolerance is in the same unit. Honest about what it is: simple polygons, no clipping, the answers Revit's
     /// Floor.Create needs (it refuses a sketch whose loops cross or lie outside the boundary and names six possible causes without saying which).
-    /// Touching is allowed everywhere: a court that stands on the roof's edge, or two zones that share a side, are ordinary layouts.
+    /// Touching is allowed by these tests (a court on the roof edge, two zones that share a side, are ordinary layouts); Revit is not so lenient, so the builder insets every hole (Inset).
     /// </summary>
     internal static class PlanGeometry
     {
@@ -123,6 +123,40 @@ namespace SportfyRevit
             for (int j = 0; j < m; j++) if (StrictlyInside(a, new P((b[j].X + b[(j + 1) % m].X) / 2, (b[j].Y + b[(j + 1) % m].Y) / 2), tol)) return true;
             var ca = Centroid(a);
             return StrictlyInside(a, ca, tol) && StrictlyInside(b, ca, tol);
+        }
+
+        /// <summary>
+        /// The polygon moved inward by <paramref name="d"/> on every side (each edge offset, corners at the meeting of the offset edges), or null when it is too thin to survive that.
+        /// Revit's Floor.Create takes two holes that share an edge, or a hole that lies on the outline, as loops that intersect and refuses the whole sketch (found by the live import:
+        /// the zones and courts of a packed roof all touch). A hole a few millimetres smaller leaves a strip of finish that thin between neighbours: not visible, not measurable, valid.
+        /// </summary>
+        public static List<P>? Inset(IReadOnlyList<P> poly, double d)
+        {
+            int n = poly.Count;
+            if (n < 3) return null;
+            double sign = SignedArea(poly) >= 0 ? 1 : -1;          // counter-clockwise: the inside is to the left of each edge
+            var lines = new List<(P A, P B)>();
+            for (int i = 0; i < n; i++)
+            {
+                var a = poly[i]; var b = poly[(i + 1) % n];
+                double dx = b.X - a.X, dy = b.Y - a.Y, len = Math.Sqrt(dx * dx + dy * dy);
+                if (len <= 0) return null;
+                double nx = -dy / len * sign, ny = dx / len * sign;   // the inward normal
+                lines.Add((new P(a.X + nx * d, a.Y + ny * d), new P(b.X + nx * d, b.Y + ny * d)));
+            }
+            var result = new List<P>();
+            for (int i = 0; i < n; i++)
+            {
+                var (a1, a2) = lines[(i + n - 1) % n];
+                var (b1, b2) = lines[i];
+                double r = (a2.X - a1.X) * (b2.Y - b1.Y) - (a2.Y - a1.Y) * (b2.X - b1.X);
+                if (Math.Abs(r) < 1e-12) { result.Add(b1); continue; }               // parallel: the offset edge's own end
+                double t = ((b1.X - a1.X) * (b2.Y - b1.Y) - (b1.Y - a1.Y) * (b2.X - b1.X)) / r;
+                result.Add(new P(a1.X + t * (a2.X - a1.X), a1.Y + t * (a2.Y - a1.Y)));
+            }
+            // it must still be a polygon of the same turning and a smaller, positive area
+            if (Math.Sign(SignedArea(result)) != Math.Sign(SignedArea(poly)) || Area(result) >= Area(poly) || Area(result) <= 0) return null;
+            return IsSimple(result, d / 10) ? result : null;
         }
 
         public static P Centroid(IReadOnlyList<P> poly) => new(poly.Average(p => p.X), poly.Average(p => p.Y));

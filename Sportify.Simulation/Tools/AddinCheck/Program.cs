@@ -376,6 +376,20 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("a repeated point, and a closing point equal to the first, are dropped", dupes.Count == 4);
     Check("a point on the boundary is inside-or-on, not strictly inside", PlanGeometry.InsideOrOn(roof, P(0, 10), tol) && !PlanGeometry.StrictlyInside(roof, P(0, 10), tol) && PlanGeometry.StrictlyInside(roof, P(20, 10), tol) && !PlanGeometry.InsideOrOn(roof, P(41, 10), tol));
 
+    // Revit refuses a sketch whose loops touch (the live import: every zone and court of a packed roof shares an edge): each hole is drawn a few millimetres smaller
+    var innerRect = PlanGeometry.Inset(Rect(10, 5, 20, 15), 0.1)!;
+    Check("a rectangle inset by 0.1 is 0.1 smaller on every side (9.8 x 9.8)", innerRect != null && Math.Abs(PlanGeometry.Area(innerRect) - 9.8 * 9.8) < 1e-9 && innerRect.Min(q => q.X) > 10.099 && innerRect.Max(q => q.X) < 19.901 && innerRect.Min(q => q.Y) > 5.099 && innerRect.Max(q => q.Y) < 14.901);
+    var cw = new List<PlanGeometry.P>(Rect(0, 0, 10, 10)); cw.Reverse();
+    Check("the turning of the polygon does not matter (clockwise gives the same)", Math.Abs(PlanGeometry.Area(PlanGeometry.Inset(cw, 0.1)!) - 9.8 * 9.8) < 1e-9);
+    var lInset = PlanGeometry.Inset(lZone, 0.05);
+    Check("an L-shaped bed inset keeps its shape: smaller, still simple, still inside its own outline", lInset != null && lInset.Count == 6 && PlanGeometry.Area(lInset) < 64 && PlanGeometry.Area(lInset) > 62 && PlanGeometry.IsSimple(lInset, 1e-6) && lInset.All(q => PlanGeometry.StrictlyInside(lZone, q, 1e-6)));
+    Check("a sliver thinner than the inset is not a hole (null), not a bow-tie", PlanGeometry.Inset(Rect(0, 0, 10, 0.15), 0.1) == null);
+    var left = PlanGeometry.Inset(Rect(0, 0, 5, 5), 0.005)!; var right = PlanGeometry.Inset(Rect(5, 0, 10, 5), 0.005)!;
+    Check("two zones that share a side end up 1 cm apart: they no longer touch, and are not overlapping", left.Max(q => q.X) < 4.9951 && right.Min(q => q.X) > 5.0049 && !PlanGeometry.Overlap(left, right, 1e-6));
+    var onEdge = PlanGeometry.Inset(Rect(0, 0, 10, 5), 0.005)!;
+    Check("a hole on the roof's outline ends up strictly inside it (5 mm from the edge), so the loops do not touch", onEdge.All(q => PlanGeometry.StrictlyInside(roof, q, 1e-6)) && PlanGeometry.HoleInside(roof, onEdge, 1e-3));
+    Check("a triangle inset stays a triangle of smaller area", PlanGeometry.Inset(triangle, 0.05) is { Count: 3 } tri && PlanGeometry.Area(tri) < 35 && PlanGeometry.Area(tri) > 33);
+
     Console.WriteLine("\n===== the shapes of furniture families =====");
     bool Inside(ShapePart q, double l, double w, double h) => q.X0 >= -l / 2 - 1e-9 && q.X1 <= l / 2 + 1e-9 && q.Y0 >= -w / 2 - 1e-9 && q.Y1 <= w / 2 + 1e-9 && q.Z0 >= -1e-9 && q.Z1 <= h + 1e-9 && q.X1 > q.X0 && q.Y1 > q.Y0 && q.Z1 > q.Z0;
     foreach (var (cat, l, w, h) in new[] { ("bench", 1.8, 0.7, 0.8), ("table", 1.6, 0.8, 0.75), ("bin", 0.4, 0.4, 0.9), ("bollard", 0.15, 0.15, 1.0), ("light", 0.3, 0.3, 3.5), ("planter", 1.0, 0.5, 0.6), ("bench", 0.4, 0.3, 0.5) })

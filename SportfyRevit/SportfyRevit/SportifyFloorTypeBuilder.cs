@@ -464,11 +464,17 @@ namespace SportfyRevit
                 }
 
                 var placed = new List<List<PlanGeometry.P>>();
+                // Revit refuses a sketch whose loops touch: zones and courts of a packed roof share edges, and a zone along the roof's edge lies on the outline. Each hole is drawn
+                // 5 mm smaller than it is (a strip of finish that thin between neighbours), so that none touches another or the outline.
+                double insetFt = SportifyLayoutBuilder.FeetFromMeters(0.005);
                 foreach (var (what, raw) in holes)
                 {
                     var poly = PlanGeometry.Clean(raw, tol);
                     if (poly.Count < 3 || PlanGeometry.Area(poly) < tol * tol * 4) { rejected.Add($"{what} has no area"); continue; }
                     if (!PlanGeometry.IsSimple(poly, tol)) { rejected.Add($"{what} crosses itself"); continue; }
+                    var inset = PlanGeometry.Inset(poly, insetFt);
+                    if (inset == null) { rejected.Add($"{what} is too thin to cut a hole for"); continue; }
+                    poly = inset;
                     // Fully inside, or the sketch is invalid — an opening that pokes through the edge is not a hole, it is a notch, and Revit will not take it as either.
                     if (!PlanGeometry.HoleInside(outline, poly, tol)) { rejected.Add($"{what} is not fully inside the roof"); continue; }
                     if (placed.Any(other => PlanGeometry.Overlap(poly, other, tol))) { rejected.Add($"{what} overlaps another opening"); continue; }
