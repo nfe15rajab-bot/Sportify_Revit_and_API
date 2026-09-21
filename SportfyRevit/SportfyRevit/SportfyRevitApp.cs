@@ -98,6 +98,23 @@ namespace SportfyRevit
                 application.Idling += RunNext;
             }
 
+            // SPORTIFY_INSPECT_TEMPLATES=<template files separated by ;> writes what each one contains (TemplateInspector) as JSON into SPORTIFY_INSPECT_OUT (default
+            // %APPDATA%\Sportify	emplate-inspection), once, at the first idle moment: how the Sportify templates are adapted from Revit's own is decided from these files.
+            var inspectList = Environment.GetEnvironmentVariable("SPORTIFY_INSPECT_TEMPLATES");
+            if (!string.IsNullOrWhiteSpace(inspectList))
+            {
+                void InspectOnce(object? sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
+                {
+                    application.Idling -= InspectOnce;
+                    if (sender is not UIApplication uiApp) return;
+                    var outDir = Environment.GetEnvironmentVariable("SPORTIFY_INSPECT_OUT");
+                    if (string.IsNullOrWhiteSpace(outDir)) outDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sportify", "template-inspection");
+                    var written = TemplateInspector.InspectFiles(uiApp, inspectList.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), outDir);
+                    SportifyLog.Info("templates", "SPORTIFY_INSPECT_TEMPLATES: " + written.Count + " file(s) written to " + outDir);
+                }
+                application.Idling += InspectOnce;
+            }
+
             // Auto-opens the docked Sportify pane the first time Revit goes
             // idle after startup, so a freshly-installed add-in shows the web
             // app immediately instead of waiting for someone to find the
