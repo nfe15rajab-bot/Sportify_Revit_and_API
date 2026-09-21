@@ -192,9 +192,29 @@ namespace SportfyRevit
                                   "selected, a partial push uses the roof pushed last, and Everything asks you to pick one.",
             });
 
+            // one icon per item (RibbonIconData, the "push" group)
+            var icons = new Dictionary<string, string>
+            {
+                ["PushRoofBoundary"] = "push_all", ["PushRoofOutline"] = "push_outline", ["PushRoofStructure"] = "push_structure", ["PushRoofEntries"] = "push_entries",
+                ["PushRoofOpenings"] = "push_openings", ["PushRoofEdge"] = "push_edge", ["PushRoofDrains"] = "push_drains", ["PushRoofEquipment"] = "push_equipment",
+                ["PushRoofSlabLevels"] = "push_slab",
+            };
+            var menuLarge = RibbonIcons.Large("push");
+            var menuSmall = RibbonIcons.Small("push");
+            if (menuLarge != null) menu.LargeImage = menuLarge;
+            if (menuSmall != null) menu.Image = menuSmall;
+
             void Item(string name, string text, Type command, string tip)
             {
-                menu.AddPushButton(new PushButtonData(name, text, typeof(SportfyRevitApp).Assembly.Location, command.FullName) { ToolTip = tip });
+                var data = new PushButtonData(name, text, typeof(SportfyRevitApp).Assembly.Location, command.FullName) { ToolTip = tip };
+                if (icons.TryGetValue(name, out var icon))
+                {
+                    var small = RibbonIcons.Small(icon);
+                    var large = RibbonIcons.Large(icon);
+                    if (small != null) data.Image = small;
+                    if (large != null) data.LargeImage = large;
+                }
+                menu.AddPushButton(data);
             }
 
             Item("PushRoofBoundary", "Everything", typeof(PushRoofBoundaryCommand),
@@ -287,19 +307,19 @@ namespace SportfyRevit
 
         private static string Tooltip(string text) => text.Replace("{APP_URL}", SportifyBrowserPane.DefaultUrl);
 
-        /// <summary>The id Revit gives a ribbon command of this add-in (what PostCommand takes), found by the button's internal name, or null.</summary>
+        /// <summary>
+        /// The id Revit gives a ribbon command of this add-in (what PostCommand takes), found by the button's internal name, or null. A button on a panel is
+        /// CustomCtrl_%CustomCtrl_%Tab%Panel%Button; one inside a drop-down has one more level: CustomCtrl_%CustomCtrl_%CustomCtrl_%Tab%Panel%Dropdown%Button.
+        /// </summary>
         internal static RevitCommandId? CommandIdFor(string internalName)
         {
             foreach (var panel in RibbonLayout.Panels)
                 foreach (var entry in panel.Entries)
                 {
-                    string? path = entry switch
-                    {
-                        RibbonButtonSpec b when b.InternalName == internalName => b.InternalName,
-                        RibbonPulldownSpec p when p.Items.Any(i => i.InternalName == internalName) => p.InternalName + "%" + internalName,
-                        _ => null,
-                    };
-                    if (path != null) return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%" + TabName + "%" + panel.Name + "%" + path);
+                    if (entry is RibbonButtonSpec b && b.InternalName == internalName)
+                        return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%" + TabName + "%" + panel.Name + "%" + b.InternalName);
+                    if (entry is RibbonPulldownSpec p && p.Items.Any(i => i.InternalName == internalName))
+                        return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%CustomCtrl_%" + TabName + "%" + panel.Name + "%" + p.InternalName + "%" + internalName);
                 }
             return null;
         }

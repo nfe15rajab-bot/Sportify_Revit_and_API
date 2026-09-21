@@ -64,6 +64,21 @@ namespace SportfyRevit
 
         public static int ZonePaletteSize => ZonePalette.Length;
 
+        public const string ViewMarker = " - Sportify ";
+
+        /// <summary>
+        /// The name of the duplicate view that carries one group of Sportify filters: "Level 1" and "Zone Types" give "Level 1 - Sportify Zone Types". If the source is already one of these
+        /// duplicates ("Level 1 - Sportify Piece Kinds") the marker and what follows are dropped first, so duplicates are never chained ("Level 1 - Sportify Piece Kinds - Sportify Zone Types").
+        /// Revit does not accept { } [ ] | ; &lt; &gt; ? ` ~ in a view name, and the default 3D view is called "{3D}": the name loses them ("3D - Sportify Zone Types").
+        /// </summary>
+        public static string SportifyViewName(string sourceName, string group)
+        {
+            var root = sourceName;
+            var at = root.IndexOf(ViewMarker, StringComparison.Ordinal);
+            if (at > 0) root = root.Substring(0, at);
+            return SafeName(root) + ViewMarker + group;
+        }
+
         /// <summary>A name for a filter or schedule that Revit accepts (no { } [ ] | ; &lt; &gt; ? ` ~ \ : characters) and that stays readable.</summary>
         public static string SafeName(string name)
         {

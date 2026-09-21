@@ -138,7 +138,9 @@ namespace SportfyRevit
             // gain from caching them anyway.
             ctx.Response.Headers.Add("Cache-Control", "no-store, must-revalidate");
             ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
-            ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
+            // Only the origin (http://localhost:8123/), never the page's address, goes to another site: enough for what the app has to be recognised by. "no-referrer" broke the map:
+            // OpenStreetMap's tile servers (and Nominatim, the address search) refuse a request that says nothing about where it comes from ("Access blocked ... tile usage policy").
+            ctx.Response.Headers.Add("Referrer-Policy", "strict-origin-when-cross-origin");
             // The page's own policy (index.html's <meta>) limits what it loads; the two things a <meta> cannot say are said here: no other site may frame the app.
             ctx.Response.Headers.Add("Content-Security-Policy", "frame-ancestors 'none'");
             ctx.Response.Headers.Add("X-Frame-Options", "DENY");

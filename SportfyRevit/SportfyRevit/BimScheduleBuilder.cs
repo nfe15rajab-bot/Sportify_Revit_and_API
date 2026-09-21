@@ -120,6 +120,19 @@ namespace SportfyRevit
             return schedule;
         }
 
+        /// <summary>What a generated schedule holds, for the message to the user and the log: "name: 5 fields, 7 rows". Call after the transaction that made it.</summary>
+        public static string Describe(Document doc, string name)
+        {
+            var schedule = new FilteredElementCollector(doc).OfClass(typeof(ViewSchedule)).Cast<ViewSchedule>().FirstOrDefault(v => v.Name == name);
+            if (schedule == null) return name;
+            try
+            {
+                var rows = schedule.GetTableData().GetSectionData(SectionType.Body).NumberOfRows;
+                return $"{name}: {schedule.Definition.GetFieldCount()} fields, {rows} row(s)";
+            }
+            catch (Exception) { return name; }
+        }
+
         // ---------------------------------------------------------------- helpers
 
         /// <summary>Deletes a schedule of ours that already exists. False when Revit will not (it is open in the active view): then it is left as it is and said so.</summary>

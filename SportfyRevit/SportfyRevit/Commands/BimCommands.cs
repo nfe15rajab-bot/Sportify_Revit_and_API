@@ -37,7 +37,9 @@ namespace SportfyRevit
                     return Result.Succeeded;
                 }
 
-                var text = "Sportify: Equipment and Roof Takeoff schedules generated successfully.\n\n" + string.Join("\n", result.Created.Select(n => "• " + n));
+                var described = result.Created.Select(n => BimScheduleBuilder.Describe(doc, n)).ToList();
+                SportifyLog.Info("bim", "schedules made: " + string.Join("; ", described));
+                var text = "Sportify: Equipment and Roof Takeoff schedules generated successfully.\n\n" + string.Join("\n", described.Select(n => "• " + n));
                 if (result.Notes.Count > 0) text += "\n\nNote:\n" + string.Join("\n", result.Notes);
                 TaskDialog.Show(title, text);
                 return Result.Succeeded;
@@ -49,7 +51,7 @@ namespace SportfyRevit
         }
     }
 
-    /// <summary>Colour filters (zone types, kinds of piece) on the active view.</summary>
+    /// <summary>Colour filters (zone types, kinds of piece) on duplicates of the active view: the view itself stays as it is.</summary>
     [Transaction(TransactionMode.Manual)]
     public class ApplyViewFiltersCommand : IExternalCommand
     {
@@ -70,8 +72,10 @@ namespace SportfyRevit
                 }
 
                 var head = result.OnView > 0
-                    ? $"Sportify view filters applied to \"{result.ViewName}\": {result.OnView} filter(s) on the view ({result.Created} new, {result.Updated} updated)."
-                    : $"No Sportify view filter was applied to \"{result.ViewName}\".";
+                    ? $"Sportify view filters: {result.OnView} filter(s) put on {result.Views.Count} duplicate view(s) of \"{result.ViewName}\" ({result.Created} new filters, {result.Updated} updated):\n"
+                      + string.Join("\n", result.Views.Select(v => "• " + v))
+                      + $"\n\nThey are in the Project Browser next to the view; \"{result.ViewName}\" itself was not changed."
+                    : $"No Sportify view filter was applied (from \"{result.ViewName}\").";
                 TaskDialog.Show(title, head + (result.Notes.Count > 0 ? "\n\n" + string.Join("\n", result.Notes) : ""));
                 return Result.Succeeded;
             }
@@ -167,14 +171,27 @@ namespace SportfyRevit
                 var doc = commandData.Application.ActiveUIDocument?.Document;
                 if (doc == null) { TaskDialog.Show(title, "Open a Revit project first."); return Result.Cancelled; }
 
-                if (!doc.IsWorkshared)
-                {
-                    TaskDialog.Show(title, "This project is not workshared, so it has no worksets to organize.\n\nTurn on worksharing (Collaborate > Worksets) or import a layout again and answer yes to \"Put Sportify's geometry on worksets?\", then run this again.");
-                    return Result.Cancelled;
-                }
-
                 var found = SportifyElementScan.Find(doc);
                 if (found.IsEmpty) { TaskDialog.Show(title, "This project holds nothing from Sportify yet: import a layout first."); return Result.Succeeded; }
+
+                // Worksets need worksharing, which cannot be turned off again: so it is asked, every time, and only this command's own answer counts (the import's is another question).
+                if (!doc.IsWorkshared)
+                {
+                    var ask = new TaskDialog(title)
+                    {
+                        MainInstruction = "Turn worksharing on to put Sportify on worksets?",
+                        MainContent = $"This project is not workshared, so it has no worksets. Worksharing makes it a central-model project (it has to be saved as one) and cannot be turned off again.\n\n" +
+                                      $"The {found.Elements.Count} Sportify element(s) would go on the worksets Sports (courts, activities, furniture), Gardens (planting and ground) and Combine (roof outline, paths, entries).",
+                        CommonButtons = TaskDialogCommonButtons.Cancel,
+                    };
+                    ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Turn worksharing on and organize Sportify on worksets", "Cannot be undone.");
+                    ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Leave the project as it is", "Nothing changes.");
+                    ask.DefaultButton = TaskDialogResult.CommandLink2;       // after the links exist: Revit throws otherwise
+                    if (ask.Show() != TaskDialogResult.CommandLink1) return Result.Cancelled;
+
+                    doc.EnableWorksharing("Shared Levels and Grids", "Workset1");     // outside any transaction: Revit refuses it inside one
+                    SportifyLog.Info("worksharing", "worksharing enabled by Organize Multi-Worksets, with the person's consent");
+                }
 
                 var moved = new Dictionary<string, int>();
                 int already = 0, without = 0, others = 0, refused = 0;

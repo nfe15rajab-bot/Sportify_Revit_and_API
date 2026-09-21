@@ -896,6 +896,48 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var kinds = new[] { "field", "activity", "garden", "vegetation", "furniture" }.Select(BimRules.ColorForCategory).Distinct().Count();
     Check("each kind of piece has its own colour, and an unknown one a grey", kinds == 5 && BimRules.ColorForCategory("nothing") == (150, 150, 150) && BimRules.ColorForCategory(null) == (150, 150, 150));
     Check("filter and schedule names lose the characters Revit refuses, and keep the words", BimRules.SafeName("Sportify Zone - Bauder {extensive}: 69|mm") == "Sportify Zone - Bauder extensive 69 mm");
+    // the icons as logos: every one has a group colour, an outline and (mostly) a tint that are well formed, and each panel's icons are in the panel's own colour
+    Check("every icon belongs to a known colour group and has a well-formed outline", RibbonIconData.Icons.All(kv => RibbonIconData.GroupColors.ContainsKey(kv.Value.Group) && Malformed(kv.Value.Stroke) == null),
+          string.Join("; ", RibbonIconData.Icons.Where(kv => !RibbonIconData.GroupColors.ContainsKey(kv.Value.Group) || Malformed(kv.Value.Stroke) != null).Select(kv => kv.Key)));
+    var badFill = RibbonIconData.Icons.Where(kv => kv.Value.Fill != null && Malformed(kv.Value.Fill) != null).Select(kv => kv.Key + ": " + Malformed(kv.Value.Fill!)).ToList();
+    Check($"...and the tint shapes ({RibbonIconData.Icons.Count(kv => kv.Value.Fill != null)} of {RibbonIconData.Icons.Count} icons have one) are well formed too", badFill.Count == 0, string.Join("; ", badFill));
+    Check("the five colour groups are five different colours", RibbonIconData.GroupColors.Values.Distinct().Count() == 5 && RibbonIconData.GroupColors.Count == 5);
+    var panelGroup = new Dictionary<string, string> { ["App & Data Import"] = "setup", ["Algorithmic Analysis"] = "algorithmic", ["Simulation & Analytics"] = "physical", ["BIM & Documentation"] = "bim", ["Data Export / Deliverables"] = "export" };
+    var offColour = new List<string>();
+    foreach (var pn in panels)
+        foreach (var e in pn.Entries)
+        {
+            var named = e switch { RibbonButtonSpec b => new[] { b.Icon }, RibbonPulldownSpec pd => pd.Items.Select(i => i.Icon).Append(pd.Icon).ToArray(), _ => Array.Empty<string>() };
+            foreach (var icon in named)
+                if (RibbonIconData.Icons.TryGetValue(icon, out var spec) && spec.Group != panelGroup[pn.Name]) offColour.Add(pn.Name + ": " + icon + " is " + spec.Group);
+        }
+    Check("every icon on a panel is in that panel's colour (setup slate, algorithmic blue, physical teal, BIM amber, export violet)", offColour.Count == 0, string.Join("; ", offColour));
+    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First().Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
+
+    // Push to Sportify: the drop-down and each of its nine items have an icon that exists
+    var pushMap = System.Text.RegularExpressions.Regex.Matches(appSource, @"\[""(?<item>Push\w+)""\]\s*=\s*""(?<icon>\w+)""").Select(m => (Item: m.Groups["item"].Value, Icon: m.Groups["icon"].Value)).ToList();
+    var pushItems = System.Text.RegularExpressions.Regex.Matches(appSource, @"Item\(""(?<name>Push\w+)"",").Select(m => m.Groups["name"].Value).Distinct().ToList();
+    Check("every item of the Push to Sportify menu (" + pushItems.Count + ") has its own icon, and the icons exist", pushItems.Count == 9 && pushItems.All(n => pushMap.Any(x => x.Item == n)) && pushMap.All(x => RibbonIconData.Icons.ContainsKey(x.Icon)) && pushMap.Select(x => x.Icon).Distinct().Count() == pushMap.Count,
+          string.Join(", ", pushItems.Where(n => !pushMap.Any(x => x.Item == n))));
+    Check("...and the menu itself has the \"push\" icon", appSource.Contains("RibbonIcons.Large(\"push\")") && RibbonIconData.Icons.ContainsKey("push"));
+
+    // the duplicate views that carry the filters
+    Check("a duplicate view is named after the view it was made from: \"Level 1\" -> \"Level 1 - Sportify Zone Types\"", BimRules.SportifyViewName("Level 1", "Zone Types") == "Level 1 - Sportify Zone Types");
+    Check("...never chained: a duplicate of a duplicate gets the same name as a duplicate of the original", BimRules.SportifyViewName("Level 1 - Sportify Piece Kinds", "Zone Types") == "Level 1 - Sportify Zone Types");
+    Check("...and loses the characters Revit refuses in a view name (the default 3D view is \"{3D}\")", BimRules.SportifyViewName("{3D}", "Piece Kinds") == "3D - Sportify Piece Kinds");
+    Check("Apply View Filters makes duplicates and leaves the view alone (ViewFilterManager duplicates, then filters the duplicate)", allSources.Any(kv => kv.Key.EndsWith("ViewFilterManager.cs") && kv.Value.Contains("source.Duplicate(") && kv.Value.Contains("var target = duplicate ? DuplicateFor(doc, view, group, notes) : view;")));
+    // the pane's map: OpenStreetMap refuses tiles (and Nominatim searches) from a request with no Referer, so the add-in's web server must not send "no-referrer"
+    var webServer = allSources.FirstOrDefault(kv => kv.Key.EndsWith("StaticWebServer.cs")).Value ?? "";
+    Check("the add-in's web server lets the origin go to other sites (strict-origin-when-cross-origin), so OpenStreetMap's tiles and address search accept the app; never no-referrer",
+          webServer.Contains("\"Referrer-Policy\", \"strict-origin-when-cross-origin\"") && !webServer.Contains("\"Referrer-Policy\", \"no-referrer\""));
+    // Functional Diagrams and the report do not need worksets: what there is to draw is decided by what the import created
+    var diagrams = allSources.FirstOrDefault(kv => kv.Key.EndsWith("GenerateFunctionalDiagramsCommand.cs")).Value ?? "";
+    Check("Functional Diagrams works without worksets: it asks the import's ledger, not doc.IsWorkshared, and hides the non-Combine elements one by one when there are no worksets",
+          diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("if (!doc.IsWorkshared)") && diagrams.Contains("HideAllButCombine(doc, view)"));
+    Check("Organize Multi-Worksets asks before turning worksharing on (a choice with a default of leaving the project alone) instead of only refusing",
+          bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
+    Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
+
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
