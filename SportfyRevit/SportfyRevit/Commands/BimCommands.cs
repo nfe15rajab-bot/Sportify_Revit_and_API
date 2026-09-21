@@ -175,6 +175,13 @@ namespace SportfyRevit
                 if (found.IsEmpty) { TaskDialog.Show(title, "This project holds nothing from Sportify yet: import a layout first."); return Result.Succeeded; }
 
                 // Worksets need worksharing, which cannot be turned off again: so it is asked, every time, and only this command's own answer counts (the import's is another question).
+                if (!doc.IsWorkshared && !doc.CanEnableWorksharing())
+                {
+                    SportifyLog.Info("worksharing", "Organize Multi-Worksets: Revit does not allow worksharing in \"" + doc.Title + "\" (" + (string.IsNullOrEmpty(doc.PathName) ? "not saved" : doc.PathName) + ", read-only: " + doc.IsReadOnly + ")");
+                    TaskDialog.Show(title, "Revit does not allow worksharing to be turned on in this document, so there are no worksets to organize.\n\n" +
+                                           "This happens when the document is a template file (.rte) opened as itself, or is read-only or not a saved project. Save the project as an .rvt (File > Save As > Project), open that, and run this again.");
+                    return Result.Cancelled;
+                }
                 if (!doc.IsWorkshared)
                 {
                     var ask = new TaskDialog(title)

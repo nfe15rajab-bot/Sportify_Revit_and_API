@@ -936,6 +936,8 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("if (!doc.IsWorkshared)") && diagrams.Contains("HideAllButCombine(doc, view)"));
     Check("Organize Multi-Worksets asks before turning worksharing on (a choice with a default of leaving the project alone) instead of only refusing",
           bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
+    Check("worksharing is only offered where Revit allows it (Document.CanEnableWorksharing): by Organize Multi-Worksets and by the import's question, so a template file or read-only document gets an explanation, not an exception",
+          bimSource.Contains("!doc.IsWorkshared && !doc.CanEnableWorksharing()") && allSources.Any(kv => kv.Key.EndsWith("WorksharingConsent.cs") && kv.Value.Contains("!doc.CanEnableWorksharing()")));
     Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
 
 }

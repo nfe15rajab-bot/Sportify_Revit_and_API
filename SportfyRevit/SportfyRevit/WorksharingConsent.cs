@@ -31,6 +31,13 @@ namespace SportfyRevit
             if (doc.IsWorkshared) return WorksharingChoice.AlreadyWorkshared;
             var key = KeyOf(doc);
             if (Remembered.TryGetValue(key, out var earlier)) return earlier;
+            // Revit refuses to enable worksharing in some documents (a template file opened as itself, a document that is not a saved project ...): then there is nothing to ask,
+            // and offering "Turn worksharing on" would only end in "The document does not allow worksharing to be enabled" (found live).
+            if (!doc.CanEnableWorksharing())
+            {
+                SportifyLog.Info("worksharing", "project \"" + doc.Title + "\" is not workshared and Revit does not allow worksharing to be enabled in it (" + (string.IsNullOrEmpty(doc.PathName) ? "not saved" : doc.PathName) + "): importing without worksets");
+                return WorksharingChoice.NoWorksets;
+            }
             if (!interactive) return WorksharingChoice.NoWorksets;
 
             var ask = new TaskDialog("Sportify")
