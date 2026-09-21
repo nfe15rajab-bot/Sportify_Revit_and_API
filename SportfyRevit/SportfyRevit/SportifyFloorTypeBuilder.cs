@@ -397,7 +397,8 @@ namespace SportfyRevit
         /// </summary>
         public static Floor? CreateRoofFinish(Document doc, FloorType floorType,
             IList<XYZ> boundaryFt, IEnumerable<OpeningDto> openings,
-            double originXFt, double originYFt, double elevationFt, out string? failure)
+            double originXFt, double originYFt, double elevationFt, out string? failure,
+            IEnumerable<RoofOpeningDto>? revitOpenings = null)
         {
             failure = null;
             try
@@ -438,44 +439,51 @@ namespace SportfyRevit
                 // Revit rejects the whole sketch if any opening crosses the
                 // boundary or another opening, and the exception names six
                 // possible causes without saying which. So each one is checked
-                // before it goes in, and the ones that cannot work are named.
-                var placed = new List<(double X0, double Y0, double X1, double Y1)>();
+                // before it goes in (PlanGeometry), and the ones that cannot work are named.
+                //
+                // The holes: every zone and court the web app placed (a rectangle, or the zone's real polygon when it has one), and the openings the Revit model
+                // already has in the roof (roof_context.features.openings: skylights, shafts, rooflights). The finish is a floor laid over the roof, so without those it would
+                // cover them; with them it has the same holes the slab has. Same plan coordinates as the pieces, so the same flip.
+                var outline = boundaryFt.Select(q => new PlanGeometry.P(q.X, q.Y)).ToList();
+                double tol = doc.Application.ShortCurveTolerance;
+                var holes = new List<(string What, List<PlanGeometry.P> Poly)>();
                 var rejected = new List<string>();
+
+                PlanGeometry.P World(double xM, double yM) => new(originXFt + SportifyLayoutBuilder.FeetFromMeters(xM), SportifyLayoutBuilder.WorldYFt(originYFt, yM));
 
                 foreach (var o in openings ?? Enumerable.Empty<OpeningDto>())
                 {
-                    double x0 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM);
-                    double x1 = originXFt + SportifyLayoutBuilder.FeetFromMeters(o.XM + o.LengthM);
-                    double y0 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM + o.WidthM);
-                    double y1 = SportifyLayoutBuilder.WorldYFt(originYFt, o.YM);
-                    double ax0 = Math.Min(x0, x1), ax1 = Math.Max(x0, x1);
-                    double ay0 = Math.Min(y0, y1), ay1 = Math.Max(y0, y1);
                     string what = $"{o.Source ?? "opening"} {o.Id ?? ""}".Trim();
+                    if (o.Points != null && o.Points.Count >= 3) holes.Add((what, o.Points.Select(q => World(q.XM, q.YM)).ToList()));
+                    else holes.Add((what, new List<PlanGeometry.P> { World(o.XM, o.YM), World(o.XM + o.LengthM, o.YM), World(o.XM + o.LengthM, o.YM + o.WidthM), World(o.XM, o.YM + o.WidthM) }));
+                }
+                foreach (var r in revitOpenings ?? Enumerable.Empty<RoofOpeningDto>())
+                {
+                    if (r.PolygonM == null || r.PolygonM.Count < 3) { rejected.Add($"Revit opening {r.Id} has no outline"); continue; }
+                    holes.Add(($"Revit opening {r.Id}".Trim(), r.PolygonM.Select(q => World(q.XM, q.YM)).ToList()));
+                }
 
-                    if (ax1 - ax0 < doc.Application.ShortCurveTolerance ||
-                        ay1 - ay0 < doc.Application.ShortCurveTolerance)
-                    { rejected.Add($"{what} has no area"); continue; }
-
-                    // Fully inside, or the sketch is invalid — an opening that
-                    // pokes through the edge is not a hole, it is a notch, and
-                    // Revit will not take it as either.
-                    if (!RectInsidePolygon(boundaryFt, ax0, ay0, ax1, ay1))
-                    { rejected.Add($"{what} is not fully inside the roof"); continue; }
-
-                    var clash = placed.FirstOrDefault(r => ax0 < r.X1 && ax1 > r.X0 && ay0 < r.Y1 && ay1 > r.Y0);
-                    if (clash != default)
-                    { rejected.Add($"{what} overlaps another opening"); continue; }
+                var placed = new List<List<PlanGeometry.P>>();
+                foreach (var (what, raw) in holes)
+                {
+                    var poly = PlanGeometry.Clean(raw, tol);
+                    if (poly.Count < 3 || PlanGeometry.Area(poly) < tol * tol * 4) { rejected.Add($"{what} has no area"); continue; }
+                    if (!PlanGeometry.IsSimple(poly, tol)) { rejected.Add($"{what} crosses itself"); continue; }
+                    // Fully inside, or the sketch is invalid — an opening that pokes through the edge is not a hole, it is a notch, and Revit will not take it as either.
+                    if (!PlanGeometry.HoleInside(outline, poly, tol)) { rejected.Add($"{what} is not fully inside the roof"); continue; }
+                    if (placed.Any(other => PlanGeometry.Overlap(poly, other, tol))) { rejected.Add($"{what} overlaps another opening"); continue; }
 
                     try
                     {
-                        loops.Add(CurveLoop.Create(new List<Curve>
+                        var curves = new List<Curve>();
+                        for (int i = 0; i < poly.Count; i++)
                         {
-                            Line.CreateBound(Model(ax0, ay0), Model(ax1, ay0)),
-                            Line.CreateBound(Model(ax1, ay0), Model(ax1, ay1)),
-                            Line.CreateBound(Model(ax1, ay1), Model(ax0, ay1)),
-                            Line.CreateBound(Model(ax0, ay1), Model(ax0, ay0)),
-                        }));
-                        placed.Add((ax0, ay0, ax1, ay1));
+                            var p0 = Model(poly[i].X, poly[i].Y);
+                            var p1 = Model(poly[(i + 1) % poly.Count].X, poly[(i + 1) % poly.Count].Y);
+                            if (p0.DistanceTo(p1) > tol) curves.Add(Line.CreateBound(p0, p1));
+                        }
+                        loops.Add(CurveLoop.Create(curves));
+                        placed.Add(poly);
                     }
                     catch (Exception ex) { rejected.Add($"{what}: {ex.Message}"); }
                 }

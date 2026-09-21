@@ -221,9 +221,11 @@ namespace SportfyRevit
                 .Select(p => new XYZ(originXFt + FeetFromMeters(p.XM), originYFt + FeetFromMeters(p.YM), 0))
                 .ToList();
 
+            // The holes are the web app's zones and courts and the openings the Revit model already has in the roof (roof_context.features.openings).
+            var revitOpenings = layout.RoofContext?.Features?.Openings ?? new List<RoofOpeningDto>();
             var floor = SportifyFloorTypeBuilder.CreateRoofFinish(
-                doc, floorType, pts, finish.Openings ?? new List<OpeningDto>(),
-                originXFt, originYFt, CurrentOriginZFt, out var failure);
+                doc, floorType, pts, (finish.Openings ?? new List<OpeningDto>()).Where(o => o.Source != "revit_opening"),
+                originXFt, originYFt, CurrentOriginZFt, out var failure, revitOpenings);
 
             if (floor == null)
             {
@@ -232,10 +234,22 @@ namespace SportfyRevit
             }
             SetWorkset(floor, worksetId);
             createdIds.Add(floor.Id);
+            // The area Revit computes for the floor with its holes is the honest one: the web app's figure (finish.NetAreaM2) is roof less zones and pieces (and less Revit's openings,
+            // in a current export), before any hole was refused.
+            double areaM2 = finish.NetAreaM2;
+            try
+            {
+                var computed = floor.get_Parameter(BuiltInParameter.HOST_AREA_COMPUTED)?.AsDouble();
+                if (computed is > 0) areaM2 = UnitUtils.ConvertFromInternalUnits(computed.Value, UnitTypeId.SquareMeters);
+            }
+            catch (Exception) { /* the export's figure stands */ }
+            int revitHoles = revitOpenings.Count;
             ImportDiagnostics.FloorCreated(
-                $"Roof finish ({(finish.Openings?.Count ?? 0)} opening(s)"
+                $"Roof finish ({(finish.Openings?.Count ?? 0)} opening(s) from the layout, {revitHoles} from the Revit model"
                     + (failure != null ? $"; {failure}" : "") + ")",
-                floorType.Name, finish.NetAreaM2);
+                floorType.Name, areaM2);
+            if (Math.Abs(areaM2 - finish.NetAreaM2) > Math.Max(1.0, finish.NetAreaM2 * 0.02))
+                ImportDiagnostics.Note($"the roof finish measures {areaM2:0.#} m2 in Revit (with its holes); the web app's figure was {finish.NetAreaM2:0.#} m2");
         }
 
         private static int CreateZoneFloors(Document doc, SportifyLayout layout,

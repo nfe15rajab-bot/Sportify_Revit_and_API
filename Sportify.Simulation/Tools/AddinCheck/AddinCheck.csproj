@@ -30,6 +30,8 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLog.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PlanGeometry.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\FurnitureShape.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\LocalRequestGuard.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\LayoutIdentity.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\FamilyTemplateRanking.cs" />

@@ -346,6 +346,51 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     }
 }
 
+// the holes of the roof finish (PlanGeometry) and the furniture families' shapes (FurnitureShape)
+{
+    Console.WriteLine("\n===== holes in the roof finish =====");
+    PlanGeometry.P P(double x, double y) => new(x, y);
+    List<PlanGeometry.P> Rect(double x0, double y0, double x1, double y1) => new() { P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1) };
+    var roof = Rect(0, 0, 40, 20);
+    var lRoof = new List<PlanGeometry.P> { P(0, 0), P(40, 0), P(40, 10), P(20, 10), P(20, 20), P(0, 20) };      // an L: the notch is x 20..40, y 10..20
+    const double tol = 1e-3;
+
+    Check("a rectangle inside the roof is a hole; one that touches the edge is too (a court on the edge is an ordinary layout)", PlanGeometry.HoleInside(roof, Rect(5, 5, 10, 10), tol) && PlanGeometry.HoleInside(roof, Rect(0, 0, 10, 5), tol));
+    Check("one that pokes out of the roof is a notch, not a hole", !PlanGeometry.HoleInside(roof, Rect(35, 5, 45, 10), tol) && !PlanGeometry.HoleInside(roof, Rect(-2, 5, 3, 10), tol));
+    var triangle = new List<PlanGeometry.P> { P(5, 5), P(15, 5), P(10, 12) };
+    Check("a polygon (a zone whose corners were moved) inside the roof is a hole", PlanGeometry.HoleInside(roof, triangle, tol) && Math.Abs(PlanGeometry.Area(triangle) - 35) < 1e-9);
+    var lZone = new List<PlanGeometry.P> { P(2, 2), P(12, 2), P(12, 6), P(6, 6), P(6, 12), P(2, 12) };      // an L-shaped bed: its box (2..12 x 2..12) is much bigger than it is
+    Check("...an L-shaped bed too, and the area is the bed's, not its box's (64 m2, not 100)", PlanGeometry.HoleInside(roof, lZone, tol) && Math.Abs(PlanGeometry.Area(lZone) - 64) < 1e-9);
+    var inNotch = Rect(22, 12, 26, 16);
+    Check("in an L-shaped roof a hole in the notch (outside the roof) is refused even though it is inside the roof's box", !PlanGeometry.HoleInside(lRoof, inNotch, tol) && PlanGeometry.HoleInside(lRoof, Rect(2, 2, 10, 8), tol));
+    var acrossNotch = new List<PlanGeometry.P> { P(15, 5), P(30, 5), P(30, 8), P(25, 8), P(25, 5.5), P(15, 6) };
+    Check("a hole whose corners are inside an L-shaped roof but whose edge cuts across the notch is refused", !PlanGeometry.HoleInside(lRoof, new List<PlanGeometry.P> { P(15, 5), P(30, 5), P(30, 12), P(15, 12) }, tol));
+    var bowTie = new List<PlanGeometry.P> { P(0, 0), P(10, 10), P(10, 0), P(0, 10) };
+    Check("a polygon that crosses itself is not simple", !PlanGeometry.IsSimple(bowTie, tol) && PlanGeometry.IsSimple(lZone, tol) && PlanGeometry.IsSimple(triangle, tol));
+
+    Check("two holes that share a side do not overlap; two that share a corner do not", !PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(5, 0, 10, 5), tol) && !PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(5, 5, 10, 10), tol));
+    Check("two that share area do: crossing, one inside the other, the same one twice", PlanGeometry.Overlap(Rect(0, 0, 6, 6), Rect(4, 4, 10, 10), tol) && PlanGeometry.Overlap(Rect(0, 0, 10, 10), Rect(2, 2, 4, 4), tol) && PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(0, 0, 5, 5), tol));
+    Check("a polygon and a rectangle: the bed's L overlaps a court on its arm and not one in its corner notch", PlanGeometry.Overlap(lZone, Rect(8, 3, 11, 5), tol) && !PlanGeometry.Overlap(lZone, Rect(7, 7, 11, 11), tol));
+    Check("the skylight Revit has in the roof and a zone placed over it overlap (the second is refused, not the whole finish)", PlanGeometry.Overlap(Rect(10, 10, 14, 14), Rect(12, 8, 20, 12), tol));
+    var dupes = PlanGeometry.Clean(new[] { P(0, 0), P(0, 0), P(5, 0), P(5, 5), P(0, 5), P(0, 0) }, tol);
+    Check("a repeated point, and a closing point equal to the first, are dropped", dupes.Count == 4);
+    Check("a point on the boundary is inside-or-on, not strictly inside", PlanGeometry.InsideOrOn(roof, P(0, 10), tol) && !PlanGeometry.StrictlyInside(roof, P(0, 10), tol) && PlanGeometry.StrictlyInside(roof, P(20, 10), tol) && !PlanGeometry.InsideOrOn(roof, P(41, 10), tol));
+
+    Console.WriteLine("\n===== the shapes of furniture families =====");
+    bool Inside(ShapePart q, double l, double w, double h) => q.X0 >= -l / 2 - 1e-9 && q.X1 <= l / 2 + 1e-9 && q.Y0 >= -w / 2 - 1e-9 && q.Y1 <= w / 2 + 1e-9 && q.Z0 >= -1e-9 && q.Z1 <= h + 1e-9 && q.X1 > q.X0 && q.Y1 > q.Y0 && q.Z1 > q.Z0;
+    foreach (var (cat, l, w, h) in new[] { ("bench", 1.8, 0.7, 0.8), ("table", 1.6, 0.8, 0.75), ("bin", 0.4, 0.4, 0.9), ("bollard", 0.15, 0.15, 1.0), ("light", 0.3, 0.3, 3.5), ("planter", 1.0, 0.5, 0.6), ("bench", 0.4, 0.3, 0.5) })
+    {
+        var parts = FurnitureShape.Parts(cat, l, w, h);
+        Check($"{cat} {l} x {w} x {h}: {parts.Count} solid(s), every one inside the product's box and with a size", parts.Count >= 1 && parts.All(q => Inside(q, l, w, h)));
+        Check($"{cat}: it reaches the product's height and touches the ground", Math.Abs(parts.Max(q => q.Z1) - h) < 1e-9 && parts.Min(q => q.Z0) < 1e-9);
+    }
+    Check("a bench has a seat, a backrest and two end frames; a table a top and four legs; a light a base, a pole and a head", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Count == 4 && FurnitureShape.Parts("table", 1.6, 0.8, 0.75).Count == 5 && FurnitureShape.Parts("light", 0.3, 0.3, 3.5).Select(q => q.Name).SequenceEqual(new[] { "base", "pole", "head" }));
+    Check("a bin, a bollard and a light are round; a bench is not", FurnitureShape.Parts("bin", 0.4, 0.4, 0.9).All(q => q.IsCylinder) && FurnitureShape.Parts("bollard", 0.15, 0.15, 1).All(q => q.IsCylinder) && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).All(q => !q.IsCylinder));
+    Check("a bench's seat is at seat height (0.44 m of 0.8) and its back rises above it", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "seat").Z1 is > 0.4 and < 0.5 && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "backrest").Z1 == 0.8);
+    Check("a category the catalogue grows that has no shape yet is a box of the product's size, not a failure", FurnitureShape.Parts("sculpture", 2, 1, 1.5).Single() is { Name: "body" } b && b.Volume == 3.0);
+    Check("the family name carries the size in cm, so a product that changed size in the catalogue is a new family: \"Sportify - X [180x70x80 cm]\"", FurnitureShape.FamilyName(null, "X", "k", 1.8, 0.7, 0.8) == "Sportify - X [180x70x80 cm]" && FurnitureShape.FamilyName("Sportify - ABES Public Design Parkbank 1.114", "l", "k", 1.8, 0.7, 0.8) == "Sportify - ABES Public Design Parkbank 1.114 [180x70x80 cm]");
+}
+
 // the guard's rules on their own (no listener): origins, hosts, tokens, sizes and the web folder's walls
 {
     Console.WriteLine("\n===== who may ask, and how much =====");

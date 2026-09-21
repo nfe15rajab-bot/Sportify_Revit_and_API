@@ -19,6 +19,7 @@ namespace SportfyRevit
         private static readonly List<string> Lines = new();
         private static int _specified;
         private static int _plants;
+        private static int _furniture;
         private static int _explicitResolved;
         private static int _matched;
         private static int _generated;
@@ -31,7 +32,7 @@ namespace SportfyRevit
         public static void Begin()
         {
             Lines.Clear();
-            _specified = _plants = _explicitResolved = _matched = _generated = _placeholder = 0;
+            _specified = _plants = _furniture = _explicitResolved = _matched = _generated = _placeholder = 0;
             _floorTypesCreated = _floorTypesReused = _floorsDrawn = _plantsPlaced = 0;
         }
 
@@ -42,6 +43,7 @@ namespace SportfyRevit
         public const string HowReference = "family reference";
         public const string HowSpecified = "specified-sport builder";
         public const string HowPlant = "species family";
+        public const string HowFurniture = "furniture family";
 
         /// <summary>A placement got a family. <paramref name="how"/> says how (one of the How... constants).</summary>
         public static void Placed(string label, string family, string type, string how)
@@ -53,6 +55,7 @@ namespace SportfyRevit
                 case HowReference: _explicitResolved++; break;
                 case HowSpecified: _specified++; break;
                 case HowPlant: _plants++; break;
+                case HowFurniture: _furniture++; break;
             }
             Lines.Add($"{Tag(how)} {label} → family \"{family}\", type \"{type}\" ({how})");
         }
@@ -69,6 +72,7 @@ namespace SportfyRevit
             HowGenerated => "GEN ",
             HowSpecified => "SPT ",
             HowPlant => "PLT ",
+            HowFurniture => "FUR ",
             _ => "OK  ",
         };
 
@@ -126,8 +130,8 @@ namespace SportfyRevit
         public static string Report()
         {
             var sb = new StringBuilder();
-            int pieces = _specified + _plants + _explicitResolved + _matched + _generated + _placeholder;
-            sb.AppendLine($"Placed {pieces} piece(s): {_specified} by a specified-sport builder, {_plants} plant(s), {_explicitResolved} by family reference, " +
+            int pieces = _specified + _plants + _furniture + _explicitResolved + _matched + _generated + _placeholder;
+            sb.AppendLine($"Placed {pieces} piece(s): {_specified} by a specified-sport builder, {_plants} plant(s), {_furniture} furniture piece(s) by a product family, {_explicitResolved} by family reference, " +
                           $"{_matched} by a family already in the project (exact quality_key), {_generated} by a generated family, {_placeholder} as placeholder box(es).");
             if (_floorTypesCreated + _floorTypesReused > 0)
                 sb.AppendLine($"Build-up systems: {_floorTypesCreated} floor type(s) created, {_floorTypesReused} reused, {_floorsDrawn} floor(s) drawn.");

@@ -51,7 +51,7 @@ namespace SportfyRevit
 
             // The template first, once, outside any transaction (it may open a file, and asks a person only for a manual import).
             bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null
-                                                                                  || p.Parameters?.Vegetation != null || SportifyFamilyGenerator.FamilyNameFor(p) != null));
+                                                                                  || p.Parameters?.Vegetation != null || p.Parameters?.Furniture != null || SportifyFamilyGenerator.FamilyNameFor(p) != null));
             if (needsBuilder) GenericFamilyTemplateLocator.Prepare(doc.Application, allowTemplateDialog);
 
             var byKey = new Dictionary<string, FamilyResolution>(StringComparer.OrdinalIgnoreCase);
@@ -100,7 +100,10 @@ namespace SportfyRevit
         /// <summary>What makes two placements the same family: the specified sports by their own name, the rest by generated name; null = do not share.</summary>
         private static string? KeyOf(PlacementDto p)
         {
-            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null)
+            // one product placed many times is one family: shared by the product's key and size
+            if (p.Parameters?.Furniture is { } furniture && !string.IsNullOrWhiteSpace(furniture.Key))
+                return "furniture::" + FurnitureShape.FamilyName(furniture.RevitFamilyName, furniture.Label ?? furniture.Product, furniture.Key, furniture.LengthM, furniture.WidthM, furniture.HeightM);
+            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
                 return null;   // their builders cache by themselves; a shared key would have to repeat their naming
             return SportifyFamilyGenerator.FamilyNameFor(p);
         }
@@ -153,6 +156,13 @@ namespace SportfyRevit
             {
                 var s = SportifyPlantFamilyBuilder.GetOrCreateSymbol(doc, plant);
                 return s == null ? FamilyResolution.None("the species family builder returned no family") : Found(s, ImportDiagnostics.HowPlant);
+            }
+
+            // 4b. Furniture is its product's family: the firm's own of that product when the project has one, else one built from the catalogue size (FurnitureShape).
+            if (p.Parameters?.Furniture is { } furniture)
+            {
+                var s = SportifyFurnitureFamilyBuilder.GetOrCreateSymbol(doc, furniture, out var firmsOwn);
+                return s == null ? FamilyResolution.None("the furniture family builder returned no family") : Found(s, firmsOwn ? ImportDiagnostics.HowReference : ImportDiagnostics.HowFurniture);
             }
 
             // 5. A family the designer referenced in the Families tab.

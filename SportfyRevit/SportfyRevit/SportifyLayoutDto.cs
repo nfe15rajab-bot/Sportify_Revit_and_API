@@ -348,6 +348,9 @@ namespace SportfyRevit
         /// </summary>
         [JsonPropertyName("vegetation")] public VegetationDto? Vegetation { get; set; }
 
+        /// <summary>Present for placed furniture (a bench, a table, a bin, a bollard, a light): the catalogue product, its size and weight. See SportifyFurnitureFamilyBuilder.</summary>
+        [JsonPropertyName("furniture")] public FurnitureDto? Furniture { get; set; }
+
         /// <summary>
         /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
         /// buildGardenPayload in the frontend) — one uniform place to read "how
@@ -556,6 +559,30 @@ namespace SportfyRevit
         [JsonPropertyName("height_m")] public double HeightM { get; set; }
     }
 
+    /// <summary>A catalogue product of site furniture, as the web app exports it (parameters.furniture).</summary>
+    internal class FurnitureDto
+    {
+        [JsonPropertyName("key")] public string? Key { get; set; }
+        [JsonPropertyName("manufacturer")] public string? Manufacturer { get; set; }
+        [JsonPropertyName("product")] public string? Product { get; set; }
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        /// <summary>"bench" | "table" | "bin" | "bollard" | "light" (or another the catalogue grows).</summary>
+        [JsonPropertyName("category")] public string? Category { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("dimensions_published")] public bool DimensionsPublished { get; set; }
+        [JsonPropertyName("seats")] public int Seats { get; set; }
+        /// <summary>The product's weight, kg; null when the catalogue has none. What the structural and dynamic analyses put on the deck.</summary>
+        [JsonPropertyName("weight_kg")] public double? WeightKg { get; set; }
+        [JsonPropertyName("weight_published")] public bool WeightPublished { get; set; }
+        [JsonPropertyName("capacity_l")] public double? CapacityL { get; set; }
+        [JsonPropertyName("material")] public string? Material { get; set; }
+        [JsonPropertyName("description")] public string? Description { get; set; }
+        [JsonPropertyName("source_url")] public string? SourceUrl { get; set; }
+        [JsonPropertyName("revit_family_name")] public string? RevitFamilyName { get; set; }
+    }
+
     internal class RoofFinishDto
     {
         [JsonPropertyName("assembly_key")] public string? AssemblyKey { get; set; }
@@ -575,6 +602,9 @@ namespace SportfyRevit
         [JsonPropertyName("y_m")] public double YM { get; set; }
         [JsonPropertyName("length_m")] public double LengthM { get; set; }
         [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        /// <summary>The hole's real outline, plan coordinates like x_m / y_m, when it is not a rectangle (a zone whose corners were moved). x_m..width_m stay its bounding box for a reader that predates this.</summary>
+        [JsonPropertyName("points")] public List<PointDto>? Points { get; set; }
     }
 
     internal class ZoneDto
