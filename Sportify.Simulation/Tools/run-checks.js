@@ -210,6 +210,14 @@ step("algorithmic placement: how it meets the rest of Combine (zones, specified 
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT UI CHECKS PASSED/, "the real scripts, the real packer, Apply") } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("results: the Analysis tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "results-freshness-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-freshness-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL RESULT FRESHNESS CHECKS PASSED/, "the real scripts, the same SHA-256 rule as the add-in") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
 // ---- local only: they need an installed Unity / Revit (CI has neither)
 step("Unity project still compiles (needs a Unity install)", async () => {
   const managed = process.env.UNITY_MANAGED || "C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.2f1\\Editor\\Data\\Managed\\UnityEngine";
