@@ -23,6 +23,10 @@
 .PARAMETER RequireSigning
     Fail instead of producing an unsigned build when no certificate was given.
 
+.PARAMETER WebAppDir
+    The folder of the web app (sportfify_goldbeck) to bundle into the add-in. Default: a folder called sportfify_goldbeck next to this repository, as always. A build
+    server that checks the two repositories out under one workspace names the folder here.
+
 .NOTES
     Needs, on the machine running this script: the .NET SDK, real
     internet access (NuGet — WebView2 and the self-contained runtime
@@ -39,7 +43,8 @@ param(
     [string]$PfxFile,
     [securestring]$PfxPassword,
     [string]$TimestampUrl = "http://timestamp.digicert.com",
-    [switch]$RequireSigning
+    [switch]$RequireSigning,
+    [string]$WebAppDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,7 +66,9 @@ New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
 #      and sportfify_goldbeck are checked out side by side, same as always) ──
 Step "Building the Revit add-in (SportfyRevit)"
 $addinProj = Join-Path $root "SportfyRevit\SportfyRevit\SportfyRevit.csproj"
-dotnet build $addinProj -c Release
+$webArgs = @()
+if ($WebAppDir) { $webArgs = @("-p:SportifyWebAppDir=" + ((Resolve-Path $WebAppDir).Path.TrimEnd('\') + '\')) }
+dotnet build $addinProj -c Release @webArgs
 if ($LASTEXITCODE -ne 0) { throw "SportfyRevit build failed." }
 
 # The project sets a RuntimeIdentifier (QuestPDF's native engine needs it), so the output lands in ...\net8.0-windows\win-x64\, one folder deeper than a plain

@@ -1,0 +1,101 @@
+name: release
+
+# Continuous delivery of the Revit side: builds what the team actually installs (Sportify_Revit.exe next to its payload\: the add-in, the bundled web app, a self-contained
+# Sportify.Api) with BuildDistribution.ps1, zips it and, for a version tag, publishes it as a GitHub Release.
+#
+#   git tag v1.0.0 && git push origin v1.0.0     -> builds the package and creates the release "v1.0.0" with the zip and its checksum
+#   a push to a branch named cd/...               -> builds the package and keeps it as a build artifact only (this is how the pipeline itself is tested)
+#   Actions > release > Run workflow              -> the same, on demand (no release is created)
+#
+# The runner has no Revit: SportfyRevit.csproj then takes the Revit API from the public reference packages (compile-only, nothing of Revit is shipped).
+# The web app is a separate repository; it is checked out next to this one and bundled into the add-in (BuildDistribution.ps1 -WebAppDir).
+#
+# Signing: with the repository secrets CODESIGN_PFX_BASE64 (the .pfx, base64) and CODESIGN_PFX_PASSWORD the add-in, the API and the installer are signed
+# (Sign-Artifacts.ps1). Without them the package is UNSIGNED and the run says so: SmartScreen warns on the installer and Revit asks whether to load an add-in from
+# an unknown publisher. No certificate exists yet; it has to be bought or issued.
+on:
+  push:
+    tags: ["v*"]
+    branches: ["cd/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write     # creating the release
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the web app
+        shell: pwsh
+        env:
+          WEB_REPO_TOKEN: ${{ secrets.WEB_REPO_TOKEN }}
+        run: |
+          $auth = if ($env:WEB_REPO_TOKEN) { "x-access-token:$($env:WEB_REPO_TOKEN)@" } else { "" }
+          git clone --depth 1 "https://${auth}github.com/nfe15rajab-bot/sportfify_goldbeck.git" web
+          if (-not (Test-Path web/index.html)) { throw "The web app could not be checked out (private? add the WEB_REPO_TOKEN secret)." }
+          Write-Host "web app: $(git -C web rev-parse --short HEAD)"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build the package (add-in, bundled web app, self-contained API, installer)
+        shell: pwsh
+        env:
+          CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+          CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
+        run: |
+          $sign = @()
+          if ($env:CODESIGN_PFX_BASE64 -and $env:CODESIGN_PFX_PASSWORD) {
+            $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CODESIGN_PFX_BASE64))
+            $sign = @("-PfxFile", $pfx, "-PfxPassword", (ConvertTo-SecureString $env:CODESIGN_PFX_PASSWORD -AsPlainText -Force))
+            Write-Host "Signing with the certificate from the repository secrets."
+          } else {
+            Write-Host "::notice title=Unsigned package::No code-signing certificate is configured (secrets CODESIGN_PFX_BASE64 and CODESIGN_PFX_PASSWORD), so this package is unsigned."
+          }
+          ./BuildDistribution.ps1 -WebAppDir web @sign
+
+      - name: What is in the package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/Sportify_Revit.exe)) { throw "dist/Sportify_Revit.exe is missing" }
+          foreach ($f in "payload/SportfyRevit.dll", "payload/web/index.html", "payload/web/activitiesData.js", "payload/api/Sportify.Api.exe") {
+            if (-not (Test-Path (Join-Path dist $f))) { throw "the package lacks $f" }
+          }
+          if (Get-ChildItem dist/payload/api -Filter "reference.db*" -ErrorAction SilentlyContinue) { throw "the package must not carry a reference.db" }
+          $size = (Get-ChildItem dist -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
+          "package: {0:N0} MB, {1} files" -f $size, (Get-ChildItem dist -Recurse -File).Count
+
+      - name: Zip it
+        id: zip
+        shell: pwsh
+        run: |
+          $name = if ("${{ github.ref }}" -like "refs/tags/v*") { "${{ github.ref_name }}" } else { "build-$($env:GITHUB_SHA.Substring(0, 7))" }
+          $zip = "Sportify_Revit_$name.zip"
+          Compress-Archive -Path dist/* -DestinationPath $zip -CompressionLevel Optimal
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  " + $zip | Set-Content "$zip.sha256" -Encoding ascii
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          Get-Item $zip, "$zip.sha256" | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.zip }}
+          path: |
+            ${{ steps.zip.outputs.zip }}
+            ${{ steps.zip.outputs.zip }}.sha256
+          retention-days: 30
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "${{ steps.zip.outputs.zip }}" "${{ steps.zip.outputs.zip }}.sha256" `
+            --title "Sportify for Revit ${{ github.ref_name }}" --generate-notes `
+            --notes "Unzip the whole folder and run Sportify_Revit.exe (it needs payload\ next to it). Revit 2025. Unsigned unless a certificate is configured: SmartScreen and Revit will ask once."
