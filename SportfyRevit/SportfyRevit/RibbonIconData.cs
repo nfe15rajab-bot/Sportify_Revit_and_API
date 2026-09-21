@@ -73,6 +73,11 @@ namespace SportfyRevit
             ["worksets"] = new("bim", Layers + " M3 17l9 5l9 -5", "M12 3l9 5l-9 5l-9 -5z"),
             ["workset_assign"] = new("bim", "M12 3l9 5l-9 5l-9 -5z M3 13l9 5l9 -5 M9 8l2 2l4 -4", "M12 3l9 5l-9 5l-9 -5z"),
 
+            ["templates"] = new("bim", "M4 4h16v16h-16z M4 9h16 M9 9v11", "M4 4h16v5h-16z"),
+            ["template_apply"] = new("bim", "M4 4h16v16h-16z M4 9h16 M8 15l2.5 2.5l5 -5", "M4 4h16v5h-16z"),
+            ["template_hide"] = new("bim", "M3 12c3 -5 6 -7 9 -7s6 2 9 7c-3 5 -6 7 -9 7s-6 -2 -9 -7z M12 10a2 2 0 1 1 0 4a2 2 0 1 1 0 -4 M4 4l16 16", "M3 12c3 -5 6 -7 9 -7s6 2 9 7c-3 5 -6 7 -9 7s-6 -2 -9 -7z"),
+            ["template_show"] = new("bim", "M3 12c3 -5 6 -7 9 -7s6 2 9 7c-3 5 -6 7 -9 7s-6 -2 -9 -7z M12 10a2 2 0 1 1 0 4a2 2 0 1 1 0 -4", "M3 12c3 -5 6 -7 9 -7s6 2 9 7c-3 5 -6 7 -9 7s-6 -2 -9 -7z"),
+
             // ---- export
             ["report"] = new("export", "M6 3h9l4 4v14h-13z M9 12h6 M9 16h6", "M6 3h9l4 4v14h-13z"),
             ["diagram"] = new("export", "M4 6h6v6h-6z M14 12h6v6h-6z M10 9h4v6", "M4 6h6v6h-6z M14 12h6v6h-6z"),

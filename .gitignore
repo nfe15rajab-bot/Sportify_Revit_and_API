@@ -39,3 +39,7 @@ Sportify.Simulation/[Bb]uilds/
 
 # BuildDistribution.ps1 output: the installer, the add-in payload and a self-contained API (~100 MB). Rebuilt by the script; never source.
 dist/
+
+# The Sportify project templates: 40 MB each, made by Revit itself (see Sportify.Simulation/Tools/templates/README.md), so they are built on a machine with Revit and not checked in
+SportfyRevit/SportfyRevit/Templates/*.rte
+SportfyRevit/SportfyRevit/Templates/*.rte.*

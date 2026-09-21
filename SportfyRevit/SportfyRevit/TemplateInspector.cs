@@ -19,6 +19,21 @@ namespace SportfyRevit
 
         private static string? CategoryName(Document doc, ElementId id) => Try(() => Category.GetCategory(doc, id)?.Name);
 
+        /// <summary>The DIN 277 / DIN 276 classes the Sportify template wrote onto elements (Sportify_DIN277, Sportify_KG): how many elements carry each combination, by category. Only for a test to read.</summary>
+        public static Dictionary<string, int> NormSummary(Document doc)
+        {
+            var counts = new Dictionary<string, int>();
+            foreach (var e in new FilteredElementCollector(doc).WhereElementIsNotElementType())
+            {
+                var kg = Try(() => e.LookupParameter("Sportify_KG")?.AsString());
+                var din = Try(() => e.LookupParameter("Sportify_DIN277")?.AsString());
+                if (string.IsNullOrEmpty(kg) && string.IsNullOrEmpty(din)) continue;
+                var key = (e.Category?.Name ?? "?") + " | KG " + kg + " | " + din;
+                counts[key] = counts.GetValueOrDefault(key) + 1;
+            }
+            return counts;
+        }
+
         public static Dictionary<string, object?> Inspect(Document doc)
         {
             var all = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().ToList();

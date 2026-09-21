@@ -87,11 +87,16 @@ namespace SportfyRevit
             }
 
             // Duplicate any floor type that has a compound structure to edit —
-            // FloorType cannot be constructed directly, only duplicated.
-            var template = new FilteredElementCollector(doc)
+            // FloorType cannot be constructed directly, only duplicated. A real floor
+            // type first: some templates list a Foundation Slab type before any floor,
+            // and a duplicate of it makes every zone a structural foundation, which
+            // floor schedules, floor filters and the DIN norm classes do not see.
+            var withStructure = new FilteredElementCollector(doc)
                 .OfClass(typeof(FloorType))
                 .Cast<FloorType>()
-                .FirstOrDefault(ft => ft.GetCompoundStructure() != null);
+                .Where(ft => ft.GetCompoundStructure() != null)
+                .ToList();
+            var template = withStructure.FirstOrDefault(ft => !ft.IsFoundationSlab) ?? withStructure.FirstOrDefault();
 
             if (template == null)
             {

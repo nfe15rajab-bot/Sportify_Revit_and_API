@@ -38,6 +38,12 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RibbonLayout.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RibbonIconData.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BimRules.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyTemplateSpec.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\GermanNorms.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInGermanTemplate.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInSet.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInEnglishTemplate.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\UnitRules.cs" />
     <Compile Include="WorkspaceStub.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />

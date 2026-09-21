@@ -1,0 +1,1336 @@
+{
+  "title": "Default-Multi-Discipline_Metric",
+  "path": "C:\\ProgramData\\Autodesk\\RVT 2025\\Templates\\English\\Default-Multi-Discipline_Metric.rte",
+  "revit": "Autodesk Revit 2025 25.4.50.35",
+  "counts": {
+    "viewTemplates": 40,
+    "views": 30,
+    "sheets": 22,
+    "schedules": 14,
+    "filters": 29,
+    "families": 356,
+    "materials": 158,
+    "fillPatterns": 58,
+    "linePatterns": 56,
+    "levels": 2,
+    "grids": 0
+  },
+  "viewTemplates": [
+    {
+      "name": "Analytical Model with Local Coordinate System displayed",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "Architectural Elevation",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Architectural Plan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Architectural Presentation 3D",
+      "type": "ThreeD",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "ShadingWithEdges",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Architectural Presentation Elevation",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "ShadingWithEdges",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Architectural Reflected Ceiling Plan",
+      "type": "CeilingPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Architectural Section",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Electrical Ceiling",
+      "type": "CeilingPlan",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Electrical Elevation",
+      "type": "Elevation",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Electrical Lighting Plan",
+      "type": "FloorPlan",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "Electrical Plan",
+      "type": "FloorPlan",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Electrical Power Plan",
+      "type": "FloorPlan",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "Electrical Section",
+      "type": "Section",
+      "discipline": "Electrical",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Export to Civil Engineering",
+      "type": "ThreeD",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 18
+    },
+    {
+      "name": "Mechanical Ceiling",
+      "type": "CeilingPlan",
+      "discipline": "Mechanical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 4,
+      "notControlled": 4
+    },
+    {
+      "name": "Mechanical Elevation",
+      "type": "Elevation",
+      "discipline": "Mechanical",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 4,
+      "notControlled": 4
+    },
+    {
+      "name": "Mechanical Plan",
+      "type": "FloorPlan",
+      "discipline": "Mechanical",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 4,
+      "notControlled": 4
+    },
+    {
+      "name": "Mechanical Section",
+      "type": "Section",
+      "discipline": "Mechanical",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 4,
+      "notControlled": 4
+    },
+    {
+      "name": "Plumbing Ceiling",
+      "type": "CeilingPlan",
+      "discipline": "Plumbing",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 4
+    },
+    {
+      "name": "Plumbing Elevation",
+      "type": "Elevation",
+      "discipline": "Plumbing",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 4
+    },
+    {
+      "name": "Plumbing Plan",
+      "type": "FloorPlan",
+      "discipline": "Plumbing",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 4
+    },
+    {
+      "name": "Plumbing Section",
+      "type": "Section",
+      "discipline": "Plumbing",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 4
+    },
+    {
+      "name": "Schedule Typical",
+      "type": "Schedule",
+      "discipline": null,
+      "scale": 1,
+      "detail": "Undefined",
+      "display": "Wireframe",
+      "filters": 0,
+      "notControlled": 5
+    },
+    {
+      "name": "Schedule Working",
+      "type": "Schedule",
+      "discipline": null,
+      "scale": 1,
+      "detail": "Undefined",
+      "display": "Wireframe",
+      "filters": 0,
+      "notControlled": 6
+    },
+    {
+      "name": "Site Plan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Site Section",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Analytical Isolated",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Analytical Isolated-3D",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "Structural Analytical Unconnected Nodes",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "Structural Building Elevation",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Connections-ApprovalStatus",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 17
+    },
+    {
+      "name": "Structural Drafting View",
+      "type": "DraftingView",
+      "discipline": "Structural",
+      "scale": 10,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Foundation Plan",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "Wireframe",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Framing Elevation",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Framing Plan",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 6,
+      "notControlled": 1
+    },
+    {
+      "name": "Structural Model & Analytical Combined",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "Wireframe",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Structural Section",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 20,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "Working Plans",
+      "type": "FloorPlan",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 3
+    },
+    {
+      "name": "Working View",
+      "type": "FloorPlan",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 3
+    },
+    {
+      "name": "Working Views - Override",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 25
+    }
+  ],
+  "viewsByType": {
+    "CeilingPlan": 6,
+    "Elevation": 4,
+    "EngineeringPlan": 2,
+    "FloorPlan": 13,
+    "Legend": 2,
+    "Section": 1,
+    "ThreeD": 2
+  },
+  "views": [
+    {
+      "name": "L1 - Architectural",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Lighting",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Mechanical",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Mechanical",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Architectural",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Lighting",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Mechanical",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Mechanical",
+      "scale": 100
+    },
+    {
+      "name": "East - Architectural",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "North - Architectural",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "South - Architectural",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "West - Architectural",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Structural",
+      "type": "EngineeringPlan",
+      "template": null,
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Structural",
+      "type": "EngineeringPlan",
+      "template": null,
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Architectural",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Lighting",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Mechanical",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Mechanical",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Plumbing",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Plumbing",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Power",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L1 - Working",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Architectural",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Lighting",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Mechanical",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Mechanical",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Plumbing",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Plumbing",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Power",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Electrical",
+      "scale": 100
+    },
+    {
+      "name": "L2 - Working",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "Site",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "Symbols",
+      "type": "Legend",
+      "template": null,
+      "discipline": null,
+      "scale": 50
+    },
+    {
+      "name": "Text and Dimensions",
+      "type": "Legend",
+      "template": null,
+      "discipline": null,
+      "scale": 50
+    },
+    {
+      "name": "Section 1",
+      "type": "Section",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "{3D}",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "Cover Sheet View",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 0
+    }
+  ],
+  "filters": [
+    {
+      "name": "ABL - General Lighting",
+      "categories": [
+        "Electrical Analytical Loads"
+      ]
+    },
+    {
+      "name": "ABL - General Power",
+      "categories": [
+        "Electrical Analytical Loads"
+      ]
+    },
+    {
+      "name": "Domestic",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Domestic Cold Water",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Domestic Hot Water",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Floors - Concrete NOT",
+      "categories": [
+        "Floors"
+      ]
+    },
+    {
+      "name": "Floors - Deck",
+      "categories": [
+        "Floors"
+      ]
+    },
+    {
+      "name": "Floors - Finish",
+      "categories": [
+        "Floors"
+      ]
+    },
+    {
+      "name": "Floors - Generic",
+      "categories": [
+        "Floors"
+      ]
+    },
+    {
+      "name": "Generic Models - Openings NOT",
+      "categories": [
+        "Generic Models"
+      ]
+    },
+    {
+      "name": "Hydronic",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Interior",
+      "categories": [
+        "Ramps",
+        "Stairs",
+        "Floors",
+        "Doors",
+        "Walls"
+      ]
+    },
+    {
+      "name": "Levels - Building",
+      "categories": [
+        "Levels"
+      ]
+    },
+    {
+      "name": "Levels - Structural",
+      "categories": [
+        "Levels"
+      ]
+    },
+    {
+      "name": "Mechanical - Exhaust",
+      "categories": [
+        "Duct Linings",
+        "Duct Insulations",
+        "Duct Accessories",
+        "Duct Fittings",
+        "Ducts"
+      ]
+    },
+    {
+      "name": "Mechanical - Return",
+      "categories": [
+        "Duct Linings",
+        "Duct Insulations",
+        "Duct Accessories",
+        "Duct Fittings",
+        "Ducts"
+      ]
+    },
+    {
+      "name": "Mechanical - Supply",
+      "categories": [
+        "Duct Linings",
+        "Duct Insulations",
+        "Duct Accessories",
+        "Duct Fittings",
+        "Ducts"
+      ]
+    },
+    {
+      "name": "MEP - System Classification",
+      "categories": [
+        "Plumbing Equipment",
+        "Pipe Placeholders",
+        "Duct Placeholders",
+        "Duct Linings",
+        "Duct Insulations",
+        "Pipe Insulations",
+        "Sprinklers",
+        "Pipe Accessories",
+        "Flex Pipes",
+        "Pipe Fittings",
+        "Pipes",
+        "Piping Systems",
+        "Flex Ducts",
+        "Duct Accessories",
+        "Duct Systems",
+        "Air Terminals",
+        "Duct Fittings",
+        "Ducts",
+        "Plumbing Fixtures",
+        "Mechanical Equipment"
+      ]
+    },
+    {
+      "name": "Roofs - Generic",
+      "categories": [
+        "Roofs"
+      ]
+    },
+    {
+      "name": "Sanitary",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Structrual - Size",
+      "categories": [
+        "Structural Connections",
+        "Structural Columns",
+        "Structural Framing"
+      ]
+    },
+    {
+      "name": "Structural Columns Framing - Concrete",
+      "categories": [
+        "Structural Columns",
+        "Structural Framing"
+      ]
+    },
+    {
+      "name": "Structural Columns Framing - Concrete NOT",
+      "categories": [
+        "Structural Columns",
+        "Structural Framing"
+      ]
+    },
+    {
+      "name": "Structural Framing - Series",
+      "categories": [
+        "Structural Framing"
+      ]
+    },
+    {
+      "name": "Structural Framing - Z Offset",
+      "categories": [
+        "Structural Framing"
+      ]
+    },
+    {
+      "name": "Vent",
+      "categories": [
+        "Pipe Insulations",
+        "Pipe Accessories",
+        "Pipe Fittings",
+        "Pipes"
+      ]
+    },
+    {
+      "name": "Views - Working",
+      "categories": [
+        "Callouts",
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "Walls - Concrete NOT",
+      "categories": [
+        "Walls"
+      ]
+    },
+    {
+      "name": "Walls - Sweeps",
+      "categories": [
+        "Wall Sweeps"
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "name": "Door Schedule",
+      "category": "Doors",
+      "fields": 17,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Electrical Analytical Bus Schedule",
+      "category": "Electrical Analytical Bus",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Electrical Analytical Load Schedule",
+      "category": "Electrical Analytical Loads",
+      "fields": 13,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Level Schedule",
+      "category": "Levels",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Room Finish Schedule",
+      "category": "Rooms",
+      "fields": 8,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Sheet Index",
+      "category": "Sheets",
+      "fields": 4,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Space Outdoor Air Schedule",
+      "category": "Spaces",
+      "fields": 9,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Structural Column Schedule",
+      "category": "Structural Columns",
+      "fields": 10,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Structural Foundation Schedule",
+      "category": "Structural Foundations",
+      "fields": 7,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Structural Framing Schedule",
+      "category": "Structural Framing",
+      "fields": 5,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Structural Wall Schedule",
+      "category": "Walls",
+      "fields": 11,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Window Schedule",
+      "category": "Windows",
+      "fields": 13,
+      "materialTakeoff": false,
+      "template": "Schedule Typical"
+    },
+    {
+      "name": "Working_Sheet List",
+      "category": "Sheets",
+      "fields": 4,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    },
+    {
+      "name": "Working_View List",
+      "category": "Views",
+      "fields": 10,
+      "materialTakeoff": false,
+      "template": "Schedule Working"
+    }
+  ],
+  "sheets": [
+    {
+      "number": "A101",
+      "name": "Architectural Floor Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A102",
+      "name": "Architectural Floor Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A201",
+      "name": "Architectural Building Elevations",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A202",
+      "name": "Architectural Building Elevations",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A203",
+      "name": "Architectural Building Elevations",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A204",
+      "name": "Architectural Building Elevations",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A301",
+      "name": "Architectural Building Sections",
+      "views": 0,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A401",
+      "name": "Architectural Enlarged Views",
+      "views": 0,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A501",
+      "name": "Architectural Details",
+      "views": 0,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "A601",
+      "name": "Architectural Schedules",
+      "views": 0,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "C101",
+      "name": "Site Plan",
+      "views": 0,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "E101",
+      "name": "Power Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "E102",
+      "name": "Power Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "E103",
+      "name": "Lighting Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "E104",
+      "name": "Lighting Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "G100",
+      "name": "Cover",
+      "views": 1,
+      "titleBlock": "A0 metric Cover : A0 metric Cover"
+    },
+    {
+      "number": "M101",
+      "name": "Mechanical Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "M102",
+      "name": "Mechanical Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "P101",
+      "name": "Plumbing Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "P102",
+      "name": "Plumbing Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "S101",
+      "name": "Structural Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    },
+    {
+      "number": "S102",
+      "name": "Structural Plans",
+      "views": 1,
+      "titleBlock": "A0 metric : A0 metric"
+    }
+  ],
+  "titleBlockTypes": [
+    "A0 metric : A0 metric",
+    "A0 metric Cover : A0 metric Cover",
+    "A1 metric : A1 metric"
+  ],
+  "browserOrganizations": [
+    "all",
+    "all",
+    "all",
+    "By Type",
+    "Discipline",
+    "Drawn By",
+    "Issue Date",
+    "not on sheets",
+    "Phase",
+    "Sheet Prefix",
+    "Type/Discipline"
+  ],
+  "currentBrowserForViews": "Discipline",
+  "currentBrowserForSheets": "all",
+  "phases": [
+    "Existing",
+    "New Construction"
+  ],
+  "levels": [
+    "L1",
+    "L2"
+  ],
+  "textTypes": [
+    "2.5mm Arial",
+    "2.5mm Trebuchet MS",
+    "2.5mm Trebuchet MS .8",
+    "6.5mm Trebuchet MS",
+    "Schedule Default",
+    "Schedule Headers",
+    "Schedule Titles",
+    "Working Notes"
+  ],
+  "dimensionTypes": [
+    "Angular - 2.25mm Trebuchet MS",
+    "Arc Length - 2.25mm Trebuchet MS",
+    "Beam Elevation (Project)",
+    "Beam Elevation (Relative)",
+    "Crosshair (Project)",
+    "Crosshair (Relative)",
+    "Diameter - 2.25mm Trebuchet MS",
+    "Diameter Dimension Style",
+    "Dot Leader (Project)",
+    "Horizontal",
+    "Horizontal",
+    "Horizontal (w-Elevations)",
+    "Linear - 2.25mm Trebuchet MS",
+    "Linear - 2.25mm Trebuchet MS (Check)",
+    "Linear Dimension Style",
+    "Linear Dimension Style",
+    "Linear Dimension Style",
+    "No Symbol (Project)",
+    "No Symbol (Relative)",
+    "Radial - 2.25mm Trebuchet MS",
+    "Slope",
+    "Target (Project)",
+    "Target (Relative)",
+    "Target Leader (Project)",
+    "Target w Dot Leader (Project)"
+  ],
+  "lineStyles": [
+    "<Area Based Load Boundary>",
+    "<Area Boundary>",
+    "<Axis of Rotation>",
+    "<Beyond>",
+    "<Centerline>",
+    "<Demolished>",
+    "<Fabric Envelope>",
+    "<Fabric Sheets>",
+    "<Hidden Lines>",
+    "<Hidden>",
+    "<Insulation Batting Lines>",
+    "<Lines>",
+    "<Medium Lines>",
+    "<Overhead>",
+    "<Path of Travel Lines>",
+    "<Room Separation>",
+    "<Sketch>",
+    "<Space Separation>",
+    "<Thin Lines>",
+    "<Wide Lines>",
+    "MEP Hidden"
+  ],
+  "projectParameters": [
+    "Ceiling Height",
+    "Finish",
+    "Frame Finish",
+    "Glazing Thickness",
+    "Glazing Type",
+    "Hardware",
+    "Head",
+    "Jamb",
+    "Material",
+    "Occupant",
+    "Sheet Group",
+    "Sheet Sort",
+    "Sill",
+    "Under Cut"
+  ],
+  "familiesByCategory": {
+    "Rebar Shape": 39,
+    "Duct Fittings": 28,
+    "Pipe Fittings": 17,
+    "Profiles": 16,
+    "Conduit Fittings": 15,
+    "Cable Tray Fittings": 14,
+    "Connection Symbols": 13,
+    "Plumbing Fixtures": 9,
+    "Generic Annotations": 8,
+    "Generic Models": 7,
+    "Curtain Wall Mullions": 6,
+    "Elevation Marks": 6,
+    "Mechanical Equipment": 6,
+    "Section Marks": 5,
+    "Air Terminals": 5,
+    "Lighting Fixtures": 5,
+    "Electrical Equipment": 4,
+    "Boundary Conditions": 4,
+    "Casework": 4,
+    "Doors": 4,
+    "Balusters": 4,
+    "Structural Columns": 4,
+    "Structural Rebar Couplers": 4,
+    "Specialty Equipment": 3,
+    "Title Blocks": 3,
+    "Brace in Plan View Symbols": 3,
+    "Structural Fabric Reinforcement Symbols": 3,
+    "Structural Rebar Tags": 3,
+    "Spot Elevation Symbols": 3,
+    "Detail Items": 3,
+    "Division Profiles": 3,
+    "Windows": 3,
+    "Structural Framing": 3,
+    "Curtain Panels": 2,
+    "Ceiling Tags": 2,
+    "Duct Tags": 2,
+    "Electrical Fixture Tags": 2,
+    "Electrical Equipment Tags": 2,
+    "Furniture Tags": 2,
+    "Grid Heads": 2,
+    "Level Heads": 2,
+    "Lighting Fixture Tags": 2,
+    "Span Direction Symbol": 2,
+    "Columns": 2,
+    "Furniture": 2,
+    "Wire Tick Marks": 1,
+    "Callout Heads": 1,
+    "Keynote Tags": 1,
+    "Toposolid Link Tags": 1,
+    "Toposolid Tags": 1,
+    "Window Tags": 1,
+    "Wall Tags": 1,
+    "Zone Tags": 1,
+    "Anchor Tags": 1,
+    "Structural Area Reinforcement Symbols": 1,
+    "Structural Area Reinforcement Tags": 1,
+    "Area Tags": 1,
+    "Assembly Tags": 1,
+    "Casework Tags": 1,
+    "Curtain Panel Tags": 1,
+    "Curtain Wall Mullion Tags": 1,
+    "Data Devices": 1,
+    "Detail Item Tags": 1,
+    "Air Terminal Tags": 1,
+    "Door Tags": 1,
+    "Electrical Fixtures": 1,
+    "Structural Fabric Reinforcement Tags": 1,
+    "MEP Fabrication Pipework Tags": 1,
+    "Fire Alarm Device Tags": 1,
+    "Flex Duct Tags": 1,
+    "Flex Pipe Tags": 1,
+    "Floor Tags": 1,
+    "Furniture System Tags": 1,
+    "Generic Model Tags": 1,
+    "Lighting Device Tags": 1,
+    "Lighting Devices": 1,
+    "Mass Floor Tags": 1,
+    "Mass Tags": 1,
+    "Material Tags": 1,
+    "Mechanical Equipment Tags": 1,
+    "Multi-Category Tags": 1,
+    "Nurse Call Device Tags": 1,
+    "Parking Tags": 1,
+    "Part Tags": 1,
+    "Path of Travel Tags": 1,
+    "Structural Path Reinforcement Symbols": 1,
+    "Structural Path Reinforcement Tags": 1,
+    "Pipe Tags": 1,
+    "Plate Tags": 1,
+    "Plumbing Equipment Tags": 1,
+    "Plumbing Fixture Tags": 1,
+    "Property Line Segment Tags": 1,
+    "Railing Tags": 1,
+    "Structural Rebar Coupler Tags": 1,
+    "Revision Cloud Tags": 1,
+    "Room Tags": 1,
+    "Security Device Tags": 1,
+    "Shear Stud Tags": 1,
+    "Space Tags": 1,
+    "Specialty Equipment Tags": 1,
+    "Stair Tags": 1,
+    "Structural Beam System Tags": 1,
+    "Structural Column Tags": 1,
+    "Structural Foundation Tags": 1,
+    "Structural Framing Tags": 1,
+    "Structural Truss Tags": 1,
+    "Telephone Device Tags": 1,
+    "View Reference": 1,
+    "View Titles": 1,
+    "Weld Tags": 1,
+    "Duct Accessories": 1,
+    "Terminations": 1,
+    "Parking": 1,
+    "Planting": 1,
+    "Vertical Circulation": 1,
+    "Structural Trusses": 1,
+    "Structural Stiffeners": 1,
+    "Structural Foundations": 1,
+    "Supports": 1,
+    "Area Based Load Tags": 1
+  }
+}

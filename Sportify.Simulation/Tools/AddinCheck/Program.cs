@@ -938,6 +938,151 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
     Check("worksharing is only offered where Revit allows it (Document.CanEnableWorksharing): by Organize Multi-Worksets and by the import's question, so a template file or read-only document gets an explanation, not an exception",
           bimSource.Contains("!doc.IsWorkshared && !doc.CanEnableWorksharing()") && allSources.Any(kv => kv.Key.EndsWith("WorksharingConsent.cs") && kv.Value.Contains("!doc.CanEnableWorksharing()")));
+    Console.WriteLine("\n===== the Sportify templates (SportifyTemplateSpec in German and English, GermanNorms, BuiltInSet, UnitRules) against Revit's own templates =====");
+    // Revit's templates as TemplateInspector read them (Tools/fixtures/templates), found from the add-in's sources
+    string? FindFixture(string file)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "Sportify.Simulation", "Tools", "fixtures", "templates", file);
+            if (File.Exists(candidate)) return candidate;
+            var direct = Path.Combine(dir.FullName, "Tools", "fixtures", "templates", file);
+            if (File.Exists(direct)) return direct;
+        }
+        return null;
+    }
+    var germanPath = FindFixture("BIM_Architektur_und_Ingenieurbau.inspection.json");
+    var englishPath = FindFixture("Default-Multi-Discipline_Metric.inspection.json");
+    Check("the inspections of Revit's German and English templates are found", germanPath != null && englishPath != null);
+    using var germanDoc = JsonDocument.Parse(germanPath == null ? "{}" : File.ReadAllText(germanPath));
+    using var englishDoc = JsonDocument.Parse(englishPath == null ? "{}" : File.ReadAllText(englishPath));
+    (List<(string Name, string Type, int Scale)> Templates, HashSet<string> TitleBlocks, HashSet<string> Filters, HashSet<string> Schedules, HashSet<string> Sheets, List<string> Parameters) ReadInspection(JsonElement g) => (
+        g.TryGetProperty("viewTemplates", out var vts) ? vts.EnumerateArray().Select(t => (Name: t.GetProperty("name").GetString()!, Type: t.GetProperty("type").GetString()!, Scale: t.GetProperty("scale").ValueKind == JsonValueKind.Number ? t.GetProperty("scale").GetInt32() : 0)).ToList() : new(),
+        g.TryGetProperty("titleBlockTypes", out var tbs) ? tbs.EnumerateArray().Select(t => t.GetString()!).ToHashSet() : new HashSet<string>(),
+        g.TryGetProperty("filters", out var fls) ? fls.EnumerateArray().Select(t => t.GetProperty("name").GetString()!).ToHashSet() : new HashSet<string>(),
+        g.TryGetProperty("schedules", out var scs) ? scs.EnumerateArray().Select(t => t.GetProperty("name").GetString()!).ToHashSet() : new HashSet<string>(),
+        g.TryGetProperty("sheets", out var shs) ? shs.EnumerateArray().Select(t => t.GetProperty("number").GetString()!).ToHashSet() : new HashSet<string>(),
+        g.TryGetProperty("projectParameters", out var pps) ? pps.EnumerateArray().Select(x => x.GetString()!).ToList() : new List<string>());
+    var german = ReadInspection(germanDoc.RootElement);
+    var english = ReadInspection(englishDoc.RootElement);
+    var de = SportifyTemplateSpec.De;
+    var en = SportifyTemplateSpec.En;
+
+    foreach (var set in new[] { de, en })
+    {
+        var lang = set.Language.ToString().ToUpperInvariant();
+        var names = set.ViewTemplates.Select(t => t.Name).ToList();
+        Check($"[{lang}] the four HOAI phases at the German template's floor-plan scales 1:200, 1:100, 1:100, 1:50, coarse in Vorplanung, medium in Entwurf and Genehmigung, fine in Ausführung",
+              set.Phases.Select(p => (p.Key, p.PlanScale, p.Detail)).SequenceEqual(new[] { ("1", 200, "Coarse"), ("2", 100, "Medium"), ("3", 100, "Medium"), ("4", 50, "Fine") }));
+        var roofWord = lang == "DE" ? "Dachaufsicht" : "Roof Plan";
+        Check($"[{lang}] one roof plan view template per phase, at the phase's scale, detail and display, named S<phase>-{roofWord}",
+              set.Phases.All(p => set.ViewTemplates.Count(t => t.Name == "S" + p.Name + "-" + roofWord && t.ViewType == "FloorPlan" && t.PhaseKey == p.Key && t.Scale == p.PlanScale && t.Detail == p.Detail && t.Display == p.Display) == 1));
+        Check($"[{lang}] view template, view, schedule names and sheet numbers are unique; no name has a colon or another character Revit forbids (found live: \":\" in \"1:100\") or a scale in it",
+              names.Distinct().Count() == names.Count && set.Views.Select(v => v.Name).Distinct().Count() == set.Views.Count && set.Schedules.Select(x => x.Name).Distinct().Count() == set.Schedules.Count && set.Sheets.Select(x => x.Number).Distinct().Count() == set.Sheets.Count
+              && names.Concat(set.Views.Select(v => v.Name)).Concat(set.Schedules.Select(x => x.Name)).Concat(set.Sheets.Select(x => x.Number + x.Name)).All(n => n.IndexOfAny(new[] { '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~', (char)92, ':' }) < 0));
+        Check($"[{lang}] no Sportify name is one of Revit's built-in ones, German or English (so \"Hide Revit templates\" can never touch Sportify's)",
+              !names.Any(n => BuiltInSet.All.Any(b => b.ViewTemplates.Contains(n))) && !set.Schedules.Any(x => BuiltInSet.All.Any(b => b.Schedules.Contains(x.Name))) && !set.Sheets.Any(x => BuiltInSet.All.Any(b => b.SheetNumbers.Contains(x.Number)))
+              && !set.Views.Any(v => BuiltInSet.All.Any(b => b.Views.Any(k => k.EndsWith("|" + v.Name)))));
+        Check($"[{lang}] every Sportify name starts with S, easy to tell from the built-in ones", names.All(n => n.StartsWith("S")) && set.Views.All(v => v.Name.StartsWith("S")) && set.Schedules.All(x => x.Name.StartsWith("S")));
+        var filterNames = new[] { "field", "activity", "garden", "vegetation", "furniture" }.Select(set.KindFilterName).Append(set.ZoneFilterName).ToList();
+        Check($"[{lang}] the six filters (five kinds of piece, the zones) start with S, are unique, have no forbidden character and are none of Revit's built-in ones",
+              filterNames.Count == 6 && filterNames.Distinct().Count() == 6 && filterNames.All(n => n.StartsWith("S") && n.IndexOfAny(new[] { '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~', (char)92, ':' }) < 0) && !filterNames.Any(n => BuiltInSet.All.Any(b => b.Filters.Contains(n))));
+        Check($"[{lang}] the views point at view templates that exist, the sheets at views and schedules that exist, every view and schedule is on a sheet",
+              set.Views.All(v => names.Contains(v.TemplateName)) && set.Sheets.All(sh => sh.Views.All(k => set.Views.Any(v => v.Key == k)) && sh.Schedules.All(k => set.Schedules.Any(x => x.Key == k)))
+              && set.Views.All(v => set.Sheets.Any(sh => sh.Views.Contains(v.Key))) && set.Schedules.All(x => set.Sheets.Any(sh => sh.Schedules.Contains(x.Key))));
+        Check($"[{lang}] sheet numbers are S<phase>-<nn> with a phase of the list, plans on A1 and lists on A3",
+              set.Sheets.All(sh => System.Text.RegularExpressions.Regex.IsMatch(sh.Number, @"^S[1-4]-\d\d$") && sh.Number[1].ToString() == sh.PhaseKey && set.Phases.Any(p => p.Key == sh.PhaseKey) && (sh.Views.Count > 0 ? sh.Size == "A1" : sh.Size == "A3")));
+        var titleBlocks = set.Sheets.Select(set.TitleBlockType).Distinct().ToList();
+        Check($"[{lang}] the title blocks the sheets use are ones Revit's German template has (Plankopf Ausführung / Genehmigung, A1 and A3), for both languages: it is the DIN one", titleBlocks.All(german.TitleBlocks.Contains), string.Join(", ", titleBlocks.Where(t => !german.TitleBlocks.Contains(t))));
+    }
+
+    // the phases and their scales are Revit's German template's own
+    foreach (var phase in de.Phases)
+    {
+        var theirs = german.Templates.Where(t => t.Type == "FloorPlan" && t.Name.StartsWith(phase.Key + "-") && t.Name.Contains("Grundriss") && !t.Name.Contains("Lageplan")).ToList();
+        Check($"phase {phase.Name}: Revit's German floor plan template of the phase has the same scale ({phase.PlanScale})", theirs.Count > 0 && theirs.All(t => t.Scale == phase.PlanScale), string.Join(", ", theirs.Select(t => t.Name + " 1:" + t.Scale)));
+    }
+    Check("Revit's German template names have no colon or scale either (the scale is a setting)", german.Templates.All(t => !t.Name.Contains(':')) && english.Templates.All(t => !t.Name.Contains(':')));
+    Check("the German template keeps its Leistungsphase browser parameter, which the builder fills (Projektbrowser Leistungsphase)", german.Parameters.Contains("Projektbrowser Leistungsphase"));
+
+    // the English version is the German one with English words: exactly the same structure
+    string Shape(SportifyTemplateSet x) => string.Join("|",
+        x.Phases.Select(p => $"P{p.Key}:{p.PlanScale}:{p.Detail}:{p.Display}")
+        .Concat(x.ViewTemplates.Select(t => $"VT:{t.ViewType}:{t.Scale}:{t.Detail}:{t.Display}:{t.PhaseKey}:{t.Filters}"))
+        .Concat(x.Views.Select(v => $"V:{v.Key}:{v.Kind}:{v.PhaseKey}"))
+        .Concat(x.Schedules.Select(v => $"S:{v.Key}:{v.Kind}"))
+        .Concat(x.Sheets.Select(v => $"SH:{v.Number}:{v.Size}:{v.PhaseKey}:{string.Join(",", v.Views)}:{string.Join(",", v.Schedules)}")));
+    Check("English and German have the same structure: the same phases, scales, view templates, views, schedules and sheets (numbers, sizes, contents); only the names differ", Shape(de) == Shape(en));
+    Check("...and every name differs (nothing was left untranslated, apart from the numbers)", de.ViewTemplates.Zip(en.ViewTemplates).All(z => z.First.Name != z.Second.Name) && de.Views.Zip(en.Views).All(z => z.First.Name != z.Second.Name)
+          && de.Schedules.Zip(en.Schedules).All(z => z.First.Name != z.Second.Name) && de.Sheets.Zip(en.Sheets).All(z => z.First.Name != z.Second.Name));
+    Check("the filters differ between the languages too (\"S Nutzung - field\" / \"S Use - field\")", de.KindFilterName("field") == "S Nutzung - field" && en.KindFilterName("field") == "S Use - field" && de.ZoneFilterName != en.ZoneFilterName);
+    foreach (var set in new[] { de, en })
+        Check($"[{set.Language.ToString().ToUpperInvariant()}] the Sportify schedules have a view template of their own (\"{set.ScheduleTemplateName}\", of the type Schedule, one of the view templates), and it is none of Revit's",
+              set.ScheduleTemplateName.StartsWith("S") && set.ViewTemplates.Count(t => t.Name == set.ScheduleTemplateName && t.ViewType == "Schedule") == 1
+              && !BuiltInSet.All.Any(b => b.ViewTemplates.Contains(set.ScheduleTemplateName)) && SportifyTemplateSpec.Detect(new[] { set.ScheduleTemplateName }) == set.Language);
+    Check("the schedule view template is assigned to every Sportify schedule as it is made, in a sub-transaction that is undone if the schedule would lose fields, filters or grouping, and it controls none of a schedule's own content",
+          allSources.Any(kv => kv.Key.EndsWith("SportifyScheduleFactory.cs") && kv.Value.Contains("schedule.ViewTemplateId = template.Id") && kv.Value.Contains("new SubTransaction(doc)") && kv.Value.Contains("sub.RollBack()")
+              && kv.Value.Contains("GetFieldCount() != fields") && kv.Value.Contains("SetNonControlledTemplateParameterIds(template.GetTemplateParameterIds())")));
+    Check("the language of a project's Sportify templates is told by their names: German, English, or none", SportifyTemplateSpec.Detect(de.ViewTemplates.Select(t => t.Name)) == TemplateLanguage.De
+          && SportifyTemplateSpec.Detect(en.ViewTemplates.Select(t => t.Name)) == TemplateLanguage.En && SportifyTemplateSpec.Detect(new[] { "Architectural Plan" }) == null);
+
+    // the built-in sets are the inspections
+    Check($"BuiltInSet.German is the inspection of Revit's German template: {BuiltInSet.German.ViewTemplates.Count} view templates, {BuiltInSet.German.Filters.Count} filters, {BuiltInSet.German.Schedules.Count} schedules, {BuiltInSet.German.SheetNumbers.Count} sheets, {BuiltInSet.German.Views.Count} views",
+          BuiltInSet.German.ViewTemplates.SetEquals(german.Templates.Select(t => t.Name)) && BuiltInSet.German.Filters.SetEquals(german.Filters) && BuiltInSet.German.Schedules.SetEquals(german.Schedules) && BuiltInSet.German.SheetNumbers.SetEquals(german.Sheets)
+          && BuiltInSet.German.ViewTemplates.Count == 59 && BuiltInSet.German.Filters.Count == 22 && BuiltInSet.German.Schedules.Count == 31 && BuiltInSet.German.SheetNumbers.Count == 10 && BuiltInSet.German.Views.Count >= 100);
+    Check($"BuiltInSet.English is the inspection of Revit's English template: {BuiltInSet.English.ViewTemplates.Count} view templates, {BuiltInSet.English.Filters.Count} filters, {BuiltInSet.English.Schedules.Count} schedules, {BuiltInSet.English.SheetNumbers.Count} sheets, {BuiltInSet.English.Views.Count} views",
+          BuiltInSet.English.ViewTemplates.SetEquals(english.Templates.Select(t => t.Name)) && BuiltInSet.English.Filters.SetEquals(english.Filters) && BuiltInSet.English.Schedules.SetEquals(english.Schedules) && BuiltInSet.English.SheetNumbers.SetEquals(english.Sheets)
+          && BuiltInSet.English.ViewTemplates.Count == 40 && BuiltInSet.English.Filters.Count == 29 && BuiltInSet.English.Schedules.Count == 14 && BuiltInSet.English.SheetNumbers.Count == 22);
+    Check("each set knows its template file below Revit's Templates folder", BuiltInSet.German.TemplateFile == "German" + (char)92 + "BIM_Architektur_und_Ingenieurbau.rte" && BuiltInSet.English.TemplateFile == "English" + (char)92 + "Default-Multi-Discipline_Metric.rte");
+
+    // the norms
+    Check("DIN 276: the build-up of a floor is KG 363 Dachbeläge, planting KG 570, furniture KG 610, courts and activities KG 550",
+          GermanNorms.CostGroupOfFloor().Code == "363" && GermanNorms.CostGroupOfPiece("vegetation").Code == "570" && GermanNorms.CostGroupOfPiece("garden").Code == "570"
+          && GermanNorms.CostGroupOfPiece("furniture").Code == "610" && GermanNorms.CostGroupOfPiece("field").Code == "550" && GermanNorms.CostGroupOfPiece("activity").Code == "550" && GermanNorms.CostGroupOfPiece(null).Code == "550");
+    Check("DIN 277: a court or activity is NUF 7 (sport), planting NUF 7 (green), the roof finish is roof area (Bereich c), never a Nutzungsfläche of a storey",
+          GermanNorms.AreaOfPiece("field").Code == "NUF 7" && GermanNorms.AreaOfPiece("activity").Code == "NUF 7" && GermanNorms.AreaOfPiece("vegetation").Code == "NUF 7"
+          && GermanNorms.AreaOfFloor(isGardenZone: false).Code == "Bereich c" && GermanNorms.AreaOfFloor(isGardenZone: true).Code == "NUF 7" && GermanNorms.AreaOfPiece("furniture").Code == "Bereich c");
+    var allClasses = new[] { GermanNorms.RoofBuildUp, GermanNorms.Planting, GermanNorms.FixedEquipment, GermanNorms.Furniture, GermanNorms.UsableSport, GermanNorms.UsableGarden, GermanNorms.RoofArea, GermanNorms.Circulation };
+    Check("every roof area class says it is not covered, in German (nicht überdeckt) and in English (not covered)", new[] { GermanNorms.UsableSport, GermanNorms.UsableGarden, GermanNorms.RoofArea, GermanNorms.Circulation }.All(c => c.Text.Contains("nicht überdeckt") && c.TextEn.Contains("not covered")));
+    Check("the norm classes read \"<code> <text>\" in the template's language: \"363 Dachbeläge\" and \"363 Roof coverings\"; the codes are the same in both", GermanNorms.Text(GermanNorms.RoofBuildUp) == "363 Dachbeläge"
+          && GermanNorms.Text(GermanNorms.RoofBuildUp, TemplateLanguage.De) == "363 Dachbeläge" && GermanNorms.Text(GermanNorms.RoofBuildUp, TemplateLanguage.En) == "363 Roof coverings"
+          && allClasses.All(c => c.Text.Length > 3 && c.TextEn.Length > 3 && c.Text != c.TextEn));
+    Check("a roof finish is told from a planted build-up by its type name", GermanNorms.IsRoofFinishTypeName("Sportify - Generic Washed Gravel Ballast") && !GermanNorms.IsRoofFinishTypeName("Sportify - Bauder BauderEXTENSIVE Lightweight Sedum") && !GermanNorms.IsRoofFinishTypeName(null));
+    Check("the assignments say they are proposals for the team to review, in both languages", GermanNorms.Review.Contains("prüfen") && GermanNorms.ReviewEn.Contains("review"));
+
+    // units: an imperial project is converted to the German template's
+    Check("imperial length units are told from metric ones by Revit's unit id (feet, inches, fractional inches; not meters, millimeters, centimeters, nothing)",
+          UnitRules.IsImperialUnitId("autodesk.unit.unit:feetFractionalInches-1.0.1") && UnitRules.IsImperialUnitId("autodesk.unit.unit:inches-1.0.1") && UnitRules.IsImperialUnitId("autodesk.unit.unit:feet-1.0.1") && UnitRules.IsImperialUnitId("autodesk.unit.unit:fractionalInches-1.0.1")
+          && !UnitRules.IsImperialUnitId("autodesk.unit.unit:millimeters-1.0.1") && !UnitRules.IsImperialUnitId("autodesk.unit.unit:meters-1.0.1") && !UnitRules.IsImperialUnitId("autodesk.unit.unit:centimeters-1.0.1") && !UnitRules.IsImperialUnitId(null) && !UnitRules.IsImperialUnitId(""));
+    var unitsSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("TemplateUnits.cs")).Value ?? "";
+    var builderSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("SportifyTemplateBuilder.cs")).Value ?? "";
+    Check("Apply converts an imperial project first, with the German template's units spec by spec (Document.SetUnits), and leaves a metric one alone",
+          builderSource.IndexOf("TemplateUnits.EnsureMetric(doc, made, notes)") is var iu && iu > 0 && iu < builderSource.IndexOf("SportifySharedParameters.EnsureBound(doc)") && unitsSource.Contains("if (!IsImperial(doc)) return false;")
+          && unitsSource.Contains("UnitUtils.GetAllMeasurableSpecs()") && unitsSource.Contains("doc.SetUnits(target)") && unitsSource.Contains("GermanTemplatePath"));
+
+    // the commands, the ribbon and the files
+    var tplSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("TemplateCommands.cs")).Value ?? "";
+    var applyButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "ApplySportifyTemplateCommand");
+    var tplPull = panels.SelectMany(pn => pn.Entries).OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.InternalName == "PullTemplates");
+    Check("BIM & Documentation has \"Apply Sportify Template\" as a button of its own (not only inside a drop-down), asking which language", applyButton != null && applyButton.Text.Replace("\n", " ") == "Apply Sportify Template" && applyButton.Tooltip.Contains("German") && applyButton.Tooltip.Contains("English"));
+    Check("...and a Templates drop-down with the German and the English one, Hide Revit Templates and Show Revit Templates, each a public command",
+          tplPull != null && tplPull.Items.Select(i => i.CommandClass).SequenceEqual(new[] { "ApplySportifyTemplateDeCommand", "ApplySportifyTemplateEnCommand", "HideRevitTemplatesCommand", "ShowRevitTemplatesCommand" })
+          && tplPull.Items.All(i => commandClasses.GetValueOrDefault(i.CommandClass) == "public") && commandClasses.GetValueOrDefault("ApplySportifyTemplateCommand") == "public" && bim.Entries.Contains(tplPull));
+    Check("the five template commands are [Transaction(TransactionMode.Manual)], ask before changing a lot (Yes/No, default No; or the language, default German), and the work catches its own errors",
+          System.Text.RegularExpressions.Regex.Matches(tplSource, @"\[Transaction\(TransactionMode\.Manual\)\]").Count == 5 && tplSource.Contains("DefaultButton = TaskDialogResult.No") && tplSource.Contains("DefaultButton = TaskDialogResult.CommandLink1")
+          && System.Text.RegularExpressions.Regex.Matches(tplSource, "catch \\(Exception ex\\)").Count == 3);
+    Check("Sportify_DE.rte and Sportify_EN.rte are built by SPORTIFY_BUILD_TEMPLATE from Revit's German / English template with the Sportify templates applied and Revit's hidden, and the round trip and the imperial conversion are checked",
+          appSource.Contains("SPORTIFY_BUILD_TEMPLATE") && appSource.Contains("SPORTIFY_VERIFY_IMPERIAL") && appSource.Contains("InspectActive")
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyTemplateFile.cs") && kv.Value.Contains("SportifyTemplateBuilder.Apply(doc, language, withContent: false)") && kv.Value.Contains("BuiltInTemplates.Hide(doc, notes)") && kv.Value.Contains("doc.SaveAs(")
+              && kv.Value.Contains("public static void VerifyImperial") && kv.Value.Contains("public static void Verify(")));
+    var addinProject = sources == null ? "" : File.ReadAllText(Path.Combine(sources, "SportfyRevit.csproj"));
+    Check("the template files travel with the add-in: the project copies the Templates folder's .rte files to the output, which the deploy and the installer payload take whole", addinProject.Contains("Templates" + (char)92 + "*.rte") && addinProject.Contains("CopyToOutputDirectory"));
+    Check("Hide only deletes what is on a built-in list and that nothing of the user's uses (sheets with user views, views on staying sheets, used view templates and filters stay)",
+          allSources.Any(kv => kv.Key.EndsWith("BuiltInTemplates.cs") && kv.Value.Contains("set.Views.Contains(ViewKey(v))") && kv.Value.Contains("usedTemplates") && kv.Value.Contains("usedFilters") && kv.Value.Contains("onStayingSheets")));
+    Check("Show asks which template the project came from by the language of its Sportify templates, and only asks when there is none",
+          tplSource.Contains("SportifyTemplateSpec.Detect(templateNames)") && tplSource.Contains("if (language == null)"));
+    Check("the norm parameters Sportify_DIN277 and Sportify_KG are shared parameters bound to floors, generic models and planting, and an existing value is never overwritten",
+          allSources.Any(kv => kv.Key.EndsWith("SportifySharedParameters.cs") && kv.Value.Contains("\"Sportify_DIN277\", \"Sportify_KG\"") && kv.Value.Contains("OST_Floors")) && allSources.Any(kv => kv.Key.EndsWith("NormParameters.cs") && kv.Value.Contains("!string.IsNullOrEmpty(p.AsString())")));
     Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
 
 }

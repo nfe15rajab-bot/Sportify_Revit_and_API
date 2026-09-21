@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using Autodesk.Revit.UI;
@@ -87,6 +87,16 @@ namespace SportfyRevit
                     var next = queue.Dequeue();
                     try
                     {
+                        // not a ribbon command: writes what the open project contains (TemplateInspector) to the Sportify folder of %APPDATA%, template-inspection, active.json
+                        if (next == "InspectActive")
+                        {
+                            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sportify", "template-inspection");
+                            Directory.CreateDirectory(dir);
+                            File.WriteAllText(Path.Combine(dir, "active.json"), System.Text.Json.JsonSerializer.Serialize(WithNorms(uiApp.ActiveUIDocument.Document), new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+                            SportifyLog.Info("app", "SPORTIFY_RUN_COMMAND: InspectActive written");
+                            notBefore = DateTime.UtcNow.AddSeconds(2);
+                            return;
+                        }
                         var id = CommandIdFor(next);
                         if (id == null) { SportifyLog.Warn("app", "SPORTIFY_RUN_COMMAND: no ribbon command named \"" + next + "\""); return; }
                         SportifyLog.Info("app", "SPORTIFY_RUN_COMMAND: running " + next);
@@ -113,6 +123,34 @@ namespace SportfyRevit
                     SportifyLog.Info("templates", "SPORTIFY_INSPECT_TEMPLATES: " + written.Count + " file(s) written to " + outDir);
                 }
                 application.Idling += InspectOnce;
+            }
+
+            // SPORTIFY_BUILD_TEMPLATE=<folder> makes Sportify_DE.rte and Sportify_EN.rte there (SportifyTemplateFile): Revit's German BIM template / English multi-discipline template with the Sportify templates
+            // applied and Revit's own hidden, and checks the round trip; SPORTIFY_VERIFY_IMPERIAL=1 also checks that an imperial project is converted.
+            var buildTemplate = Environment.GetEnvironmentVariable("SPORTIFY_BUILD_TEMPLATE");
+            if (!string.IsNullOrWhiteSpace(buildTemplate))
+            {
+                void BuildOnce(object? sender, Autodesk.Revit.UI.Events.IdlingEventArgs e)
+                {
+                    application.Idling -= BuildOnce;
+                    if (sender is not UIApplication uiApp) return;
+                    foreach (var language in new[] { TemplateLanguage.De, TemplateLanguage.En })
+                    {
+                        // a folder: both files; a path ending in .rte: only the German one, to that path
+                        var single = buildTemplate.EndsWith(".rte", StringComparison.OrdinalIgnoreCase);
+                        if (single && language != TemplateLanguage.De) continue;
+                        var file = single ? buildTemplate : Path.Combine(buildTemplate, SportifyTemplateFile.FileName(language));
+                        try { SportifyTemplateFile.Build(uiApp.Application, file, language); }
+                        catch (Exception ex) { SportifyLog.Error("templates", "SPORTIFY_BUILD_TEMPLATE failed for " + language, ex); }
+                    }
+                    if (Environment.GetEnvironmentVariable("SPORTIFY_VERIFY_IMPERIAL") == "1")
+                        foreach (var language in new[] { TemplateLanguage.De, TemplateLanguage.En })
+                        {
+                            try { SportifyTemplateFile.VerifyImperial(uiApp.Application, language); }
+                            catch (Exception ex) { SportifyLog.Error("templates", "SPORTIFY_VERIFY_IMPERIAL failed for " + language, ex); }
+                        }
+                }
+                application.Idling += BuildOnce;
             }
 
             // Auto-opens the docked Sportify pane the first time Revit goes
@@ -323,6 +361,14 @@ namespace SportfyRevit
         }
 
         private static string Tooltip(string text) => text.Replace("{APP_URL}", SportifyBrowserPane.DefaultUrl);
+
+        /// <summary>What the InspectActive test hook writes: the project as TemplateInspector reads it, and which DIN 277 / DIN 276 classes the elements carry.</summary>
+        private static Dictionary<string, object?> WithNorms(Autodesk.Revit.DB.Document doc)
+        {
+            var data = TemplateInspector.Inspect(doc);
+            data["normClasses"] = TemplateInspector.NormSummary(doc);
+            return data;
+        }
 
         /// <summary>
         /// The id Revit gives a ribbon command of this add-in (what PostCommand takes), found by the button's internal name, or null. A button on a panel is

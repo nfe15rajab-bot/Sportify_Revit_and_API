@@ -136,7 +136,7 @@ namespace SportfyRevit
         // ---------------------------------------------------------------- helpers
 
         /// <summary>Deletes a schedule of ours that already exists. False when Revit will not (it is open in the active view): then it is left as it is and said so.</summary>
-        private static bool Remove(Document doc, string name, List<string> notes)
+        internal static bool Remove(Document doc, string name, List<string> notes)
         {
             var existing = new FilteredElementCollector(doc).OfClass(typeof(ViewSchedule)).Cast<ViewSchedule>().FirstOrDefault(v => v.Name == name);
             if (existing == null) return true;
@@ -148,14 +148,14 @@ namespace SportfyRevit
             }
         }
 
-        private static ScheduleField? AddByName(Document doc, ScheduleDefinition def, string parameterName)
+        internal static ScheduleField? AddByName(Document doc, ScheduleDefinition def, string parameterName)
         {
             foreach (var f in def.GetSchedulableFields())
                 if (f.GetName(doc) == parameterName) return def.AddField(f);
             return null;
         }
 
-        private static ScheduleField? AddBuiltIn(ScheduleDefinition def, BuiltInParameter parameter)
+        internal static ScheduleField? AddBuiltIn(ScheduleDefinition def, BuiltInParameter parameter)
         {
             var id = new ElementId(parameter);
             foreach (var f in def.GetSchedulableFields())
@@ -163,7 +163,7 @@ namespace SportfyRevit
             return null;
         }
 
-        private static ScheduleField? AddCount(ScheduleDefinition def)
+        internal static ScheduleField? AddCount(ScheduleDefinition def)
         {
             foreach (var f in def.GetSchedulableFields())
                 if (f.FieldType == ScheduleFieldType.Count) return def.AddField(f);

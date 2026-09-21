@@ -106,6 +106,13 @@
     <None Include="SportfyRevit.addin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Sportify_DE.rte and Sportify_EN.rte, the Sportify project templates (made by Revit itself: run Revit with SPORTIFY_BUILD_TEMPLATE=<this project's Templates folder>,
+       see Sportify.Simulation/Tools/templates/README.md). They travel in the output folder like everything else, so the installer puts them next to the add-in in
+       Templates\ and File > New > Browse finds them there. -->
+  <ItemGroup>
+    <None Include="Templates\*.rte" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- The wind and erosion model is plain C# with no Unity types, so the add-in compiles the very same
        source file the Unity project runs: the analysis needs no Unity installed, and the two can never
        drift apart. (Sportify.Simulation lives next to this project in the same repository.) -->

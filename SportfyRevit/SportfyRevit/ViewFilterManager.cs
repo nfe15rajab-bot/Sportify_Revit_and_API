@@ -21,10 +21,11 @@ namespace SportfyRevit
         public const string ZoneGroup = "Zone Types";
         public const string PieceGroup = "Piece Kinds";
 
-        private sealed record FilterDef(string Group, string Name, IList<ElementId> Categories, FilterRule Rule, Autodesk.Revit.DB.Color Color);
+        internal sealed record FilterDef(string Group, string Name, IList<ElementId> Categories, FilterRule Rule, Autodesk.Revit.DB.Color Color);
 
         /// <param name="duplicate">true (the default): the filters go onto duplicates of <paramref name="view"/>; false: onto the view itself.</param>
-        public static ViewFilterResult ApplySportifyViewFilters(Document doc, View view, bool duplicate = true)
+        /// <param name="onlyGroup">null: both groups; ZoneGroup or PieceGroup: only that group's filters (a view template gets only its own).</param>
+        public static ViewFilterResult ApplySportifyViewFilters(Document doc, View view, bool duplicate = true, string? onlyGroup = null)
         {
             var notes = new List<string>();
             var views = new List<string>();
@@ -44,7 +45,7 @@ namespace SportfyRevit
             var solid = SolidFillPatternId(doc);
             if (solid == ElementId.InvalidElementId) notes.Add("The project has no solid fill pattern: the filters colour the lines only.");
 
-            var defs = Definitions(doc, found, notes);
+            var defs = Definitions(doc, found, notes).Where(d => onlyGroup == null || d.Group == onlyGroup).ToList();
 
             int created = 0, updated = 0, onView = 0;
             foreach (var group in defs.Select(d => d.Group).Distinct())
@@ -66,7 +67,7 @@ namespace SportfyRevit
 
         // ---------------------------------------------------------------- what to filter
 
-        private static List<FilterDef> Definitions(Document doc, SportifyElementScan.Found found, List<string> notes)
+        internal static List<FilterDef> Definitions(Document doc, SportifyElementScan.Found found, List<string> notes)
         {
             var defs = new List<FilterDef>();
 
@@ -133,7 +134,7 @@ namespace SportfyRevit
 
         // ---------------------------------------------------------------- one filter
 
-        private static ParameterFilterElement EnsureFilter(Document doc, FilterDef def, ref int created, ref int updated)
+        internal static ParameterFilterElement EnsureFilter(Document doc, FilterDef def, ref int created, ref int updated)
         {
             var filter = new ElementParameterFilter(def.Rule);
             var existing = new FilteredElementCollector(doc).OfClass(typeof(ParameterFilterElement)).Cast<ParameterFilterElement>().FirstOrDefault(f => f.Name == def.Name);
@@ -148,7 +149,7 @@ namespace SportfyRevit
             return ParameterFilterElement.Create(doc, def.Name, def.Categories, filter);
         }
 
-        private static bool PutOnView(View view, ParameterFilterElement element, Autodesk.Revit.DB.Color color, ElementId solid, List<string> notes)
+        internal static bool PutOnView(View view, ParameterFilterElement element, Autodesk.Revit.DB.Color color, ElementId solid, List<string> notes)
         {
             var graphics = new OverrideGraphicSettings();
             graphics.SetProjectionLineColor(color);
@@ -177,7 +178,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The first of the built-in parameters that Revit lets the given categories be filtered by, or null.</summary>
-        private static ElementId? FirstFilterable(Document doc, ICollection<ElementId> categories, params BuiltInParameter[] candidates)
+        internal static ElementId? FirstFilterable(Document doc, ICollection<ElementId> categories, params BuiltInParameter[] candidates)
         {
             var allowed = ParameterFilterUtilities.GetFilterableParametersInCommon(doc, categories);
             foreach (var c in candidates)
@@ -188,7 +189,7 @@ namespace SportfyRevit
             return null;
         }
 
-        private static ElementId SolidFillPatternId(Document doc)
+        internal static ElementId SolidFillPatternId(Document doc)
         {
             foreach (var pattern in new FilteredElementCollector(doc).OfClass(typeof(FillPatternElement)).Cast<FillPatternElement>())
             {
