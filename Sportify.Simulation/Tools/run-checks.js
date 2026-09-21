@@ -350,4 +350,19 @@ function report(results, started) {
   const passed = results.filter(r => r.status === "pass").length;
   console.log(`\n${failed.length ? "CHECKS FAILED" : "ALL CHECKS PASSED"}: ${passed} passed, ${failed.length} failed, ${skipped.length} skipped   ${((Date.now() - started) / 1000).toFixed(0)} s`);
   process.exitCode = failed.length ? 1 : 0;
+  if (process.env.GITHUB_ACTIONS) githubReport(results, passed, failed, skipped, started);
+}
+
+// On GitHub Actions the log of a failed step is behind a login. So each failed check also becomes an annotation (shown on the run's page and in the pull request, and readable through
+// the API without a login) and the whole list goes into the run's job summary: what ran, what failed and why, without opening the log.
+function githubReport(results, passed, failed, skipped, started) {
+  const esc = t => String(t).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  for (const r of failed) console.log(`::error title=${esc("check failed: " + r.name).replace(/,/g, "%2C").replace(/:/g, "%3A")}::${esc((r.output || "(no output)").trim().slice(-1800))}`);
+  const file = process.env.GITHUB_STEP_SUMMARY;
+  if (!file) return;
+  const cell = t => String(t || "").split(/\r?\n/)[0].replace(/\|/g, "\\|").slice(0, 160);
+  const rows = results.slice().sort((a, b) => (a.status === "fail" ? 0 : 1) - (b.status === "fail" ? 0 : 1)).map(r => `| ${{ pass: "pass", fail: "**FAIL**", skip: "skipped" }[r.status]} | ${cell(r.name)} | ${cell(r.detail)} | ${r.seconds.toFixed(1)} s |`);
+  let md = `## ${failed.length ? "Checks failed" : "All checks passed"}: ${passed} passed, ${failed.length} failed, ${skipped.length} skipped (${((Date.now() - started) / 1000).toFixed(0)} s)\n\n| Result | Check | Detail | Time |\n|---|---|---|---|\n${rows.join("\n")}\n`;
+  for (const r of failed) md += `\n### ${cell(r.name)}\n\n\`\`\`\n${(r.output || "(no output)").trim().slice(-3000)}\n\`\`\`\n`;
+  try { require("fs").appendFileSync(file, md); } catch (e) { /* the summary is a courtesy */ }
 }
