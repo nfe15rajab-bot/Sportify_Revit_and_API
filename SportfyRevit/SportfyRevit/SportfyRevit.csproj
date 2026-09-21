@@ -40,15 +40,28 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- Where the compile-only references come from. On a machine with Revit 2025 installed (every developer's, and the only case before) they are Revit's own
+       RevitAPI(UI).dll, exactly as always. On a machine without Revit (GitHub's build servers) the same API is taken from the public reference-assembly packages
+       (Nice3point.Revit.Api.*, the Revit 2025.4 API), so the add-in can still be compiled and packed there. Nothing of Revit is ever shipped either way (Private=false / PrivateAssets). -->
+  <PropertyGroup>
+    <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit 2025\</RevitInstallDir>
+    <HasRevitInstall Condition="Exists('$(RevitInstallDir)RevitAPI.dll') And Exists('$(RevitInstallDir)RevitAPIUI.dll')">true</HasRevitInstall>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(HasRevitInstall)' == 'true'">
     <Reference Include="RevitAPI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPI.dll</HintPath>
+      <HintPath>$(RevitInstallDir)RevitAPI.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="RevitAPIUI">
-      <HintPath>C:\Program Files\Autodesk\Revit 2025\RevitAPIUI.dll</HintPath>
+      <HintPath>$(RevitInstallDir)RevitAPIUI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(HasRevitInstall)' != 'true'">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="2025.4.60" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="2025.4.60" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <PropertyGroup>
