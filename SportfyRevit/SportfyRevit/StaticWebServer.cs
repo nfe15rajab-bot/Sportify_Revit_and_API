@@ -139,6 +139,9 @@ namespace SportfyRevit
             ctx.Response.Headers.Add("Cache-Control", "no-store, must-revalidate");
             ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
             ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
+            // The page's own policy (index.html's <meta>) limits what it loads; the two things a <meta> cannot say are said here: no other site may frame the app.
+            ctx.Response.Headers.Add("Content-Security-Policy", "frame-ancestors 'none'");
+            ctx.Response.Headers.Add("X-Frame-Options", "DENY");
 
             var bytes = await File.ReadAllBytesAsync(fullPath);
             ctx.Response.ContentLength64 = bytes.Length;

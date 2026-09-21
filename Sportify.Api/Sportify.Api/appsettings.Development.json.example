@@ -2,6 +2,12 @@
   "ConnectionStrings": {
     "DefaultConnection": "Host=localhost;Port=5432;Database=sportify_dev;Username=postgres;Password=YOUR_PASSWORD_HERE"
   },
+  "Api": {
+    "WriteKey": "CHOOSE_A_LONG_RANDOM_STRING_OR_LEAVE_OUT_TO_GET_ONE_PER_RUN"
+  },
+  "Jwt": {
+    "Key": "ONLY_IF_YOU_USE_ACCOUNTS_32_OR_MORE_RANDOM_CHARACTERS"
+  },
   "Logging": {
     "LogLevel": {
       "Default": "Information",

@@ -226,6 +226,35 @@ step("the web app reaches the add-in only through localSession.js (the session t
   return r.code === 0 ? { status: "pass", detail: "no script calls the add-in with a bare fetch" } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "escape-audit-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/escape-audit-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "no name, label, description, note, source or id reaches a template unescaped" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: its Content-Security-Policy, and that the page obeys it (no inline script, no CDN, vendored assets)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "csp-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/csp-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "script-src 'self', nothing from another site" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: catalogue writes carry the API's write key (apiSession.js)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "api-session-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/api-session-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "handshake, typed key, retry after a restart, no bare fetch writes" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the API: writes need a key, SQL import is gated, no placeholder JWT (the real API, run twice)", async () => {
+  const r = await node([path.join(tools, "ApiSecurityCheck", "check.js")], { timeout: 280000 });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1) } : { status: "fail", output: tail(r.out + r.err, 40) };
+});
+
 // ---- local only: they need an installed Unity / Revit (CI has neither)
 step("Unity project still compiles (needs a Unity install)", async () => {
   const managed = process.env.UNITY_MANAGED || "C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.2f1\\Editor\\Data\\Managed\\UnityEngine";

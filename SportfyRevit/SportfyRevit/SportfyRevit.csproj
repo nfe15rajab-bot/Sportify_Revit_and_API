@@ -124,8 +124,11 @@
   <Target Name="BundleWebApp" AfterTargets="Build" Condition="Exists('$(SportifyWebAppDir)index.html')">
     <ItemGroup>
       <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
+      <!-- vendor\: Leaflet, SunCalc, the icon font and Titillium Web, served from the app's own folder (the page's Content-Security-Policy allows nothing from a CDN) -->
+      <SportifyVendorFiles Include="$(SportifyWebAppDir)vendor\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SportifyVendorFiles)" DestinationFiles="@(SportifyVendorFiles->'$(OutDir)web\vendor\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points

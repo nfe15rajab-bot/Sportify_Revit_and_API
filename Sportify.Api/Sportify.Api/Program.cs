@@ -1,10 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using Sportify.Api;
 using Sportify.Api.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Who may change the catalogue, and from which origins (ApiSecurity.cs).
+var security = new ApiSecurity(builder.Configuration, builder.Environment.IsDevelopment());
+builder.Services.AddSingleton(security);
+
+// A request body is read up to this and no further (the Data tab's photographs and .sql files are the biggest things sent).
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = ApiSecurity.MaxBodyBytes);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -18,30 +26,30 @@ builder.Services.AddDbContext<ReferenceDbContext>(options =>
 
 const string FrontendCorsPolicy = "FrontendDev";
 builder.Services.AddCors(options => options.AddPolicy(FrontendCorsPolicy, policy =>
-    // 8123 is where the add-in's own StaticWebServer serves the app, and where
-    // it runs inside Revit. 8124 is the plain dev server used when Revit has
-    // 8123 — without it the Data tab reports "backend not reachable" while the
-    // API is running perfectly well, which reads as a dead backend rather than
-    // a blocked origin.
-    policy.WithOrigins("http://localhost:8123", "http://localhost:8124")
-          .AllowAnyHeader().AllowAnyMethod()));
+    // The app's own addresses: 8123 is where the add-in's StaticWebServer serves it (it runs inside Revit), 8124 the presentation copy and the plain dev
+    // server used when Revit has 8123; both by name and by number. More with Api:AllowedOrigins.
+    policy.WithOrigins(security.Origins.ToArray())
+          .WithHeaders("Content-Type", ApiSecurity.KeyHeader)
+          .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")));
 
-var jwtKey = builder.Configuration["Jwt:Key"]!;
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+// Accounts: the bearer scheme is registered only when Jwt:Key is a real key. It used to be set up with a placeholder that was in the repository, so a token signed with
+// that placeholder would have been accepted.
+var authentication = builder.Services.AddAuthentication();
+if (security.JwtConfigured)
+{
+    authentication.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = jwtIssuer,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = false,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(security.JwtKey!))
         };
     });
+}
 
 // Add services to the container.
 
@@ -63,10 +71,20 @@ app.UseHttpsRedirection();
 
 app.UseCors(FrontendCorsPolicy);
 
+// Every write needs the key, whatever its body looks like (ApiSecurity.cs). After CORS, so that the refusal is readable by the app.
+app.UseMiddleware<WriteKeyMiddleware>();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (security.KeyIsGenerated)
+    app.Logger.LogInformation("Api:WriteKey is not set: writes need the key made for this run, {Key} (header {Header}); the app gets it from GET /api/session. Set Api:WriteKey to choose one.", security.WriteKey, ApiSecurity.KeyHeader);
+else
+    app.Logger.LogInformation("Writes need the configured Api:WriteKey (header {Header}).", ApiSecurity.KeyHeader);
+if (!security.JwtConfigured) app.Logger.LogInformation("Jwt:Key is not a real key: the account endpoints are off.");
+app.Logger.LogInformation("SQL import is {State}.", security.SqlImportEnabled ? "ON (Development or Admin:AllowSqlImport)" : "off");
 
 // The catalog is created and seeded once by EnsureCreated, so an existing reference.db never got what a later build added. Everything the API seeds is ONE sequence
 // (CatalogSeeding.Run, Moamen's seeders included): its steps add what is missing in place (tables, columns, rows by key), which keeps whatever was entered through the Data
