@@ -9,6 +9,20 @@
     this script's only job is building the three pieces and putting
     them where that installer expects to find them.
 
+.PARAMETER CertificateThumbprint
+    A code-signing certificate in CurrentUser\My or LocalMachine\My. With it (or -PfxFile) the add-in DLL, Sportify.Api.exe and Sportify_Revit.exe are signed and the
+    signatures checked (Sign-Artifacts.ps1). Without one the build is UNSIGNED and says so at the end: SmartScreen warns on the installer and Revit asks whether to load
+    an add-in from an unknown publisher. The certificate has to be bought or issued; there is none in this repository.
+
+.PARAMETER PfxFile
+    A .pfx file with the certificate and its private key; the password is asked for (or passed as -PfxPassword, a SecureString).
+
+.PARAMETER TimestampUrl
+    The RFC 3161 timestamp server used when signing (default DigiCert's). A signature made without one stops being valid when the certificate expires.
+
+.PARAMETER RequireSigning
+    Fail instead of producing an unsigned build when no certificate was given.
+
 .NOTES
     Needs, on the machine running this script: the .NET SDK, real
     internet access (NuGet — WebView2 and the self-contained runtime
@@ -19,8 +33,21 @@
     to exist on whichever machine builds this).
 #>
 
+[CmdletBinding()]
+param(
+    [string]$CertificateThumbprint,
+    [string]$PfxFile,
+    [securestring]$PfxPassword,
+    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [switch]$RequireSigning
+)
+
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+. (Join-Path $root "Sign-Artifacts.ps1")
+$willSign = [bool]($CertificateThumbprint -or $PfxFile)
+if ($RequireSigning -and -not $willSign) { throw "-RequireSigning was given but there is no certificate (-CertificateThumbprint or -PfxFile)." }
+if ($PfxFile -and -not $PfxPassword) { $PfxPassword = Read-Host "Password for $PfxFile" -AsSecureString }
 
 function Step($msg) { Write-Host ""; Write-Host "== $msg ==" -ForegroundColor Cyan }
 
@@ -77,6 +104,19 @@ dotnet publish $installerProj -c Release -r win-x64 --self-contained true `
     -o $distDir
 if ($LASTEXITCODE -ne 0) { throw "Sportify.Installer publish failed." }
 
+# ── 4. Signing: what Sportify ships that is Sportify's own (the add-in, the API, the installer), not the runtime and WebView2 files that Microsoft already signed ──
+if ($willSign) {
+    Step "Signing"
+    $ours = @((Join-Path $payloadDir "SportfyRevit.dll"), (Join-Path $payloadDir "api\Sportify.Api.exe"), (Join-Path $distDir "Sportify_Revit.exe")) | Where-Object { Test-Path $_ }
+    $signed = Sign-SportifyFiles -Files $ours -CertificateThumbprint $CertificateThumbprint -PfxFile $PfxFile -PfxPassword $PfxPassword -TimestampUrl $TimestampUrl
+    if (($signed | Where-Object { $_.Status -ne "Valid" }).Count -gt 0) {
+        Write-Warning "Signed, but this machine does not trust the certificate (a self-signed or private-CA certificate): fine for trying, not for shipping."
+    }
+}
+else {
+    Write-Warning "UNSIGNED BUILD: no certificate was given (-CertificateThumbprint or -PfxFile). SmartScreen will warn when the installer is run and Revit will ask whether to load an add-in from an unknown publisher."
+}
+
 Step "Done"
-Write-Host "dist\Sportify_Revit.exe + dist\payload\ are ready." -ForegroundColor Green
+Write-Host "dist\Sportify_Revit.exe + dist\payload\ are ready$(if ($willSign) { ' (signed)' } else { ' (UNSIGNED)' })." -ForegroundColor Green
 Write-Host "Zip the whole dist\ folder — the .exe needs payload\ sitting right next to it." -ForegroundColor Green

@@ -92,7 +92,7 @@ step("fixtures match their generators", async () => {
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1) } : { status: "fail", output: r.out + r.err };
 });
 
-const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "AnalysisParity", "ReaderParity"];
+const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "AnalysisParity", "InstallerCheck", "ReaderParity"];
 if (isWin) toolNames.push("ContractCheck");
 
 step("build the check tools", async () => {
@@ -135,6 +135,7 @@ for (const spec of analysisTools) {
 }
 
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
+step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
 step("the API's reference.db guard on throw-away databases (ReferenceDbCheck)", () => runTool("ReferenceDbCheck"));
 step("Unity results contract (ContractCheck)", () => runTool("ContractCheck"), { needsWindows: true });
