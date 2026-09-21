@@ -213,8 +213,19 @@ namespace SportfyRevit
             var boundary = layout.RoofContext?.SourceBoundaryPolygon;
             if (boundary == null || boundary.Count < 3)
             {
-                ImportDiagnostics.FloorFailed("Roof finish", "this export carries no roof boundary polygon");
-                return;
+                // A roof typed in by hand (no Revit push) has no outline polygon, only a length and a width: it is that rectangle, from the roof's origin corner. Before, no
+                // finish was ever drawn for such a roof (found by the live Revit import).
+                var roof = layout.RoofContext;
+                if (roof == null || roof.LengthM <= 0 || roof.WidthM <= 0)
+                {
+                    ImportDiagnostics.FloorFailed("Roof finish", "this export carries neither a roof boundary polygon nor a roof size");
+                    return;
+                }
+                boundary = new List<PointDto>
+                {
+                    new() { XM = 0, YM = 0 }, new() { XM = roof.LengthM, YM = 0 }, new() { XM = roof.LengthM, YM = roof.WidthM }, new() { XM = 0, YM = roof.WidthM },
+                };
+                ImportDiagnostics.Note($"the roof finish follows the roof's size ({roof.LengthM:0.#} x {roof.WidthM:0.#} m): this export has no outline polygon (a roof typed in by hand)");
             }
 
             var pts = boundary

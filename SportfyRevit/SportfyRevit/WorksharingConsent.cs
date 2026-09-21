@@ -39,10 +39,11 @@ namespace SportfyRevit
                 MainContent = "Sportify places what it builds on the worksets Sports, Gardens and Combine, and worksets need worksharing. " +
                               "This project is not workshared. Turning worksharing on cannot be undone: it makes this a workshared project that has to be saved as a central model.",
                 CommonButtons = TaskDialogCommonButtons.Cancel,
-                DefaultButton = TaskDialogResult.CommandLink2,
             };
             ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Turn worksharing on and use the worksets", "Sports, Gardens and Combine are created. This cannot be undone.");
             ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Import without worksets", "The project stays as it is; only the imported elements are added.");
+            // After the links exist: Revit throws "Corresponding button not found" for a default that is not there yet (the live import found this).
+            ask.DefaultButton = TaskDialogResult.CommandLink2;
 
             var choice = ask.Show() switch
             {

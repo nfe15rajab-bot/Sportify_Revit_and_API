@@ -44,7 +44,7 @@
   ],
   "circulation_paths": [
     {
-      "item_id": "algo_1789985484153_0",
+      "item_id": "algo_1789986835687_0",
       "points_m": [
         {
           "x_m": 0.4375,
@@ -57,7 +57,7 @@
       ]
     },
     {
-      "item_id": "algo_1789985484153_1",
+      "item_id": "algo_1789986835687_1",
       "points_m": [
         {
           "x_m": 66.9375,
@@ -70,7 +70,7 @@
       ]
     },
     {
-      "item_id": "algo_1789985484153_2",
+      "item_id": "algo_1789986835687_2",
       "points_m": [
         {
           "x_m": 33.6875,
@@ -79,7 +79,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484155_0",
+      "item_id": "item_1789986835689_0",
       "points_m": [
         {
           "x_m": 0.4375,
@@ -96,7 +96,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484156_1",
+      "item_id": "item_1789986835690_1",
       "points_m": [
         {
           "x_m": 0.4375,
@@ -117,7 +117,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484156_2",
+      "item_id": "item_1789986835690_2",
       "points_m": [
         {
           "x_m": 0.4375,
@@ -134,7 +134,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484156_3",
+      "item_id": "item_1789986835690_3",
       "points_m": [
         {
           "x_m": 33.6875,
@@ -147,7 +147,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484156_4",
+      "item_id": "item_1789986835690_4",
       "points_m": [
         {
           "x_m": 33.6875,
@@ -160,7 +160,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484156_5",
+      "item_id": "item_1789986835690_5",
       "points_m": [
         {
           "x_m": 33.6875,
@@ -173,7 +173,7 @@
       ]
     },
     {
-      "item_id": "item_1789985484157_6",
+      "item_id": "item_1789986835690_6",
       "points_m": [
         {
           "x_m": 33.6875,
@@ -242,6 +242,42 @@
           "thickness_source": "typical"
         }
       ]
+    },
+    {
+      "key": "gravel_ballast",
+      "provider": "Generic",
+      "provider_country": "Germany",
+      "system_name": "Washed Gravel Ballast",
+      "category": "finish",
+      "revit_type_name": "Sportify - Generic Washed Gravel Ballast",
+      "build_up_mm": null,
+      "saturated_kg_m2": null,
+      "water_storage_l_m2": null,
+      "source_url": null,
+      "total_thickness_m": 0.057,
+      "layers": [
+        {
+          "order": 0,
+          "name": "Washed round gravel 16/32",
+          "function": "wearing",
+          "thickness_m": 0.05,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 1,
+          "name": "Filter fleece",
+          "function": "filter",
+          "thickness_m": 0.002,
+          "thickness_source": "typical"
+        },
+        {
+          "order": 2,
+          "name": "Protection mat",
+          "function": "protection",
+          "thickness_m": 0.005,
+          "thickness_source": "typical"
+        }
+      ]
     }
   ],
   "unresolved_assemblies": [],
@@ -254,7 +290,7 @@
     "openings": [
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_0",
+        "id": "zone_algo_1789986835687_0",
         "x_m": 0,
         "y_m": 0,
         "length_m": 67.6,
@@ -280,7 +316,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_1",
+        "id": "zone_algo_1789986835687_1",
         "x_m": 0,
         "y_m": 20,
         "length_m": 67.6,
@@ -306,7 +342,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_2",
+        "id": "zone_algo_1789986835687_2",
         "x_m": 0,
         "y_m": 1,
         "length_m": 1,
@@ -332,7 +368,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_3",
+        "id": "zone_algo_1789986835687_3",
         "x_m": 0,
         "y_m": 12,
         "length_m": 1,
@@ -358,7 +394,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_4",
+        "id": "zone_algo_1789986835687_4",
         "x_m": 66.6,
         "y_m": 1,
         "length_m": 1,
@@ -384,7 +420,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_5",
+        "id": "zone_algo_1789986835687_5",
         "x_m": 66.6,
         "y_m": 12,
         "length_m": 1,
@@ -410,7 +446,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_6",
+        "id": "zone_algo_1789986835687_6",
         "x_m": 4,
         "y_m": 3,
         "length_m": 25.5,
@@ -436,7 +472,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_7",
+        "id": "zone_algo_1789986835687_7",
         "x_m": 31.5,
         "y_m": 3,
         "length_m": 32.1,
@@ -462,7 +498,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_8",
+        "id": "zone_algo_1789986835687_8",
         "x_m": 37.1,
         "y_m": 5.1,
         "length_m": 26.5,
@@ -488,7 +524,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_9",
+        "id": "zone_algo_1789986835687_9",
         "x_m": 1,
         "y_m": 1,
         "length_m": 1,
@@ -514,7 +550,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_10",
+        "id": "zone_algo_1789986835687_10",
         "x_m": 65.6,
         "y_m": 1,
         "length_m": 1,
@@ -540,7 +576,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_11",
+        "id": "zone_algo_1789986835687_11",
         "x_m": 37.1,
         "y_m": 7,
         "length_m": 4.5,
@@ -566,7 +602,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_12",
+        "id": "zone_algo_1789986835687_12",
         "x_m": 1,
         "y_m": 14,
         "length_m": 3,
@@ -592,7 +628,7 @@
       },
       {
         "source": "zone",
-        "id": "zone_algo_1789985484153_13",
+        "id": "zone_algo_1789986835687_13",
         "x_m": 63.6,
         "y_m": 14,
         "length_m": 2.999999999999993,
@@ -618,7 +654,7 @@
       },
       {
         "source": "piece",
-        "id": "algo_1789985484153_0",
+        "id": "algo_1789986835687_0",
         "x_m": 4,
         "y_m": 5,
         "length_m": 24,
@@ -626,7 +662,7 @@
       },
       {
         "source": "piece",
-        "id": "algo_1789985484153_1",
+        "id": "algo_1789986835687_1",
         "x_m": 41.6,
         "y_m": 7,
         "length_m": 22,
@@ -634,7 +670,7 @@
       },
       {
         "source": "piece",
-        "id": "algo_1789985484153_2",
+        "id": "algo_1789986835687_2",
         "x_m": 29.5,
         "y_m": 6.6,
         "length_m": 6.1,
@@ -642,7 +678,7 @@
       },
       {
         "source": "piece",
-        "id": "item_1789985484155_0",
+        "id": "item_1789986835689_0",
         "x_m": 6,
         "y_m": 1.5,
         "length_m": 1.8,
@@ -650,7 +686,7 @@
       },
       {
         "source": "piece",
-        "id": "item_1789985484156_1",
+        "id": "item_1789986835690_1",
         "x_m": 9.2,
         "y_m": 1.5,
         "length_m": 1.8,
@@ -658,7 +694,7 @@
       },
       {
         "source": "piece",
-        "id": "item_1789985484156_2",
+        "id": "item_1789986835690_2",
         "x_m": 12.399999999999999,
         "y_m": 1.5,
         "length_m": 1.8,
@@ -666,7 +702,7 @@
       },
       {
         "source": "piece",
-        "id": "item_1789985484156_3",
+        "id": "item_1789986835690_3",
         "x_m": 15.599999999999998,
         "y_m": 1.5,
         "length_m": 0.42,
@@ -674,7 +710,7 @@
       },
       {
         "source": "piece",
-        "id": "item_1789985484156_4",
+        "id": "item_1789986835690_4",
         "x_m": 18.799999999999997,
         "y_m": 1.5,
         "length_m": 0.48,
@@ -684,7 +720,7 @@
   },
   "zones": [
     {
-      "id": "zone_algo_1789985484153_0",
+      "id": "zone_algo_1789986835687_0",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -715,7 +751,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_1",
+      "id": "zone_algo_1789986835687_1",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -746,7 +782,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_2",
+      "id": "zone_algo_1789986835687_2",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -777,7 +813,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_3",
+      "id": "zone_algo_1789986835687_3",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -808,7 +844,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_4",
+      "id": "zone_algo_1789986835687_4",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -839,7 +875,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_5",
+      "id": "zone_algo_1789986835687_5",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -870,7 +906,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_6",
+      "id": "zone_algo_1789986835687_6",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -901,7 +937,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_7",
+      "id": "zone_algo_1789986835687_7",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -932,7 +968,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_8",
+      "id": "zone_algo_1789986835687_8",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -963,7 +999,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_9",
+      "id": "zone_algo_1789986835687_9",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -994,7 +1030,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_10",
+      "id": "zone_algo_1789986835687_10",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -1025,7 +1061,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_11",
+      "id": "zone_algo_1789986835687_11",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -1056,7 +1092,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_12",
+      "id": "zone_algo_1789986835687_12",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -1087,7 +1123,7 @@
       "assembly_key": "bauder_extensive_sedum"
     },
     {
-      "id": "zone_algo_1789985484153_13",
+      "id": "zone_algo_1789986835687_13",
       "kind": "green_roof",
       "label": "Green roof",
       "bounding_box": {
@@ -1120,7 +1156,7 @@
   ],
   "placements": [
     {
-      "id": "algo_1789985484153_0",
+      "id": "algo_1789986835687_0",
       "category": "field",
       "label": "Volleyball",
       "insertion_point": {
@@ -1179,7 +1215,7 @@
           "net_height_m": 2.43,
           "surface": "polyurethane",
           "court_colour": "blue",
-          "appearance_hex": "#2f6fb5",
+          "appearance_hex": "#2b70bb",
           "court_length_m": 18,
           "court_width_m": 9,
           "length_m": 24,
@@ -1195,16 +1231,16 @@
           "clear_height_min_m": 7,
           "sand_depth_m": 0,
           "sand_volume_m3": 0,
-          "weight_kg": 0,
-          "weight_kg_m2": 0,
+          "weight_kg": 3220,
+          "weight_kg_m2": 8.9,
           "weight_breakdown": [
             {
               "part": "Playing surface",
-              "kg": 0
+              "kg": 2880
             },
             {
               "part": "Net and posts",
-              "kg": 0
+              "kg": 340
             }
           ],
           "weight_basis": "estimated",
@@ -1213,7 +1249,7 @@
       }
     },
     {
-      "id": "algo_1789985484153_1",
+      "id": "algo_1789986835687_1",
       "category": "field",
       "label": "Basketball Court",
       "insertion_point": {
@@ -1291,16 +1327,16 @@
           "free_throw_circle_radius_m": 1.8,
           "no_charge_radius_m": 1.25,
           "clear_height_min_m": 7,
-          "weight_kg": 0,
-          "weight_kg_m2": 0,
+          "weight_kg": 3516,
+          "weight_kg_m2": 12.3,
           "weight_breakdown": [
             {
               "part": "Playing surface",
-              "kg": 0
+              "kg": 1716
             },
             {
               "part": "Baskets (2)",
-              "kg": 0
+              "kg": 1800
             }
           ],
           "weight_basis": "estimated",
@@ -1309,7 +1345,7 @@
       }
     },
     {
-      "id": "algo_1789985484153_2",
+      "id": "algo_1789986835687_2",
       "category": "field",
       "label": "Badminton",
       "insertion_point": {
@@ -1364,7 +1400,7 @@
       }
     },
     {
-      "id": "item_1789985484155_0",
+      "id": "item_1789986835689_0",
       "category": "furniture",
       "label": "Parkbank 1.114",
       "insertion_point": {
@@ -1410,7 +1446,7 @@
       }
     },
     {
-      "id": "item_1789985484156_1",
+      "id": "item_1789986835690_1",
       "category": "furniture",
       "label": "B 50021",
       "insertion_point": {
@@ -1456,7 +1492,7 @@
       }
     },
     {
-      "id": "item_1789985484156_2",
+      "id": "item_1789986835690_2",
       "category": "furniture",
       "label": "B 50022",
       "insertion_point": {
@@ -1502,7 +1538,7 @@
       }
     },
     {
-      "id": "item_1789985484156_3",
+      "id": "item_1789986835690_3",
       "category": "furniture",
       "label": "CAMBIO 90",
       "insertion_point": {
@@ -1548,7 +1584,7 @@
       }
     },
     {
-      "id": "item_1789985484156_4",
+      "id": "item_1789986835690_4",
       "category": "furniture",
       "label": "COMMUNITY 110",
       "insertion_point": {
@@ -1594,7 +1630,7 @@
       }
     },
     {
-      "id": "item_1789985484156_5",
+      "id": "item_1789986835690_5",
       "category": "vegetation",
       "label": "Cornus mas",
       "insertion_point": {
@@ -1633,7 +1669,7 @@
       }
     },
     {
-      "id": "item_1789985484157_6",
+      "id": "item_1789986835690_6",
       "category": "vegetation",
       "label": "Pyrus salicifolia Pendula",
       "insertion_point": {

@@ -98,7 +98,7 @@ namespace SportfyRevit
             outcome.Report = ImportDiagnostics.Report();
             SportifyLog.Block("import",
                 $"{sourceName} import {(outcome.Succeeded ? "finished" : outcome.Cancelled ? "cancelled" : "FAILED: " + outcome.Error)} in {clock.ElapsedMilliseconds} ms; " +
-                $"replaced {outcome.Replaced} element(s) of the previous import; report:",
+                $"replaced {outcome.Replaced} element(s) of the previous import (Revit counts the sketches and lines that depend on what was tagged); report:",
                 outcome.Report);
             return outcome;
         }
