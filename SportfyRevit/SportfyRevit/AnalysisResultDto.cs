@@ -26,6 +26,71 @@ namespace SportfyRevit
         [JsonPropertyName("soil_percolation")] public SoilPercolationResultDto? SoilPercolation { get; set; }
         [JsonPropertyName("structural_loads")] public StructuralLoadsResultDto? StructuralLoads { get; set; }
         [JsonPropertyName("dynamic_analysis")] public DynamicAnalysisResultDto? DynamicAnalysis { get; set; }
+
+        // What the document knows about itself (not analyses: results-keys-parity.js leaves these three out).
+        /// <summary>The layout the newest section was computed for.</summary>
+        [JsonPropertyName("layout_id")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? LayoutId { get; set; }
+        [JsonPropertyName("updated_at")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? UpdatedAtUtc { get; set; }
+        /// <summary>Per section: the layout it was computed for and when. A section without an entry is of unknown origin.</summary>
+        [JsonPropertyName("sections")] public Dictionary<string, ResultSectionInfoDto> Sections { get; set; } = new();
+
+        /// <summary>The section keys, as they are on the wire.</summary>
+        internal static readonly string[] SectionKeys =
+        {
+            "fire_safety", "accessibility", "lca", "carbon_impact", "sun_and_shading", "ball_trajectory", "wind_erosion", "soil_percolation", "structural_loads", "dynamic_analysis",
+        };
+
+        internal bool Has(string key) => key switch
+        {
+            "fire_safety" => FireSafety != null, "accessibility" => Accessibility != null, "lca" => Lca != null, "carbon_impact" => CarbonImpact != null,
+            "sun_and_shading" => SunAndShading != null, "ball_trajectory" => BallTrajectory != null, "wind_erosion" => WindErosion != null,
+            "soil_percolation" => SoilPercolation != null, "structural_loads" => StructuralLoads != null, "dynamic_analysis" => DynamicAnalysis != null,
+            _ => false,
+        };
+
+        internal void Clear(string key)
+        {
+            switch (key)
+            {
+                case "fire_safety": FireSafety = null; break;
+                case "accessibility": Accessibility = null; break;
+                case "lca": Lca = null; break;
+                case "carbon_impact": CarbonImpact = null; break;
+                case "sun_and_shading": SunAndShading = null; break;
+                case "ball_trajectory": BallTrajectory = null; break;
+                case "wind_erosion": WindErosion = null; break;
+                case "soil_percolation": SoilPercolation = null; break;
+                case "structural_loads": StructuralLoads = null; break;
+                case "dynamic_analysis": DynamicAnalysis = null; break;
+            }
+            Sections.Remove(key);
+        }
+
+        /// <summary>
+        /// Removes every section that was NOT computed for <paramref name="layoutId"/>. A layout whose analyses no longer apply (its garden was removed)
+        /// used to leave the old wind and rain results in the document next to the new ones, with nothing to say they were about another layout.
+        /// Returns the keys that were dropped. Unknown layout (null): nothing can be judged, nothing is dropped.
+        /// </summary>
+        internal List<string> DropSectionsNotFor(string? layoutId)
+        {
+            var dropped = new List<string>();
+            if (layoutId == null) return dropped;
+            foreach (var key in SectionKeys)
+            {
+                if (!Has(key)) continue;
+                if (Sections.TryGetValue(key, out var info) && info.LayoutId == layoutId) continue;
+                Clear(key);
+                dropped.Add(key);
+            }
+            return dropped;
+        }
+    }
+
+    /// <summary>Which layout a published section was computed for, and when (UTC, ISO 8601).</summary>
+    internal class ResultSectionInfoDto
+    {
+        [JsonPropertyName("layout_id")] public string? LayoutId { get; set; }
+        [JsonPropertyName("computed_at")] public string? ComputedAtUtc { get; set; }
     }
 
     internal class FireSafetyResultDto
@@ -398,30 +463,64 @@ namespace SportfyRevit
     /// </summary>
     internal static class AnalysisResultPublisher
     {
-        public static void PublishFireSafety(FireSafetyResultDto result) => Publish(p => p.FireSafety = result);
-        public static void PublishAccessibility(AccessibilityResultDto result) => Publish(p => p.Accessibility = result);
-        public static void PublishLca(LcaResultDto result) => Publish(p => p.Lca = result);
-        public static void PublishCarbonImpact(CarbonImpactResultDto result) => Publish(p => p.CarbonImpact = result);
-        public static void PublishSunAndShading(SunAndShadingResultDto result) => Publish(p => p.SunAndShading = result);
-        public static void PublishBallTrajectory(BallTrajectoryResultDto result) => Publish(p => p.BallTrajectory = result);
-        public static void PublishWindErosion(WindErosionResultDto result) => Publish(p => p.WindErosion = result);
-        public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish(p => p.SoilPercolation = result);
-        public static void PublishStructuralLoads(StructuralLoadsResultDto result) => Publish(p => p.StructuralLoads = result);
-        public static void PublishDynamicAnalysis(DynamicAnalysisResultDto result) => Publish(p => p.DynamicAnalysis = result);
+        public static void PublishFireSafety(FireSafetyResultDto result) => Publish("fire_safety", p => p.FireSafety = result);
+        public static void PublishAccessibility(AccessibilityResultDto result) => Publish("accessibility", p => p.Accessibility = result);
+        public static void PublishLca(LcaResultDto result) => Publish("lca", p => p.Lca = result);
+        public static void PublishCarbonImpact(CarbonImpactResultDto result) => Publish("carbon_impact", p => p.CarbonImpact = result);
+        public static void PublishSunAndShading(SunAndShadingResultDto result) => Publish("sun_and_shading", p => p.SunAndShading = result);
+        public static void PublishBallTrajectory(BallTrajectoryResultDto result) => Publish("ball_trajectory", p => p.BallTrajectory = result);
+        public static void PublishWindErosion(WindErosionResultDto result) => Publish("wind_erosion", p => p.WindErosion = result);
+        public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish("soil_percolation", p => p.SoilPercolation = result);
+        public static void PublishStructuralLoads(StructuralLoadsResultDto result) => Publish("structural_loads", p => p.StructuralLoads = result);
+        public static void PublishDynamicAnalysis(DynamicAnalysisResultDto result) => Publish("dynamic_analysis", p => p.DynamicAnalysis = result);
 
-        private static void Publish(Action<AnalysisResultPayload> apply)
+        private static AnalysisResultPayload Load()
         {
             AnalysisResultPayload? payload = null;
             if (RoofBoundaryServer.TryGetLatestAnalysisResults(out var existingJson) && existingJson != null)
             {
                 try { payload = JsonSerializer.Deserialize<AnalysisResultPayload>(existingJson); }
-                catch (Exception) { /* malformed previous state — start fresh below */ }
+                catch (Exception ex) { SportifyLog.Warn("results", "the published results could not be read back; starting again: " + ex.Message); }
             }
-            payload ??= new AnalysisResultPayload();
+            return payload ?? new AnalysisResultPayload();
+        }
+
+        /// <summary>
+        /// Every section carries the layout it was computed for and the time. Publishing a section for a layout drops the sections that belong to
+        /// another one: the document always describes ONE layout, so the web app can never show, side by side, the rain result of a layout with a
+        /// garden and the structural result of one without.
+        /// </summary>
+        private static void Publish(string key, Action<AnalysisResultPayload> apply)
+        {
+            var layoutId = RoofBoundaryServer.LayoutIdForPublishing;
+            var payload = Load();
+
+            var dropped = payload.DropSectionsNotFor(layoutId);
+            if (dropped.Count > 0) SportifyLog.Info("results", "layout " + layoutId + ": dropped the results computed for another layout: " + string.Join(", ", dropped));
 
             apply(payload);
+            var now = DateTime.UtcNow.ToString("o");
+            payload.Sections[key] = new ResultSectionInfoDto { LayoutId = layoutId, ComputedAtUtc = now };
+            payload.LayoutId = layoutId;
+            payload.UpdatedAtUtc = now;
 
             RoofBoundaryServer.PublishAnalysisResults(JsonSerializer.Serialize(payload));
+        }
+
+        /// <summary>
+        /// Drops the sections that are not about the layout the analyses are about to read, before any new section is published: a run in which
+        /// nothing is sent (no garden in the layout) would otherwise leave the previous layout's results in place. Returns what was dropped.
+        /// </summary>
+        public static List<string> RetireStale()
+        {
+            var layoutId = RoofBoundaryServer.LayoutIdForPublishing;
+            var payload = Load();
+            var dropped = payload.DropSectionsNotFor(layoutId);
+            if (dropped.Count == 0) return dropped;
+            payload.LayoutId = layoutId;
+            RoofBoundaryServer.PublishAnalysisResults(JsonSerializer.Serialize(payload));
+            SportifyLog.Info("results", "layout " + layoutId + ": retired the results computed for another layout: " + string.Join(", ", dropped));
+            return dropped;
         }
     }
 }

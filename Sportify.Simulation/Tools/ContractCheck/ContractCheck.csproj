@@ -56,6 +56,8 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsDialog.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLog.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\LayoutIdentity.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PlacementDataHelpers.cs" />
     <PackageReference Include="QuestPDF" Version="$(QuestPdfVersion)" />

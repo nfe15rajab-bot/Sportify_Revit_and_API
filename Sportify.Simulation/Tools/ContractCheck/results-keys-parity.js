@@ -14,7 +14,9 @@ if (!jsPath) { console.error("usage: node results-keys-parity.js <analysisResult
 const dto = fs.readFileSync(path.join(__dirname, "..", "..", "..", "SportfyRevit", "SportfyRevit", "AnalysisResultDto.cs"), "utf8");
 const block = /class AnalysisResultPayload\s*\{([\s\S]*?)\n    \}/.exec(dto);
 if (!block) { console.error("AnalysisResultPayload not found in AnalysisResultDto.cs"); process.exit(2); }
-const published = [...block[1].matchAll(/JsonPropertyName\("([a-z_]+)"\)/g)].map(m => m[1]).sort();
+// layout_id, updated_at and sections describe the document (which layout, when), they are not analyses
+const DESCRIPTIVE = new Set(["layout_id", "updated_at", "sections"]);
+const published = [...block[1].matchAll(/JsonPropertyName\("([a-z_]+)"\)/g)].map(m => m[1]).filter(k => !DESCRIPTIVE.has(k)).sort();
 
 const ctx = { localStorage: undefined };
 vm.createContext(ctx);

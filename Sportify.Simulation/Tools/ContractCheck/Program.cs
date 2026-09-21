@@ -320,6 +320,65 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     try { Directory.Delete(Path.GetDirectoryName(root)!, true); } catch (IOException) { /* a temp folder: leave it */ }
 }
 
+// ---------------------------------------------------------------------------------------------------------------- every result says which layout it is about
+{
+    Console.WriteLine("\n===== results are tied to a layout and a time =====");
+    Check("a layout's identity is the first 16 hex characters of the SHA-256 of what was posted (the web app can compute the same)", LayoutIdentity.Of("abc") == "ba7816bf8f01cfea" && LayoutIdentity.Of("abc") != LayoutIdentity.Of("abd"));
+
+    var layoutA = File.ReadAllText(Path.Combine(fixtures, "layouts", "struct", "v1-sample.json"));
+    var noGarden = JsonNode.Parse(layoutA)!.AsObject();
+    noGarden["zones"] = new JsonArray();
+    noGarden["assemblies"] = new JsonArray();
+    noGarden["placements"] = new JsonArray(noGarden["placements"]!.AsArray().Where(x => x!["category"]?.GetValue<string>() is not ("vegetation" or "garden")).Select(x => x!.DeepClone()).ToArray());
+    var layoutB = noGarden.ToJsonString();
+
+    RoofBoundaryServer.PublishAnalysisResults("{}");
+    RoofBoundaryServer.SetDraftLayoutPayload(layoutA);
+    var idA = RoofBoundaryServer.CurrentLayoutId;
+    RoofBoundaryServer.TryGetLatestCombinedLayout(out _, out _);                    // what every analysis does first
+    var sentA = PhysicalAnalysisBatch.Run(layoutA);
+    RoofBoundaryServer.TryGetLatestAnalysisResults(out var docA);
+    var a = JsonDocument.Parse(docA!).RootElement;
+    var infoA = a.GetProperty("sections");
+    bool timesOk = true;
+    foreach (var k in new[] { "wind_erosion", "soil_percolation", "structural_loads", "dynamic_analysis", "sun_and_shading" })
+        timesOk &= infoA.TryGetProperty(k, out var i) && i.GetProperty("layout_id").GetString() == idA && DateTime.TryParse(i.GetProperty("computed_at").GetString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var when) && when.Kind == DateTimeKind.Utc;
+    Check("every published section says which layout it was computed for and when (UTC)", timesOk && a.GetProperty("layout_id").GetString() == idA && !string.IsNullOrEmpty(idA));
+
+    // the designer removes the garden: the layout has another identity, and what cannot be analysed for it is not left over from the one before
+    RoofBoundaryServer.SetDraftLayoutPayload(layoutB);
+    var idB = RoofBoundaryServer.CurrentLayoutId;
+    RoofBoundaryServer.TryGetLatestCombinedLayout(out _, out _);
+    var sentB = PhysicalAnalysisBatch.Run(layoutB);
+    RoofBoundaryServer.TryGetLatestAnalysisResults(out var docB);
+    var b = JsonDocument.Parse(docB!).RootElement;
+    bool Has(JsonElement doc, string k) => doc.TryGetProperty(k, out var v) && v.ValueKind != JsonValueKind.Null;
+    Check("a different layout has a different identity", idB != idA && !string.IsNullOrEmpty(idB));
+    Check("no garden: the wind and rain analyses send nothing, and the wind and rain results of the layout WITH a garden are gone, not left beside the new ones",
+          !sentB.Single(s => s.Key == "wind_erosion").Sent && !sentB.Single(s => s.Key == "soil_percolation").Sent && !Has(b, "wind_erosion") && !Has(b, "soil_percolation") && !b.GetProperty("sections").TryGetProperty("wind_erosion", out _));
+    Check("what was computed for the new layout carries its identity, and nothing in the document is about the old one",
+          Has(b, "structural_loads") && b.GetProperty("sections").EnumerateObject().All(o => o.Value.GetProperty("layout_id").GetString() == idB));
+
+    // the same layout again is the same identity, and the same numbers
+    RoofBoundaryServer.SetDraftLayoutPayload(layoutA);
+    Check("the layout that comes back has the identity it had before", RoofBoundaryServer.CurrentLayoutId == idA);
+    RoofBoundaryServer.TryGetLatestCombinedLayout(out _, out _);
+    PhysicalAnalysisBatch.Run(layoutA);
+    RoofBoundaryServer.TryGetLatestAnalysisResults(out var docA2);
+    string Numbers(string json) { var o = JsonNode.Parse(json)!.AsObject(); o.Remove("updated_at"); o.Remove("sections"); return o.ToJsonString(); }
+    Check("and the analyses give the same numbers as the first time (deterministic)", Numbers(docA!) == Numbers(docA2!));
+
+    // a layout that nothing can be analysed for still retires the old results
+    var empty = JsonNode.Parse(layoutA)!.AsObject();
+    empty["zones"] = new JsonArray(); empty["placements"] = new JsonArray(); empty["assemblies"] = new JsonArray();
+    RoofBoundaryServer.SetDraftLayoutPayload(empty.ToJsonString());
+    RoofBoundaryServer.TryGetLatestCombinedLayout(out _, out _);
+    PhysicalAnalysisBatch.Run(empty.ToJsonString());
+    RoofBoundaryServer.TryGetLatestAnalysisResults(out var docE);
+    Check("an empty roof: nothing is sent and nothing of the earlier layouts remains", new[] { "wind_erosion", "soil_percolation", "structural_loads", "dynamic_analysis", "sun_and_shading" }.All(k => !Has(JsonDocument.Parse(docE!).RootElement, k)));
+    RoofBoundaryServer.PublishAnalysisResults("{}");
+}
+
 // ---------------------------------------------------------------------------------------------------------------- the charts as a PDF (no Unity)
 {
     Console.WriteLine("\n===== the physical analyses as a PDF of charts =====");

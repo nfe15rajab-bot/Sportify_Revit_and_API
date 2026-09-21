@@ -146,6 +146,7 @@ namespace SportfyRevit
             var sent = PhysicalAnalysisBatch.Run(json);
             return EndpointResponse.Json(new
             {
+                layout_id = RoofBoundaryServer.LayoutIdForPublishing,
                 analyses = sent.Select(s => new { key = s.Key, title = s.Title, sent = s.Sent, headline = s.Headline, preliminary = s.Preliminary, video_kept = s.VideoKept, video_dropped = s.VideoDropped, problem = s.Problem }),
                 sent = sent.Count(s => s.Sent),
             });
@@ -165,6 +166,7 @@ namespace SportfyRevit
             return EndpointResponse.Json(new
             {
                 generated_utc = DateTime.UtcNow.ToString("o"),
+                layout_id = RoofBoundaryServer.LayoutIdForPublishing,
                 sections = built.Sections.Select(s => new
                 {
                     key = s.Key, title = s.Title, headline = s.Headline, preliminary = s.Preliminary,

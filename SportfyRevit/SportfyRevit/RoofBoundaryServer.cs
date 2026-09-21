@@ -37,6 +37,17 @@ namespace SportfyRevit
         private static readonly object CombinedLayoutLock = new();
         private static string? _combinedLayoutJson;
         private static int _combinedLayoutVersion;
+        private static string? _combinedLayoutId;
+
+        /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent, draft or export; null when none has arrived.</summary>
+        public static string? CurrentLayoutId { get { lock (CombinedLayoutLock) return _combinedLayoutId; } }
+
+        /// <summary>
+        /// The identity of the layout THIS thread last read with TryGetLatestCombinedLayout, else the current one. An analysis reads the layout when it
+        /// starts and may publish minutes later (a Unity run): the result belongs to the layout it read, not to whatever has arrived since.
+        /// </summary>
+        [ThreadStatic] private static string? _idReadOnThisThread;
+        public static string? LayoutIdForPublishing => _idReadOnThisThread ?? CurrentLayoutId;
 
         private static readonly object AnalysisResultsLock = new();
         private static string? _analysisResultsJson;
@@ -87,6 +98,7 @@ namespace SportfyRevit
             lock (CombinedLayoutLock)
             {
                 _combinedLayoutJson = json;
+                _combinedLayoutId = LayoutIdentity.Of(json);
                 _combinedLayoutVersion++;
             }
         }
@@ -98,7 +110,7 @@ namespace SportfyRevit
         /// </summary>
         public static void SetDraftLayoutPayload(string json)
         {
-            lock (CombinedLayoutLock) { _combinedLayoutJson = json; }
+            lock (CombinedLayoutLock) { _combinedLayoutJson = json; _combinedLayoutId = LayoutIdentity.Of(json); }
         }
 
         /// <summary>
@@ -114,6 +126,7 @@ namespace SportfyRevit
             {
                 json = _combinedLayoutJson;
                 version = _combinedLayoutVersion;
+                _idReadOnThisThread = _combinedLayoutId;
             }
             return json != null;
         }
@@ -341,8 +354,14 @@ namespace SportfyRevit
                     {
                         using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
                         var body = await reader.ReadToEndAsync();
-                        if (ctx.Request.QueryString["draft"] == "1") SetDraftLayoutPayload(body); else SetCombinedLayoutPayload(body);
-                        ctx.Response.StatusCode = 204;
+                        var draft = ctx.Request.QueryString["draft"] == "1";
+                        if (draft) SetDraftLayoutPayload(body); else SetCombinedLayoutPayload(body);
+                        // The identity of what was just received, so that the web app knows which layout the results that follow are about.
+                        var answerBytes = Encoding.UTF8.GetBytes("{\"layout_id\":\"" + LayoutIdentity.Of(body) + "\",\"draft\":" + (draft ? "true" : "false") + "}");
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = answerBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(answerBytes);
                         ctx.Response.Close();
                         continue;
                     }
