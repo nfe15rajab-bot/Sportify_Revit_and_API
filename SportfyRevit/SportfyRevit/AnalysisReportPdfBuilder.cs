@@ -156,10 +156,12 @@ namespace SportfyRevit
                 });
                 b.Item().PaddingTop(2).Height(9).Row(barRow =>
                 {
-                    barRow.RelativeItem(pct).Background(ToneColor(tone));
-                    barRow.RelativeItem(100 - pct).Background(Colors.Grey.Lighten3);
+                    // QuestPDF throws on a zero-sized RelativeItem, and a clamped percentage can legitimately land on exactly 0 or 100 — draw
+                    // only the segment(s) that have real width.
+                    if (pct > 0) barRow.RelativeItem(pct).Background(ToneColor(tone));
+                    if (pct < 100) barRow.RelativeItem(100 - pct).Background(Colors.Grey.Lighten3);
                 });
-                if (refPct.HasValue)
+                if (refPct is > 0 and < 100)
                 {
                     b.Item().PaddingTop(1).Height(3).Row(refRow =>
                     {

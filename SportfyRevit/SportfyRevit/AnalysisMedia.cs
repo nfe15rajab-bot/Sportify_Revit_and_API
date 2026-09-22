@@ -98,10 +98,10 @@ namespace SportfyRevit
                 MainInstruction = "The charts are ready as a PDF",
                 MainContent = body.ToString(),
                 CommonButtons = TaskDialogCommonButtons.Close,
-                DefaultButton = TaskDialogResult.CommandLink1,
             };
             dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Open the PDF", Path.GetFileName(pdf.Path!));
             dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Show it in its folder", Path.GetDirectoryName(pdf.Path!));
+            dialog.DefaultButton = TaskDialogResult.CommandLink1;       // after the links exist: Revit throws otherwise
             var result = dialog.Show();
             try
             {
