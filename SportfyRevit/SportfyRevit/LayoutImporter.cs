@@ -13,6 +13,8 @@ namespace SportfyRevit
         public ImportSummary? Summary { get; set; }
         /// <summary>Elements of the previous import of this project that this one replaced.</summary>
         public int Replaced { get; set; }
+        /// <summary>Elements of an earlier "Import Iterations as Design Options" run that this one also cleared (0 unless asked to).</summary>
+        public int ReplacedIterations { get; set; }
         /// <summary>ImportDiagnostics.Report(): which family every piece got, or why it became a box.</summary>
         public string Report { get; set; } = "";
     }
@@ -28,7 +30,10 @@ namespace SportfyRevit
     /// </summary>
     internal static class LayoutImporter
     {
-        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source)
+        /// <summary>`clearIterations`: also remove what an earlier "Import Iterations as Design Options" run built (IterationLedger) — that command's own worksets/elements are
+        /// otherwise untouched by a normal import, so left in place they sit alongside it, sports and gardens overlapping. Manual asks each time there is something to clear;
+        /// Auto Import asks once when it is turned on and remembers the answer for as long as it stays on (ToggleAutoImportCommand, AutoImportSync.ClearIterationsToo).</summary>
+        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations)
         {
             var outcome = new ImportOutcome();
             var sourceName = source.ToString().ToLowerInvariant();
@@ -62,6 +67,7 @@ namespace SportfyRevit
                 try
                 {
                     outcome.Replaced = ImportLedger.RemovePrevious(doc);
+                    if (clearIterations) outcome.ReplacedIterations = IterationLedger.RemovePrevious(doc);
                     outcome.Summary = SportifyLayoutBuilder.BuildGeometry(doc, layout, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
                     ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName);
                 }
@@ -98,7 +104,8 @@ namespace SportfyRevit
             outcome.Report = ImportDiagnostics.Report();
             SportifyLog.Block("import",
                 $"{sourceName} import {(outcome.Succeeded ? "finished" : outcome.Cancelled ? "cancelled" : "FAILED: " + outcome.Error)} in {clock.ElapsedMilliseconds} ms; " +
-                $"replaced {outcome.Replaced} element(s) of the previous import (Revit counts the sketches and lines that depend on what was tagged); report:",
+                $"replaced {outcome.Replaced} element(s) of the previous import (Revit counts the sketches and lines that depend on what was tagged)" +
+                (outcome.ReplacedIterations > 0 ? $" and {outcome.ReplacedIterations} element(s) of the previously imported iterations" : "") + "; report:",
                 outcome.Report);
             return outcome;
         }

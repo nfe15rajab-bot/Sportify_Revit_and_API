@@ -77,7 +77,8 @@ namespace SportfyRevit
             // import too, not only after a live push from the web app.
             RoofBoundaryServer.SetCombinedLayoutPayload(text);
 
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual);
+            var clearIterations = IterationLedger.HasAny(doc) && AskClearIterations(doc);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations);
             if (outcome.Cancelled) return Result.Cancelled;
             if (!outcome.Succeeded || outcome.Summary == null)
             {
@@ -91,11 +92,27 @@ namespace SportfyRevit
                 $"Imported {summary.PieceCount} placement(s), roof boundary, setback line, " +
                 $"{summary.PathCount} circulation path(s) and {summary.EntryCount} entrance marker(s).\n" +
                 (outcome.Replaced > 0 ? $"Replaced {outcome.Replaced} element(s) of the previous import (with the sketches and lines that depend on them).\n" : "") +
+                (outcome.ReplacedIterations > 0 ? $"Also cleared {outcome.ReplacedIterations} element(s) of the previously imported iterations.\n" : "") +
                 "\nPieces went to the Sports/Gardens worksets when the project has worksets; boundary, setback, circulation and entrances to the Combine workset.\n\n" +
                 // Which family every piece got, or why it became a box.
                 outcome.Report + "\nLog: " + SportifyLog.CurrentFile);
 
             return Result.Succeeded;
+        }
+
+        /// <summary>Asked only when this project actually has something from "Import Iterations as Design Options" to clear.</summary>
+        private static bool AskClearIterations(Document doc)
+        {
+            var ask = new TaskDialog("Sportify — Import Configuration")
+            {
+                MainInstruction = "This project also has Design-Option iterations imported earlier",
+                MainContent = "\"Import Iterations as Design Options\" built one or more iterations on their own worksets. This import is unrelated to those " +
+                               "— clear them out along with it, or leave them alone?",
+            };
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Clear the iterations too", "Removes every iteration's elements and worksets before this import runs.");
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Leave the iterations alone", "This import runs as usual; the iterations stay untouched.");
+            ask.DefaultButton = TaskDialogResult.CommandLink2;       // after the links exist: Revit throws otherwise
+            return ask.Show() == TaskDialogResult.CommandLink1;
         }
     }
 }

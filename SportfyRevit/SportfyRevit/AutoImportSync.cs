@@ -21,6 +21,8 @@ namespace SportfyRevit
 
         public static bool IsEnabled { get; private set; }
         public static PushButton? ToggleButton { get; set; }
+        /// <summary>Set by ToggleAutoImportCommand when it turns Auto Import on, if the person chose to also clear a previous "Import Iterations as Design Options" run on every sync.</summary>
+        public static bool ClearIterationsToo { get; set; }
 
         private static int _lastAppliedVersion = -1;
         private static DateTime _lastPollUtc = DateTime.MinValue;
@@ -84,7 +86,7 @@ namespace SportfyRevit
 
             // Whatever the outcome, this push is dealt with: a failing one must not be retried every two seconds.
             _lastAppliedVersion = version;
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo);
             if (outcome.Cancelled) return;
 
             if (!outcome.Succeeded)

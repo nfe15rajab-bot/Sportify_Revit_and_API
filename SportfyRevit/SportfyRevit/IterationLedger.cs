@@ -32,6 +32,9 @@ namespace SportfyRevit
                 .Where(ds => ds.GetEntity(schema).IsValid())
                 .ToList();
 
+        /// <summary>Whether an earlier "Import Iterations as Design Options" run left anything in this project — checked before offering to clear it from a normal import.</summary>
+        public static bool HasAny(Document doc) => Find(doc, GetSchema()).Count > 0;
+
         /// <summary>Deletes what the previous iterations import created (and the old ledger). Inside the import transaction, so a failed import puts it all back.</summary>
         public static int RemovePrevious(Document doc)
         {
