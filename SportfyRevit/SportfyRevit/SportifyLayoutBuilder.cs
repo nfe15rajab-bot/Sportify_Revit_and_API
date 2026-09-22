@@ -21,6 +21,7 @@ namespace SportfyRevit
     internal static class SportifyLayoutBuilder
     {
         private const double EntryMarkerRadiusM = 0.4;
+        private const double CirculationNodeRadiusM = 0.2;
 
         /// <summary>
         /// Elevation (feet) everything in the current import is built at — set
@@ -93,18 +94,20 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// `singleWorksetName`: ImportIterationsAsOptionsCommand's way of putting one whole iteration's geometry on ONE workset of its own (e.g.
-        /// "Sportify Iteration 2") instead of the normal Sports/Gardens/Combine split — every per-element worksets["Gardens"|"Sports"|"Combine"]
-        /// lookup below resolves to the same WorksetId, so nothing else in this method needs to know iterations exist.
+        /// `worksetNameOverride`: ImportIterationsAsOptionsCommand's way of keeping one iteration's geometry off the project's single shared
+        /// Sports/Gardens/Combine worksets (which would put two iterations' courts on the very same "Sports" workset, indistinguishable) —
+        /// given a category name ("Sports"/"Gardens"/"Combine") it returns the actual workset name to use, e.g. "Sportify Iteration 2 - Sports"
+        /// (detailed: every category keeps its own workset per iteration) or just "Sportify Iteration 2" for every category (simple: the whole
+        /// iteration collapses onto one workset). A plain single-layout import leaves this null and gets the original shared three.
         /// </summary>
-        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets, string? singleWorksetName = null)
+        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
             var createdIds = new List<ElementId>();
 
             // Worksharing is settled by the caller (LayoutImporter asks the person, and turns it on if they agree) BEFORE the transaction this
             // runs in: Document.EnableWorksharing throws inside an open transaction. In a project without worksets (the person said no, or a
             // caller that must not change the project) everything is simply left on the project's default workset.
-            var worksets = EnsureWorksets(doc, useWorksets, singleWorksetName);
+            var worksets = EnsureWorksets(doc, useWorksets, worksetNameOverride);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
@@ -150,10 +153,16 @@ namespace SportfyRevit
                 }
             }
 
+            // Tagged so GenerateFunctionalDiagramsCommand's circulation-diagram view can style circulation paths and entry
+            // markers distinctly (bold red) from the untagged roof outline/setback — see BimRules.CirculationLineStyle.
+            var circulationStyle = GetOrCreateLineStyle(doc, BimRules.CirculationLineStyle);
+            var entryStyle = GetOrCreateLineStyle(doc, BimRules.EntryLineStyle);
+            var nodeStyle = GetOrCreateLineStyle(doc, BimRules.CirculationNodeLineStyle);
+
             CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
             CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
+            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], circulationStyle, nodeStyle, createdIds);
+            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], entryStyle, createdIds);
 
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
         }
@@ -322,42 +331,34 @@ namespace SportfyRevit
         /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
         /// transaction internally and throws if called while one is already open.
         /// </summary>
-        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets, string? singleWorksetName = null)
+        /// <summary>
+        /// `worksetPrefix`: ImportIterationsAsOptionsCommand's way of keeping the normal Sports/Gardens/Combine auto-assignment WITHIN one
+        /// iteration, instead of every iteration landing on the project's single shared Sports/Gardens/Combine worksets (which would put two
+        /// iterations' courts on the very same "Sports" workset, indistinguishable) — e.g. "Sportify Iteration 2 - " gives "Sportify Iteration
+        /// 2 - Sports", "... - Gardens", "... - Combine". Plain single-layout imports leave this null and get the original shared three.
+        /// </summary>
+        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
             var names = new[] { "Sports", "Gardens", "Combine" };
             if (!useWorksets || !doc.IsWorkshared)
                 return names.ToDictionary(n => n, n => WorksetId.InvalidWorksetId);
-
-            if (singleWorksetName != null)
-            {
-                var one = EnsureOneWorkset(doc, singleWorksetName);
-                return names.ToDictionary(n => n, n => one);
-            }
 
             var existing = new FilteredWorksetCollector(doc)
                 .OfKind(WorksetKind.UserWorkset)
                 .ToDictionary(w => w.Name, w => w.Id);
 
             var result = new Dictionary<string, WorksetId>();
+            var createdThisCall = new Dictionary<string, WorksetId>();     // full workset name -> id: so "simple" mode (every category maps to the same override name) shares one workset instead of trying to create it twice
             foreach (var name in names)
             {
-                if (existing.TryGetValue(name, out var id))
-                {
-                    result[name] = id;
-                }
-                else
-                {
-                    var created = Workset.Create(doc, name);
-                    result[name] = created.Id;
-                }
+                var fullName = worksetNameOverride != null ? worksetNameOverride(name) : name;
+                if (existing.TryGetValue(fullName, out var id)) { result[name] = id; continue; }
+                if (createdThisCall.TryGetValue(fullName, out var justCreated)) { result[name] = justCreated; continue; }
+                var created = Workset.Create(doc, fullName).Id;
+                createdThisCall[fullName] = created;
+                result[name] = created;
             }
             return result;
-        }
-
-        private static WorksetId EnsureOneWorkset(Document doc, string name)
-        {
-            var existing = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).FirstOrDefault(w => w.Name == name);
-            return existing != null ? existing.Id : Workset.Create(doc, name).Id;
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
@@ -465,7 +466,7 @@ namespace SportfyRevit
             return true;
         }
 
-        private static void CreateModelLine(Document doc, XYZ a, XYZ b, WorksetId worksetId, List<ElementId> createdIds)
+        private static void CreateModelLine(Document doc, XYZ a, XYZ b, WorksetId worksetId, List<ElementId> createdIds, GraphicsStyle? lineStyle = null)
         {
             if (a.DistanceTo(b) < 1e-6) return;
             var plane = Plane.CreateByThreePoints(a, b, a + XYZ.BasisZ);
@@ -473,7 +474,31 @@ namespace SportfyRevit
             createdIds.Add(sketchPlane.Id);
             var line = doc.Create.NewModelCurve(Line.CreateBound(a, b), sketchPlane);
             SetWorkset(line, worksetId);
+            if (lineStyle != null) line.LineStyle = lineStyle;
             createdIds.Add(line.Id);
+        }
+
+        /// <summary>A small filled-looking round marker (a circle, styled with a heavy line weight so it reads as a solid dot) — an entry, or a circulation path's join to the corridor or to its piece.</summary>
+        private static void CreateDotMarker(Document doc, XYZ center, double radiusM, WorksetId worksetId, GraphicsStyle lineStyle, List<ElementId> createdIds)
+        {
+            double rFt = FeetFromMeters(radiusM);
+            var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
+            var sketchPlane = SketchPlane.Create(doc, plane);
+            createdIds.Add(sketchPlane.Id);
+            var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
+            var curve = doc.Create.NewModelCurve(circle, sketchPlane);
+            SetWorkset(curve, worksetId);
+            curve.LineStyle = lineStyle;
+            createdIds.Add(curve.Id);
+        }
+
+        /// <summary>Gets or creates a "Lines" subcategory (a GraphicsStyle), used to tag circulation-path and entry-marker model lines so they can be found and styled later without guessing from geometry alone.</summary>
+        private static GraphicsStyle GetOrCreateLineStyle(Document doc, string name)
+        {
+            var linesCategory = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            var existing = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == name);
+            var category = existing ?? doc.Settings.Categories.NewSubcategory(linesCategory, name);
+            return category.GetGraphicsStyle(GraphicsStyleType.Projection);
         }
 
         /// <summary>The roof's bounding rectangle in its own axes (a turned roof: a turned rectangle), corner by corner, y up.</summary>
@@ -540,7 +565,11 @@ namespace SportfyRevit
                 CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds);
         }
 
-        private static int CreateCirculationPaths(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        /// <summary>
+        /// A path's dot markers, at its first and last vertex (where it joins the corridor and where it reaches its piece) — the small round
+        /// connector points a hand-drawn circulation diagram marks a route with, distinct from the roof's own entry markers (CreateEntryMarkers).
+        /// </summary>
+        private static int CreateCirculationPaths(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, GraphicsStyle lineStyle, GraphicsStyle nodeStyle, List<ElementId> createdIds)
         {
             int count = 0;
             if (layout.CirculationPaths == null) return count;
@@ -552,28 +581,22 @@ namespace SportfyRevit
 
                 var pts = points.Select(pt => PlanPointFt(pt.XM, pt.YM, CurrentOriginZFt)).ToList();
                 for (int i = 0; i < pts.Count - 1; i++)
-                    CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds);
+                    CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds, lineStyle);
+                CreateDotMarker(doc, pts[0], CirculationNodeRadiusM, worksetId, nodeStyle, createdIds);
+                CreateDotMarker(doc, pts[^1], CirculationNodeRadiusM, worksetId, nodeStyle, createdIds);
                 count++;
             }
             return count;
         }
 
-        private static int CreateEntryMarkers(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        private static int CreateEntryMarkers(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, GraphicsStyle lineStyle, List<ElementId> createdIds)
         {
             int count = 0;
             if (layout.EntryPoints == null) return count;
 
-            double rFt = FeetFromMeters(EntryMarkerRadiusM);
             foreach (var ep in layout.EntryPoints)
             {
-                var center = PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt);
-                var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
-                var sketchPlane = SketchPlane.Create(doc, plane);
-                createdIds.Add(sketchPlane.Id);
-                var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
-                var curve = doc.Create.NewModelCurve(circle, sketchPlane);
-                SetWorkset(curve, worksetId);
-                createdIds.Add(curve.Id);
+                CreateDotMarker(doc, PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt), EntryMarkerRadiusM, worksetId, lineStyle, createdIds);
                 count++;
             }
             return count;

@@ -8,39 +8,61 @@ namespace SportfyRevit
 {
     /// <summary>
     /// "Design Options" for the web app's saved iterations, without the Revit API's own DesignOption/DesignOptionSet: the API has no way to create
-    /// either programmatically (DesignOption exposes only GetActiveDesignOptionId, a getter — confirmed against the 2025.3 API docs; the only
-    /// supported route is Revit's own Manage tab, driven by hand). Worksets stand in for it instead: every reference this file's own comments make
-    /// to "an option" means one workset, one per saved iteration, each holding that iteration's complete geometry (its own courts, garden, roof
-    /// outline, circulation and entries) — so showing exactly one at a time in a view is the same on/off switch a Design Option gives, through the
-    /// API surface Revit actually offers (Workset.Create, View.SetWorksetVisibility, both already used elsewhere in this add-in).
+    /// either programmatically (DesignOption exposes only GetActiveDesignOptionId, a getter — confirmed against the 2025.3 API docs), and even a
+    /// Design Option Set built by hand ahead of time does not help, because DESIGN_OPTION_ID (which option an element belongs to) is read-only —
+    /// there is no API call that puts a newly created element into a chosen option. Worksets stand in instead: every reference this file's own
+    /// comments make to "an option" means a workset (or, in "detailed" mode, the normal Sports/Gardens/Combine three) per saved iteration, so
+    /// showing exactly one iteration's worksets at a time in a view is the same on/off switch a Design Option gives, through the API surface
+    /// Revit actually offers (Workset.Create, View.SetWorksetVisibility, both already used elsewhere in this add-in).
     /// </summary>
     internal static class IterationWorksets
     {
         public const string NamePrefix = "Sportify Iteration ";
 
-        public static string NameFor(int oneBasedIndex) => NamePrefix + oneBasedIndex;
+        /// <summary>One iteration's worksets: just one in "simple" mode, the normal Sports/Gardens/Combine three in "detailed" mode.</summary>
+        public sealed record IterationGroup(int Index, List<Workset> Worksets);
 
-        /// <summary>Every "Sportify Iteration N" workset already in the project, in iteration order.</summary>
-        public static List<Workset> Find(Document doc)
+        /// <summary>
+        /// What SportifyLayoutBuilder.BuildGeometry's worksetNameOverride should be for iteration `oneBasedIndex`: in detailed mode every
+        /// category keeps its own workset ("Sportify Iteration 2 - Sports"); in simple mode every category maps to the very same name
+        /// ("Sportify Iteration 2"), which EnsureWorksets collapses onto one shared workset for the whole iteration.
+        /// </summary>
+        public static Func<string, string> NameOverride(int oneBasedIndex, bool detailed) =>
+            detailed ? (category => $"{NamePrefix}{oneBasedIndex} - {category}") : (_ => $"{NamePrefix}{oneBasedIndex}");
+
+        /// <summary>
+        /// Every iteration's group of worksets already in the project, in iteration order — grouped by the leading number after "Sportify
+        /// Iteration " regardless of which mode created them, so "Show Iteration" works the same whichever mode "Import Iterations" last used.
+        /// </summary>
+        public static List<IterationGroup> Find(Document doc)
         {
-            if (!doc.IsWorkshared) return new List<Workset>();
-            return new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset)
-                .Where(w => w.Name.StartsWith(NamePrefix, StringComparison.Ordinal))
-                .OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            if (!doc.IsWorkshared) return new List<IterationGroup>();
+            var byIndex = new Dictionary<int, List<Workset>>();
+            foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
+            {
+                if (!w.Name.StartsWith(NamePrefix, StringComparison.Ordinal)) continue;
+                var rest = w.Name.Substring(NamePrefix.Length);           // "2 - Sports" (detailed) or "2" (simple)
+                var sep = rest.IndexOf(' ');
+                var numPart = sep < 0 ? rest : rest.Substring(0, sep);
+                if (!int.TryParse(numPart, out var idx)) continue;
+                if (!byIndex.TryGetValue(idx, out var list)) byIndex[idx] = list = new List<Workset>();
+                list.Add(w);
+            }
+            return byIndex.OrderBy(kv => kv.Key).Select(kv => new IterationGroup(kv.Key, kv.Value)).ToList();
         }
 
-        /// <summary>Shows exactly one iteration's workset in `view` and hides the rest; `keep = null` shows all of them. Call inside a transaction.</summary>
-        public static void ShowOnly(View view, List<Workset> iterationWorksets, Workset? keep)
+        /// <summary>Shows exactly one iteration's worksets in `view` and hides the rest; `keep = null` shows all of them. Call inside a transaction.</summary>
+        public static void ShowOnly(View view, List<IterationGroup> groups, IterationGroup? keep)
         {
-            foreach (var w in iterationWorksets)
-                view.SetWorksetVisibility(w.Id, keep == null || w.Id == keep.Id ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
+            foreach (var g in groups)
+                foreach (var w in g.Worksets)
+                    view.SetWorksetVisibility(w.Id, keep == null || g.Index == keep.Index ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
         }
     }
 
     /// <summary>
     /// Reads the iterations the web app last sent (POST /iterations, compareController.js's savedCompareConfigs — up to 3 saved layouts) and builds
-    /// each one's complete geometry onto its own workset (IterationWorksets), so they can be switched like Design Options (SwitchIterationCommand).
+    /// each one's complete geometry onto its own workset(s) (IterationWorksets), so they can be switched like Design Options (SwitchIterationCommand).
     /// Re-running this replaces what an earlier run of this command built (IterationLedger), independent of the normal single-layout import/ledger.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
@@ -88,12 +110,15 @@ namespace SportfyRevit
                     SportifyLog.Info("iterations", "worksharing enabled with the person's consent (Import Iterations as Design Options)");
                 }
 
+                var detailed = AskOrganization();
+                if (detailed == null) return Result.Cancelled;
+
                 // FamilyPreparation loads/builds each iteration's own families before the transaction: it needs its own small transactions and,
                 // on a manual run, may show a template picker — same ordering LayoutImporter uses for the normal single-layout import.
                 var prepared = iterations.Select(it => FamilyPreparation.Prepare(doc, it.Payload!, allowTemplateDialog: true)).ToList();
 
                 var createdIds = new List<ElementId>();
-                var built = new List<(int Index, string Name, string Workset, int Pieces)>();
+                var built = new List<(int Index, string Name, int Pieces)>();
 
                 using var transaction = new Transaction(doc, "Sportify: import iterations as Design Options");
                 transaction.Start();
@@ -102,16 +127,17 @@ namespace SportfyRevit
                     IterationLedger.RemovePrevious(doc);
                     for (var i = 0; i < iterations.Count; i++)
                     {
-                        var worksetName = IterationWorksets.NameFor(i + 1);
-                        var summary = SportifyLayoutBuilder.BuildGeometry(doc, iterations[i].Payload!, prepared[i], useWorksets: true, singleWorksetName: worksetName);
+                        var oneBased = i + 1;
+                        var summary = SportifyLayoutBuilder.BuildGeometry(doc, iterations[i].Payload!, prepared[i], useWorksets: true,
+                            worksetNameOverride: IterationWorksets.NameOverride(oneBased, detailed.Value));
                         createdIds.AddRange(summary.CreatedIds);
-                        built.Add((i + 1, string.IsNullOrWhiteSpace(iterations[i].Name) ? $"Iteration {i + 1}" : iterations[i].Name!, worksetName, summary.PieceCount));
+                        built.Add((oneBased, string.IsNullOrWhiteSpace(iterations[i].Name) ? $"Iteration {oneBased}" : iterations[i].Name!, summary.PieceCount));
                     }
                     IterationLedger.Write(doc, createdIds);
 
-                    var worksets = IterationWorksets.Find(doc);
-                    var first = worksets.FirstOrDefault(w => w.Name == IterationWorksets.NameFor(1));
-                    if (first != null) IterationWorksets.ShowOnly(doc.ActiveView, worksets, first);
+                    var groups = IterationWorksets.Find(doc);
+                    var first = groups.FirstOrDefault(g => g.Index == 1);
+                    if (first != null) IterationWorksets.ShowOnly(doc.ActiveView, groups, first);
                 }
                 catch (Exception ex)
                 {
@@ -128,10 +154,16 @@ namespace SportfyRevit
                 }
 
                 var body = new StringBuilder();
-                foreach (var b in built) body.AppendLine($"• Iteration {b.Index}: \"{b.Name}\" — {b.Pieces} piece(s) on workset \"{b.Workset}\".");
+                foreach (var b in built)
+                {
+                    var worksetNote = detailed.Value
+                        ? $"its own Sports/Gardens/Combine worksets (\"{IterationWorksets.NamePrefix}{b.Index} - ...\")"
+                        : $"its own workset (\"{IterationWorksets.NamePrefix}{b.Index}\")";
+                    body.AppendLine($"• Iteration {b.Index}: \"{b.Name}\" — {b.Pieces} piece(s) on {worksetNote}.");
+                }
                 body.AppendLine();
-                body.AppendLine($"Showing Iteration 1 in the active view. Use \"Show Iteration\" (BIM & Documentation) to switch, or show them all at once from there.");
-                SportifyLog.Info("iterations", $"imported {built.Count} iteration(s): " + string.Join(", ", built.Select(b => $"{b.Workset} ({b.Pieces} pieces)")));
+                body.AppendLine("Showing Iteration 1 in the active view. Use \"Show Iteration\" (BIM & Documentation) to switch, or show them all at once from there.");
+                SportifyLog.Info("iterations", $"imported {built.Count} iteration(s), {(detailed.Value ? "detailed" : "simple")} worksets: " + string.Join(", ", built.Select(b => $"#{b.Index} ({b.Pieces} pieces)")));
                 TaskDialog.Show(Title, body.ToString());
                 return Result.Succeeded;
             }
@@ -140,9 +172,31 @@ namespace SportfyRevit
                 return BimCommandErrors.Failed(Title, "the iterations could not be imported", ex, ref message);
             }
         }
+
+        /// <summary>True = detailed (Sports/Gardens/Combine per iteration), false = simple (one workset per iteration), null = cancelled.</summary>
+        static bool? AskOrganization()
+        {
+            var ask = new TaskDialog(Title)
+            {
+                MainInstruction = "Organize each iteration's worksets how?",
+                MainContent = "Every iteration gets its own workset(s) either way, switchable together with \"Show Iteration\".",
+                CommonButtons = TaskDialogCommonButtons.Cancel,
+            };
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Detailed — Sports, Gardens, Combine per iteration",
+                "The same auto-assignment a normal import uses (courts and equipment on Sports, planting and ground on Gardens, boundaries/paths/entries on Combine), just one set of the three per iteration.");
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Simple — one workset per iteration",
+                "Everything for an iteration together on a single workset. Fewer worksets, less detail.");
+            ask.DefaultButton = TaskDialogResult.CommandLink1;      // after the links exist: Revit throws otherwise
+            return ask.Show() switch
+            {
+                TaskDialogResult.CommandLink1 => true,
+                TaskDialogResult.CommandLink2 => false,
+                _ => (bool?)null,
+            };
+        }
     }
 
-    /// <summary>Switches which iteration's workset is visible in the active view — the "Design Option switcher": instant, no rebuild, works as often as wanted.</summary>
+    /// <summary>Switches which iteration's worksets are visible in the active view — the "Design Option switcher": instant, no rebuild, works as often as wanted.</summary>
     [Transaction(TransactionMode.Manual)]
     public class SwitchIterationCommand : IExternalCommand
     {
@@ -153,8 +207,8 @@ namespace SportfyRevit
             var doc = commandData.Application.ActiveUIDocument?.Document;
             if (doc == null) { TaskDialog.Show(Title, "Open a Revit project first."); return Result.Cancelled; }
 
-            var worksets = IterationWorksets.Find(doc);
-            if (worksets.Count == 0)
+            var groups = IterationWorksets.Find(doc);
+            if (groups.Count == 0)
             {
                 TaskDialog.Show(Title, "No iteration worksets in this project yet — run \"Import Iterations as Design Options\" first.");
                 return Result.Succeeded;
@@ -163,13 +217,13 @@ namespace SportfyRevit
             var ask = new TaskDialog(Title)
             {
                 MainInstruction = $"Show which iteration in \"{doc.ActiveView.Name}\"?",
-                MainContent = $"{worksets.Count} iteration(s) are imported. Showing one hides the others in this view only — other views keep their own choice.",
+                MainContent = $"{groups.Count} iteration(s) are imported. Showing one hides the others in this view only — other views keep their own choice.",
                 CommonButtons = TaskDialogCommonButtons.Cancel,
             };
-            for (var i = 0; i < worksets.Count && i < 4; i++)
-                ask.AddCommandLink((TaskDialogCommandLinkId)((int)TaskDialogCommandLinkId.CommandLink1 + i), worksets[i].Name);
-            if (worksets.Count <= 3)
-                ask.AddCommandLink((TaskDialogCommandLinkId)((int)TaskDialogCommandLinkId.CommandLink1 + worksets.Count), "Show all iterations");
+            for (var i = 0; i < groups.Count && i < 4; i++)
+                ask.AddCommandLink((TaskDialogCommandLinkId)((int)TaskDialogCommandLinkId.CommandLink1 + i), $"Show Iteration {groups[i].Index}");
+            if (groups.Count <= 3)
+                ask.AddCommandLink((TaskDialogCommandLinkId)((int)TaskDialogCommandLinkId.CommandLink1 + groups.Count), "Show all iterations");
             ask.DefaultButton = TaskDialogResult.CommandLink1;      // after the links exist: Revit throws otherwise
 
             var answer = ask.Show();
@@ -180,11 +234,11 @@ namespace SportfyRevit
             {
                 using var t = new Transaction(doc, "Sportify: show iteration");
                 t.Start();
-                var keep = index < worksets.Count ? worksets[index] : null;
-                IterationWorksets.ShowOnly(doc.ActiveView, worksets, keep);
+                var keep = index < groups.Count ? groups[index] : null;
+                IterationWorksets.ShowOnly(doc.ActiveView, groups, keep);
                 t.Commit();
 
-                TaskDialog.Show(Title, keep != null ? $"Showing \"{keep.Name}\" in \"{doc.ActiveView.Name}\"." : $"Showing all iterations in \"{doc.ActiveView.Name}\".");
+                TaskDialog.Show(Title, keep != null ? $"Showing Iteration {keep.Index} in \"{doc.ActiveView.Name}\"." : $"Showing all iterations in \"{doc.ActiveView.Name}\".");
                 return Result.Succeeded;
             }
             catch (Exception ex)

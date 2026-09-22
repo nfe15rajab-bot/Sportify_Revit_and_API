@@ -188,7 +188,8 @@ namespace SportfyRevit
             return null;
         }
 
-        private static ElementId SolidFillPatternId(Document doc)
+        /// <summary>internal, not private: GenerateFunctionalDiagramsCommand reuses this for the circulation diagram's grayed-out piece fills.</summary>
+        internal static ElementId SolidFillPatternId(Document doc)
         {
             foreach (var pattern in new FilteredElementCollector(doc).OfClass(typeof(FillPatternElement)).Cast<FillPatternElement>())
             {
