@@ -6,17 +6,12 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// Scoped to the two sub-deliverables buildable from geometry
-    /// SportifyLayoutBuilder already creates, without any new input: a
-    /// circulation diagram (only what the import put on the "Combine" workset:
-    /// the roof outline, setback, circulation-path lines and entry markers) and
-    /// a 3D axonometric (the placeholder pieces are already real extruded
-    /// solids — DirectShape boxes from FamilyPlacementBuilder — so this
-    /// is a view/orientation setup, not new massing geometry). The bubble
-    /// diagram isn't built yet — it needs new geometry (sized/labeled
-    /// zone circles), not just a view of what's already placed.
-    /// Re-running this command updates the same two named views rather
-    /// than creating duplicates each time.
+    /// Four deliverables, all from geometry SportifyLayoutBuilder already creates, without any new input: two real Revit views (a circulation floor plan — only what the
+    /// import put on the "Combine" workset: the roof outline, setback, circulation-path lines and entry markers — and a 3D axonometric of everything Sportify built), and
+    /// two SVG diagrams in the architectural style (FunctionalDiagramData/FunctionalDiagramSvg): a "spine" diagram — the placements as rounded rooms, coloured by category,
+    /// with the real walkable route to each drawn as a thick red circulation spine and a red dot per entry — and a bubble (relationship) diagram, circles sized by real
+    /// footprint area and connected by dotted lines, not to scale on purpose. Re-running this command updates the same named views and files rather than creating
+    /// duplicates each time.
     ///
     /// It works with or without worksets. In a workshared project the circulation
     /// view hides every workset but Combine, as it always did. In a project without
@@ -66,7 +61,12 @@ namespace SportfyRevit
                 t.Commit();
             }
 
-            // the two views as images in the workspace's Diagrams folder: the deliverable outside Revit
+            // the bubble and spine diagrams: read-only over what the import built, no transaction needed
+            var data = FunctionalDiagramData.Collect(doc);
+            var spineSvg = FunctionalDiagramData.SpineSvg(data);
+            var bubbleSvg = FunctionalDiagramData.BubbleSvg(data);
+
+            // the two views as images, and the two SVG diagrams, in the workspace's Diagrams folder: the deliverable outside Revit
             string saved;
             try
             {
@@ -76,16 +76,21 @@ namespace SportfyRevit
                 var (circulationImage, axoImage) = GenerateAnalysisReportCommand.KeepDiagrams(
                     GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation")),
                     GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric")));
-                saved = circulationImage != null || axoImage != null ? $"\n\nImages saved to {SportifyWorkspace.PathFor("diagrams")}." : "";
-            }
-            catch (Exception ex) { saved = "\n\nThe views could not be exported as images: " + ex.Message; }
 
-            SportifyLog.Info("diagrams", $"views \"{circulationViewName}\" ({how}) and \"{axoViewName}\"");
+                var dir = SportifyWorkspace.PathFor("diagrams");
+                File.WriteAllText(Path.Combine(dir, "functional_spine.svg"), spineSvg);
+                File.WriteAllText(Path.Combine(dir, "functional_bubble.svg"), bubbleSvg);
+                saved = circulationImage != null || axoImage != null ? $"\n\nAll four saved to {dir}." : $"\n\nThe two diagrams saved to {dir}.";
+            }
+            catch (Exception ex) { saved = "\n\nThe diagrams could not be saved: " + ex.Message; }
+
+            SportifyLog.Info("diagrams", $"views \"{circulationViewName}\" ({how}) and \"{axoViewName}\"; {data.Pieces.Count} piece(s), {data.Entries.Count} entr{(data.Entries.Count == 1 ? "y" : "ies")} in the spine/bubble diagrams");
             TaskDialog.Show(title,
-                $"Created/updated two views (see the Project Browser):\n" +
+                $"Created/updated:\n" +
                 $"- \"{circulationViewName}\" — floor plan, {how}.\n" +
-                $"- \"{axoViewName}\" — 3D isometric, everything Sportify built.\n\n" +
-                "Bubble diagram isn't built yet — it needs new zone geometry, not just a view of what's already placed." + saved);
+                $"- \"{axoViewName}\" — 3D isometric, everything Sportify built.\n" +
+                $"- Circulation Spine — {data.Pieces.Count} piece(s) with the real route to {(data.Entries.Count == 0 ? "an entry (none found — every route is missing)" : data.Entries.Count == 1 ? "the entry" : data.Entries.Count + " entries")}.\n" +
+                $"- Bubble Diagram — the same pieces by relationship, not to scale." + saved);
 
             return Result.Succeeded;
         }

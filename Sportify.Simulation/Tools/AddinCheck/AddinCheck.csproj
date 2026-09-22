@@ -20,6 +20,9 @@
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\CirculationEngine.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SvgChart.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\FunctionalDiagramSvg.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />

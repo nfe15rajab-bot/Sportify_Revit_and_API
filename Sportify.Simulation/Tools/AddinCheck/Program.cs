@@ -940,6 +940,78 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           bimSource.Contains("!doc.IsWorkshared && !doc.CanEnableWorksharing()") && allSources.Any(kv => kv.Key.EndsWith("WorksharingConsent.cs") && kv.Value.Contains("!doc.CanEnableWorksharing()")));
     Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
 
+Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagram and the spine (circulation) diagram =====");
+{
+    // CirculationEngine.ComputeTravelPaths: the same walkable route ComputeTravelDistances already reports the length of, but as points
+    double PolylineLen(List<(double X, double Y)> pts) { double len = 0; for (var i = 1; i < pts.Count; i++) len += Math.Sqrt(Math.Pow(pts[i].X - pts[i - 1].X, 2) + Math.Pow(pts[i].Y - pts[i - 1].Y, 2)); return len; }
+    var pLayout = new SportifyLayout
+    {
+        RoofContext = new RoofContextDto { LengthM = 20, WidthM = 12 },
+        DesignRules = new DesignRulesDto { CirculationWidthM = 1.2 },
+        Placements = new List<PlacementDto>
+        {
+            new() { Id = "a", BoundingBox = new BoundingBoxDto { TopLeftXM = 2, TopLeftYM = 2, WidthM = 3, HeightM = 3 } },
+            new() { Id = "b", BoundingBox = new BoundingBoxDto { TopLeftXM = 15, TopLeftYM = 8, WidthM = 3, HeightM = 3 } },
+            new() { Id = "isolated", BoundingBox = new BoundingBoxDto { TopLeftXM = 10, TopLeftYM = 5, WidthM = 1, HeightM = 1 } },
+            // four placements touching "isolated" on all sides, each item's own circulation buffer sealing whatever sliver of a gap is left: unreachable on purpose
+            new() { Id = "wall_w", BoundingBox = new BoundingBoxDto { TopLeftXM = 8, TopLeftYM = 4, WidthM = 2, HeightM = 3 } },
+            new() { Id = "wall_e", BoundingBox = new BoundingBoxDto { TopLeftXM = 11, TopLeftYM = 4, WidthM = 2, HeightM = 3 } },
+            new() { Id = "wall_n", BoundingBox = new BoundingBoxDto { TopLeftXM = 9, TopLeftYM = 2, WidthM = 3, HeightM = 3 } },
+            new() { Id = "wall_s", BoundingBox = new BoundingBoxDto { TopLeftXM = 9, TopLeftYM = 6, WidthM = 3, HeightM = 3 } },
+        },
+        EntryPoints = new List<EntryPointDto> { new() { XM = 0, YM = 6, Edge = "left" } },
+    };
+    var (pDist, pUnreachable) = CirculationEngine.ComputeTravelDistances(pLayout);
+    var pPaths = CirculationEngine.ComputeTravelPaths(pLayout);
+    Check("ComputeTravelPaths finds a route for every reachable item and none for an unreachable one (boxed in on all four sides)",
+          pPaths.ContainsKey("a") && pPaths.ContainsKey("b") && !pPaths.ContainsKey("isolated") && pUnreachable.Contains("isolated"));
+    Check("a path's own length (summing its points) matches ComputeTravelDistances' number for the same item, within a hundredth of a metre",
+          Math.Abs(PolylineLen(pPaths["a"]) - pDist["a"]) < 0.01 && Math.Abs(PolylineLen(pPaths["b"]) - pDist["b"]) < 0.01);
+    // slack covers the circulation buffer (0.6m half-width here) plus one grid cell (0.5m) of quantisation between the buffered footprint and the access cell beside it
+    bool NearBox(double x, double y, double x0, double y0, double x1, double y1, double slack) => x >= x0 - slack && x <= x1 + slack && y >= y0 - slack && y <= y1 + slack;
+    Check("a path starts at the entry side (x near 0, the \"left\" edge) and ends beside the item's own footprint",
+          pPaths["a"][0].X < 1.0 && NearBox(pPaths["a"][^1].X, pPaths["a"][^1].Y, 2, 2, 5, 5, 1.5) && NearBox(pPaths["b"][^1].X, pPaths["b"][^1].Y, 15, 8, 18, 11, 1.5));
+
+    // SvgChart.Plan with paths: drawn under the shapes, right after the roof's own outline/background rect (the second <rect>, after the outer canvas rect), as a <polyline>, absent when no paths are given
+    var planWithPath = SvgChart.Plan("t", 10, 10, null, new[] { new PlanShape { Kind = "rect", X = 1, Y = 1, W = 2, H = 2, CornerRadiusM = 0.3 } },
+        paths: new[] { new PlanPolyline { Points = new List<double[]> { new[] { 0.0, 0.0 }, new[] { 5.0, 5.0 } }, Color = "#c0142c", WidthM = 0.45 } });
+    var planWithoutPath = SvgChart.Plan("t", 10, 10, null, new[] { new PlanShape { Kind = "rect", X = 1, Y = 1, W = 2, H = 2 } });
+    var canvasRectEnd = planWithPath.IndexOf("<rect", StringComparison.Ordinal) is var bgAt && bgAt >= 0 ? planWithPath.IndexOf('>', bgAt) : -1;
+    var outlineRectStart = canvasRectEnd > 0 ? planWithPath.IndexOf("<rect", canvasRectEnd, StringComparison.Ordinal) : -1;
+    var outlineRectEnd = outlineRectStart > 0 ? planWithPath.IndexOf('>', outlineRectStart) : -1;
+    Check("SvgChart.Plan draws a path as a polyline in its own colour, and a rounded rect gets an rx; neither appears when not asked for",
+          planWithPath.Contains("<polyline") && planWithPath.Contains("#c0142c") && planWithPath.Contains(" rx=") && !planWithoutPath.Contains("<polyline") && !planWithoutPath.Contains(" rx=")
+          && outlineRectEnd > 0 && planWithPath.IndexOf("<polyline", StringComparison.Ordinal) > outlineRectEnd
+          && planWithPath.IndexOf("<polyline", StringComparison.Ordinal) < planWithPath.IndexOf("<rect", outlineRectEnd, StringComparison.Ordinal));   // after the canvas and roof-outline rects, before the piece's own rect
+
+    // FunctionalDiagramSvg.Bubble: the relationship diagram — not to scale, radial by connection distance from the hub
+    var emptyBubble = FunctionalDiagramSvg.Bubble("t", Array.Empty<BubbleNode>(), Array.Empty<BubbleEdge>());
+    Check("an empty bubble diagram says so instead of drawing an empty canvas", emptyBubble.Contains("nothing to diagram") && emptyBubble.Contains("<svg"));
+
+    var bNodes = new List<BubbleNode> { new("hub", "Entry", 4), new("big", "Court", 300), new("small", "Bench", 1.2), new("mid", "Yoga", 20) };
+    var bEdges = new List<BubbleEdge> { new("hub", "big", true), new("hub", "small", true), new("hub", "mid", true) };
+    var bubble = FunctionalDiagramSvg.Bubble("Bubble", bNodes, bEdges);
+    Check("one circle and one label per node, one line per edge, and nothing came out NaN or negative-radius",
+          System.Text.RegularExpressions.Regex.Matches(bubble, "<circle").Count == bNodes.Count && System.Text.RegularExpressions.Regex.Matches(bubble, "<line").Count == bEdges.Count
+          && !bubble.Contains("NaN") && !bubble.Contains("r='-") && bubble.Contains("Entry") && bubble.Contains("Court") && bubble.Contains("Bench"));
+    var bigFill = System.Text.RegularExpressions.Regex.Match(bubble, "r='4[0-9][.0-9]*' fill='(#[0-9A-Fa-f]{6})'").Groups[1].Value;
+    var smallFill = System.Text.RegularExpressions.Regex.Match(bubble, "r='9(\\.[0-9]+)?' fill='(#[0-9A-Fa-f]{6})'").Groups[2].Value;
+    Check("the biggest space (Court, area 300) reads a darker maroon than the smallest (Bench, area 1.2): red channel goes down as the circle grows",
+          bigFill.Length == 7 && smallFill.Length == 7 && Convert.ToInt32(bigFill.Substring(1, 2), 16) < Convert.ToInt32(smallFill.Substring(1, 2), 16),
+          bigFill + " vs " + smallFill);
+
+    // a star graph (no leaf-to-leaf edges) places every leaf on the FIRST ring, at the same distance from the hub — the hub is the most-connected node, so it anchors the layout
+    var starNodes = new List<BubbleNode> { new("h", "Hub", 10), new("l1", "L1", 5), new("l2", "L2", 5), new("l3", "L3", 5) };
+    var starEdges = new List<BubbleEdge> { new("h", "l1", true), new("h", "l2", true), new("h", "l3", true) };
+    var star = FunctionalDiagramSvg.Bubble("Star", starNodes, starEdges);
+    var circleCenters = System.Text.RegularExpressions.Regex.Matches(star, "<circle cx='([-0-9.]+)' cy='([-0-9.]+)' r='([0-9.]+)'")
+        .Select(m => (X: double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture), Y: double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture))).ToList();
+    var hubCenter = circleCenters[0];    // nodes are drawn in the order passed in; "h" is first
+    var leafDists = circleCenters.Skip(1).Select(c => Math.Sqrt(Math.Pow(c.X - hubCenter.X, 2) + Math.Pow(c.Y - hubCenter.Y, 2))).ToList();
+    Check("every leaf of a star graph sits the same distance from the hub (one ring), within half a pixel",
+          leafDists.Max() - leafDists.Min() < 0.5, string.Join(", ", leafDists.Select(d => d.ToString("0.##"))));
+}
+
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

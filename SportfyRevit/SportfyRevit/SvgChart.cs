@@ -13,6 +13,16 @@ namespace SportfyRevit
         public bool Dashed;
     }
 
+    /// <summary>An open polyline on a plan (a circulation path, a connection): drawn under the shapes, in the plan's own metres (y down).</summary>
+    internal sealed class PlanPolyline
+    {
+        public List<double[]> Points = new();   // {x, y} ...
+        public string Color = SvgChart.Bad;
+        public double WidthM = 0.5;
+        public bool Dashed;
+        public double Opacity = 1;
+    }
+
     /// <summary>One shape on a plan: a rectangle, a polygon or a circle, in the plan's own metres (y down).</summary>
     internal sealed class PlanShape
     {
@@ -27,6 +37,7 @@ namespace SportfyRevit
         public string Label = "";               // in the middle of the shape
         public string LabelColor = "#ffffff";
         public double LabelSize = 0;            // 0 = fitted to the shape
+        public double CornerRadiusM = 0;        // rect only: rounded corners (an architectural room-box look), in the plan's own metres
     }
 
     /// <summary>
@@ -214,8 +225,9 @@ namespace SportfyRevit
 
         // ------------------------------------------------------------------------------------------------------------ plan
 
-        /// <summary>The roof seen from above: its outline (or rectangle) and coloured shapes on it, in metres, y down as the app draws it.</summary>
-        public static string Plan(string title, double roofLength, double roofWidth, IList<double[]>? outline, IEnumerable<PlanShape> shapes, IEnumerable<(string text, string color)>? legend = null, int w = 520)
+        /// <summary>The roof seen from above: its outline (or rectangle) and coloured shapes on it, in metres, y down as the app draws it. `paths` (open polylines — a circulation
+        /// spine) are drawn first, under the shapes, so an opaque shape's fill hides where a path runs into it rather than crossing over its label.</summary>
+        public static string Plan(string title, double roofLength, double roofWidth, IList<double[]>? outline, IEnumerable<PlanShape> shapes, IEnumerable<(string text, string color)>? legend = null, int w = 520, IEnumerable<PlanPolyline>? paths = null)
         {
             double margin = 10, head = 24, foot = 26;
             var scale = (w - 2 * margin) / Math.Max(1, roofLength);
@@ -227,6 +239,15 @@ namespace SportfyRevit
                 sb.Append($"<polygon points='{string.Join(" ", outline.Select(p => P(p[0], p[1])))}' fill='#ffffff' stroke='{Muted}' stroke-width='1.2'/>");
             else
                 sb.Append($"<rect x='{N(margin)}' y='{N(head)}' width='{N(roofLength * scale)}' height='{N(roofWidth * scale)}' fill='#ffffff' stroke='{Muted}' stroke-width='1.2'/>");
+
+            if (paths != null)
+                foreach (var p in paths)
+                {
+                    if (p.Points.Count < 2) continue;
+                    var pts = string.Join(" ", p.Points.Select(q => P(q[0], q[1])));
+                    var dash = p.Dashed ? " stroke-dasharray='5,3'" : "";
+                    sb.Append($"<polyline points='{pts}' fill='none' stroke='{p.Color}' stroke-width='{N(Math.Max(1, p.WidthM * scale))}' stroke-linecap='round' stroke-linejoin='round' opacity='{N(p.Opacity)}'{dash}/>");
+                }
 
             var labels = new StringBuilder();
             foreach (var s in shapes)
@@ -247,7 +268,8 @@ namespace SportfyRevit
                         lx = s.X; ly = s.Y; fit = s.W * scale;
                         break;
                     default:
-                        sb.Append($"<rect x='{N(margin + s.X * scale)}' y='{N(head + s.Y * scale)}' width='{N(Math.Max(1, s.W * scale))}' height='{N(Math.Max(1, s.H * scale))}' fill='{s.Fill}' fill-opacity='{N(s.FillOpacity)}' stroke='{s.Stroke}' stroke-width='{sw}'{dash}/>");
+                        var rxy = s.CornerRadiusM > 0 ? $" rx='{N(Math.Min(s.CornerRadiusM * scale, Math.Min(s.W, s.H) * scale / 2))}'" : "";
+                        sb.Append($"<rect x='{N(margin + s.X * scale)}' y='{N(head + s.Y * scale)}' width='{N(Math.Max(1, s.W * scale))}' height='{N(Math.Max(1, s.H * scale))}'{rxy} fill='{s.Fill}' fill-opacity='{N(s.FillOpacity)}' stroke='{s.Stroke}' stroke-width='{sw}'{dash}/>");
                         lx = s.X + s.W / 2; ly = s.Y + s.H / 2; fit = Math.Min(s.W, s.H) * scale;
                         break;
                 }
