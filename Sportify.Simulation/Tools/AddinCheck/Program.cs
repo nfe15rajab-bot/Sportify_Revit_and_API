@@ -516,6 +516,29 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         Check("  a roof square to the model is left exactly as it was", RoofFrame.TurnAbout(100, 200, 0, 117.3, 203.9) == (117.3, 203.9));
     }
 
+    // a layout with no real Revit push behind it (drawn or typed in the web app): the geometry's own middle sits at the project's origin
+    {
+        var c0 = RoofFrame.Centered(10, 6, 0);
+        var g0 = c0.FromLocalUp(5, 3);          // local centre, y up (Length/2, Width/2)
+        Check("a square, unturned roof with no push: its own centre lands on the project's origin", Near(c0.OriginX, -5) && Near(c0.OriginY, -3) && Near(g0.X, 0, 1e-9) && Near(g0.Y, 0, 1e-9));
+        foreach (var deg in new[] { 0.0, 30.0, -20.0, 60.0 })
+        {
+            var c = RoofFrame.Centered(10, 6, deg * Math.PI / 180.0);
+            var g = c.FromLocalUp(5, 3);
+            Check($"  and at {deg} degrees (defensive: a manual roof is never actually turned)", Near(g.X, 0, 1e-9) && Near(g.Y, 0, 1e-9));
+        }
+        var zero = RoofFrame.Centered(0, 0, 0);
+        Check("a degenerate 0x0 roof (no roof_context at all, an old export) centres on the origin too: no regression from the old corner-at-origin behaviour", Near(zero.OriginX, 0) && Near(zero.OriginY, 0));
+    }
+
+    // RoofContextDto carries the push's "source" (revit vs manual/absent), which SportifyLayoutBuilder.BuildGeometry uses to choose between the two
+    {
+        var pushed = JsonSerializer.Deserialize<RoofContextDto>("""{"length_m":10,"width_m":6,"source":"revit","world_origin_x_m":42.5,"world_origin_y_m":-3}""")!;
+        var manual = JsonSerializer.Deserialize<RoofContextDto>("""{"length_m":10,"width_m":6,"source":"manual"}""")!;
+        var old = JsonSerializer.Deserialize<RoofContextDto>("""{"length_m":10,"width_m":6}""")!;       // an export from before "source" existed
+        Check("roof_context.source deserialises: \"revit\", \"manual\", and absent (an older export) reads as no source", pushed.Source == "revit" && manual.Source == "manual" && old.Source == null);
+    }
+
     // a piece turned 90 degrees clockwise on the canvas points its x axis DOWN the canvas; in the model that is the world angle (frame angle - 90 degrees)
     var top = f30.ToModel(0, 0); var below = f30.ToModel(0, 1);
     var dirDeg = Math.Atan2(below.Y - top.Y, below.X - top.X) * 180 / Math.PI;
@@ -1084,7 +1107,90 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("the norm parameters Sportify_DIN277 and Sportify_KG are shared parameters bound to floors, generic models and planting, and an existing value is never overwritten",
           allSources.Any(kv => kv.Key.EndsWith("SportifySharedParameters.cs") && kv.Value.Contains("\"Sportify_DIN277\", \"Sportify_KG\"") && kv.Value.Contains("OST_Floors")) && allSources.Any(kv => kv.Key.EndsWith("NormParameters.cs") && kv.Value.Contains("!string.IsNullOrEmpty(p.AsString())")));
     Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
+    Check("the eight Push to Sportify items (built outside RibbonLayout.Panels, by AddPushMenu) are found by the hook too, by name",
+          appSource.Contains("internalName.StartsWith(\"PushRoof\", StringComparison.Ordinal)") && appSource.Contains("App & Data Import%PushToSportify%\" + internalName"));
 
+    Console.WriteLine("\n===== the roof's anchor with no real Revit push, and views with no crop region by default =====");
+    var layoutBuilderSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("SportifyLayoutBuilder.cs")).Value ?? "";
+    Check("BuildGeometry only trusts world_origin_*_m when the roof was pushed from Revit (roof_context.source == \"revit\"); a roof drawn or typed in the web app is centred on the project's origin instead (RoofFrame.Centered)",
+          layoutBuilderSource.Contains("string.Equals(layout.RoofContext?.Source, \"revit\", StringComparison.OrdinalIgnoreCase)") && layoutBuilderSource.Contains("RoofFrame.Centered(lengthM, widthM, angleRad)")
+          && layoutBuilderSource.Contains("FeetFromMeters(CurrentFrame.OriginX)"));
+    var viewDefaultsSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("ViewDefaults.cs")).Value ?? "";
+    Check("ViewDefaults.DisableCrop turns a new view's crop region off (Revit's own default crop box is a few feet across, nowhere near a real roof — left on, the view looks simply empty)",
+          viewDefaultsSource.Contains("CropBoxActive = false") && viewDefaultsSource.Contains("CropBoxVisible = false"));
+    var templateBuilderSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("SportifyTemplateBuilder.cs")).Value ?? "";
+    var funcDiagramsSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("GenerateFunctionalDiagramsCommand.cs")).Value ?? "";
+    Check("every view Sportify creates gets it: every Sportify view template (so any view built from one inherits it), the plan views made without a template, the functional-diagrams floor plan and the 3D axonometric",
+          System.Text.RegularExpressions.Regex.Matches(templateBuilderSource, "ViewDefaults.DisableCrop").Count == 2 && System.Text.RegularExpressions.Regex.Matches(funcDiagramsSource, "ViewDefaults.DisableCrop").Count == 2);
+
+    Console.WriteLine("\n===== Worksets: sorting the model onto the Sportify worksets that mirror Push to Sportify, and pushing by workset =====");
+    Check("eight worksets, one per push scope, in the drop-down's order, every name starting with \"Sportify \" so a designer's own worksets are never mistaken for one",
+          PushWorksets.All.Select(w => w.Scope).SequenceEqual(new[] { RoofPushScope.Roof, RoofPushScope.Structure, RoofPushScope.Entries, RoofPushScope.Openings, RoofPushScope.Edge, RoofPushScope.Drains, RoofPushScope.Equipment, RoofPushScope.SlabLevels })
+          && PushWorksets.Names.All(n => n.StartsWith("Sportify ")) && PushWorksets.Names.Distinct().Count() == 8);
+    Check("every push kind maps to exactly the workset of its own scope (a stair to Sportify Entries, a grid line to Sportify Structure, ...)",
+          Enum.GetValues<PushKind>().Where(k => k != PushKind.Other).All(k => PushWorksets.WorksetFor(k) == PushWorksets.NameOf(PushWorksets.ScopeOf(k)!.Value)));
+    Check("\"Other\" (an element none of the collectors read) belongs on no Sportify workset", PushWorksets.ScopeOf(PushKind.Other) == null && PushWorksets.WorksetFor(PushKind.Other) == null);
+    Check("a default workset (Workset1, Arbeitssatz 3, Shared Levels and Grids, the German name) is told from a designer's own (Architecture) and from a Sportify one",
+          PushWorksets.IsDefaultWorksetName("Workset1") && PushWorksets.IsDefaultWorksetName("Arbeitssatz 3") && PushWorksets.IsDefaultWorksetName("Shared Levels and Grids")
+          && PushWorksets.IsDefaultWorksetName("Gemeinsam genutzte Ebenen und Raster") && PushWorksets.IsDefaultWorksetName(null) && PushWorksets.IsDefaultWorksetName("")
+          && !PushWorksets.IsDefaultWorksetName("Architecture") && !PushWorksets.IsDefaultWorksetName(PushWorksets.NameOf(RoofPushScope.Roof)));
+
+    // Plan(): an element in a default workset is assigned; one already on the right Sportify workset is Right; one on a wrong workset (the designer's own, or another Sportify one) is flagged, not moved, unless asked
+    {
+        var items = new List<PushWorksets.Item>
+        {
+            new(1, "Stair 1", PushKind.Stair, "Workset1", true),                                  // default: assign
+            new(2, "Grid A", PushKind.Grid, PushWorksets.NameOf(RoofPushScope.Structure), false),  // already right
+            new(3, "Wall X", PushKind.BearingWall, "Architecture", false),                         // the designer's own: wrong, flagged
+            new(4, "Pipe Y", PushKind.Drain, PushWorksets.NameOf(RoofPushScope.Equipment), false),  // in the WRONG Sportify workset: still flagged
+            new(5, "Duct Z", PushKind.Other, "Workset1", true),                                    // not Sportify's business at all
+        };
+        var plan = PushWorksets.Plan(items);
+        var byId = plan.ToDictionary(d => d.Item.Id);
+        Check("the plan: default workset -> Assign, right workset -> Right, wrong workset (own or another Sportify one) -> Wrong, not Sportify's -> NotSportify",
+              byId[1].Verdict == PushWorksets.Verdict.Assign && byId[1].Target == PushWorksets.NameOf(RoofPushScope.Entries)
+              && byId[2].Verdict == PushWorksets.Verdict.Right
+              && byId[3].Verdict == PushWorksets.Verdict.Wrong && byId[3].Target == PushWorksets.NameOf(RoofPushScope.Structure)
+              && byId[4].Verdict == PushWorksets.Verdict.Wrong && byId[4].Target == PushWorksets.NameOf(RoofPushScope.Drains)
+              && byId[5].Verdict == PushWorksets.Verdict.NotSportify && byId[5].Target == null);
+        Check("Moves: an Assign moves without asking; a Wrong moves too only once the designer chooses \"move the wrong ones\"",
+              PushWorksets.Moves(plan, moveWrong: false).Select(d => d.Item.Id).SequenceEqual(new long[] { 1 })
+              && PushWorksets.Moves(plan, moveWrong: true).Select(d => d.Item.Id).OrderBy(x => x).SequenceEqual(new long[] { 1, 3, 4 }));
+        Check("a flagged element reads \"<kind> \\\"<name>\\\" is in <workset>; it belongs in <target>\"",
+              PushWorksets.Describe(byId[3]) == "BearingWall \"Wall X\" is in Architecture; it belongs in " + PushWorksets.NameOf(RoofPushScope.Structure));
+    }
+
+    Check("\"Select manually\" offers only the kinds a push item is about: the roof push takes a roof or a floor (so does the slab push, since a floor may be the roof), the entries push stairs and ramps only (not doors, which need no picking, or lifts)",
+          PushWorksets.PickableKinds(RoofPushScope.Roof).SequenceEqual(new[] { PushKind.Roof, PushKind.Floor }) && PushWorksets.PickableKinds(RoofPushScope.SlabLevels).SequenceEqual(new[] { PushKind.Roof, PushKind.Floor })
+          && PushWorksets.PickableKinds(RoofPushScope.Entries).SequenceEqual(new[] { PushKind.Stair, PushKind.Ramp })
+          && new[] { RoofPushScope.Structure, RoofPushScope.Openings, RoofPushScope.Edge, RoofPushScope.Drains, RoofPushScope.Equipment }.All(s => PushWorksets.PickableKinds(s).All(k => PushWorksets.ScopeOf(k) == s))
+          && PushWorksets.PickableKinds(RoofPushScope.All).Count == 0);
+    Check("a name is told as a drain, a lift or a parapet by the same words the roof-feature collector reads them by, in German and English, case-insensitively",
+          PushWorksets.LooksLikeDrain("Abfluss Typ A") && PushWorksets.LooksLikeDrain("Roof Drain 100mm") && !PushWorksets.LooksLikeDrain("Generic Model")
+          && PushWorksets.LooksLikeLift("Aufzug 630kg") && PushWorksets.LooksLikeLift("Passenger Elevator") && !PushWorksets.LooksLikeLift("Stair")
+          && PushWorksets.LooksLikeParapet("Attika 1000mm") && PushWorksets.LooksLikeParapet("Parapet Wall") && !PushWorksets.LooksLikeParapet("Curtain Wall"));
+
+    // the ribbon, the sorting command, the Revit-facing assigner, and the push commands
+    var worksetsButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "WorksetsCommand");
+    Check("BIM & Documentation has a \"Worksets\" command of its own, public, with a toggle to turn worksharing on", worksetsButton != null && worksetsButton.Text == "Worksets"
+          && commandClasses.GetValueOrDefault("WorksetsCommand") == "public" && bim.Entries.Contains(worksetsButton));
+    var worksetsSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("WorksetsCommand.cs")).Value ?? "";
+    Check("it is [Transaction(TransactionMode.Manual)], asks before turning worksharing on (a checkbox, unticked by default) instead of only refusing, offers moving the wrong elements as a second, separate choice, and catches its own errors",
+          System.Text.RegularExpressions.Regex.Matches(worksetsSource, @"\[Transaction\(TransactionMode\.Manual\)\]").Count == 1 && worksetsSource.Contains("ExtraCheckBoxText")
+          && worksetsSource.Contains("dialog.WasExtraCheckBoxChecked()") && worksetsSource.Contains("CommandLink2") && worksetsSource.Contains("catch (Exception ex)"));
+    Check("a flagged element is selected in the model so the designer can see it, and every one goes to the log",
+          worksetsSource.Contains("uidoc.Selection.SetElementIds(") && worksetsSource.Contains("SportifyLog.Info(\"worksets\", \"flagged: \""));
+    var assignerSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("PushWorksetAssigner.cs")).Value ?? "";
+    Check("Sportify's own elements (an import's Sportify_Category pieces, its \"Sportify - \" floors) are never sorted here: they have their own worksets (Sports, Gardens, Combine)",
+          assignerSource.Contains("IsSportifys(e)") && assignerSource.Contains("!string.IsNullOrWhiteSpace(SportifyElementScan.CategoryOf(e))"));
+    Check("a wrong-workset move is skipped, not silently dropped, when Revit says someone else owns the element",
+          assignerSource.Contains("GetCheckoutStatus(doc, el.Id) == CheckoutStatus.OwnedByOtherUser"));
+    var pushSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("PushRoofBoundaryCommand.cs")).Value ?? "";
+    Check("Push to Sportify offers the same two ways: \"Select manually\" (PickObjects, limited to the item's own kinds) and \"By workset\", only when the designer has not already selected something",
+          pushSource.Contains("_selection.Count == 0") && pushSource.Contains("PushWorksetAssigner.ElementsIn(doc, worksetNames)") && pushSource.Contains("PushWorksets.PickableKinds(Scope)")
+          && pushSource.Contains("new PushWorksetAssigner.KindSelectionFilter(pickableKinds)") && pushSource.Contains("usedWorksets = true"));
+    Check("a push by workset says which elements there do not match their workset's kind (PushWorksetAssigner.Misplaced), so a wrongly assigned model is flagged, not silently pushed as if it were right",
+          pushSource.Contains("PushWorksetAssigner.Misplaced(doc, scope)") && assignerSource.Contains("PushWorksets.ScopeOf(KindOf(e)) != s"));
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

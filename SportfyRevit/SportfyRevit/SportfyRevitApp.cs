@@ -97,6 +97,30 @@ namespace SportfyRevit
                             notBefore = DateTime.UtcNow.AddSeconds(2);
                             return;
                         }
+                        // TEST-ONLY, like InspectActive: writes views' crop state, worksets' contents and the bounding box of what Sportify built, to extra.json.
+                        if (next == "InspectExtra")
+                        {
+                            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sportify", "template-inspection");
+                            Directory.CreateDirectory(dir);
+                            File.WriteAllText(Path.Combine(dir, "extra.json"), System.Text.Json.JsonSerializer.Serialize(InspectExtra(uiApp.ActiveUIDocument.Document), new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+                            SportifyLog.Info("app", "SPORTIFY_RUN_COMMAND: InspectExtra written");
+                            notBefore = DateTime.UtcNow.AddSeconds(2);
+                            return;
+                        }
+                        // TEST-ONLY: builds the small test building (TestBuildingBuilder) in the open project, for live-testing Worksets / Push by workset with no families to load.
+                        if (next == "BuildTestBuilding")
+                        {
+                            var doc = uiApp.ActiveUIDocument.Document;
+                            using (var t = new Autodesk.Revit.DB.Transaction(doc, "Sportify test building"))
+                            {
+                                t.Start();
+                                var result = TestBuildingBuilder.Build(doc);
+                                t.Commit();
+                                SportifyLog.Info("app", $"SPORTIFY_RUN_COMMAND: BuildTestBuilding: {result.Made.Count} made, {result.Notes.Count} note(s)");
+                            }
+                            notBefore = DateTime.UtcNow.AddSeconds(2);
+                            return;
+                        }
                         var id = CommandIdFor(next);
                         if (id == null) { SportifyLog.Warn("app", "SPORTIFY_RUN_COMMAND: no ribbon command named \"" + next + "\""); return; }
                         SportifyLog.Info("app", "SPORTIFY_RUN_COMMAND: running " + next);
@@ -371,6 +395,58 @@ namespace SportfyRevit
         }
 
         /// <summary>
+        /// What the InspectExtra test hook writes: the crop state of every real view (the crop-region default), what sits on each Sportify workset
+        /// (Worksets, push by workset), and the bounding box of what Sportify built (the roof's centred anchor when nothing was pushed from Revit).
+        /// </summary>
+        private static Dictionary<string, object?> InspectExtra(Autodesk.Revit.DB.Document doc)
+        {
+            double M(double feet) => Autodesk.Revit.DB.UnitUtils.ConvertFromInternalUnits(feet, Autodesk.Revit.DB.UnitTypeId.Meters);
+            bool? TryCrop(Autodesk.Revit.DB.View v) { try { return v.CropBoxActive; } catch (Exception) { return null; } }
+
+            var views = new Autodesk.Revit.DB.FilteredElementCollector(doc).OfClass(typeof(Autodesk.Revit.DB.View)).Cast<Autodesk.Revit.DB.View>()
+                .Where(v => !v.IsTemplate && v.ViewType != Autodesk.Revit.DB.ViewType.Schedule && v.ViewType != Autodesk.Revit.DB.ViewType.SystemBrowser
+                    && v.ViewType != Autodesk.Revit.DB.ViewType.ProjectBrowser && v.ViewType != Autodesk.Revit.DB.ViewType.Undefined && v.ViewType != Autodesk.Revit.DB.ViewType.Internal)
+                .Select(v => new { name = v.Name, type = v.ViewType.ToString(), cropBoxActive = TryCrop(v) })
+                .ToList();
+
+            var worksets = new Dictionary<string, object?>();
+            if (doc.IsWorkshared)
+                foreach (var w in new Autodesk.Revit.DB.FilteredWorksetCollector(doc).OfKind(Autodesk.Revit.DB.WorksetKind.UserWorkset))
+                {
+                    var els = new Autodesk.Revit.DB.FilteredElementCollector(doc).WherePasses(new Autodesk.Revit.DB.ElementWorksetFilter(w.Id)).WhereElementIsNotElementType()
+                        .Select(e => new { id = e.Id.Value, name = e.Name, category = e.Category?.Name, kind = PushWorksetAssigner.KindOf(e).ToString() }).ToList();
+                    worksets[w.Name] = els;
+                }
+
+            var elements = SportifyElementScan.Find(doc).Elements;
+            object? bbox = null;
+            if (elements.Count > 0)
+            {
+                double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+                foreach (var e in elements)
+                {
+                    var bb = e.get_BoundingBox(null);
+                    if (bb == null) continue;
+                    minX = Math.Min(minX, bb.Min.X); minY = Math.Min(minY, bb.Min.Y); maxX = Math.Max(maxX, bb.Max.X); maxY = Math.Max(maxY, bb.Max.Y);
+                }
+                if (minX < double.MaxValue)
+                    bbox = new
+                    {
+                        min_x_m = Math.Round(M(minX), 2), min_y_m = Math.Round(M(minY), 2), max_x_m = Math.Round(M(maxX), 2), max_y_m = Math.Round(M(maxY), 2),
+                        center_x_m = Math.Round(M((minX + maxX) / 2), 2), center_y_m = Math.Round(M((minY + maxY) / 2), 2),
+                    };
+            }
+
+            return new Dictionary<string, object?>
+            {
+                ["views"] = views,
+                ["worksets"] = worksets,
+                ["sportifyElementCount"] = elements.Count,
+                ["sportifyBoundingBox"] = bbox,
+            };
+        }
+
+        /// <summary>
         /// The id Revit gives a ribbon command of this add-in (what PostCommand takes), found by the button's internal name, or null. A button on a panel is
         /// CustomCtrl_%CustomCtrl_%Tab%Panel%Button; one inside a drop-down has one more level: CustomCtrl_%CustomCtrl_%CustomCtrl_%Tab%Panel%Dropdown%Button.
         /// </summary>
@@ -384,6 +460,9 @@ namespace SportfyRevit
                     if (entry is RibbonPulldownSpec p && p.Items.Any(i => i.InternalName == internalName))
                         return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%CustomCtrl_%" + TabName + "%" + panel.Name + "%" + p.InternalName + "%" + internalName);
                 }
+            // The "Push to Sportify" drop-down (AddPushMenu) is not in RibbonLayout.Panels: it is built imperatively, in the "App & Data Import" panel.
+            if (internalName.StartsWith("PushRoof", StringComparison.Ordinal))
+                return RevitCommandId.LookupCommandId("CustomCtrl_%CustomCtrl_%CustomCtrl_%" + TabName + "%App & Data Import%PushToSportify%" + internalName);
             return null;
         }
     }

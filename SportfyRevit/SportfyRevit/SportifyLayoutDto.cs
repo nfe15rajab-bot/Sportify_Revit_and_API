@@ -185,6 +185,11 @@ namespace SportfyRevit
     {
         [JsonPropertyName("length_m")] public double LengthM { get; set; }
         [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        /// <summary>"revit" when this roof was pushed from a real Revit model (world_origin_*_m is that model's own coordinates, to overlay the
+        /// import exactly onto it); "manual" (or absent, in an older export) for a roof drawn or typed in the web app, which has no real origin
+        /// of its own — the import centres the geometry's own middle on the project's origin instead (RoofFrame.Centered).</summary>
+        [JsonPropertyName("source")] public string? Source { get; set; }
         [JsonPropertyName("source_boundary_polygon")] public List<PointDto>? SourceBoundaryPolygon { get; set; }
         [JsonPropertyName("world_origin_x_m")] public double WorldOriginXM { get; set; }
         [JsonPropertyName("world_origin_y_m")] public double WorldOriginYM { get; set; }

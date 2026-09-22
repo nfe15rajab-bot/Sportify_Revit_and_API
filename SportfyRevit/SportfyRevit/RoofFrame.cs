@@ -57,6 +57,19 @@ namespace SportfyRevit
         public static RoofFrame FromRect(StructureGeometry.RoofRect r) => Axis(r.MinX, r.MinY, r.MaxX, r.MaxY);
 
         /// <summary>
+        /// The frame for a roof with no real Revit model behind it (drawn or typed in the web app, never pushed): the geometry's own middle (G,
+        /// the centre of its Length x Width box) sits at the project's origin, instead of its corner — which put a wide roof's far side a long
+        /// way from wherever a designer happened to be looking. At angle 0 (always, for a roof with no push to have turned it) this is simply
+        /// origin = (-Length/2, -Width/2); the general form below also holds for a turned box, local centre (Length/2, Width/2) -> model (0, 0).
+        /// </summary>
+        public static RoofFrame Centered(double lengthM, double widthM, double angleRad)
+        {
+            double halfL = lengthM / 2.0, halfW = widthM / 2.0;
+            double c = Math.Cos(angleRad), s = Math.Sin(angleRad);
+            return new RoofFrame(-(halfL * c - halfW * s), -(halfL * s + halfW * c), angleRad, lengthM, widthM);
+        }
+
+        /// <summary>
         /// The frame that follows the roof: the direction of one of the outline's edges (folded into +-45 degrees, since a rectangle repeats every
         /// 90) that gives the smallest bounding rectangle. When that turn is negligible, or barely shrinks the box, the roof is taken as square to
         /// the model and the given bounding box is used as it always was.

@@ -25,6 +25,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFrame.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofPushScope.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PushWorksets.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />

@@ -34,9 +34,57 @@ namespace SportfyRevit
             var doc = uidoc.Document;
             _selection = uidoc.Selection.GetElementIds();
 
+            // Two ways to say what this scope should read, offered when the designer has not already selected something (a pre-selection is taken
+            // as "manual" straight away, exactly as before — no dialog): pick the elements in Revit (only the kinds this item is about: entries
+            // offers stairs and ramps, not doors, PushWorksets.PickableKinds), or read them from the Sportify worksets that mirror this drop-down
+            // (see the Worksets command). Neither is possible (a plain "Everything" push with nothing to pick and no worksets): unchanged, falls
+            // through to the roof/floor pick below and the collectors' own search near the roof.
+            var usedWorksets = false;
+            var worksetNames = PushWorksets.All.Where(w => scope.HasFlag(w.Scope)).Select(w => w.Name).ToList();
+            if (_selection.Count == 0)
+            {
+                var worksetElements = doc.IsWorkshared ? PushWorksetAssigner.ElementsIn(doc, worksetNames) : new List<Element>();
+                var pickableKinds = PushWorksets.PickableKinds(Scope);          // this button's own item (Scope), not `scope` (always includes Roof too)
+                var canPickManually = pickableKinds.Count > 0;
+                if (worksetElements.Count > 0 || canPickManually)
+                {
+                    var kindsText = string.Join(", ", pickableKinds.Distinct());
+                    var ask = new TaskDialog("Sportify — Push to Sportify")
+                    {
+                        MainInstruction = $"How should {RoofPushScopes.Describe(scope)} be found?",
+                        MainContent = worksetElements.Count > 0
+                            ? $"{worksetElements.Count} element(s) already sit on the Sportify workset(s) for this ({string.Join(", ", worksetNames)})."
+                            : "Nothing is selected, and no Sportify workset holds anything of this kind yet (see the Worksets command).",
+                        CommonButtons = TaskDialogCommonButtons.Cancel,
+                    };
+                    ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Select manually",
+                        canPickManually ? $"Pick the {kindsText} to push in the model." : "Continues to pick a roof or a floor, as usual.");
+                    if (worksetElements.Count > 0)
+                        ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "By workset", $"Reads the {worksetElements.Count} element(s) already on {string.Join(", ", worksetNames)}.");
+                    ask.DefaultButton = worksetElements.Count > 0 ? TaskDialogResult.CommandLink2 : TaskDialogResult.CommandLink1;
+                    var answer = ask.Show();
+                    if (answer == TaskDialogResult.CommandLink2 && worksetElements.Count > 0)
+                    {
+                        _selection = worksetElements.Select(e => e.Id).ToList();
+                        usedWorksets = true;
+                    }
+                    else if (answer == TaskDialogResult.CommandLink1 && canPickManually)
+                    {
+                        try
+                        {
+                            var picked = uidoc.Selection.PickObjects(ObjectType.Element, new PushWorksetAssigner.KindSelectionFilter(pickableKinds), $"Select the {kindsText} to push");
+                            _selection = picked.Select(r => r.ElementId).ToList();
+                        }
+                        catch (Autodesk.Revit.Exceptions.OperationCanceledException) { return Result.Cancelled; }
+                    }
+                    else if (answer != TaskDialogResult.CommandLink1) return Result.Cancelled;
+                    // CommandLink1 with !canPickManually: falls through to the roof/floor pick below, unchanged.
+                }
+            }
+
             Element? element = null;
             var reusedLast = false;
-            foreach (var id in uidoc.Selection.GetElementIds())
+            foreach (var id in _selection)
             {
                 var candidate = doc.GetElement(id);
                 if (candidate != null && new RoofOrFloorSelectionFilter().AllowElement(candidate)) { element = candidate; break; }
@@ -147,6 +195,19 @@ namespace SportfyRevit
             _lastRoofId = element.Id.Value;
             _lastDocumentTitle = doc.Title;
 
+            // Pushed by workset: say what was flagged too — an element sitting on a Sportify workset that its own kind does not belong on (a
+            // duct on Sportify Structure) is read as if it were selected like anything else there, but the mismatch is worth a look.
+            var worksetNote = "";
+            if (usedWorksets)
+            {
+                var misplaced = PushWorksetAssigner.Misplaced(doc, scope);
+                worksetNote = $"\n\nFrom the Sportify workset(s): {string.Join(", ", worksetNames)}." +
+                    (misplaced.Count > 0
+                        ? $" {misplaced.Count} element(s) there do not match the kind their workset is for — check them (Worksets command): " +
+                          string.Join(", ", misplaced.Take(5).Select(e => e.Name)) + (misplaced.Count > 5 ? $", and {misplaced.Count - 5} more." : ".")
+                        : "");
+            }
+
             TaskDialog.Show("Sportify",
                 $"Pushed \"{element.Name}\" ({payload.roof.length_m} m x {payload.roof.width_m} m): {RoofPushScopes.Describe(scope)}." +
                 (reusedLast ? "\nThe roof pushed before was used again; select another roof first to change it." : "") +
@@ -161,7 +222,7 @@ namespace SportfyRevit
                     ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
                       "Check it: the wind analysis uses it, and the Site tab lets you override it."
                     : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
-                structureText + featuresText);
+                structureText + featuresText + worksetNote);
 
             return Result.Succeeded;
         }

@@ -140,6 +140,7 @@ namespace SportfyRevit
                     .First(v => v.ViewFamily == ViewFamily.ThreeDimensional);
                 view = View3D.CreateIsometric(doc, vft.Id);
                 view.Name = name;
+                ViewDefaults.DisableCrop(view);
             }
 
             view.DetailLevel = ViewDetailLevel.Fine;
@@ -173,7 +174,9 @@ namespace SportfyRevit
                 .First(v => v.ViewFamily == ViewFamily.FloorPlan);
             var level = levelId ?? new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .OrderBy(l => l.Elevation).First().Id;
-            return ViewPlan.Create(doc, vft.Id, level);
+            var view = ViewPlan.Create(doc, vft.Id, level);
+            ViewDefaults.DisableCrop(view);
+            return view;
         }
     }
 }

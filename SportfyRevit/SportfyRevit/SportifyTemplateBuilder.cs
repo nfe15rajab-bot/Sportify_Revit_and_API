@@ -104,6 +104,7 @@ namespace SportfyRevit
             template.Scale = spec.Scale;
             template.DetailLevel = spec.Detail switch { "Coarse" => ViewDetailLevel.Coarse, "Fine" => ViewDetailLevel.Fine, _ => ViewDetailLevel.Medium };
             template.DisplayStyle = spec.Display == "ShadingWithEdges" ? DisplayStyle.ShadingWithEdges : DisplayStyle.HLR;
+            ViewDefaults.DisableCrop(template);      // a controlled setting: every view the template is put on inherits it, unless a designer later excludes the parameter
         }
 
         /// <summary>A view of the type the template is for, only to make the template from (deleted straight after).</summary>
@@ -236,6 +237,7 @@ namespace SportfyRevit
             var type = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType)).Cast<ViewFamilyType>().First(t => t.ViewFamily == ViewFamily.FloorPlan);
             var view = ViewPlan.Create(doc, type.Id, levelId);
             view.Name = name;
+            ViewDefaults.DisableCrop(view);
             return view;
         }
 

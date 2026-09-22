@@ -102,16 +102,25 @@ namespace SportfyRevit
             var worksets = EnsureWorksets(doc, useWorksets);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
-            double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
-            double originYFt = FeetFromMeters(layout.RoofContext?.WorldOriginYM ?? 0);
+            // "revit": this roof was pushed from a real model, so world_origin_*_m are that model's own coordinates and the import must land on
+            // them exactly. Anything else (drawn or typed in the web app, or an older export with no "source" at all) has no real origin: the
+            // geometry's own middle (G) is centred on the project's origin instead of its corner sitting there (RoofFrame.Centered) — a wide
+            // roof's far side no longer ends up a long way from wherever a designer happened to be looking.
+            var pushedFromRevit = string.Equals(layout.RoofContext?.Source, "revit", StringComparison.OrdinalIgnoreCase);
+            var lengthM = layout.RoofContext?.LengthM ?? 0;
+            var widthM = layout.RoofContext?.WidthM ?? 0;
+            var angleRad = (layout.RoofContext?.RotationDeg ?? 0) * Math.PI / 180.0;
+            CurrentFrame = pushedFromRevit
+                ? new RoofFrame(layout.RoofContext?.WorldOriginXM ?? 0, layout.RoofContext?.WorldOriginYM ?? 0, angleRad, lengthM, widthM)
+                : RoofFrame.Centered(lengthM, widthM, angleRad);
+            double originXFt = FeetFromMeters(CurrentFrame.OriginX);
+            double originYFt = FeetFromMeters(CurrentFrame.OriginY);
             // Height of the roof this layout was designed on. Everything built
             // below sits at this elevation instead of Z=0, which put the whole
             // layout on the ground under the building.
             double originZFt = FeetFromMeters(layout.RoofContext?.WorldOriginZM ?? 0);
             SportifyLayoutBuilder.CurrentOriginZFt = originZFt;
-            CurrentRoofWidthFt = FeetFromMeters(layout.RoofContext?.WidthM ?? 0);
-            CurrentFrame = new RoofFrame(layout.RoofContext?.WorldOriginXM ?? 0, layout.RoofContext?.WorldOriginYM ?? 0,
-                (layout.RoofContext?.RotationDeg ?? 0) * Math.PI / 180.0, layout.RoofContext?.LengthM ?? 0, layout.RoofContext?.WidthM ?? 0);
+            CurrentRoofWidthFt = FeetFromMeters(widthM);
 
             // Computed once for the whole layout (a BFS pass, not a per-placement
             // lookup) and threaded down to FamilyPlacementBuilder, which stamps
