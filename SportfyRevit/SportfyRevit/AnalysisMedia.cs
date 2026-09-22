@@ -23,6 +23,13 @@ namespace SportfyRevit
         public const TaskDialogCommandLinkId VideoLink = TaskDialogCommandLinkId.CommandLink1;
         public const TaskDialogCommandLinkId PdfLink = TaskDialogCommandLinkId.CommandLink2;
 
+        /// <summary>
+        /// What every Analyze*/Simulate* command's result dialog now points to instead of repeating its own numbers, charts and recommendations as a
+        /// wall of text: the one combined report (AnalysisReportPdfBuilder) that already draws all of that, richer, from the same published result —
+        /// the dialog only needs to say what happened, not restate it.
+        /// </summary>
+        public const string SeeReport = "See the Analysis Report (BIM & Documentation → Generate Analysis Report) for the numbers, chart and recommendations.";
+
         /// <summary>Adds the two answers to a result dialog.</summary>
         public static void AddLinks(TaskDialog dialog, bool haveUnity, bool unityFree, string videoTakes)
         {

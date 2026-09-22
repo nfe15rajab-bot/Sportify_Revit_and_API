@@ -139,18 +139,8 @@ namespace SportfyRevit
                 body.AppendLine("No layout imported into this Revit session yet — ran Unity's bundled Goldbeck default instead.").AppendLine();
             body.AppendLine(results.CaseStudy);
             body.AppendLine($"{results.ShotsSimulated} shot(s) simulated, {violations.Count} boundary crossing(s) found.");
-
-            if (violations.Count > 0)
-            {
-                body.AppendLine();
-                body.AppendLine("First few:");
-                foreach (var v in violations.GetRange(0, Math.Min(6, violations.Count)))
-                    body.AppendLine($"  • Court {v.CourtIndex} \"{v.ShotLabel}\" → {v.ZoneLabel ?? v.ZoneType} at t={v.SimTime:F2}s");
-                if (violations.Count > 6)
-                    body.AppendLine($"  … and {violations.Count - 6} more.");
-            }
-
-            AppendRoofExit(body, results.RoofExit);
+            body.AppendLine();
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             body.AppendLine();
             if (videoPath != null)
@@ -191,30 +181,6 @@ namespace SportfyRevit
             {
                 // Best-effort — the video is on disk either way.
             }
-        }
-
-        static void AppendRoofExit(StringBuilder body, RoofExitInfo? exit)
-        {
-            if (exit is not { Ran: true } || exit.ShotsSwept == 0) return;
-
-            body.AppendLine();
-            if (exit.ShotsLeavingRoof == 0)
-            {
-                body.AppendLine($"Roof edge: none of {exit.ShotsSwept} swept stray shots left the roof — no fence needed.");
-                return;
-            }
-
-            body.AppendLine($"Roof edge: {exit.PercentLeavingRoof:0.#}% of {exit.ShotsSwept} swept stray shots leave the roof.");
-            body.AppendLine("Proposed fences:");
-            foreach (var f in exit.Fences ?? new List<FenceInfo>())
-            {
-                var edge = string.IsNullOrEmpty(f.Edge) ? "" : char.ToUpperInvariant(f.Edge![0]) + f.Edge.Substring(1);
-                body.AppendLine($"  • {edge} edge, {f.FromM:0.#}–{f.ToM:0.#} m ({f.LengthM:0.#} m long), {f.HeightM:0.#} m high — stops {f.StopsPercentOfExits:0}% of its exits");
-            }
-            body.AppendLine(exit.PercentLeavingAfterFences <= 0.05
-                ? "With these fences no swept shot clears the roof edge."
-                : $"With these fences {exit.PercentLeavingAfterFences:0.#}% of swept shots would still clear them (high lobs).");
-            body.AppendLine("Percentages are shares of the swept shot set (a way to compare layouts and edges), not real-world probabilities.");
         }
 
         // ---- what Sportify.Simulation writes to Recordings/collision_results.json (camelCase, Unity JsonUtility) ----

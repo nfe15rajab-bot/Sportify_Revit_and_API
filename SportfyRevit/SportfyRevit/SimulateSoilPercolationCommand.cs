@@ -97,32 +97,7 @@ namespace SportfyRevit
             if (usingBundledSample)
                 body.AppendLine("No layout imported into this Revit session yet — analysed Unity's bundled roof-garden sample instead.").AppendLine();
             body.AppendLine(caseStudy);
-            body.AppendLine($"{s.greenAreaM2:0} m² of build-ups, {s.otherAreaM2:0} m² of other roof (treated as bare).");
-            body.AppendLine();
-            body.AppendLine("Share of the rain kept, against the same rain on a bare roof (steady 10 mm/h, shower 40 mm/h, cloudburst 108 mm/h):");
-            foreach (var z in report.zones)
-            {
-                body.AppendLine(z.substrateMm <= 0
-                    ? $"  • {z.label} ({z.system}): no substrate, keeps nothing"
-                    : $"  • {z.label} ({z.system}, {z.substrateMm:0} mm): {z.scenarios[0].retainedPercent:0}% / {z.scenarios[1].retainedPercent:0}% / {z.scenarios[2].retainedPercent:0}%" +
-                      (z.scenarios[2].saturated ? "  — fills up in the cloudburst" : ""));
-            }
-
-            var roof = report.roof;
-            body.AppendLine();
-            body.AppendLine($"Whole roof: {roof[0].retainedPercent:0}% / {roof[1].retainedPercent:0}% / {roof[2].retainedPercent:0}% kept.");
-            body.AppendLine($"Cloudburst peak {roof[2].peakFlowLps:0} l/s, against {roof[2].referencePeakLps:0} l/s with no green layers ({roof[2].peakReductionPercent:0}% lower).");
-
-            var advice = report.recommendations.Where(r => r.kind == "more-storage").Take(3).ToList();
-            if (advice.Count > 0)
-            {
-                body.AppendLine();
-                foreach (var r in advice) body.AppendLine("  • " + r.text);
-            }
-
-            body.AppendLine();
-            body.AppendLine("A screening estimate with generic rain events (not the site's design rainfall), not a hydrological design. The assumptions are in the PDF report.");
-
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)
             {

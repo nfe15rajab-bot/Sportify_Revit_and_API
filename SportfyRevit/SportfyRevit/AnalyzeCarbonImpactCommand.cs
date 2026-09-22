@@ -48,10 +48,8 @@ namespace SportfyRevit
             });
 
             TaskDialog.Show(title,
-                $"{totalAreaM2:0.#} m² of active playing surface, assuming {dailyHours:0.#} hours/day of use.\n" +
-                $"Theoretical kinetic-energy-harvesting ceiling: ~{dailyWh:0.#} Wh/day ({dailyWh / 1000:0.##} kWh/day).\n\n" +
-                "Assumes piezoelectric-capable flooring throughout — today's material data doesn't track that property, " +
-                "so treat this as an upper bound, not a prediction for the materials actually picked.");
+                $"Theoretical kinetic-energy-harvesting ceiling: ~{dailyWh:0.#} Wh/day across {totalAreaM2:0.#} m².\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }
