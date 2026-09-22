@@ -92,14 +92,19 @@ namespace SportfyRevit
             return originYFt + CurrentRoofWidthFt - FeetFromMeters(webYM);
         }
 
-        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets)
+        /// <summary>
+        /// `singleWorksetName`: ImportIterationsAsOptionsCommand's way of putting one whole iteration's geometry on ONE workset of its own (e.g.
+        /// "Sportify Iteration 2") instead of the normal Sports/Gardens/Combine split — every per-element worksets["Gardens"|"Sports"|"Combine"]
+        /// lookup below resolves to the same WorksetId, so nothing else in this method needs to know iterations exist.
+        /// </summary>
+        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets, string? singleWorksetName = null)
         {
             var createdIds = new List<ElementId>();
 
             // Worksharing is settled by the caller (LayoutImporter asks the person, and turns it on if they agree) BEFORE the transaction this
             // runs in: Document.EnableWorksharing throws inside an open transaction. In a project without worksets (the person said no, or a
             // caller that must not change the project) everything is simply left on the project's default workset.
-            var worksets = EnsureWorksets(doc, useWorksets);
+            var worksets = EnsureWorksets(doc, useWorksets, singleWorksetName);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
@@ -317,11 +322,18 @@ namespace SportfyRevit
         /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
         /// transaction internally and throws if called while one is already open.
         /// </summary>
-        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets)
+        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets, string? singleWorksetName = null)
         {
             var names = new[] { "Sports", "Gardens", "Combine" };
             if (!useWorksets || !doc.IsWorkshared)
                 return names.ToDictionary(n => n, n => WorksetId.InvalidWorksetId);
+
+            if (singleWorksetName != null)
+            {
+                var one = EnsureOneWorkset(doc, singleWorksetName);
+                return names.ToDictionary(n => n, n => one);
+            }
+
             var existing = new FilteredWorksetCollector(doc)
                 .OfKind(WorksetKind.UserWorkset)
                 .ToDictionary(w => w.Name, w => w.Id);
@@ -340,6 +352,12 @@ namespace SportfyRevit
                 }
             }
             return result;
+        }
+
+        private static WorksetId EnsureOneWorkset(Document doc, string name)
+        {
+            var existing = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).FirstOrDefault(w => w.Name == name);
+            return existing != null ? existing.Id : Workset.Create(doc, name).Id;
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>

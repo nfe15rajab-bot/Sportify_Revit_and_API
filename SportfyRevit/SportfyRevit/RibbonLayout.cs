@@ -68,6 +68,8 @@ namespace SportfyRevit
                 {
                     new RibbonButtonSpec("AssignPhasing", "Batch Assign Phasing", "AssignPhasingCommand", "Puts every Sportify element of this project (what the last import created) into the phase you choose (Phase Created).", "phase_assign"),
                     new RibbonButtonSpec("AssignWorksets", "Organize Multi-Worksets", "AssignWorksetsCommand", "Puts every Sportify element of this project on its own workset: courts and equipment on Sports, planting and ground on Gardens, boundaries, paths and entries on Combine. Needs a workshared project.", "workset_assign"),
+                    new RibbonButtonSpec("ImportIterationsAsOptions", "Import Iterations as Design Options", "ImportIterationsAsOptionsCommand", "Builds up to 3 layouts saved in the web app's Compare mode (\"Save for Compare\"), each complete on its own workset (Sportify Iteration 1/2/3) — the Revit API cannot create real Design Options, so a workset per iteration stands in: switch which one shows with \"Show Iteration\". Needs a workshared project.", "worksets"),
+                    new RibbonButtonSpec("SwitchIteration", "Show Iteration", "SwitchIterationCommand", "Shows one imported iteration's workset in the active view and hides the others (or shows them all) — the switch side of \"Import Iterations as Design Options\". Instant, no rebuild.", "iteration_switch"),
                 }),
             }),
             new RibbonPanelSpec("Data Export / Deliverables", new RibbonEntry[]

@@ -819,8 +819,12 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
           && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
     Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
-    Check("...and a Phasing & Worksets drop-down: Batch Assign Phasing (AssignPhasingCommand), Organize Multi-Worksets (AssignWorksetsCommand)",
-          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[] { ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand") }));
+    Check("...and a Phasing & Worksets drop-down: Batch Assign Phasing, Organize Multi-Worksets, Import Iterations as Design Options, Show Iteration",
+          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
+          {
+              ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"),
+              ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
+          }));
 
     // nothing that was on the ribbon before is gone, and the CSV schedule command keeps its name
     var before = new Dictionary<string, string>
