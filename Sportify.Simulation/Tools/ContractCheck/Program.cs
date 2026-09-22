@@ -29,21 +29,26 @@ var verbose = args.Contains("--verbose");
 var fails = 0;
 var checks = 0;
 void Check(string name, bool ok, string extra = "") { checks++; Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {name} {extra}".TrimEnd()); if (!ok) fails++; }
-var buildRows = typeof(AnalysisReportPdfBuilder).GetMethod("BuildResultRows", BindingFlags.NonPublic | BindingFlags.Static)!;
 var opts = new JsonSerializerOptions { IncludeFields = true };
 const string FireSafetyBefore = "{\"fire_safety\":{\"max_dist_m\":33.5,\"max_travel_distance_m\":60,\"within_limit\":true,\"unreachable_count\":0}}";
 
-int PdfRows(string json)
+/// <summary>Renders the real Analysis Report PDF from a published result (AnalysisReportPdfBuilder, one card per section): the actual end-to-end path
+/// GenerateAnalysisReportCommand runs, not just its data shaping. Returns the file's byte length (0 on failure), deleting the scratch file after.</summary>
+long PdfRows(string json)
 {
     var payload = JsonSerializer.Deserialize<AnalysisResultPayload>(json);
-    var rows = ((System.Collections.IEnumerable)buildRows.Invoke(null, new object?[] { payload })!).Cast<object>().ToList();
-    if (verbose)
-        foreach (var row in rows)
-        {
-            var detail = (string?)row.GetType().GetProperty("Detail")!.GetValue(row) ?? "";
-            Console.WriteLine($"   PDF row: {row.GetType().GetProperty("Name")!.GetValue(row)} | {detail.Substring(0, Math.Min(160, detail.Length))}");
-        }
-    return rows.Count;
+    var tempPath = Path.Combine(Path.GetTempPath(), "sportify_contractcheck_" + Guid.NewGuid().ToString("N") + ".pdf");
+    try
+    {
+        AnalysisReportPdfBuilder.Generate(tempPath, null, payload, null, null);
+        var length = File.Exists(tempPath) ? new FileInfo(tempPath).Length : 0;
+        if (verbose) Console.WriteLine($"   PDF report: {length} bytes");
+        return length;
+    }
+    finally
+    {
+        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { /* best-effort scratch cleanup */ }
+    }
 }
 
 if (args.Length > 0 && args[0] == "-batchmode") return FakeUnity(args);        // this program stands in for Unity.exe in the runner tests below

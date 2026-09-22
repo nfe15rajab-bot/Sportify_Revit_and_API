@@ -103,9 +103,10 @@ namespace SportfyRevit
         /// on, exactly the reasoning SvgChart itself already follows), a title/subtitle, a chip on the right, then whatever the caller puts in the body.</summary>
         static void Card(ColumnDescriptor outer, string title, string? sub, string tone, string chip, Action<ColumnDescriptor> body)
         {
-            // Kept off a page break: a card split mid-way (its title on one page, "Recommendations" stranded on the next
-            // with nothing above it to say what they're about) reads worse than the same card simply starting a page later.
-            outer.Item().ShowEntire().BorderLeft(3).BorderColor(ToneColor(tone)).Background(Colors.Grey.Lighten5).Padding(10).Column(card =>
+            // Not ShowEntire: a card's Assumptions/Recommendations/Inputs text is open-ended (whatever the analysis found), so a card can
+            // legitimately be taller than one page — ShowEntire would then throw instead of just splitting it across a page break, and
+            // losing the whole report over one long card is worse than an occasional split card.
+            outer.Item().BorderLeft(3).BorderColor(ToneColor(tone)).Background(Colors.Grey.Lighten5).Padding(10).Column(card =>
             {
                 card.Spacing(6);
                 card.Item().Row(head =>
