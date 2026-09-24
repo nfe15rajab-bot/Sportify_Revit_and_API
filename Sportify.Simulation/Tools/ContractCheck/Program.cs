@@ -234,7 +234,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
 
     // what the web app sees
     var ws = Reply(Call("GET", "/workspace"));
-    Check("GET /workspace names the folder and every kind, with a count", ws.GetProperty("folder").GetString() == root && ws.GetProperty("kinds").GetArrayLength() == 8 && ws.GetProperty("kinds")[0].TryGetProperty("count", out _));
+    Check("GET /workspace names the folder and every kind, with a count", ws.GetProperty("folder").GetString() == root && ws.GetProperty("kinds").GetArrayLength() == SportifyWorkspace.Kinds.Length && ws.GetProperty("kinds")[0].TryGetProperty("count", out _));
 
     // saving from the web app, and refusing what does not belong
     var saved = Call("POST", "/deliverable", Q("kind", "layouts", "name", "sportify_combined_revit.json"), Encoding.UTF8.GetBytes("{\"a\":1}"));
