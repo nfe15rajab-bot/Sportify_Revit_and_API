@@ -63,6 +63,9 @@ namespace SportfyRevit
         private static readonly object FamiliesLock = new();
         private static string? _familiesJson;
 
+        private static readonly object IterationsLock = new();
+        private static string? _iterationsJson;
+
         public static void Start()
         {
             if (_listener != null) return;
@@ -161,6 +164,22 @@ namespace SportfyRevit
                 AllowedRecordings.Clear();
                 foreach (var v in videos) AllowedRecordings.Add(v);
             }
+        }
+
+        /// <summary>
+        /// Called when the frontend POSTs its saved iterations (compareController.js's savedCompareConfigs, up to 3) to /iterations, for
+        /// ImportIterationsAsOptionsCommand to read in-process — the same "the web app's own state, mirrored here" pattern as SetCombinedLayoutPayload.
+        /// </summary>
+        public static void SetIterationsPayload(string json)
+        {
+            lock (IterationsLock) { _iterationsJson = json; }
+        }
+
+        /// <summary>The saved iterations the web app last sent, or null if it never has this session.</summary>
+        public static bool TryGetLatestIterations(out string? json)
+        {
+            lock (IterationsLock) { json = _iterationsJson; }
+            return json != null;
         }
 
         /// <summary>Every "video_path" (a .mp4 that exists) named anywhere in a published results document, as a full path.</summary>
@@ -429,6 +448,21 @@ namespace SportfyRevit
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.ContentLength64 = answerBytes.Length;
                         await ctx.Response.OutputStream.WriteAsync(answerBytes);
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (path == "/iterations" && ctx.Request.HttpMethod == "POST")
+                    {
+                        string body;
+                        try { body = Encoding.UTF8.GetString(LocalRequestGuard.ReadBounded(ctx.Request.InputStream, bodyLimit, ctx.Request.ContentLength64)); }
+                        catch (LocalRequestGuard.BodyTooLargeException) { await RefuseTooLarge(ctx, bodyLimit); continue; }
+                        SetIterationsPayload(body);
+                        var countBytes = Encoding.UTF8.GetBytes("{\"received\":true}");
+                        ctx.Response.StatusCode = 200;
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = countBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(countBytes);
                         ctx.Response.Close();
                         continue;
                     }

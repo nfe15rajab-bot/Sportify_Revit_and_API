@@ -43,14 +43,9 @@ namespace SportfyRevit
                 TotalCount = items.Count,
             });
 
-            string missingNote = missingCount > 0
-                ? $"\n\n{missingCount} of {items.Count} piece(s) don't have both a reference material and an embodied-carbon " +
-                  "figure filled in yet (Data tab -> Materials admin edit form) — excluded, not assumed zero."
-                : "";
-
             TaskDialog.Show(title,
-                $"Estimated embodied carbon: ~{totalKg:0.#} kg CO2e across {coveredCount} of {items.Count} piece(s)." +
-                missingNote);
+                $"Estimated embodied carbon: ~{totalKg:0.#} kg CO2e across {coveredCount} of {items.Count} piece(s).\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

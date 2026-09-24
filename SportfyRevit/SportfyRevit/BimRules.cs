@@ -13,6 +13,11 @@ namespace SportfyRevit
 
         public const string SportifyTypePrefix = "Sportify - ";
 
+        /// <summary>Lines subcategories SportifyLayoutBuilder tags circulation-path and entry-marker model lines with, so the functional-diagram view can style them distinctly from the (untagged) roof outline and setback — see GenerateFunctionalDiagramsCommand.StyleCirculationDiagram.</summary>
+        public const string CirculationLineStyle = "Sportify Circulation";
+        public const string EntryLineStyle = "Sportify Entry";
+        public const string CirculationNodeLineStyle = "Sportify Circulation Node";
+
         public enum ElementKind { Floor, FamilyInstance, Other }
 
         /// <summary>

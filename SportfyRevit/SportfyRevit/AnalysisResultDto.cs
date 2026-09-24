@@ -26,6 +26,7 @@ namespace SportfyRevit
         [JsonPropertyName("soil_percolation")] public SoilPercolationResultDto? SoilPercolation { get; set; }
         [JsonPropertyName("structural_loads")] public StructuralLoadsResultDto? StructuralLoads { get; set; }
         [JsonPropertyName("dynamic_analysis")] public DynamicAnalysisResultDto? DynamicAnalysis { get; set; }
+        [JsonPropertyName("kinetics")] public KineticsResultDto? Kinetics { get; set; }
 
         // What the document knows about itself (not analyses: results-keys-parity.js leaves these three out).
         /// <summary>The layout the newest section was computed for.</summary>
@@ -37,7 +38,7 @@ namespace SportfyRevit
         /// <summary>The section keys, as they are on the wire.</summary>
         internal static readonly string[] SectionKeys =
         {
-            "fire_safety", "accessibility", "lca", "carbon_impact", "sun_and_shading", "ball_trajectory", "wind_erosion", "soil_percolation", "structural_loads", "dynamic_analysis",
+            "fire_safety", "accessibility", "lca", "carbon_impact", "sun_and_shading", "ball_trajectory", "wind_erosion", "soil_percolation", "structural_loads", "dynamic_analysis", "kinetics",
         };
 
         internal bool Has(string key) => key switch
@@ -45,6 +46,7 @@ namespace SportfyRevit
             "fire_safety" => FireSafety != null, "accessibility" => Accessibility != null, "lca" => Lca != null, "carbon_impact" => CarbonImpact != null,
             "sun_and_shading" => SunAndShading != null, "ball_trajectory" => BallTrajectory != null, "wind_erosion" => WindErosion != null,
             "soil_percolation" => SoilPercolation != null, "structural_loads" => StructuralLoads != null, "dynamic_analysis" => DynamicAnalysis != null,
+            "kinetics" => Kinetics != null,
             _ => false,
         };
 
@@ -62,6 +64,7 @@ namespace SportfyRevit
                 case "soil_percolation": SoilPercolation = null; break;
                 case "structural_loads": StructuralLoads = null; break;
                 case "dynamic_analysis": DynamicAnalysis = null; break;
+                case "kinetics": Kinetics = null; break;
             }
             Sections.Remove(key);
         }
@@ -455,6 +458,204 @@ namespace SportfyRevit
     }
 
     /// <summary>
+    /// Kinetics (Post Analysis): a dynamic family placed and actuated from another analysis's own numbers -- v1 is the
+    /// louvre pergola the sun &amp; shade analysis already recommends (LouvreActuationModel.cs), driven by the sun's own
+    /// elevation through the day. "priority" names which analysis is currently driving Kinetics (sun / wind_erosion /
+    /// structural); only sun has a family behind it so far, so a piece list is only ever populated for that priority.
+    /// </summary>
+    internal class KineticsResultDto
+    {
+        [JsonPropertyName("priority")] public string? Priority { get; set; }
+        [JsonPropertyName("video_path")] public string? VideoPath { get; set; }
+        [JsonPropertyName("preliminary")] public bool Preliminary { get; set; }
+        [JsonPropertyName("preliminary_note")] public string? PreliminaryNote { get; set; }
+        [JsonPropertyName("pieces")] public List<KineticPieceDto>? Pieces { get; set; }
+        /// <summary>The mechanical inputs behind every number of the pieces (LouvreDesign.Inputs), and whether the mechanical engineer entered each in SportifyKineticsInputs.json or the built-in value stands.</summary>
+        [JsonPropertyName("mechanical_inputs")] public List<AssumptionUseDto>? MechanicalInputs { get; set; }
+        /// <summary>The SOLIDWORKS motion study recorded behind the scenes (Simulate command): the dynamic family working as a mechanism, not as a picture.</summary>
+        [JsonPropertyName("simulation_video_path")] public string? SimulationVideoPath { get; set; }
+        /// <summary>What the last placement did with phases and worksets: where the dynamic furniture went, and what the project could not offer.</summary>
+        [JsonPropertyName("placement_notes")] public List<string>? PlacementNotes { get; set; }
+    }
+
+    /// <summary>One placed/adapted dynamic-family instance: which equipment it answers, how it was sourced, and the states it was driven through.</summary>
+    internal class KineticPieceDto
+    {
+        [JsonPropertyName("equipment_key")] public string? EquipmentKey { get; set; }
+        [JsonPropertyName("equipment_name")] public string? EquipmentName { get; set; }
+        [JsonPropertyName("family_name")] public string? FamilyName { get; set; }
+        /// <summary>"chosen" (an already-loaded family matched) | "generated" (none matched, one was authored) | "not_placed" (no adaptation run yet).</summary>
+        [JsonPropertyName("source")] public string? Source { get; set; }
+        [JsonPropertyName("x_m")] public double XM { get; set; }
+        [JsonPropertyName("y_m")] public double YM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("depth_m")] public double DepthM { get; set; }
+        [JsonPropertyName("blade_count")] public int BladeCount { get; set; }
+        [JsonPropertyName("states")] public List<KineticStateDto>? States { get; set; }
+        [JsonPropertyName("mechanics")] public KineticMechanicsDto? Mechanics { get; set; }
+        /// <summary>overhead | slats | fins | sail | fence: which kind of dynamic unit this is (the family is the same adaptive bar or membrane for all of them).</summary>
+        [JsonPropertyName("kind")] public string? Kind { get; set; }
+        [JsonPropertyName("kind_label")] public string? KindLabel { get; set; }
+        /// <summary>What it stands on or answers: the pergola the analysis recommended, a railing or wall of the model, a roof edge the ball analysis fenced.</summary>
+        [JsonPropertyName("host")] public string? Host { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        /// <summary>How many blades or fins, how far apart, and why (LouvreMechanics.RecommendSpacing).</summary>
+        [JsonPropertyName("spacing")] public KineticSpacingDto? Spacing { get; set; }
+        /// <summary>The railing or frame that carries them: bays and posts (LouvreMechanics.RecommendSupports).</summary>
+        [JsonPropertyName("supports")] public KineticSupportsDto? Supports { get; set; }
+        [JsonPropertyName("sail")] public KineticSailDto? Sail { get; set; }
+        [JsonPropertyName("fence")] public KineticFenceDto? Fence { get; set; }
+        /// <summary>What was placed in Revit for this unit: adaptive bars and membranes, and how many of them are the moving parts.</summary>
+        [JsonPropertyName("parts_placed")] public int PartsPlaced { get; set; }
+        [JsonPropertyName("moving_parts")] public int MovingParts { get; set; }
+        [JsonPropertyName("phase")] public string? Phase { get; set; }
+    }
+
+    internal class KineticSpacingDto
+    {
+        [JsonPropertyName("count")] public int Count { get; set; }
+        [JsonPropertyName("pitch_mm")] public double PitchMm { get; set; }
+        [JsonPropertyName("stack_length_m")] public double StackLengthM { get; set; }
+        [JsonPropertyName("target_stopped_percent")] public double TargetStoppedPercent { get; set; }
+        [JsonPropertyName("stopped_at_binding_percent")] public double StoppedAtBindingPercent { get; set; }
+        [JsonPropertyName("binding_state")] public string? BindingState { get; set; }
+        [JsonPropertyName("binding_profile_deg")] public double BindingProfileDeg { get; set; }
+        [JsonPropertyName("closed_stopped_percent")] public double ClosedStoppedPercent { get; set; }
+        [JsonPropertyName("capped_at_max_pitch")] public bool CappedAtMaxPitch { get; set; }
+        [JsonPropertyName("reason")] public string? Reason { get; set; }
+    }
+
+    internal class KineticSupportsDto
+    {
+        [JsonPropertyName("span_m")] public double SpanM { get; set; }
+        [JsonPropertyName("allowed_span_m")] public double AllowedSpanM { get; set; }
+        [JsonPropertyName("bays")] public int Bays { get; set; }
+        [JsonPropertyName("bay_length_m")] public double BayLengthM { get; set; }
+        [JsonPropertyName("intermediate_posts")] public int IntermediatePosts { get; set; }
+        [JsonPropertyName("deflection_mm")] public double DeflectionMm { get; set; }
+    }
+
+    /// <summary>A tensile sail on four movable pillars (SailMechanics): how the masts lean through the heat window, what the mast must be, the lean actuator, the storm position.</summary>
+    internal class KineticSailDto
+    {
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("depth_m")] public double DepthM { get; set; }
+        [JsonPropertyName("mast_height_m")] public double MastHeightM { get; set; }
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        [JsonPropertyName("mast_diameter_mm")] public double MastDiameterMm { get; set; }
+        [JsonPropertyName("recommended_mast_diameter_mm")] public double RecommendedMastDiameterMm { get; set; }
+        [JsonPropertyName("mast_ok")] public bool MastOk { get; set; }
+        [JsonPropertyName("mast_utilisation_percent")] public double MastUtilisationPercent { get; set; }
+        [JsonPropertyName("mast_base_moment_kn_m")] public double MastBaseMomentKnM { get; set; }
+        [JsonPropertyName("pretension_pull_kn_per_corner")] public double PretensionPullKnPerCorner { get; set; }
+        [JsonPropertyName("uplift_kn_per_mast")] public double UpliftKnPerMast { get; set; }
+        [JsonPropertyName("shape")] public string? Shape { get; set; }
+        [JsonPropertyName("min_scale")] public double MinScale { get; set; }
+        [JsonPropertyName("max_scale")] public double MaxScale { get; set; }
+        [JsonPropertyName("area_min_m2")] public double AreaMinM2 { get; set; }
+        [JsonPropertyName("area_max_m2")] public double AreaMaxM2 { get; set; }
+        [JsonPropertyName("garden_freed_m2")] public double GardenFreedM2 { get; set; }
+        [JsonPropertyName("rail_length_m")] public double RailLengthM { get; set; }
+        [JsonPropertyName("travel_m")] public double TravelM { get; set; }
+        [JsonPropertyName("tracks")] public int Tracks { get; set; }
+        [JsonPropertyName("carriage_force_kn")] public double CarriageForceKn { get; set; }
+        [JsonPropertyName("drive_speed_cm_s")] public double DriveSpeedCmS { get; set; }
+        [JsonPropertyName("travel_seconds")] public double TravelSeconds { get; set; }
+        [JsonPropertyName("drive_power_w")] public double DrivePowerW { get; set; }
+        [JsonPropertyName("storm_height_m")] public double StormHeightM { get; set; }
+        [JsonPropertyName("fabric_mass_kg")] public double FabricMassKg { get; set; }
+        [JsonPropertyName("shade_fixed_min_percent")] public double ShadeFixedMinPercent { get; set; }
+        [JsonPropertyName("shade_tracked_min_percent")] public double ShadeTrackedMinPercent { get; set; }
+        [JsonPropertyName("shade_fixed_mean_percent")] public double ShadeFixedMeanPercent { get; set; }
+        [JsonPropertyName("shade_tracked_mean_percent")] public double ShadeTrackedMeanPercent { get; set; }
+        [JsonPropertyName("states")] public List<KineticSailStateDto>? States { get; set; }
+        [JsonPropertyName("findings")] public List<string>? Findings { get; set; }
+    }
+
+    internal class KineticSailStateDto
+    {
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("solar_time_h")] public double SolarTimeH { get; set; }
+        [JsonPropertyName("sun_elevation_deg")] public double SunElevationDeg { get; set; }
+        [JsonPropertyName("scale")] public double Scale { get; set; }
+        [JsonPropertyName("area_m2")] public double AreaM2 { get; set; }
+        [JsonPropertyName("travel_m")] public double TravelM { get; set; }
+        [JsonPropertyName("shade_held_fixed_percent")] public double ShadeHeldFixedPercent { get; set; }
+        [JsonPropertyName("shade_held_tracked_percent")] public double ShadeHeldTrackedPercent { get; set; }
+    }
+
+    /// <summary>A roller fence on the roof edge (RollerFenceMechanics): the rails, the curtain, the roller motor, the storm rule.</summary>
+    internal class KineticFenceDto
+    {
+        [JsonPropertyName("edge")] public string? Edge { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
+        [JsonPropertyName("rails")] public int Rails { get; set; }
+        [JsonPropertyName("bay_spacing_m")] public double BaySpacingM { get; set; }
+        [JsonPropertyName("rail_size_mm")] public double RailSizeMm { get; set; }
+        [JsonPropertyName("recommended_rail_size_mm")] public double RecommendedRailSizeMm { get; set; }
+        [JsonPropertyName("rail_ok")] public bool RailOk { get; set; }
+        [JsonPropertyName("rail_utilisation_percent")] public double RailUtilisationPercent { get; set; }
+        [JsonPropertyName("rail_deflection_mm")] public double RailDeflectionMm { get; set; }
+        [JsonPropertyName("rail_deflection_limit_mm")] public double RailDeflectionLimitMm { get; set; }
+        [JsonPropertyName("wind_moment_kn_m")] public double WindMomentKnM { get; set; }
+        [JsonPropertyName("impact_moment_kn_m")] public double ImpactMomentKnM { get; set; }
+        [JsonPropertyName("impact_energy_j")] public double ImpactEnergyJ { get; set; }
+        [JsonPropertyName("impact_force_kn")] public double ImpactForceKn { get; set; }
+        [JsonPropertyName("curtain_mass_kg")] public double CurtainMassKg { get; set; }
+        [JsonPropertyName("motor_force_n")] public double MotorForceN { get; set; }
+        [JsonPropertyName("motor_torque_nm")] public double MotorTorqueNm { get; set; }
+        [JsonPropertyName("motor_power_w")] public double MotorPowerW { get; set; }
+        [JsonPropertyName("deploy_seconds")] public double DeploySeconds { get; set; }
+        [JsonPropertyName("storm_retract")] public bool StormRetract { get; set; }
+        [JsonPropertyName("stops_percent_of_exits")] public double StopsPercentOfExits { get; set; }
+        [JsonPropertyName("findings")] public List<string>? Findings { get; set; }
+    }
+
+    /// <summary>The mechanics of one louvre pergola (LouvreMechanics.Analyse): blades, wind torque, the actuator, deflection, stow. Loads in N and N m, lengths in mm unless the name says m.</summary>
+    internal class KineticMechanicsDto
+    {
+        [JsonPropertyName("chord_mm")] public double ChordMm { get; set; }
+        [JsonPropertyName("thickness_mm")] public double ThicknessMm { get; set; }
+        [JsonPropertyName("pitch_mm")] public double PitchMm { get; set; }
+        [JsonPropertyName("span_m")] public double SpanM { get; set; }
+        [JsonPropertyName("blade_mass_kg")] public double BladeMassKg { get; set; }
+        [JsonPropertyName("total_mass_kg")] public double TotalMassKg { get; set; }
+        [JsonPropertyName("design_pressure_pa")] public double DesignPressurePa { get; set; }
+        [JsonPropertyName("design_wind_ms")] public double DesignWindMs { get; set; }
+        [JsonPropertyName("operating_wind_ms")] public double OperatingWindMs { get; set; }
+        [JsonPropertyName("peak_torque_operating_nm")] public double PeakTorqueOperatingNm { get; set; }
+        [JsonPropertyName("peak_torque_angle_deg")] public double PeakTorqueAngleDeg { get; set; }
+        [JsonPropertyName("peak_torque_gust_nm")] public double PeakTorqueGustNm { get; set; }
+        [JsonPropertyName("face_on_force_gust_n")] public double FaceOnForceGustN { get; set; }
+        [JsonPropertyName("actuator_torque_nm")] public double ActuatorTorqueNm { get; set; }
+        [JsonPropertyName("actuator_force_n")] public double ActuatorForceN { get; set; }
+        [JsonPropertyName("holding_torque_nm")] public double HoldingTorqueNm { get; set; }
+        [JsonPropertyName("deflection_mm")] public double DeflectionMm { get; set; }
+        [JsonPropertyName("deflection_ratio")] public double DeflectionRatio { get; set; }
+        [JsonPropertyName("allowed_span_m")] public double AllowedSpanM { get; set; }
+        [JsonPropertyName("deflection_ok")] public bool DeflectionOk { get; set; }
+        [JsonPropertyName("stow_required")] public bool StowRequired { get; set; }
+        [JsonPropertyName("swing_seconds")] public double SwingSeconds { get; set; }
+        [JsonPropertyName("actuator_power_w")] public double ActuatorPowerW { get; set; }
+        [JsonPropertyName("energy_wh_per_day")] public double EnergyWhPerDay { get; set; }
+        [JsonPropertyName("findings")] public List<string>? Findings { get; set; }
+    }
+
+    /// <summary>One actuation state: the sun's own elevation at that hour, and the louvre opening it drives (LouvreActuationModel.OpenAngleDegForElevation -- 0 = closed/flat, 90 = open/vertical).</summary>
+    internal class KineticStateDto
+    {
+        [JsonPropertyName("label")] public string? Label { get; set; }
+        [JsonPropertyName("solar_time_h")] public double SolarTimeH { get; set; }
+        [JsonPropertyName("sun_elevation_deg")] public double SunElevationDeg { get; set; }
+        [JsonPropertyName("louvre_open_angle_deg")] public double LouvreOpenAngleDeg { get; set; }
+        [JsonPropertyName("sun_stopped_percent")] public double SunStoppedPercent { get; set; }
+        [JsonPropertyName("wind_torque_operating_nm")] public double WindTorqueOperatingNm { get; set; }
+        [JsonPropertyName("wind_torque_gust_nm")] public double WindTorqueGustNm { get; set; }
+    }
+
+    /// <summary>
     /// Each Analyze* command only knows its own section, so publishing reads
     /// whatever's already live off RoofBoundaryServer, patches in the one
     /// section that just changed, and republishes the merged whole — a
@@ -473,6 +674,7 @@ namespace SportfyRevit
         public static void PublishSoilPercolation(SoilPercolationResultDto result) => Publish("soil_percolation", p => p.SoilPercolation = result);
         public static void PublishStructuralLoads(StructuralLoadsResultDto result) => Publish("structural_loads", p => p.StructuralLoads = result);
         public static void PublishDynamicAnalysis(DynamicAnalysisResultDto result) => Publish("dynamic_analysis", p => p.DynamicAnalysis = result);
+        public static void PublishKinetics(KineticsResultDto result) => Publish("kinetics", p => p.Kinetics = result);
 
         private static AnalysisResultPayload Load()
         {

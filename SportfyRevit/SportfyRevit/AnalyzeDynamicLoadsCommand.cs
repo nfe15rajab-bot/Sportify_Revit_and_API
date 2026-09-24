@@ -94,8 +94,6 @@ namespace SportfyRevit
 
         static SummaryChoice ShowSummary(DynamicReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
-            var c = report.crowd;
-            var w = report.weather;
             var r = report.resonance;
             var s = report.summary;
             var body = new StringBuilder();
@@ -104,30 +102,7 @@ namespace SportfyRevit
             if (s.preliminary)
                 body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
-            body.AppendLine();
-
-            body.AppendLine($"1  CROWDS ({c.scheduleName}): busiest at {DynamicModel.Clock(c.peakAtHour)} with about {c.peakPersons:0} people ({c.peakCrowdKn:0} kN), {c.arrivals} arrivals over the day; static analysis assumed {c.staticExpectedPersons:0} at once.");
-            body.AppendLine($"    Most crowded: {c.busiestBay}, {c.busiestBayPeakDensity:0.00} people/m². The crowd moves the load's centre by at most {c.maxShiftPercent:0.##}%.");
-            body.AppendLine();
-
-            body.AppendLine($"2  WEATHER: snow zone {w.snow.zone}{(w.snow.zoneAssumed ? " (ASSUMED)" : "")}, sk {w.snow.skKnM2:0.00} kN/m²; a {w.rain.intensityMmH:0} mm/h cloudburst adds up to {w.rain.peakAddedKn:0} kN to the build-ups.");
-            foreach (var lc in w.cases)
-                body.AppendLine($"    • {lc.name}: busiest bay {lc.worstBay} at {lc.peakUtilisation * 100:0}% ({lc.baysOver} over capacity)");
-            body.AppendLine();
-
-            body.AppendLine($"3  RESONANCE: deck frequency {r.lowestFrequencyHz:0.0} to {r.highestFrequencyHz:0.0} Hz ({(r.estimated ? "ESTIMATED from the spans" : "the engineer's figure")}).");
-            body.AppendLine($"    Worst: {r.worstBay}, {(r.worstActivity ?? "").ToLowerInvariant()}: {r.worstAccelerationG:0.000} g against a comfort limit of {r.worstLimitG:0.00} g. {r.baysExceeding} of {r.bays.Count} bays exceed under some activity.");
-
-            var advice = report.recommendations.Where(x => x.kind is "over-capacity" or "resonance" or "snow-input" or "frequency-input" or "capacity-input").Take(4).ToList();
-            if (advice.Count > 0)
-            {
-                body.AppendLine();
-                foreach (var a in advice) body.AppendLine("  • " + a.text);
-            }
-
-            body.AppendLine();
-            body.AppendLine("A screening estimate, not a structural verification or a vibration design. The assumptions are in the PDF report.");
-
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)
             {

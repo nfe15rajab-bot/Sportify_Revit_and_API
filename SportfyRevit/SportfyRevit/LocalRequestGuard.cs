@@ -137,6 +137,7 @@ namespace SportfyRevit
             {
                 "/combined-layout" => MaxLayoutBytes,
                 "/deliverable" => MaxDeliverableBytes,
+                "/iterations" => MaxLayoutBytes,
                 _ => MaxOtherBytes,
             };
         }

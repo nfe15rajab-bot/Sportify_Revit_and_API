@@ -50,12 +50,9 @@ namespace SportfyRevit
             });
 
             TaskDialog.Show(title,
-                $"Circulation width: {currentWidth:0.0} m (wheelchair two-way reference: {minWidth:0.#} m) — " +
-                $"{(widthOk ? "meets" : "BELOW")} the minimum.\n" +
-                $"Every piece reachable from an entry point: {(reachOk ? "yes" : "no")}.\n\n" +
-                "Tactile/contrast guidance at decision points (DIN 32984) and child-scaled equipment + fall-safety " +
-                "surfacing (DIN EN 1176/1177) still need a visual walkthrough — this check covers the part that's " +
-                "actually computable from the layout.");
+                $"Circulation width {currentWidth:0.0} m ({(widthOk ? "meets" : "BELOW")} the {minWidth:0.#} m reference); " +
+                $"every piece reachable: {(reachOk ? "yes" : "no")}.\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

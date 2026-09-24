@@ -118,6 +118,11 @@
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" Link="Structure\StructuralLoadCore.cs" />
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Dynamics\DynamicLoadCore.cs" Link="Dynamics\DynamicLoadCore.cs" />
     <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" Link="Sun\SunShadeCore.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\LouvreActuationModel.cs" Link="Sun\LouvreActuationModel.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\LouvreMechanicsModel.cs" Link="Sun\LouvreMechanicsModel.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\SailMechanicsModel.cs" Link="Sun\SailMechanicsModel.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\RollerFenceMechanicsModel.cs" Link="Sun\RollerFenceMechanicsModel.cs" />
+    <Compile Include="..\..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\KineticUnitGeometry.cs" Link="Sun\KineticUnitGeometry.cs" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -142,6 +147,18 @@
     </ItemGroup>
     <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(SportifyVendorFiles)" DestinationFiles="@(SportifyVendorFiles->'$(OutDir)web\vendor\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Kinetics' "Simulate" drives SOLIDWORKS through a separate program, Sportify.Mechanical, which the add-in finds in a "mechanical" folder next to itself
+       (MechanicalTool.Locate). It is published there when the tool's source is beside this project AND SOLIDWORKS' interop assemblies are on the machine (what it
+       compiles against): a build on a machine without SOLIDWORKS (CI, most laptops) skips it, and the command then says the tool was not found. A failure here never
+       fails the add-in build. -->
+  <PropertyGroup>
+    <SportifyMechanicalProject>$(MSBuildProjectDirectory)\..\..\Sportify.Mechanical\Sportify.Mechanical.csproj</SportifyMechanicalProject>
+    <SportifySolidWorksInterop>C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist\SolidWorks.Interop.sldworks.dll</SportifySolidWorksInterop>
+  </PropertyGroup>
+  <Target Name="BuildMechanicalTool" AfterTargets="Build" BeforeTargets="DeployToRevitAddins" Condition="Exists('$(SportifyMechanicalProject)') And Exists('$(SportifySolidWorksInterop)')">
+    <Exec Command="dotnet publish &quot;$(SportifyMechanicalProject)&quot; -c Release -o &quot;$(OutDir)mechanical&quot; --nologo -v:q" ContinueOnError="true" IgnoreExitCode="true" />
   </Target>
 
   <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points

@@ -49,8 +49,8 @@ namespace SportfyRevit
                 });
 
                 TaskDialog.Show(title,
-                    $"{outcome.UnreachableCount} of {layout.Placements.Count} piece(s) have no walkable route to any entry point " +
-                    "— blocked by clearance/circulation width. Fix circulation before a travel-distance figure is meaningful.");
+                    $"{outcome.UnreachableCount} of {layout.Placements.Count} piece(s) have no walkable route to any entry point.\n\n" +
+                    AnalysisMedia.SeeReport);
                 return Result.Succeeded;
             }
 
@@ -66,8 +66,8 @@ namespace SportfyRevit
             });
 
             TaskDialog.Show(title,
-                $"{(withinLimit ? "Within limit" : "OVER LIMIT")} — longest route from a piece to its nearest entry point: " +
-                $"{maxDist:0.0} m (max. travel distance reference: {maxTravelDistance:0.#} m, MBO §35).");
+                $"{(withinLimit ? "Within limit" : "OVER LIMIT")} — longest route {maxDist:0.0} m (reference {maxTravelDistance:0.#} m, MBO §35).\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

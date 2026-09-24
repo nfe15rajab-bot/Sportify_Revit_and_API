@@ -21,6 +21,7 @@ namespace SportfyRevit
     internal static class SportifyLayoutBuilder
     {
         private const double EntryMarkerRadiusM = 0.4;
+        private const double CirculationNodeRadiusM = 0.2;
 
         /// <summary>
         /// Elevation (feet) everything in the current import is built at — set
@@ -64,6 +65,22 @@ namespace SportfyRevit
         /// <summary>How far the plan is turned from the model's X axis (radians, counter-clockwise), for the rotation of placed families.</summary>
         internal static double CurrentAngleRad => CurrentFrame.AngleRad;
 
+        /// <summary>The roof's plan size (metres) of the import in progress, or of the last layout adopted.</summary>
+        internal static (double LengthM, double WidthM) CurrentRoofSizeM => (CurrentFrame.Length, CurrentFrame.Width);
+
+        /// <summary>
+        /// Sets the roof's plan frame and elevation from a layout without building anything: Kinetics places against the roof the web app last pushed, also in a
+        /// Revit session that has not imported it (the frame is otherwise only set by BuildGeometry, so a restarted Revit would place at the model's origin).
+        /// </summary>
+        internal static void AdoptRoofFrame(SportifyLayout layout)
+        {
+            var roof = layout.RoofContext;
+            if (roof == null) return;
+            CurrentOriginZFt = FeetFromMeters(roof.WorldOriginZM);
+            CurrentRoofWidthFt = FeetFromMeters(roof.WidthM);
+            CurrentFrame = new RoofFrame(roof.WorldOriginXM, roof.WorldOriginYM, roof.RotationDeg * Math.PI / 180.0, roof.LengthM, roof.WidthM);
+        }
+
         internal static XYZ PlanPointFt(double planXM, double planYM, double zFt)
         {
             var (x, y) = PlanToWorldFt(planXM, planYM);
@@ -92,14 +109,21 @@ namespace SportfyRevit
             return originYFt + CurrentRoofWidthFt - FeetFromMeters(webYM);
         }
 
-        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets)
+        /// <summary>
+        /// `worksetNameOverride`: ImportIterationsAsOptionsCommand's way of keeping one iteration's geometry off the project's single shared
+        /// Sports/Gardens/Combine worksets (which would put two iterations' courts on the very same "Sports" workset, indistinguishable) —
+        /// given a category name ("Sports"/"Gardens"/"Combine") it returns the actual workset name to use, e.g. "Sportify Iteration 2 - Sports"
+        /// (detailed: every category keeps its own workset per iteration) or just "Sportify Iteration 2" for every category (simple: the whole
+        /// iteration collapses onto one workset). A plain single-layout import leaves this null and gets the original shared three.
+        /// </summary>
+        public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
             var createdIds = new List<ElementId>();
 
             // Worksharing is settled by the caller (LayoutImporter asks the person, and turns it on if they agree) BEFORE the transaction this
             // runs in: Document.EnableWorksharing throws inside an open transaction. In a project without worksets (the person said no, or a
             // caller that must not change the project) everything is simply left on the project's default workset.
-            var worksets = EnsureWorksets(doc, useWorksets);
+            var worksets = EnsureWorksets(doc, useWorksets, worksetNameOverride);
             var textTypeId = GetDefaultTextNoteTypeId(doc);
 
             double originXFt = FeetFromMeters(layout.RoofContext?.WorldOriginXM ?? 0);
@@ -145,10 +169,27 @@ namespace SportfyRevit
                 }
             }
 
+            // Tagged so GenerateFunctionalDiagramsCommand's circulation-diagram view can style circulation paths and entry
+            // markers distinctly (bold red) from the untagged roof outline/setback — see BimRules.CirculationLineStyle.
+            var circulationStyle = GetOrCreateLineStyle(doc, BimRules.CirculationLineStyle);
+            var entryStyle = GetOrCreateLineStyle(doc, BimRules.EntryLineStyle);
+            var nodeStyle = GetOrCreateLineStyle(doc, BimRules.CirculationNodeLineStyle);
+
             CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
             CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
+            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], circulationStyle, nodeStyle, createdIds);
+            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], entryStyle, createdIds);
+
+            // What an import brings is the design being analysed: the "Design and analysis" phase when the project has one (the Sportify phase system is Existing /
+            // Design and analysis / Post analysis; the dynamic furniture Kinetics places afterwards goes to Post analysis). A project without that phase keeps
+            // what it made in the phase it was created in, and the batch-assign command (Phasing & Worksets) can settle it later.
+            try
+            {
+                var moved = SportifyPhases.Assign(doc, createdIds, SportifyPhases.DesignAndAnalysis, doc.ActiveView, out var phaseNote);
+                if (moved > 0) SportifyLog.Info("import", moved + " imported element(s) put in the \"" + SportifyPhases.DesignAndAnalysis + "\" phase");
+                else if (phaseNote.Length > 0) SportifyLog.Info("import", "phases: " + phaseNote);
+            }
+            catch (Exception ex) { SportifyLog.Warn("import", "the imported elements could not be put in the Design and analysis phase: " + ex.Message); }
 
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
         }
@@ -317,27 +358,32 @@ namespace SportfyRevit
         /// themselves, BEFORE they open their transaction — EnableWorksharing manages its own
         /// transaction internally and throws if called while one is already open.
         /// </summary>
-        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets)
+        /// <summary>
+        /// `worksetPrefix`: ImportIterationsAsOptionsCommand's way of keeping the normal Sports/Gardens/Combine auto-assignment WITHIN one
+        /// iteration, instead of every iteration landing on the project's single shared Sports/Gardens/Combine worksets (which would put two
+        /// iterations' courts on the very same "Sports" workset, indistinguishable) — e.g. "Sportify Iteration 2 - " gives "Sportify Iteration
+        /// 2 - Sports", "... - Gardens", "... - Combine". Plain single-layout imports leave this null and get the original shared three.
+        /// </summary>
+        private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
             var names = new[] { "Sports", "Gardens", "Combine" };
             if (!useWorksets || !doc.IsWorkshared)
                 return names.ToDictionary(n => n, n => WorksetId.InvalidWorksetId);
+
             var existing = new FilteredWorksetCollector(doc)
                 .OfKind(WorksetKind.UserWorkset)
                 .ToDictionary(w => w.Name, w => w.Id);
 
             var result = new Dictionary<string, WorksetId>();
+            var createdThisCall = new Dictionary<string, WorksetId>();     // full workset name -> id: so "simple" mode (every category maps to the same override name) shares one workset instead of trying to create it twice
             foreach (var name in names)
             {
-                if (existing.TryGetValue(name, out var id))
-                {
-                    result[name] = id;
-                }
-                else
-                {
-                    var created = Workset.Create(doc, name);
-                    result[name] = created.Id;
-                }
+                var fullName = worksetNameOverride != null ? worksetNameOverride(name) : name;
+                if (existing.TryGetValue(fullName, out var id)) { result[name] = id; continue; }
+                if (createdThisCall.TryGetValue(fullName, out var justCreated)) { result[name] = justCreated; continue; }
+                var created = Workset.Create(doc, fullName).Id;
+                createdThisCall[fullName] = created;
+                result[name] = created;
             }
             return result;
         }
@@ -447,7 +493,7 @@ namespace SportfyRevit
             return true;
         }
 
-        private static void CreateModelLine(Document doc, XYZ a, XYZ b, WorksetId worksetId, List<ElementId> createdIds)
+        private static void CreateModelLine(Document doc, XYZ a, XYZ b, WorksetId worksetId, List<ElementId> createdIds, GraphicsStyle? lineStyle = null)
         {
             if (a.DistanceTo(b) < 1e-6) return;
             var plane = Plane.CreateByThreePoints(a, b, a + XYZ.BasisZ);
@@ -455,7 +501,31 @@ namespace SportfyRevit
             createdIds.Add(sketchPlane.Id);
             var line = doc.Create.NewModelCurve(Line.CreateBound(a, b), sketchPlane);
             SetWorkset(line, worksetId);
+            if (lineStyle != null) line.LineStyle = lineStyle;
             createdIds.Add(line.Id);
+        }
+
+        /// <summary>A small filled-looking round marker (a circle, styled with a heavy line weight so it reads as a solid dot) — an entry, or a circulation path's join to the corridor or to its piece.</summary>
+        private static void CreateDotMarker(Document doc, XYZ center, double radiusM, WorksetId worksetId, GraphicsStyle lineStyle, List<ElementId> createdIds)
+        {
+            double rFt = FeetFromMeters(radiusM);
+            var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
+            var sketchPlane = SketchPlane.Create(doc, plane);
+            createdIds.Add(sketchPlane.Id);
+            var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
+            var curve = doc.Create.NewModelCurve(circle, sketchPlane);
+            SetWorkset(curve, worksetId);
+            curve.LineStyle = lineStyle;
+            createdIds.Add(curve.Id);
+        }
+
+        /// <summary>Gets or creates a "Lines" subcategory (a GraphicsStyle), used to tag circulation-path and entry-marker model lines so they can be found and styled later without guessing from geometry alone.</summary>
+        private static GraphicsStyle GetOrCreateLineStyle(Document doc, string name)
+        {
+            var linesCategory = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            var existing = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == name);
+            var category = existing ?? doc.Settings.Categories.NewSubcategory(linesCategory, name);
+            return category.GetGraphicsStyle(GraphicsStyleType.Projection);
         }
 
         /// <summary>The roof's bounding rectangle in its own axes (a turned roof: a turned rectangle), corner by corner, y up.</summary>
@@ -522,7 +592,11 @@ namespace SportfyRevit
                 CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds);
         }
 
-        private static int CreateCirculationPaths(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        /// <summary>
+        /// A path's dot markers, at its first and last vertex (where it joins the corridor and where it reaches its piece) — the small round
+        /// connector points a hand-drawn circulation diagram marks a route with, distinct from the roof's own entry markers (CreateEntryMarkers).
+        /// </summary>
+        private static int CreateCirculationPaths(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, GraphicsStyle lineStyle, GraphicsStyle nodeStyle, List<ElementId> createdIds)
         {
             int count = 0;
             if (layout.CirculationPaths == null) return count;
@@ -534,28 +608,22 @@ namespace SportfyRevit
 
                 var pts = points.Select(pt => PlanPointFt(pt.XM, pt.YM, CurrentOriginZFt)).ToList();
                 for (int i = 0; i < pts.Count - 1; i++)
-                    CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds);
+                    CreateModelLine(doc, pts[i], pts[i + 1], worksetId, createdIds, lineStyle);
+                CreateDotMarker(doc, pts[0], CirculationNodeRadiusM, worksetId, nodeStyle, createdIds);
+                CreateDotMarker(doc, pts[^1], CirculationNodeRadiusM, worksetId, nodeStyle, createdIds);
                 count++;
             }
             return count;
         }
 
-        private static int CreateEntryMarkers(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        private static int CreateEntryMarkers(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, GraphicsStyle lineStyle, List<ElementId> createdIds)
         {
             int count = 0;
             if (layout.EntryPoints == null) return count;
 
-            double rFt = FeetFromMeters(EntryMarkerRadiusM);
             foreach (var ep in layout.EntryPoints)
             {
-                var center = PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt);
-                var plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, center);
-                var sketchPlane = SketchPlane.Create(doc, plane);
-                createdIds.Add(sketchPlane.Id);
-                var circle = Arc.Create(plane, rFt, 0, 2 * Math.PI);
-                var curve = doc.Create.NewModelCurve(circle, sketchPlane);
-                SetWorkset(curve, worksetId);
-                createdIds.Add(curve.Id);
+                CreateDotMarker(doc, PlanPointFt(ep.XM, ep.YM, CurrentOriginZFt), EntryMarkerRadiusM, worksetId, lineStyle, createdIds);
                 count++;
             }
             return count;

@@ -989,4 +989,16 @@ namespace SportfyRevit
         /// <summary>The level the roof sits on (the highest at or below its top face).</summary>
         [JsonPropertyName("is_roof_level")] public bool IsRoofLevel { get; set; }
     }
+
+    /// <summary>
+    /// One of compareController.js's savedCompareConfigs, exactly as the web app's "Send to Revit as Design Options" button POSTs the whole array
+    /// to /iterations: a full layout snapshot (same shape as a combined-layout export) plus the name and tagline the web app already gives it.
+    /// </summary>
+    internal class SavedIterationDto
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("tagline")] public string? Tagline { get; set; }
+        [JsonPropertyName("payload")] public SportifyLayout? Payload { get; set; }
+    }
 }

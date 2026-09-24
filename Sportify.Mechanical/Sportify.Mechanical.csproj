@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Drives SOLIDWORKS through its COM API to build the louvre pergola's mechanical parts (blade, crank, rod, assembly), read their mass properties
+       and export STEP / SAT, so the mechanical engineer's numbers and the add-in's Kinetics mechanics come from one model. Needs SOLIDWORKS installed
+       (it references the interop assemblies in its api\redist folder). NOT part of Sportify.Simulation/Tools, so run-checks and CI never build it. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <SwDir Condition="'$(SwDir)' == ''">C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\</SwDir>
+    <NoWarn>$(NoWarn);MSB3277;CS8600;CS8602;CS8604</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="SolidWorks.Interop.sldworks">
+      <HintPath>$(SwDir)api\redist\SolidWorks.Interop.sldworks.dll</HintPath>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SolidWorks.Interop.swconst">
+      <HintPath>$(SwDir)api\redist\SolidWorks.Interop.swconst.dll</HintPath>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="SolidWorks.Interop.swmotionstudy">
+      <HintPath>$(SwDir)api\redist\SolidWorks.Interop.swmotionstudy.dll</HintPath>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+  <!-- The very same Unity-free cores the add-in and the check suite compile, so the SolidWorks numbers are compared with the model that uses them. -->
+  <ItemGroup>
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Wind\WindAnalysisCore.cs" Link="Core\Wind\WindAnalysisCore.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Roof\RoofShape.cs" Link="Core\Roof\RoofShape.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\InputQuantiser.cs" Link="Core\InputQuantiser.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Water\PercolationCore.cs" Link="Core\Water\PercolationCore.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" Link="Core\Structure\AnalysisAssumptions.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" Link="Core\Structure\StructuralLoadCore.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" Link="Core\Sun\SunShadeCore.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\LouvreActuationModel.cs" Link="Core\Sun\LouvreActuationModel.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\LouvreMechanicsModel.cs" Link="Core\Sun\LouvreMechanicsModel.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\SailMechanicsModel.cs" Link="Core\Sun\SailMechanicsModel.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\RollerFenceMechanicsModel.cs" Link="Core\Sun\RollerFenceMechanicsModel.cs" />
+    <Compile Include="..\Sportify.Simulation\Assets\Scripts\Simulation\Sun\KineticUnitGeometry.cs" Link="Core\Sun\KineticUnitGeometry.cs" />
+  </ItemGroup>
+</Project>

@@ -775,8 +775,8 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         _ => Array.Empty<string>(),
     }).ToList();
 
-    Check("the panels are, in order: App & Data Import, Algorithmic Analysis, Simulation & Analytics, BIM & Documentation, Data Export / Deliverables",
-          panels.Select(pn => pn.Name).SequenceEqual(new[] { "App & Data Import", "Algorithmic Analysis", "Simulation & Analytics", "BIM & Documentation", "Data Export / Deliverables" }));
+    Check("the panels are, in order: App & Data Import, Algorithmic Analysis, Simulation & Analytics, Kinetics, BIM & Documentation, Data Export / Deliverables",
+          panels.Select(pn => pn.Name).SequenceEqual(new[] { "App & Data Import", "Algorithmic Analysis", "Simulation & Analytics", "Kinetics", "BIM & Documentation", "Data Export / Deliverables" }));
     Check("every internal name (buttons, drop-downs, items) is unique: Revit refuses a second item of the same name in one tab", everyName.Distinct().Count() == everyName.Count,
           string.Join(", ", everyName.GroupBy(n => n).Where(g => g.Count() > 1).Select(g => g.Key)));
     Check("every command class the ribbon names exists and implements IExternalCommand", everyButton.All(b => commandClasses.ContainsKey(b.CommandClass)),
@@ -819,8 +819,12 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
           && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
     Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
-    Check("...and a Phasing & Worksets drop-down: Batch Assign Phasing (AssignPhasingCommand), Organize Multi-Worksets (AssignWorksetsCommand)",
-          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[] { ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand") }));
+    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, Import Iterations as Design Options, Show Iteration",
+          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
+          {
+              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"),
+              ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
+          }));
 
     // nothing that was on the ribbon before is gone, and the CSV schedule command keeps its name
     var before = new Dictionary<string, string>
@@ -902,7 +906,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var badFill = RibbonIconData.Icons.Where(kv => kv.Value.Fill != null && Malformed(kv.Value.Fill) != null).Select(kv => kv.Key + ": " + Malformed(kv.Value.Fill!)).ToList();
     Check($"...and the tint shapes ({RibbonIconData.Icons.Count(kv => kv.Value.Fill != null)} of {RibbonIconData.Icons.Count} icons have one) are well formed too", badFill.Count == 0, string.Join("; ", badFill));
     Check("the five colour groups are five different colours", RibbonIconData.GroupColors.Values.Distinct().Count() == 5 && RibbonIconData.GroupColors.Count == 5);
-    var panelGroup = new Dictionary<string, string> { ["App & Data Import"] = "setup", ["Algorithmic Analysis"] = "algorithmic", ["Simulation & Analytics"] = "physical", ["BIM & Documentation"] = "bim", ["Data Export / Deliverables"] = "export" };
+    var panelGroup = new Dictionary<string, string> { ["App & Data Import"] = "setup", ["Algorithmic Analysis"] = "algorithmic", ["Simulation & Analytics"] = "physical", ["Kinetics"] = "physical", ["BIM & Documentation"] = "bim", ["Data Export / Deliverables"] = "export" };
     var offColour = new List<string>();
     foreach (var pn in panels)
         foreach (var e in pn.Entries)
@@ -932,8 +936,8 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           webServer.Contains("\"Referrer-Policy\", \"strict-origin-when-cross-origin\"") && !webServer.Contains("\"Referrer-Policy\", \"no-referrer\""));
     // Functional Diagrams and the report do not need worksets: what there is to draw is decided by what the import created
     var diagrams = allSources.FirstOrDefault(kv => kv.Key.EndsWith("GenerateFunctionalDiagramsCommand.cs")).Value ?? "";
-    Check("Functional Diagrams works without worksets: it asks the import's ledger, not doc.IsWorkshared, and hides the non-Combine elements one by one when there are no worksets",
-          diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("if (!doc.IsWorkshared)") && diagrams.Contains("HideAllButCombine(doc, view)"));
+    Check("Functional Diagrams works without worksets: what there is to draw is decided by the import's ledger, not doc.IsWorkshared, and every piece is styled (grey, labelled) and the circulation bold red the same way whether or not the project has worksets — nothing is hidden by view to fake that",
+          diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("HideAllButCombine") && diagrams.Contains("pieceOv.SetProjectionLineColor(gray)"));
     Check("Organize Multi-Worksets asks before turning worksharing on (a choice with a default of leaving the project alone) instead of only refusing",
           bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
     Check("worksharing is only offered where Revit allows it (Document.CanEnableWorksharing): by Organize Multi-Worksets and by the import's question, so a template file or read-only document gets an explanation, not an exception",

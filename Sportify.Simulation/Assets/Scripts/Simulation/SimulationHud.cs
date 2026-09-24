@@ -51,6 +51,9 @@ namespace Sportify.Simulation
         readonly int _preliminaryChars;
         readonly GameObject _card;
         readonly TextMesh _cardHead, _cardSub, _cardBody;
+        readonly Transform _cardBack;
+        readonly float _cardBackHeight, _cardBackTop;      // the panel's height and top edge (px from the middle), for ShowCard's height scale
+        readonly float _cardHeadSize, _cardBodySize;       // the type sizes the card was built with, for ShowCard's scales
 
         readonly GameObject _arrowPanel;
         readonly Transform _arrowPivot;
@@ -110,6 +113,9 @@ namespace Sportify.Simulation
             cardBack.transform.SetParent(_card.transform, false);
             cardBack.transform.localPosition = new Vector3(0f, 0f, DistanceM + 0.04f);
             cardBack.transform.localScale = new Vector3(widthPx * 0.62f * _worldPerPx, heightPx * 0.66f * _worldPerPx, 1f);
+            _cardBack = cardBack.transform;
+            _cardBackHeight = heightPx * 0.66f;
+            _cardBackTop = heightPx * 0.33f;
             var cardRenderer = cardBack.GetComponent<Renderer>();
             cardRenderer.sharedMaterial = SceneBuilder.OverlayMaterial(new Color(0.03f, 0.04f, 0.06f, 0.88f));
             cardRenderer.sortingOrder = OrderCard;
@@ -118,6 +124,8 @@ namespace Sportify.Simulation
             _cardHead = Text("CardHead", 54f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f, Ink, OrderCardText, _card.transform);
             _cardSub = Text("CardSub", 26f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f - 84f, Muted, OrderCardText, _card.transform);
             _cardBody = Text("CardBody", 27f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f - 150f, Ink, OrderCardText, _card.transform);
+            _cardHeadSize = _cardHead.characterSize;
+            _cardBodySize = _cardBody.characterSize;
             _card.SetActive(false);
 
             // A wind-direction arrow under the counters, rotated to the direction the wind blows toward.
@@ -302,8 +310,16 @@ namespace Sportify.Simulation
 
         // ------------------------------------------------------------------ cards
 
-        public void ShowCard(string headline, Color headlineColor, string subtitle, IList<string> bodyLines)
+        /// <param name="headlineScale">Multiplies the headline's type size (1 = as built): a long headline is set smaller, and wrapped by the caller.</param>
+        /// <param name="bodyScale">The same for the body lines.</param>
+        /// <param name="panelHeightScale">Multiplies the panel's height, growing it downward from its top edge.</param>
+        public void ShowCard(string headline, Color headlineColor, string subtitle, IList<string> bodyLines, float headlineScale = 1f, float bodyScale = 1f, float panelHeightScale = 1f)
         {
+            var h = _cardBackHeight * panelHeightScale;
+            _cardBack.localScale = new Vector3(_cardBack.localScale.x, h * _worldPerPx, 1f);
+            _cardBack.localPosition = new Vector3(0f, (_cardBackTop - h / 2f) * _worldPerPx, _cardBack.localPosition.z);
+            _cardHead.characterSize = _cardHeadSize * headlineScale;
+            _cardBody.characterSize = _cardBodySize * bodyScale;
             _cardHead.text = headline;
             _cardHead.color = headlineColor;
             _cardSub.text = subtitle;

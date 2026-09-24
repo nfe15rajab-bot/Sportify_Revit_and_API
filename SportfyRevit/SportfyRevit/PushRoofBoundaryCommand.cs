@@ -27,9 +27,17 @@ namespace SportfyRevit
         private static long _lastRoofId;
         private static string? _lastDocumentTitle;
 
-        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements) =>
+            Run(commandData, Scope, ref message);
+
+        /// <summary>
+        /// The push itself, given an explicit scope rather than reading a subclass's own Scope property — shared with
+        /// UpdateSportifyCommand, which always pushes everything (and clears the previous import first) regardless of
+        /// which ribbon button scope it would otherwise be.
+        /// </summary>
+        internal static Result Run(ExternalCommandData commandData, RoofPushScope requestedScope, ref string message)
         {
-            var scope = Scope | RoofPushScope.Roof;
+            var scope = requestedScope | RoofPushScope.Roof;
             var uidoc = commandData.Application.ActiveUIDocument;
             var doc = uidoc.Document;
             _selection = uidoc.Selection.GetElementIds();
@@ -317,9 +325,9 @@ namespace SportfyRevit
             PlanarFace? topFace = null;
             double maxZ = double.MinValue;
 
-            foreach (var geomObj in geomElem)
+            void ScanSolid(Solid solid)
             {
-                if (geomObj is not Solid solid || solid.Volume <= 0) continue;
+                if (solid.Volume <= 0) return;
                 foreach (Face face in solid.Faces)
                 {
                     if (face is not PlanarFace planarFace) continue;
@@ -328,6 +336,19 @@ namespace SportfyRevit
                     maxZ = planarFace.Origin.Z;
                     topFace = planarFace;
                 }
+            }
+
+            // A plain Floor/FootPrintRoof exposes its solids directly, but a family instance — which is how many IFC imports
+            // land, including the split-level slab this was built against — wraps its real geometry in a GeometryInstance
+            // (the symbol's geometry, transformed into place). Skipping that case is why this came back with no top face at
+            // all: not a wrong boundary, silently no boundary, so the caller fell back to the bounding-box rectangle instead
+            // of the slab's actual (here, non-rectangular) outline.
+            foreach (var geomObj in geomElem)
+            {
+                if (geomObj is Solid solid) { ScanSolid(solid); continue; }
+                if (geomObj is GeometryInstance gi)
+                    foreach (var inner in gi.GetInstanceGeometry())
+                        if (inner is Solid innerSolid) ScanSolid(innerSolid);
             }
             if (topFace == null) return null;
             topFaceZFt = maxZ;
