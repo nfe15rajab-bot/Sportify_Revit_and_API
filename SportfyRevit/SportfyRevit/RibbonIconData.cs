@@ -64,12 +64,15 @@ namespace SportfyRevit
             ["wind"] = new("physical", "M3 8h10a3 3 0 1 0 -3 -3 M3 12h15a3 3 0 1 1 -3 3 M3 16h7a2 2 0 1 1 -2 2", null),
             ["rain"] = new("physical", Cloud + " M8 19l-1 2 M12 19l-1 2 M16 19l-1 2", Cloud),
             ["ball"] = new("physical", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0 -18 M3.5 9c4 1.5 13 1.5 17 0 M3.5 15c4 -1.5 13 -1.5 17 0", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0 -18"),
+            // Kinetics "Simulate": the mechanism in motion, two circling arrows round a play triangle
+            ["simulate"] = new("physical", "M20 11a8 8 0 0 0 -14.5 -3 M4 4v4h4 M4 13a8 8 0 0 0 14.5 3 M20 20v-4h-4 M10 9l5 3l-5 3z", "M10 9l5 3l-5 3z"),
 
             // ---- BIM & documentation
             ["schedule"] = new("bim", Table, "M4 5h16v5h-16z"),
             ["filter"] = new("bim", "M4 4h16l-6 8v6l-4 2v-8z", "M4 4h16l-6 8v-1h-4v1z"),
             ["phasing"] = new("bim", "M4 6h16v14h-16z M4 11h16 M8 3v4 M16 3v4", "M4 6h16v5h-16z"),
             ["phase_assign"] = new("bim", "M4 6h16v14h-16z M4 11h16 M8 3v4 M16 3v4 M9 16l2 2l4 -4", "M4 6h16v5h-16z"),
+            ["phase_setup"] = new("bim", "M4 6h16v14h-16z M4 11h16 M8 3v4 M16 3v4 M12 13v5 M9.5 15.5h5", "M4 6h16v5h-16z"),
             ["worksets"] = new("bim", Layers + " M3 17l9 5l9 -5", "M12 3l9 5l-9 5l-9 -5z"),
             ["workset_assign"] = new("bim", "M12 3l9 5l-9 5l-9 -5z M3 13l9 5l9 -5 M9 8l2 2l4 -4", "M12 3l9 5l-9 5l-9 -5z"),
             ["iteration_switch"] = new("bim", "M4 14h9v6h-9z M7.5 9h9v6h-9z M11 4h9v6h-9z", "M11 4h9v6h-9z"),

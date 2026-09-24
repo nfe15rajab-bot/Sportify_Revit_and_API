@@ -57,9 +57,9 @@ namespace SportfyRevit
                 var axoView = CreateOrReuseAxonometricView(doc);
                 var groups = IterationWorksets.Find(doc);
                 how = groups.Count > 0
-                    ? $"Iteration {groups[^1].Index} only — {groups.Count} imported"
-                    : doc.IsWorkshared && new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Any(w => w.Name == BimRules.CombineWorkset)
-                        ? "Combine workset only"
+                    ? $"Iteration {groups[^1].Index} only — {groups.Count} imported; circulation bold red, pieces greyed out and labelled"
+                    : doc.IsWorkshared
+                        ? "circulation bold red, pieces greyed out and labelled"
                         : "the circulation paths, roof outline and entries only (the project has no worksets)";
                 circulationViewName = circulationView.Name;
                 axoViewName = axoView.Name;
@@ -109,11 +109,16 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// Shows only the Combine layer in `view`: the latest iteration's worksets if "Import Iterations as Design Options" has run
-        /// (mixing two iterations' boundaries/paths would just be confusing), otherwise the same plain-import rule this always used.
+        /// Shows exactly one coherent Sportify layout in `view` — the latest iteration's own worksets if "Import Iterations as
+        /// Design Options" has run, otherwise the plain import's Sports/Gardens/Combine — and hides every other workset (the
+        /// rest of the building this add-in did not create). Sports and Gardens are shown, not hidden: StyleCirculationDiagram
+        /// grays those pieces out and labels them rather than hiding them, so a workset-hidden piece (which no per-element
+        /// override can undo) would leave nothing for that styling to gray.
         /// </summary>
         private static void ApplyCombineVisibility(Document doc, View view)
         {
+            if (!doc.IsWorkshared) return;   // no worksets to hide the rest of the building by; StyleCirculationDiagram still styles every Sportify element it finds
+
             var groups = IterationWorksets.Find(doc);
             if (groups.Count > 0)
             {
@@ -125,19 +130,8 @@ namespace SportfyRevit
                 return;
             }
 
-            var worksets = doc.IsWorkshared
-                ? new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).ToDictionary(w => w.Name, w => w.Id)
-                : new Dictionary<string, WorksetId>();
-
-            if (worksets.ContainsKey(BimRules.CombineWorkset))
-            {
-                foreach (var (name, id) in worksets)
-                    view.SetWorksetVisibility(id, string.Equals(name, BimRules.CombineWorkset, StringComparison.OrdinalIgnoreCase) ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
-            }
-            else
-            {
-                HideAllButCombine(doc, view);
-            }
+            foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
+                view.SetWorksetVisibility(w.Id, BimRules.WorksetNames.Contains(w.Name) ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
         }
 
         /// <summary>
@@ -152,6 +146,8 @@ namespace SportfyRevit
         {
             var found = SportifyElementScan.Find(doc);
             if (found.IsEmpty) return;
+
+            if (view is ViewPlan plan) FixViewRangeForRoof(plan, found);
 
             var red = new Autodesk.Revit.DB.Color(196, 30, 58);
             var gray = new Autodesk.Revit.DB.Color(140, 140, 140);
@@ -219,8 +215,8 @@ namespace SportfyRevit
                 }
                 try { view.SetElementOverrides(el.Id, pieceOv); } catch (Exception) { /* a category this view type can't override — skip it, not fatal */ }
 
-                // In a non-workshared project HideAllButCombine already hid this element per-view rather than by
-                // workset (there is none); skip its label too, or it would float free of its now-invisible piece.
+                // A defensive check, not the usual path: nothing here hides a piece by view anymore (see ApplyCombineVisibility),
+                // but skip the label too if something else did, or it would float free of its now-invisible piece.
                 if (el is FamilyInstance && !el.IsHidden(view))
                 {
                     var bb = el.get_BoundingBox(view);
@@ -289,21 +285,6 @@ namespace SportfyRevit
             return view;
         }
 
-        /// <summary>
-        /// Without worksets: hides, in the view, what the import created and would have put on Sports or Gardens (courts, furniture, planting, ground floors), so that what is left is
-        /// what it puts on Combine. The same rule as the worksets' (BimRules.WorksetFor).
-        /// </summary>
-        private static void HideAllButCombine(Document doc, View view)
-        {
-            var toHide = new List<ElementId>();
-            foreach (var el in SportifyElementScan.Find(doc).Elements)
-            {
-                if (BimRules.WorksetFor(SportifyElementScan.KindOf(el), SportifyElementScan.CategoryOf(el), SportifyElementScan.IsPlanting(el)) == BimRules.CombineWorkset) continue;
-                if (el.CanBeHidden(view) && !el.IsHidden(view)) toHide.Add(el.Id);
-            }
-            if (toHide.Count > 0) view.HideElements(toHide);
-        }
-
         private static ViewPlan CreateFloorPlanView(Document doc)
         {
             var vft = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType)).Cast<ViewFamilyType>()
@@ -311,6 +292,41 @@ namespace SportfyRevit
             var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
                 .OrderBy(l => l.Elevation).First();
             return ViewPlan.Create(doc, vft.Id, level.Id);
+        }
+
+        /// <summary>
+        /// A freshly created floor plan is tied to the project's lowest level with a default (~2 m) view range around it — fine for a
+        /// roof a storey or two up, but this add-in's own roof can sit anywhere (a rooftop deck 12+ m up, in the building this was built
+        /// against). Without this, the view range simply does not reach the roof: nothing on it renders (courts, circulation, the
+        /// boundary), only annotation survives (text notes, the north arrow), which looked exactly like "the styling isn't applying" but
+        /// was really "there is nothing in view to style." Read the roof's own elements for their real Z instead of guessing from the
+        /// level, and set the range in offsets from whatever level the view is stuck with (ViewPlan.GenLevel cannot be reassigned after
+        /// creation) — offsets can be arbitrarily large, so this works whether that level is close to the roof or far below it.
+        /// </summary>
+        private static void FixViewRangeForRoof(ViewPlan view, SportifyElementScan.Found found)
+        {
+            double? minZ = null, maxZ = null;
+            foreach (var el in found.Elements)
+            {
+                var bb = el.get_BoundingBox(null);
+                if (bb == null) continue;
+                minZ = minZ == null ? bb.Min.Z : Math.Min(minZ.Value, bb.Min.Z);
+                maxZ = maxZ == null ? bb.Max.Z : Math.Max(maxZ.Value, bb.Max.Z);
+            }
+            if (minZ == null || maxZ == null) return;
+
+            var levelElevationFt = view.GenLevel.Elevation;
+            var marginFt = UnitUtils.ConvertToInternalUnits(1.5, UnitTypeId.Meters);
+
+            var range = view.GetViewRange();
+            var levelId = view.GenLevel.Id;
+            foreach (var plane in new[] { PlanViewPlane.TopClipPlane, PlanViewPlane.CutPlane, PlanViewPlane.BottomClipPlane, PlanViewPlane.ViewDepthPlane })
+                range.SetLevelId(plane, levelId);
+            range.SetOffset(PlanViewPlane.TopClipPlane, maxZ.Value - levelElevationFt + marginFt);
+            range.SetOffset(PlanViewPlane.CutPlane, maxZ.Value - levelElevationFt + marginFt * 0.5);
+            range.SetOffset(PlanViewPlane.BottomClipPlane, minZ.Value - levelElevationFt - marginFt);
+            range.SetOffset(PlanViewPlane.ViewDepthPlane, minZ.Value - levelElevationFt - marginFt);
+            view.SetViewRange(range);
         }
     }
 }

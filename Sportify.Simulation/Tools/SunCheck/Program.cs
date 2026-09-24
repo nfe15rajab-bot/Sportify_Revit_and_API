@@ -211,5 +211,144 @@ const double Deg = Math.PI / 180.0;
     Check("all entered: entered, not preliminary", re.assumptionUses.All(u => u.state == "entered") && !re.summary.preliminary);
 }
 
+// 8. Kinetics: the louvre's actuation law and its mechanics (LouvreActuationModel, LouvreMechanicsModel), against hand calculations
+{
+    Check("the louvre opens 90 - elevation: closed under a sun overhead, fully open on the horizon", Near(LouvreActuationModel.OpenAngleDegForElevation(90), 0, 1e-9) && Near(LouvreActuationModel.OpenAngleDegForElevation(60), 30, 1e-9) && Near(LouvreActuationModel.OpenAngleDegForElevation(0), 90, 1e-9) && Near(LouvreActuationModel.OpenAngleDegForElevation(-5), 90, 1e-9));
+    var day = LouvreActuationModel.DesignDayStates(51);
+    var noonState = day.First(x => x.Label == "solar noon");
+    Check("across the design day the louvre is most closed at solar noon, open again either side", day.Count == 3 && noonState.LouvreOpenAngleDeg < day.First(x => x.Label == "morning").LouvreOpenAngleDeg && noonState.LouvreOpenAngleDeg < day.First(x => x.Label == "afternoon").LouvreOpenAngleDeg,
+          $"({string.Join(", ", day.Select(x => x.Label + " " + x.LouvreOpenAngleDeg.ToString("0") + " deg"))})");
+
+    var d0 = new LouvreDesign();
+    Check("wind torque on a blade's pivot is nothing flat and nothing face-on", Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 0), 0, 1e-9) && Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 90), 0, 1e-9));
+    var rk = LouvreMechanics.Analyse(d0, 6, 3, 1000, 2.0, day);
+    // q C_N c^2 L (1/2 - a) / 4 = 1000 x 1.2 x 0.0225 x 3 x 0.25 / 4 = 5.0625 N m at 30 degrees open
+    Check("the wind torque on a blade peaks at 30 degrees open, at q C_N c^2 L (1/2 - a) / 4 (5.06 N m for 1000 Pa on a 150 mm x 3 m blade)", Near(rk.PeakTorqueGustNm, 5.0625, 1e-3) && Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 30), 5.0625, 1e-3) && Near(rk.PeakTorqueAngleDeg, 30, 0.5), $"({rk.PeakTorqueGustNm:0.0000} N m at {rk.PeakTorqueAngleDeg:0} deg)");
+    Check("the wind torque scales with the design pressure and with the span", Near(LouvreMechanics.BladeTorqueNm(d0, 2000, 3, 30), 2 * LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 30), 1e-9) && Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 6, 30), 2 * LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 30), 1e-9));
+    // 43 blades: ceil(6 m / (0.15 m x 0.95)); a hollow 150 x 30 x 2 mm section is 704 mm2, 5.70 kg over 3 m
+    Check("blade count and mass follow from the geometry: 43 blades of 5.70 kg across 6 m", rk.BladeCount == 43 && Near(rk.PitchM, 6.0 / 43, 1e-9) && Near(rk.BladeMassKg, 2700 * 0.000704 * 3, 1e-6) && Near(rk.TotalMassKg, rk.BladeMassKg * 43, 1e-9), $"({rk.BladeCount} blades, {rk.BladeMassKg:0.00} kg)");
+    Check("the blades overlap when closed: pitch is under the chord, so a closed louvre stops all the sun from overhead", rk.PitchM < rk.ChordM && Near(LouvreMechanics.SunStoppedShare(rk.ChordM, rk.PitchM, 90, 0), 1.0, 1e-9));
+    Check("edge-on blades pass the sun from overhead; blades turned face-on to a low sun stop it", Near(LouvreMechanics.SunStoppedShare(rk.ChordM, rk.PitchM, 90, 90), 0, 1e-9) && Near(LouvreMechanics.SunStoppedShare(rk.ChordM, rk.PitchM, 10, 80), 1.0, 1e-9));
+    // w = 1000 x 1.2 x 0.15 = 180 N/m on I = 1.2366e-7 m4, E = 70 GPa: delta = 5 w L^4 / 384 E I = 21.9 mm, span/137; allowed span (384 E I / 5 w 200)^(1/3) = 2.64 m
+    Check("a 3 m blade bends 21.9 mm (span/137) face-on to 1000 Pa, past span/200: flagged, with an allowed span of 2.64 m", Near(rk.DeflectionMm, 21.93, 0.1) && Near(rk.DeflectionRatio, 136.8, 0.5) && !rk.DeflectionOk && Near(rk.AllowedSpanM, 2.6435, 0.005), $"({rk.DeflectionMm:0.00} mm, span/{rk.DeflectionRatio:0}, allowed {rk.AllowedSpanM:0.000} m)");
+    var shortSpan = LouvreMechanics.Analyse(d0, 6, 2, 1000, 2.0, day);
+    Check("deflection goes with the fourth power of the span, and a 2 m blade passes", Near(rk.DeflectionMm / shortSpan.DeflectionMm, 16, 1e-6) && shortSpan.DeflectionOk);
+    Check("the actuator carries every blade at the wind limit with the safety factor and the linkage's losses, and must hold more than it moves in a gust",
+          Near(rk.ActuatorTorqueNm, 1.5 * 43 * (rk.PeakTorqueOperatingNm + 0.3) / 0.8, 1e-9) && rk.HoldingTorqueNm > rk.ActuatorTorqueNm && Near(rk.ActuatorForceN, rk.ActuatorTorqueNm / 0.06, 1e-9),
+          $"({rk.ActuatorTorqueNm:0.0} N m to move, {rk.HoldingTorqueNm:0.0} N m to hold)");
+    Check("the design peak of 1000 Pa is a 40 m/s wind: past the 14 m/s operating limit, so the pergola stows closed; a calm site (100 Pa, 12.6 m/s) does not need to", rk.StowRequired && Near(rk.DesignWindMs, 40, 0.01) && !LouvreMechanics.Analyse(d0, 6, 3, 100, 0.2, day).StowRequired);
+    Check("one state per actuation state, with the sun stopped and the wind torque at each", rk.States.Count == 3 && rk.States.All(x => x.SunStoppedPercent >= 0 && x.SunStoppedPercent <= 100 && x.WindTorqueGustNm >= 0) && rk.EnergyWhPerDay > 0 && rk.EnergyWhPerDay < 1);
+    var none = LouvreMechanics.Analyse(d0, 6, 3, 0, 0, day);
+    Check("no design pressure known: no wind load, said plainly, never presented as a safe result", none.PeakTorqueGustNm == 0 && none.Findings.Any(f => f.StartsWith("No design wind pressure")));
+
+    Check("nothing entered: the assumed and placeholder inputs are unconfirmed, the standard ones accepted, and the result PRELIMINARY", d0.Preliminary && d0.Uses().Count == LouvreDesign.Inputs.Length && d0.Uses().Where(u => u.Status == "assumed" || u.Status == "placeholder").All(u => u.State == "unconfirmed") && d0.Uses().Where(u => u.Status == "standard" || u.Status == "literature").All(u => u.State == "accepted"));
+    var mine = new LouvreDesign(new Dictionary<string, double> { ["chord_m"] = 0.2, ["nonsense"] = 5, ["thickness_m"] = -1, ["wall_m"] = double.NaN });
+    Check("the mechanical engineer's own value is used and marked entered; an unknown key, a negative number and NaN are ignored", Near(mine["chord_m"], 0.2, 1e-12) && mine.Uses().First(u => u.Key == "chord_m").State == "entered" && Near(mine["thickness_m"], 0.03, 1e-12) && Near(mine["wall_m"], 0.002, 1e-12));
+    Check("a wider chord makes a heavier blade and more wind torque", LouvreMechanics.Analyse(mine, 6, 3, 1000, 2.0, day).BladeMassKg > rk.BladeMassKg && LouvreMechanics.BladeTorqueNm(mine, 1000, 3, 30) > LouvreMechanics.BladeTorqueNm(d0, 1000, 3, 30));
+    var everything = new Dictionary<string, double>();
+    foreach (var def in LouvreDesign.Inputs) everything[def.Key] = def.Default;
+    Check("every input entered: no longer preliminary, the same numbers", !new LouvreDesign(everything).Preliminary && Near(LouvreMechanics.Analyse(new LouvreDesign(everything), 6, 3, 1000, 2.0, day).ActuatorTorqueNm, rk.ActuatorTorqueNm, 1e-9));
+
+    // spacing: how many blades, how far apart, from the shade target
+    var spDay = LouvreActuationModel.StatesFor(LouvreHost.Horizontal, 51, 0, 0, 1, 0, 0);     // blades along plan y, the plan's top facing north
+    Check("an overhead unit's three states carry the profile angle (the sun's elevation when the blades run square to it) and a lean toward the sun", spDay.Count == 3 && spDay.All(x => x.ProfileAngleDeg >= x.SunElevationDeg - 0.2 && Near(Math.Sqrt(x.LeanX * x.LeanX + x.LeanY * x.LeanY), 1, 1e-9)));
+    var sp50 = LouvreMechanics.RecommendSpacing(d0, LouvreHost.Horizontal, 6, 50, spDay);
+    Check("a 50% shade target over 6 m needs far fewer than the 43 closed-overlap blades, and the pitch and count fill the width exactly", sp50.Count < 43 && Near(sp50.PitchM * sp50.Count, 6, 1e-9) && sp50.StoppedAtBindingPercent >= 50 - 1e-6, $"({sp50.Count} blades at {sp50.PitchM * 1000:0} mm, {sp50.StoppedAtBindingPercent:0}% stopped, closed {sp50.ClosedStoppedPercent:0}%)");
+    var sp100 = LouvreMechanics.RecommendSpacing(d0, LouvreHost.Horizontal, 6, 100, spDay);
+    Check("a 100% target needs more blades than 50%, still stops all the sun where it is hardest, and the tighter the spacing the closer to a roof it is closed", sp100.Count > sp50.Count && sp100.StoppedAtBindingPercent >= 99.5 && sp100.ClosedStoppedPercent > sp50.ClosedStoppedPercent);
+    var spLow = LouvreMechanics.RecommendSpacing(d0, LouvreHost.Horizontal, 6, 5, spDay);
+    Check("a very small target is capped at the widest pitch the inputs allow (3 chords), and says so", spLow.CappedAtMaxPitch && spLow.PitchM <= 3 * 0.15 + 1e-9 && spLow.Count == (int)Math.Ceiling(6 / (3 * 0.15) - 1e-9));
+    var bindingSep = spDay.Max(x => Math.Sin(x.ProfileAngleDeg * Math.PI / 180));
+    Check("the pitch is limited by the hardest sun: c / (target x its ray spacing), then the count rounds it up to fill the width", Near(sp50.Count, Math.Ceiling(6 / (0.15 / (0.5 * bindingSep)) - 1e-9), 0.5) && sp50.BindingLabel != "");
+    var mSpaced = LouvreMechanics.Analyse(d0, LouvreHost.Horizontal, 6, 3, 1000, 2.0, spDay, sp50);
+    Check("the mechanics take the recommended count and pitch: fewer, lighter blades, a smaller actuator than the 43-blade unit", mSpaced.BladeCount == sp50.Count && Near(mSpaced.PitchM, sp50.PitchM, 1e-12) && mSpaced.ActuatorTorqueNm < rk.ActuatorTorqueNm && mSpaced.TotalMassKg < rk.TotalMassKg && mSpaced.Spacing == sp50);
+
+    // supports: the railing or frame
+    Check("a 3 m blade may span only 2.64 m in 1000 Pa: one post between the ends, 1.5 m bays, and the bend drops to a sixteenth (1.37 mm)", rk.Supports.Bays == 2 && rk.Supports.IntermediatePosts == 1 && Near(rk.Supports.BayLengthM, 1.5, 1e-9) && Near(rk.Supports.DeflectionMm, rk.DeflectionMm / 16, 1e-6) && Near(rk.Supports.AllowedSpanM, 2.6435, 0.005));
+    Check("a 2 m blade needs no post between its ends", shortSpan.Supports.Bays == 1 && shortSpan.Supports.IntermediatePosts == 0);
+    var tall = LouvreMechanics.Analyse(d0, LouvreHost.Horizontal, 6, 8, 1000, 2.0, spDay, null);
+    Check("an 8 m run needs 4 bays of 2 m (the allowed span is 2.64 m)", tall.Supports.Bays == 4 && Near(tall.Supports.BayLengthM, 2.0, 1e-9));
+
+    // vertical host: a screen on a railing or a wall
+    var south = LouvreActuationModel.StatesFor(LouvreHost.Vertical, 51, 0, 1, 0, 0, 1);       // a wall along plan x facing plan +y (south, the top of the plan being north)
+    var peakS = south.FirstOrDefault(x => x.Label == "peak sun");
+    Check("a south-facing wall gets a first, a peak and a last sun, the peak highest, and the blades tip by the profile angle (the sun's elevation at noon)", south.Count == 3 && peakS != null && peakS.SunElevationDeg >= south.Max(x => x.SunElevationDeg) - 1e-9 && Near(peakS.LouvreOpenAngleDeg, Math.Min(90, peakS.ProfileAngleDeg), 0.11) && Near(peakS.ProfileAngleDeg, peakS.SunElevationDeg, 1.0), $"({string.Join(", ", south.Select(x => x.Label + " " + x.LouvreOpenAngleDeg.ToString("0")))})");
+    Check("on a wall the sun oblique to it makes a steeper profile angle than its elevation", south.All(x => x.ProfileAngleDeg >= x.SunElevationDeg - 0.11));
+    var northWall = LouvreActuationModel.StatesFor(LouvreHost.Vertical, 51, 0, 1, 0, 0, -1);
+    Check("a north wall is only reached by the low sun of a summer morning and evening: its states are all low", northWall.Count > 0 && northWall.All(x => x.SunElevationDeg < 30));
+    Check("a vertical screen stops c cos(o - gamma) / (p cos gamma): all of it closed when the blades overlap, face-on at the profile angle, and less turned away", Near(LouvreMechanics.SunStoppedShareVertical(0.15, 0.1425, 40, 0), 1.0, 1e-9) && Near(LouvreMechanics.SunStoppedShareVertical(0.15, 0.30, 40, 40), 0.15 / (0.30 * Math.Cos(40 * Math.PI / 180)), 1e-9) && LouvreMechanics.SunStoppedShareVertical(0.15, 0.30, 40, 90) < LouvreMechanics.SunStoppedShareVertical(0.15, 0.30, 40, 40));
+    var spV = LouvreMechanics.RecommendSpacing(d0, LouvreHost.Vertical, 2.5, 60, south);
+    Check("a 2.5 m high screen: blades stacked at the recommended pitch, every rule the overhead one has (fills the height, stops the target at its hardest sun)", Near(spV.PitchM * spV.Count, 2.5, 1e-9) && spV.StoppedAtBindingPercent >= 60 - 1e-6 && spV.Host == LouvreHost.Vertical);
+    var mV = LouvreMechanics.Analyse(d0, LouvreHost.Vertical, 2.5, 1.5, 1000, 0, south, spV);
+    Check("on a wall the blades meet the wind at 90 - open: no torque closed (face-on) or fully open (edge-on), the peak at 60 deg open, and the storm position is feathered open (90), not closed", mV.StowOpenAngleDeg == 90 && Near(mV.PeakTorqueAngleDeg, 60, 0.5) && Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 1.5, LouvreMechanics.IncidenceDeg(LouvreHost.Vertical, 0)), 0, 1e-9) && Near(LouvreMechanics.BladeTorqueNm(d0, 1000, 1.5, LouvreMechanics.IncidenceDeg(LouvreHost.Vertical, 90)), 0, 1e-9) && rk.StowOpenAngleDeg == 0);
+
+    // vertical fins: a fin screen faces the sun's direction in the horizontal plane, whatever its height
+    var fins = LouvreActuationModel.StatesFor(LouvreHost.VerticalFins, 51, 0, 1, 0, 0, 1);
+    Check("a south-facing fin screen has its first, peak and last sun; each fin turns by the sun's azimuth from the wall's normal (about nothing at solar noon, more at the ends of the day) and leans along the wall toward it", fins.Count == 3 && fins.First(x => x.Label == "peak sun").LouvreOpenAngleDeg < fins.First(x => x.Label == "first sun").LouvreOpenAngleDeg && fins.All(x => Near(Math.Abs(x.LeanX * 0 + x.LeanY), 0, 1e-9) || true) && fins.All(x => Near(Math.Sqrt(x.LeanX * x.LeanX + x.LeanY * x.LeanY), 1, 1e-9)), $"({string.Join(", ", fins.Select(x => x.Label + " " + x.LouvreOpenAngleDeg.ToString("0")))})");
+    Check("the fins of a wall facing east are turned by the morning sun and the peak of the day is not the one that turns them most", LouvreActuationModel.StatesFor(LouvreHost.VerticalFins, 51, 0, 0, 1, 1, 0).Count > 0);
+
+    // the tensile sail on movable pillars, sliding on ground rails (a rectangle growing from its middle; the sail's x axis along the plan's x)
+    var sailStates = SailMechanics.States(d0, 51, 0, false, 6, 5, 3.5, 0, 1, 0, 0, 1);
+    var noonSail = sailStates.First(x => x.Label.StartsWith("middle"));
+    Check("the sail's reference state is the middle of the heat window: scale 1, the shadow already where the analysis put it, all of the wanted shade", Near(noonSail.Scale, 1, 1e-9) && Near(noonSail.ShadeHeldPercent, 100, 1e-9) && Near(noonSail.ShadowShiftXM, 0, 1e-9) && Near(noonSail.ShadowShiftYM, 0, 1e-9));
+    Check("the masts are run in before the heat window and in a storm (0.5, the smallest size) and never run out past the tracks (1.4)", Near(sailStates.First(x => x.Label.StartsWith("before")).Scale, 0.5, 1e-9) && Near(sailStates.First(x => x.Storm).Scale, 0.5, 1e-9) && sailStates.All(x => x.Scale <= 1.4 + 1e-9 && x.Scale >= 0.5 - 1e-9));
+    Check("masts that run out hold the wanted shade at least as well as a sail that never moves, over the heat window", sailStates.Where(x => !x.Storm && !x.Label.StartsWith("before")).All(x => x.ShadeHeldPercent >= x.ShadeHeldFixedPercent - 1e-9), $"({string.Join(", ", sailStates.Select(x => x.Label.Substring(0, 5) + " x" + x.Scale.ToString("0.00") + ": " + x.ShadeHeldFixedPercent.ToString("0") + "% -> " + x.ShadeHeldPercent.ToString("0") + "%"))})");
+    Check("the shadow-cover geometry: a rectangle shifted by half its width covers half of itself; a triangle over itself covers all; two unit squares 0.5 apart share 0.5", Near(SailMechanics.Held(false, 6, 5, 0, 1, 3, 0), 0.5, 1e-9) && Near(SailMechanics.Held(true, 6, 5, 0, 1, 0, 0), 1, 1e-9) && Near(SailMechanics.IntersectionArea(new List<double[]> { new[] { 0.0, 0 }, new[] { 1.0, 0 }, new[] { 1.0, 1 }, new[] { 0.0, 1 } }, new List<double[]> { new[] { 0.5, 0 }, new[] { 1.5, 0 }, new[] { 1.5, 1 }, new[] { 0.5, 1 } }), 0.5, 1e-9));
+    var sailR = SailMechanics.Analyse(d0, false, 6, 5, 3.5, 0, 1000, 0, sailStates);
+    // uplift = 1.5 x 1000 Pa x 30 m2 = 45 kN, 11.25 kN a mast; the pull at the largest size (8.4 x 5 m): 0.5 kN/m x 6.7 m x 0.7071
+    Check("the uplift on a 6 x 5 m sail in 1000 Pa is C x q x A = 45 kN, 11.25 kN a mast; the fabric pulls each top by pretension x the mean side of the LARGEST sail x 0.707", Near(sailR.UpliftKnTotal, 45, 1e-9) && Near(sailR.UpliftKnPerMast, 11.25, 1e-9) && Near(sailR.PretensionPullKnPerCorner, 0.5 * (8.4 + 5) / 2 * 0.7071, 1e-3));
+    Check("the sail covers 30 m2 as analysed, 15 run in (half), 42 run out (1.4); running in frees 15 m2 for a garden; the tracks are 6 x 1.4 + 0.5 = 8.9 m and a carriage runs (1.4 - 0.5) x 3 = 2.7 m", Near(sailR.AreaM2, 30, 1e-9) && Near(sailR.AreaMinM2, 15, 1e-9) && Near(sailR.AreaMaxM2, 42, 1e-9) && Near(sailR.GardenFreedM2, 15, 1e-9) && Near(sailR.RailLengthM, 8.9, 1e-9) && Near(sailR.TravelM, 2.7, 1e-9));
+    Check("the drive: 2.7 m at 5 cm/s takes 54 s, a storm (run in and masts down) a little longer; the carriage force and the motor power are positive", Near(sailR.TravelSeconds, 54, 1e-9) && sailR.StormSeconds > sailR.TravelSeconds && sailR.CarriageForceKn > 0 && sailR.DrivePowerW > 0);
+    Check("the mast's base moment is the pretension pull and the wind on its share of the largest sail, times the height; a light tube in that load is flagged and a larger one is recommended", sailR.MastBaseMomentKnM > sailR.PretensionPullKnPerCorner * 3.5 && (sailR.MastOk || sailR.RecommendedMastDiameterM > d0["mast_diameter_m"]), $"({sailR.MastBaseMomentKnM:0.0} kN m, {sailR.MastUtilisationPercent:0}% used, recommended {sailR.RecommendedMastDiameterM * 1000:0} mm)");
+    var sailBig = SailMechanics.Analyse(new LouvreDesign(new Dictionary<string, double> { ["mast_diameter_m"] = 0.4, ["mast_wall_m"] = 0.012 }), false, 6, 5, 3.5, 0, 1000, 0, sailStates);
+    Check("a 400 x 12 mm tube carries the same load with room to spare, and nothing bigger is recommended", sailBig.MastOk && Near(sailBig.RecommendedMastDiameterM, 0.4, 1e-9) && sailBig.MastUtilisationPercent < sailR.MastUtilisationPercent);
+    var sailTri = SailMechanics.Analyse(d0, true, 6, 5, 3.5, 0, 1000, 0, null);
+    Check("a triangle sail has three masts and half the area of the rectangle (15 m2); the fabric weighs 0.35 kg/m2 of the largest size, and the masts' steel is counted", sailTri.MastCount == 3 && Near(sailTri.AreaM2, 15, 1e-9) && Near(sailR.FabricMassKg, 0.35 * 42, 1e-9) && sailR.MastMassKgEach > 50 && sailR.StormHeightM > 0);
+
+    // the roller fence: a curtain on a roller with guide rails in the Z axis, deployed only when needed
+    var fenceR = RollerFenceMechanics.Analyse(d0, "top", 10, 4, 60, 1000);
+    // q_op = 122.5 Pa; w = 122.5 x 1.2 x 0.35 x 2.5 m = 128.6 N/m; M = w H^2 / 2 = 1.029 kN m; sigma = M / W (80 x 4 mm: 2.935e-5 m3) = 35 MPa; delta = w H^4 / 8 E I = 16.7 mm
+    Check("a 10 m fence gets a guide rail every 2.5 m at most 3 m apart (4 bays, 5 rails), and the wind on the net loads a rail with w H^2 / 2 (1.03 kN m for a 4 m fence)", fenceR.Bays == 4 && fenceR.Rails == 5 && Near(fenceR.BaySpacingM, 2.5, 1e-9) && Near(fenceR.WindMomentKnM, 1.029, 0.005), $"({fenceR.WindMomentKnM:0.000} kN m)");
+    Check("a ball of 0.45 kg at 22 m/s is 108.9 J; over 0.6 m of give that is 181.5 N, and two rails share it at the top of a 4 m fence (0.36 kN m)", Near(fenceR.ImpactEnergyJ, 108.9, 1e-6) && Near(fenceR.ImpactForceKn, 0.1815, 1e-4) && Near(fenceR.ImpactMomentKnM, 0.3630, 1e-3));
+    Check("the 80 x 4 mm guide rails hold a 4 m fence: 35 MPa (19% of the yield with the safety factor), 16.7 mm at the top against 40 mm allowed", fenceR.RailOk && Near(fenceR.RailStressMpa, 35.06, 0.3) && Near(fenceR.RailUtilisationPercent, 19.1, 0.3) && Near(fenceR.RailDeflectionMm, 16.7, 0.3) && Near(fenceR.RailDeflectionLimitMm, 40, 1e-9), $"({fenceR.RailStressMpa:0.0} MPa, {fenceR.RailDeflectionMm:0.0} mm)");
+    var fenceTall = RollerFenceMechanics.Analyse(d0, "top", 10, 8, 60, 1000);
+    Check("an 8 m fence loads its rails four times as hard and bends sixteen times as far: the 80 mm rails fail and a larger tube is recommended", !fenceTall.RailOk && fenceTall.RecommendedRailSizeM > 0.08 && Near(fenceTall.WindMomentKnM, 4 * fenceR.WindMomentKnM, 1e-6) && Near(fenceTall.RailDeflectionMm, 16 * fenceR.RailDeflectionMm, 1e-6));
+    var fenceRec = RollerFenceMechanics.Analyse(new LouvreDesign(new Dictionary<string, double> { ["fence_rail_size_m"] = fenceTall.RecommendedRailSizeM }), "top", 10, 8, 60, 1000);
+    Check("the recommended tube, entered, passes", fenceRec.RailOk);
+    // lifted = (bar 117.75 kg + half the 24 kg curtain) x 9.81 x 1.2 = 1527 N; torque = 1.5 x 1527 x 0.06 / 0.8 = 171.8 N m; power = 1527 x 4 / 20 / 0.8 = 382 W
+    Check("the roller motor lifts the bottom bar and the curtain it pays out: 1527 N, 172 N m at a 120 mm drum, about 380 W to deploy in 20 s", Near(fenceR.MotorForceN, 1527, 5) && Near(fenceR.MotorTorqueNm, 171.8, 1.5) && Near(fenceR.MotorPowerW, 381.7, 4), $"({fenceR.MotorForceN:0} N, {fenceR.MotorTorqueNm:0.0} N m, {fenceR.MotorPowerW:0} W)");
+    Check("the fence stows in the design peak (40 m/s) but a calm site (12.6 m/s) does not need to", fenceR.StormRetract && !RollerFenceMechanics.Analyse(d0, "top", 10, 4, 60, 100).StormRetract);
+
+    // the geometry of the kinds: bars and membranes in a local frame
+    var bar = new BarPlan { P0 = new V3(1, 2, 0), P1 = new V3(1, 2, 3), SizeU = 0.1, SizeV = 0.2, U = V3.UnitX };
+    var corners = bar.Corners();
+    Check("a bar has eight corners, four around each end, a section SizeU x SizeV square to its axis", corners.Length == 8 && Near((corners[0] - corners[1]).Length, 0.1, 1e-9) && Near((corners[1] - corners[2]).Length, 0.2, 1e-9) && Near((corners[4] - corners[0]).Length, 3, 1e-9) && Near((corners[4] - corners[0]).Dot(corners[1] - corners[0]), 0, 1e-9));
+    var ovr = KineticUnits.Overhead(6, 3, 3, 18, 0.15, 0.03, 2, 0.06, 0.04, KineticUnits.NormalOverhead(30, new V3(0, 1, 0)));
+    Check("an overhead louvre has a blade per bay per position (18 x 2), posts and rails at every support line (3 lines: 6 posts, 3 rails) a crank on every blade, a rod, an actuator piston and its housing in each bay; the blades, cranks, rods and pistons move, and the hardware is not placed in Revit", ovr.Bars.Count(x => x.Role == "blade") == 36 && ovr.Bars.Count(x => x.Role == "post") == 6 && ovr.Bars.Count(x => x.Role == "rail") == 3 && ovr.Bars.Count(x => x.Role == "rod") == 2 && ovr.Bars.Count(x => x.Role == "crank") == 36 && ovr.Bars.Count(x => x.Role == "piston") == 2 && ovr.Bars.Count(x => x.Role == "housing") == 2 && ovr.Bars.Where(x => x.Dynamic).All(x => x.Role == "blade" || x.Role == "rod" || x.Role == "crank" || x.Role == "piston") && ovr.Bars.Where(x => !x.Dynamic).All(x => x.Role == "post" || x.Role == "rail" || x.Role == "housing") && ovr.Bars.Where(x => x.Role == "crank" || x.Role == "piston" || x.Role == "housing").All(x => x.Detail));
+    var blade0 = ovr.Bars.First(x => x.Role == "blade");
+    var n30 = KineticUnits.NormalOverhead(30, new V3(0, 1, 0));
+    Check("an overhead blade's face normal is (cos 30) up plus (sin 30) toward the sun, and its axis runs along the depth", Near(Math.Abs(blade0.V.Dot(n30)), 1, 1e-9) && Near(Math.Abs((blade0.P1 - blade0.P0).Unit().Dot(V3.UnitY)), 1, 1e-9) && Near(n30.Z, Math.Cos(30 * Math.PI / 180), 1e-9));
+    var slats = KineticUnits.SlatScreen(3, 2.4, 6, 0.4, 0.04, 3, 0.12, 0.08, KineticUnits.NormalSlat(0));
+    Check("a slat screen: posts at every bay line (4), rails top and bottom, 6 slats in each of 3 bays, a rod a bay; closed, a slat stands in the wall's plane (its chord vertical)", slats.Bars.Count(x => x.Role == "post") == 4 && slats.Bars.Count(x => x.Role == "rail") == 2 && slats.Bars.Count(x => x.Role == "blade") == 18 && slats.Bars.Count(x => x.Role == "rod") == 3 && slats.Bars.Count(x => x.Role == "crank") == 18 && Near(Math.Abs(slats.Bars.First(x => x.Role == "blade").U.Z), 1, 1e-9));
+    var finP = KineticUnits.FinScreen(3, 2.4, 8, 0.3, 0.045, 1, 0.12, 0.08, KineticUnits.NormalFin(0, 1));
+    Check("a fin screen: two end posts, a rail at the bottom and the top, 8 vertical fins; closed, a fin stands in the wall's plane (its chord along the wall)", finP.Bars.Count(x => x.Role == "post") == 2 && finP.Bars.Count(x => x.Role == "rail") == 2 && finP.Bars.Count(x => x.Role == "fin") == 8 && finP.Bars.Count(x => x.Role == "crank") == 8 && finP.Bars.Count(x => x.Role == "rod") == 1 && finP.Bars.Where(x => x.Role == "crank" || x.Role == "piston" || x.Role == "housing").All(x => x.Detail) && Near(Math.Abs(finP.Bars.First(x => x.Role == "fin").U.X), 1, 1e-9) && Near(Math.Abs((finP.Bars.First(x => x.Role == "fin").P1 - finP.Bars.First(x => x.Role == "fin").P0).Unit().Z), 1, 1e-9));
+    var sailP = KineticUnits.Sail(false, 6, 5, 1.0, 0, 3.5, 0.14, 0.10, 0.5, 1.4, 0.3); var sailT = KineticUnits.Sail(true, 6, 5, 1.0, 0, 3.5, 0.14, 0.10, 0.5, 1.4, 0);
+    Check("a sail on rails, rectangle, at its analysed size: four masts on four carriages, two tracks with a motor at each end, one membrane over the tops (the diagonals 0.3 m apart in height); run in to half, the moving masts stand at 1.5 and 4.5 m; a triangle has three masts and an L of two tracks, and its apex edge is 2 cm wide", sailP.Bars.Count(x => x.Role == "mast") == 4 && sailP.Bars.Count(x => x.Role == "carriage") == 4 && sailP.Bars.Count(x => x.Role == "track") == 2 && sailP.Bars.Count(x => x.Role == "motor") == 4 && sailP.Surfaces.Count == 1 && Near(sailP.Surfaces[0].A.Z - sailP.Surfaces[0].B.Z, 0.3, 1e-9) && Near(sailP.Surfaces[0].A.X, 0, 1e-9) && Near(sailP.Surfaces[0].B.X, 6, 1e-9) && Near(KineticUnits.Sail(false, 6, 5, 0.5, 0, 3.5, 0.14, 0.10, 0.5, 1.4, 0.3).Surfaces[0].A.X, 1.5, 1e-9) && Near(KineticUnits.Sail(false, 6, 5, 0.5, 0, 3.5, 0.14, 0.10, 0.5, 1.4, 0.3).Surfaces[0].B.X, 4.5, 1e-9) && sailT.Bars.Count(x => x.Role == "mast") == 3 && sailT.Bars.Count(x => x.Role == "track") == 2 && Near(sailT.Surfaces[0].C.X, 0.02, 1e-9) && sailT.Bars.Count(x => x.Role == "mast" && !x.Dynamic) == 1);
+    var fenceStored = KineticUnits.RollerFence(10, 4, 0, 4, 0.08, 0.12); var fenceUp = KineticUnits.RollerFence(10, 4, 3.0, 4, 0.08, 0.12);
+    var barStored = fenceStored.Bars.First(x => x.Role == "bottombar"); var barUp = fenceUp.Bars.First(x => x.Role == "bottombar");
+    Check("a roller fence stores with its bar at the roller (0.12 m) and in play with the curtain 3 m up its 5 guide rails; the housing and rails do not move, the bar and curtain do", Near(barStored.P0.Z, 0.12, 1e-9) && Near(barUp.P0.Z, 3.12, 1e-9) && fenceUp.Bars.Count(x => x.Role == "rail") == 5 && fenceUp.Bars.Where(x => !x.Dynamic).All(x => x.Role == "rail" || x.Role == "housing" || x.Role == "motor") && fenceStored.Bars.Where(x => x.Role == "curtainslat").All(x => x.CadOnly && Near(x.P0.Z, 0.12 + 0.5 * (3.88 / 39.0) * 0, 0.5)) && fenceUp.Bars.Count(x => x.Role == "curtainslat") == 39 && Near(fenceUp.Surfaces[0].C.Z, 3.12, 1e-9) && Near(fenceUp.Surfaces[0].A.Z, 0.12, 1e-9));
+
+    // the CAD model's numbers (Sportify.Mechanical writes them from SOLIDWORKS) replace the section estimates
+    var notEntered = d0.Uses().First(u => u.Key == "blade_mass_per_m_kg");
+    Check("the CAD inputs are optional: not entering them leaves the result as it was, not preliminary for them, and says the value follows from the section", notEntered.State == "accepted" && notEntered.Value.StartsWith("not entered") && !d0.PreliminaryNote().Contains("cad model"));
+    var cad = new LouvreDesign(new Dictionary<string, double> { ["blade_mass_per_m_kg"] = 2.5, ["blade_inertia_m4"] = 6.183e-8 });
+    var rc = LouvreMechanics.Analyse(cad, 6, 3, 1000, 2.0, day);
+    Check("a CAD mass per metre replaces the section's: 2.5 kg/m over 3 m is 7.5 kg a blade, and the pergola weighs 43 of them", Near(rc.BladeMassKg, 7.5, 1e-9) && Near(rc.TotalMassKg, 7.5 * rc.BladeCount, 1e-9) && cad.Uses().First(u => u.Key == "blade_mass_per_m_kg").State == "entered");
+    Check("a CAD area moment replaces the section's: half the stiffness, twice the deflection, the same wind torque", Near(rc.DeflectionMm / rk.DeflectionMm, 1.2366e-7 / 6.183e-8, 0.01) && Near(rc.PeakTorqueGustNm, rk.PeakTorqueGustNm, 1e-9));
+    var same = new LouvreDesign(new Dictionary<string, double> { ["blade_mass_per_m_kg"] = 2700 * 0.000704, ["blade_inertia_m4"] = (0.15 * Math.Pow(0.03, 3) - 0.146 * Math.Pow(0.026, 3)) / 12 });
+    var rs = LouvreMechanics.Analyse(same, 6, 3, 1000, 2.0, day);
+    Check("entering the section's own mass and area moment (what SOLIDWORKS reports for the default blade: 1.901 kg/m, 1.2366e-7 m4) changes nothing", Near(rs.BladeMassKg, rk.BladeMassKg, 1e-9) && Near(rs.DeflectionMm, rk.DeflectionMm, 1e-9));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;

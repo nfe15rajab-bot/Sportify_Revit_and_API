@@ -65,6 +65,22 @@ namespace SportfyRevit
         /// <summary>How far the plan is turned from the model's X axis (radians, counter-clockwise), for the rotation of placed families.</summary>
         internal static double CurrentAngleRad => CurrentFrame.AngleRad;
 
+        /// <summary>The roof's plan size (metres) of the import in progress, or of the last layout adopted.</summary>
+        internal static (double LengthM, double WidthM) CurrentRoofSizeM => (CurrentFrame.Length, CurrentFrame.Width);
+
+        /// <summary>
+        /// Sets the roof's plan frame and elevation from a layout without building anything: Kinetics places against the roof the web app last pushed, also in a
+        /// Revit session that has not imported it (the frame is otherwise only set by BuildGeometry, so a restarted Revit would place at the model's origin).
+        /// </summary>
+        internal static void AdoptRoofFrame(SportifyLayout layout)
+        {
+            var roof = layout.RoofContext;
+            if (roof == null) return;
+            CurrentOriginZFt = FeetFromMeters(roof.WorldOriginZM);
+            CurrentRoofWidthFt = FeetFromMeters(roof.WidthM);
+            CurrentFrame = new RoofFrame(roof.WorldOriginXM, roof.WorldOriginYM, roof.RotationDeg * Math.PI / 180.0, roof.LengthM, roof.WidthM);
+        }
+
         internal static XYZ PlanPointFt(double planXM, double planYM, double zFt)
         {
             var (x, y) = PlanToWorldFt(planXM, planYM);
@@ -163,6 +179,17 @@ namespace SportfyRevit
             CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
             int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], circulationStyle, nodeStyle, createdIds);
             int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], entryStyle, createdIds);
+
+            // What an import brings is the design being analysed: the "Design and analysis" phase when the project has one (the Sportify phase system is Existing /
+            // Design and analysis / Post analysis; the dynamic furniture Kinetics places afterwards goes to Post analysis). A project without that phase keeps
+            // what it made in the phase it was created in, and the batch-assign command (Phasing & Worksets) can settle it later.
+            try
+            {
+                var moved = SportifyPhases.Assign(doc, createdIds, SportifyPhases.DesignAndAnalysis, doc.ActiveView, out var phaseNote);
+                if (moved > 0) SportifyLog.Info("import", moved + " imported element(s) put in the \"" + SportifyPhases.DesignAndAnalysis + "\" phase");
+                else if (phaseNote.Length > 0) SportifyLog.Info("import", "phases: " + phaseNote);
+            }
+            catch (Exception ex) { SportifyLog.Warn("import", "the imported elements could not be put in the Design and analysis phase: " + ex.Message); }
 
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
         }
