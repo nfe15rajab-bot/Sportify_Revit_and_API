@@ -46,7 +46,7 @@ namespace Sportify.Simulation.Sun
             new LouvreInputDef { Key = "post_size_m", Label = "Railing / frame post, outer size (square hollow section)", Unit = "m", Default = 0.06, Status = "assumed", Reference = "the supports the blades pivot in; from the railing design" },
             new LouvreInputDef { Key = "post_wall_m", Label = "Railing / frame post wall thickness", Unit = "m", Default = 0.003, Status = "assumed", Reference = "square hollow section" },
             new LouvreInputDef { Key = "rail_size_m", Label = "Railing / frame rail, outer size (square hollow section)", Unit = "m", Default = 0.04, Status = "assumed", Reference = "the rails that carry the blade bearings and tie the posts" },
-            // The tensile sail on movable pillars (SailMechanics): steel masts that lean on an actuator, fabric between their tops.
+            // The tensile sail on movable pillars (SailMechanics): steel masts on carriages that run on ground tracks, fabric between their tops.
             new LouvreInputDef { Key = "mast_diameter_m", Label = "Sail mast, outer diameter (steel tube)", Unit = "m", Default = 0.14, Status = "assumed", Reference = "the yellow masts of a shade-sail structure are 114 to 219 mm tubes; replace with the designed section" },
             new LouvreInputDef { Key = "mast_wall_m", Label = "Sail mast wall thickness", Unit = "m", Default = 0.006, Status = "assumed", Reference = "circular hollow section" },
             new LouvreInputDef { Key = "steel_youngs_pa", Label = "Steel Young's modulus", Unit = "Pa", Default = 210e9, Status = "standard", Reference = "structural steel" },

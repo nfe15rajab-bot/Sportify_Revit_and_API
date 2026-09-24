@@ -365,7 +365,7 @@ namespace SportfyRevit
     }
 
     /// <summary>
-    /// Kinetics, step 3: closes the loop. For the kind chosen, works out from the published analyses how many blades and how far apart (or how the masts lean, or what the
+    /// Kinetics, step 3: closes the loop. For the kind chosen, works out from the published analyses how many blades and how far apart (or how far the sail's masts run on their tracks, or what the
     /// fence needs), what carries them, and how they move; then places (or replaces) the unit as adaptive components: the moving parts on the Dynamic Furniture workset,
     /// the frame that carries them on the Structure workset, all in the Post analysis phase, opened to the sun's solar-noon state (LouvreActuationModel).
     /// </summary>
@@ -509,7 +509,7 @@ namespace SportfyRevit
             var request = KineticsRender.For(unit, design, ctx.Env);
             var requestFile = Path.Combine(Path.GetTempPath(), "sportify-kinetics-request-" + Guid.NewGuid().ToString("N") + ".json");
             File.WriteAllText(requestFile, JsonSerializer.Serialize(request));
-            var outDir = Path.Combine(SportifyWorkspace.EnsureCreated(), "Mechanical");
+            var outDir = SportifyWorkspace.PathFor("mechanical");
 
             MechanicalTool.Outcome run;
             try { run = MechanicalTool.Run(tool, requestFile, outDir, unit.Host.Key, "Simulating the " + KineticKinds.Get(ctx.Kind).Label.ToLowerInvariant() + " in SOLIDWORKS"); }

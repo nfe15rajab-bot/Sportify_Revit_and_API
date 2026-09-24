@@ -34,6 +34,7 @@ namespace SportfyRevit
             new("reports", "Analysis reports", "Analysis reports", "The analysis report (PDF): every check that has been run, the schedule and the diagrams."),
             new("schedules", "Schedules", "Schedules", "Component schedules (CSV)."),
             new("diagrams", "Diagrams", "Diagrams", "Functional diagrams exported from Revit (PNG)."),
+            new("mechanical", "Mechanical", "SOLIDWORKS assemblies", "The SOLIDWORKS assemblies (SLDASM), STEP files and films of the dynamic units Kinetics builds, for the mechanical engineer."),
         };
 
         static string? _override;

@@ -12,7 +12,7 @@ namespace SportfyRevit
 
     /// <summary>
     /// Puts a planned kinetic unit (KineticUnits: bars and membranes in a local frame) into a project as adaptive component instances: one instance per bar (its eight
-    /// corner points set from the plan) and per membrane (its four corners). The tilt of a blade, the lean of a mast, the height of a curtain are only where the points
+    /// corner points set from the plan) and per membrane (its four corners). The tilt of a blade, the place of a mast on its track, the height of a curtain are only where the points
     /// are. Moving parts go on the dynamic furniture workset, the frame that carries them on the structure workset; every instance is tagged Sportify_Category = "kinetics"
     /// with its unit and role, so the next placement can replace it and the schedules can count it. Inside a transaction.
     /// </summary>

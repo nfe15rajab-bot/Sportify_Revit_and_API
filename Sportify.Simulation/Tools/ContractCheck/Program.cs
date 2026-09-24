@@ -221,7 +221,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     // the folder
     Check("the default is a \"Sportify Workspace\" folder in Documents (never Documents\\Sportify, where the web app itself lives), and the installer's choice wins", SportifyWorkspace.DefaultFolder.EndsWith("Sportify Workspace") && SportifyWorkspace.Folder == root);
     SportifyWorkspace.EnsureCreated();
-    Check("it is made with a subfolder for every kind of deliverable", SportifyWorkspace.Kinds.Length == 8 && SportifyWorkspace.Kinds.All(k => Directory.Exists(Path.Combine(root, k.Folder))), string.Join(", ", SportifyWorkspace.Kinds.Select(k => k.Folder)));
+    Check("it is made with a subfolder for every kind of deliverable", SportifyWorkspace.Kinds.Length == 9 && SportifyWorkspace.Kinds.All(k => Directory.Exists(Path.Combine(root, k.Folder))), string.Join(", ", SportifyWorkspace.Kinds.Select(k => k.Folder)));
     SportifyWorkspace.SaveSetting(@"D:\Somewhere Else");
     SportifyWorkspace.SaveSetting(@"D:\Another Place");
     Check("the choice is kept in the settings file (the installer writes it, the add-in reads it), other settings untouched",

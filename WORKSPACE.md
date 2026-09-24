@@ -22,6 +22,7 @@ Sportify.Installer.exe --workspace "D:\Projects\Sportify"
 | `Analysis reports` | the analysis report (PDF) | the report button in Revit or in the web app |
 | `Schedules` | component schedules (CSV) | the Schedules button in Revit or in the web app |
 | `Diagrams` | functional diagrams (PNG) | Revit's views, from the ribbon or from the web app |
+| `Mechanical` | the SOLIDWORKS assemblies (SLDASM), STEP files and films of the Kinetics dynamic units | the Kinetics panel's Simulate button in Revit (needs SOLIDWORKS) |
 
 Files are never overwritten: a name that exists gets a number. `SportifyWorkspace.cs` is the one description of all this; the installer, the add-in and `Tools/ContractCheck` compile the same file.
 

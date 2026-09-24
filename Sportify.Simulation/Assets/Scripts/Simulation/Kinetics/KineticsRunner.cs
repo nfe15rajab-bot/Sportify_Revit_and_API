@@ -39,7 +39,7 @@ namespace Sportify.Simulation.Kinetics
             public string label;
             public float solarTimeH, sunElevationDeg;
             public float sunX, sunY;                                    // the horizontal direction toward the sun in the unit's frame
-            public float openDeg;                                       // the louvre opening, the mast lean
+            public float openDeg;                                       // the louvre opening, or the fraction of the analysed size a sail's masts are run out to
             public float sunStoppedPercent, windTorqueOperatingNm;      // the mechanics at this state (LouvreMechanics): the direct sun stopped, and the wind torque on one blade's pivot at the operating wind limit
             public BarInput[] bars = Array.Empty<BarInput>();
             public SurfaceInput[] surfaces = Array.Empty<SurfaceInput>();
