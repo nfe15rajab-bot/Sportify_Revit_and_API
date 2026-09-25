@@ -27,10 +27,14 @@ $tmp = Join-Path $env:TEMP ("sportify-install-test-" + [guid]::NewGuid().ToStrin
 $app = "$tmp\app folder"; $addins = "$tmp\addins"; $settings = "$tmp\settings"; $work = "$tmp\my sportify files"
 New-Item -ItemType Directory -Force $addins | Out-Null
 # an older add-in manifest, as found on machines that had the first Sportify: setup must switch it off when asked to
-Set-Content "$addins\Sportify.addin" '<RevitAddIns><AddIn Type="Application"><Name>Sportify</Name><Assembly>Sportify\Sportify.dll</Assembly></AddIn></RevitAddIns>'
+$legacy = '<RevitAddIns><AddIn Type="Application"><Name>Sportify</Name><Assembly>Sportify\Sportify.dll</Assembly></AddIn></RevitAddIns>'
+Set-Content "$addins\Sportify.addin" $legacy
+# ... and the same one for all users of the computer (C:\ProgramData\Autodesk\Revit\Addins\2025 on a real machine; redirected here so that the real one is never touched)
+New-Item -ItemType Directory -Force "$tmp\allusers" | Out-Null
+Set-Content "$tmp\allusers\Sportify.addin" $legacy
 
 Write-Host "Installing $(Split-Path $Setup -Leaf) into $tmp"
-$p = Start-Process -FilePath $Setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$app`"", "/ADDINSDIR=`"$addins`"", "/SETTINGSDIR=`"$settings`"", "/DELIVERABLES=`"$work`"", "/NOSTARTAPI=1", "/NOPREREQS=1", "/DISABLELEGACY=1", "/NOSHORTCUTS=1", "/LOG=`"$tmp\setup.log`"") -Wait -PassThru
+$p = Start-Process -FilePath $Setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/DIR=`"$app`"", "/ADDINSDIR=`"$addins`"", "/ALLUSERSADDINSDIR=`"$tmp\allusers`"", "/SETTINGSDIR=`"$settings`"", "/DELIVERABLES=`"$work`"", "/NOSTARTAPI=1", "/NOPREREQS=1", "/DISABLELEGACY=1", "/NOSHORTCUTS=1", "/LOG=`"$tmp\setup.log`"") -Wait -PassThru
 Expect ($p.ExitCode -eq 0) "the installer exits with code 0 (got $($p.ExitCode))"
 
 Write-Host "What was installed:"
@@ -56,6 +60,7 @@ if (Test-Path $manifest) {
     Expect ($ai.FullClassName -eq "SportfyRevit.SportfyRevitApp" -and $ai.Type -eq "Application") "the manifest starts the application class"
 }
 Expect ((Test-Path "$addins\Sportify.addin.disabled") -and -not (Test-Path "$addins\Sportify.addin")) "the older Sportify.addin was switched off, not deleted"
+Expect ((Test-Path "$tmp\allusers\Sportify.addin.disabled") -and -not (Test-Path "$tmp\allusers\Sportify.addin")) "the older all-users Sportify.addin was switched off too"
 
 Write-Host "Settings and the Sportify folder:"
 $json = Get-Content "$settings\settings.json" -Raw -Encoding UTF8 | ConvertFrom-Json

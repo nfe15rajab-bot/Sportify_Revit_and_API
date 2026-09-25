@@ -136,6 +136,7 @@ jobs:
           path: |
             dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe
             dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe.sha256
+            dist/Sportify-${{ steps.version.outputs.version }}-Revit2025.zip
           retention-days: 30
 
       - name: Publish the release

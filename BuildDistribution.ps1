@@ -135,6 +135,9 @@ if (-not $NoInstaller) {
         Sign-SportifyFiles -Files @($setupExe) -CertificateThumbprint $CertificateThumbprint -PfxFile $PfxFile -PfxPassword $PfxPassword -TimestampUrl $TimestampUrl | Out-Null
         (Get-FileHash $setupExe -Algorithm SHA256).Hash.ToLower() + "  " + (Split-Path $setupExe -Leaf) | Set-Content "$setupExe.sha256" -Encoding ascii
     }
+    # the ZIP that is carried to another computer: the installer (signed, if it was), its checksum, the license, README-FIRST.txt and the tool that takes the developer side out of Revit
+    Step "Packing the ZIP"
+    & (Join-Path $root "Sportify.Setup\Make-PackageZip.ps1") -OutputDir $distDir | Out-Null
 }
 
 # ── 5. The older console installer (Sportify_Revit.exe next to payload\), only on request ──

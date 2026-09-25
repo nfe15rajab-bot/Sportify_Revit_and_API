@@ -11,7 +11,7 @@
 ; Per-user (no administrator rights): the files go to a folder of the person's choice, the Revit manifest to %APPDATA%\Autodesk\Revit\Addins\2025.
 ;
 ; Test switches (used by Tools/test-installer.ps1, harmless otherwise): /ADDINSDIR=<folder for the .addin>  /SETTINGSDIR=<folder for settings.json>  /DELIVERABLES=<folder>
-; /NOSTARTAPI=1 (do not start the API)  /NOPREREQS=1 (do not look for or install Microsoft components)  /DISABLELEGACY=1 (switch off an old Sportify.addin without asking)  /NOSHORTCUTS=1 (no Start menu entries).
+; /NOSTARTAPI=1 (do not start the API)  /NOPREREQS=1 (do not look for or install Microsoft components)  /DISABLELEGACY=1 (switch off an old Sportify.addin without asking)  /NOSHORTCUTS=1 (no Start menu entries)  /ALLUSERSADDINSDIR=<folder> (where an all-users Sportify.addin is looked for).
 ; ---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #ifndef AppVersion
@@ -287,28 +287,41 @@ begin
 end;
 
 // an older Sportify add-in (Sportify.addin, loading Sportify\Sportify.dll) builds the same ribbon tab: Revit then reports "The name already exists" at every start
-procedure OfferToDisableLegacyAddin;
+function AllUsersAddinsDir: String;
+begin
+  Result := ExpandConstant('{param:ALLUSERSADDINSDIR|{commonappdata}\Autodesk\Revit\Addins\{#RevitYear}}');
+end;
+
+procedure DisableLegacyManifest(const Path: String; const ForAllUsers: Boolean);
 var
   Text: AnsiString;
-  Path: String;
   Disable: Boolean;
 begin
-  Path := AddinsDir('') + '\Sportify.addin';
   if not FileExists(Path) then Exit;
   if not LoadStringFromFile(Path, Text) then Exit;
   if Pos('Sportify.dll', Text) = 0 then Exit;
   if WizardSilent then
     Disable := Flag('DISABLELEGACY')
   else
-    Disable := MsgBox('An older Sportify add-in was found (' + Path + ').' + #13#10#13#10 + 'It builds the same ribbon tab as this version, so Revit would report "The name already exists" at every start.' + #13#10#13#10 + 'Switch it off? (It is only renamed to Sportify.addin.disabled; uninstalling Sportify gives it back.)', mbConfirmation, MB_YESNO) = IDYES;
-  if Disable then
-    if RenameFile(Path, Path + LegacyDisabledSuffix) then
-    begin
-      LegacyDisabledByUs := True;
-      Log('The older add-in manifest was renamed to ' + Path + LegacyDisabledSuffix);
-    end
-    else
-      Log('The older add-in manifest could not be renamed: ' + Path);
+    Disable := MsgBox('An older Sportify add-in was found (' + Path + ').' + #13#10#13#10 + 'It builds the same ribbon tab as this version, so Revit would report "The name already exists" at every start.' + #13#10#13#10 + 'Switch it off? (It is only renamed to Sportify.addin.disabled.)', mbConfirmation, MB_YESNO) = IDYES;
+  if not Disable then Exit;
+  if RenameFile(Path, Path + LegacyDisabledSuffix) then
+  begin
+    if not ForAllUsers then LegacyDisabledByUs := True;
+    Log('The older add-in manifest was renamed to ' + Path + LegacyDisabledSuffix);
+  end
+  else
+  begin
+    Log('The older add-in manifest could not be renamed: ' + Path);
+    if not WizardSilent then
+      MsgBox('The older Sportify add-in could not be switched off: ' + Path + #13#10#13#10 + 'It belongs to every user of this computer and needs administrator rights. Rename that file to Sportify.addin.disabled yourself (right-click, Rename, as administrator), or Revit will keep reporting "The name already exists".', mbInformation, MB_OK);
+  end;
+end;
+
+procedure OfferToDisableLegacyAddin;
+begin
+  DisableLegacyManifest(AddinsDir('') + '\Sportify.addin', False);
+  DisableLegacyManifest(AllUsersAddinsDir + '\Sportify.addin', True);
 end;
 
 procedure CreateWorkspace;

@@ -32,6 +32,12 @@ check(/tags:\s*\[?\s*["']v\*/.test(release), "the release workflow starts on a v
 check(release.includes("VERSION") && /tag/i.test(release), "the release workflow checks that the tag names the version in VERSION");
 check(release.includes("Sportify-Setup") && !release.includes("Sportify_Revit_${{"), "the release publishes the Inno installer");
 
+// ---- the ZIP that is carried to another computer
+for (const f of ["package/README-FIRST.txt", "package/Remove-Developer-Sportify.ps1", "Make-PackageZip.ps1"]) check(exists("Sportify.Setup", ...f.split("/")), "the test package has " + f);
+check(read("BuildDistribution.ps1").includes("Make-PackageZip.ps1"), "BuildDistribution.ps1 packs the ZIP");
+check(release.includes("-Revit2025.zip"), "the release workflow keeps the ZIP as an artifact");
+check(read("Sportify.Setup", "package", "README-FIRST.txt").includes("{{VERSION}}") && read("Sportify.Setup", "package", "README-FIRST.txt").includes("Remove-Developer-Sportify.ps1"), "README-FIRST.txt has the version placeholder and names the cleanup tool");
+
 // ---- the license text: what the team asked it to say
 const license = read("Sportify.Setup", "LICENSE_AGREEMENT.txt");
 for (const phrase of ["TH OWL", "School of Architecture", "MID project", "architecture and", "engineering backgrounds", "GOLDBECK", "Claude (Anthropic)", "computational design team",
