@@ -56,6 +56,7 @@ VersionInfoDescription={#AppName} setup: Revit {#RevitYear} add-in, web app and 
 DefaultDirName={localappdata}\Programs\Sportify
 UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
+DisableWelcomePage=no
 DefaultGroupName=Sportify
 PrivilegesRequired=lowest
 LicenseFile=LICENSE_AGREEMENT.txt
