@@ -85,6 +85,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force library-assets | Out-Null
           gh release download library-assets --dir library-assets --repo "${{ github.repository }}" 2>&1 | Out-Host
+          $global:LASTEXITCODE = 0        # no such release yet is not an error here: the check below decides
           if (Test-Path library-assets/families.zip) { Expand-Archive library-assets/families.zip -DestinationPath library-assets/families -Force }
           $rte = @(Get-ChildItem library-assets -Filter *.rte -ErrorAction SilentlyContinue).Count
           $rfa = @(Get-ChildItem library-assets/families -Filter *.rfa -ErrorAction SilentlyContinue).Count
