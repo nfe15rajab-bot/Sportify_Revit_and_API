@@ -125,6 +125,8 @@ namespace SportfyRevit
 
             // SPORTIFY_KINETICS_SELFTEST=<folder>: an unattended check of the Kinetics adaptive families and placement in a scratch project (see KineticsSelfTest). Nothing otherwise.
             KineticsSelfTest.Install(application);
+            // SPORTIFY_KINETICS_WALKTHROUGH=<folder>: an unattended walk through the Kinetics ribbon buttons on a real exported layout (see KineticsWalkthrough). Nothing otherwise.
+            KineticsWalkthrough.Install(application);
 
             return Result.Succeeded;
         }
