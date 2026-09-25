@@ -297,7 +297,7 @@ internal static class UnitAssembly
                 var to = req.States[Math.Min(fr.To, req.States.Count - 1)];
                 lengths.Add(BarLength(req.States[fr.From].Bars[i], to.Bars[Math.Min(i, to.Bars.Count - 1)], fr.T));
             }
-            if (lengths.Max() - lengths.Min() > 0.05)
+            if (lengths.Max() - lengths.Min() > 0.02)
             {
                 // a mast that runs in and out: a part of its own whose length is a dimension, set at every frame
                 var body = new Body { Role = b.Role, Dynamic = b.Dynamic, Index = i, Varies = true, Part = Spec(b.Role, b.SizeU, b.SizeV, length, false, "bar" + i + "|") };

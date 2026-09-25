@@ -134,6 +134,20 @@ for (const spec of analysisTools) {
   });
 }
 
+// The --json runs above only dump numbers for the oracles: the tool returns before its own checks (the hand-calculated values, the kinetic units' geometry and linkage, the
+// mechanics). Those run here, once each, in plain mode on the sample layout. (They did not run in the suite at all until 2026-09-25; two SunCheck ones had gone stale.)
+step("the analysis tools' own checks (Structural, Dynamic, Percolation, Sun: hand-calculated values, the kinetic units' geometry and linkage)", async () => {
+  const sample = path.join(sim, "Assets", "StreamingAssets", "sample_layout_roofgarden.json");
+  const failures = [];
+  for (const t of ["StructuralCheck", "DynamicCheck", "PercolationCheck", "SunCheck"]) {
+    const dll = dllOf(t);
+    if (!dll) { failures.push(t + ": not built"); continue; }
+    const r = await dotnet([dll, sample]);
+    if (r.code !== 0) failures.push(t + ": exit " + r.code + "\n" + tail(r.out.split(/\r?\n/).filter(l => /FAIL/.test(l)).join("\n") || r.out + r.err, 8));
+  }
+  return failures.length ? { status: "fail", output: failures.join("\n") } : { status: "pass", detail: "4 tools" };
+});
+
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
 step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));

@@ -127,7 +127,8 @@ namespace SportfyRevit
             var twist = d["sail_twist_ratio"] * Math.Min(w, depth);
 
             UnitPlan PlanAt(SailState s) =>
-                KineticUnits.Sail(triangle, w, depth, s.Scale, anchorSide, s.Storm ? rep.StormHeightM : h, mast, d["sail_rail_size_m"], rep.MinScale, rep.MaxScale, s.Storm ? 0 : twist, d["sail_carriage_len_m"]);
+                KineticUnits.Sail(triangle, w, depth, s.Scale, anchorSide, s.Storm ? rep.StormHeightM : h, mast, d["sail_rail_size_m"], rep.MinScale, rep.MaxScale, s.Storm ? 0 : twist, d["sail_carriage_len_m"],
+                    rep.MastStages, d["mast_overlap_m"], h + (triangle ? 0 : twist / 2) - KineticUnits.CarriageTopM(d["sail_rail_size_m"]));
 
             var reference = states.FirstOrDefault(s => s.Label.StartsWith("middle")) ?? states[0];
             unit.Plan = PlanAt(reference);
@@ -148,7 +149,7 @@ namespace SportfyRevit
                     MastDiameterMm = Math.Round(mast * 1000, 0), RecommendedMastDiameterMm = Math.Round(rep.RecommendedMastDiameterM * 1000, 0), MastOk = rep.MastOk,
                     MastUtilisationPercent = Math.Round(rep.MastUtilisationPercent, 0), MastBaseMomentKnM = Math.Round(rep.MastBaseMomentKnM, 1),
                     PretensionPullKnPerCorner = Math.Round(rep.PretensionPullKnPerCorner, 2), UpliftKnPerMast = Math.Round(rep.UpliftKnPerMast, 2),
-                    StormHeightM = Math.Round(rep.StormHeightM, 2), FabricMassKg = Math.Round(rep.FabricMassKg, 1),
+                    StormHeightM = Math.Round(rep.StormHeightM, 2), FabricMassKg = Math.Round(rep.FabricMassKg, 1), MastStages = rep.MastStages, MastStageM = Math.Round(rep.MastStageM, 2),
                     Shape = rep.Triangle ? "triangle" : "rectangle", MinScale = rep.MinScale, MaxScale = rep.MaxScale, AreaMinM2 = Math.Round(rep.AreaMinM2, 1), AreaMaxM2 = Math.Round(rep.AreaMaxM2, 1),
                     GardenFreedM2 = Math.Round(rep.GardenFreedM2, 1), RailLengthM = Math.Round(rep.RailLengthM, 1), TravelM = Math.Round(rep.TravelM, 2), Tracks = rep.Tracks,
                     CarriageForceKn = Math.Round(rep.CarriageForceKn, 2), DriveSpeedCmS = Math.Round(rep.DriveSpeedMs * 100, 1), TravelSeconds = Math.Round(rep.TravelSeconds, 0), DrivePowerW = Math.Round(rep.DrivePowerW, 0),
