@@ -158,6 +158,31 @@ internal static class Probe
         return 0;
     }
 
+    /// <summary>Why an extrusion fails: the same steps as UnitAssembly.MakePart on a hollow 0.15 x 0.03 section, one part per run, with a variant of the steps (1 = as MakePart, 2 = rebuild after the sketch, 3 = sketch entities added without inference, 4 = clear the selection and select the sketch by name).</summary>
+    public static int RunExtrude(SolidWorksSession sw, int variant)
+    {
+        var model = (ModelDoc2)sw.App.NewDocument(sw.Template(assembly: false), 0, 0, 0);
+        Console.WriteLine("variant " + variant + ", document " + model.GetTitle());
+        Feature? plane = null;
+        for (var f = (Feature?)model.FirstFeature(); f != null; f = (Feature?)f.GetNextFeature()) if (f.GetTypeName2() == "RefPlane") { plane = f; break; }
+        plane!.Select2(false, 0);
+        var sk = model.SketchManager;
+        sk.InsertSketch(true);
+        if (variant == 3) sk.AddToDB = true;
+        sk.CreateCornerRectangle(-0.075, -0.015, 0, 0.075, 0.015, 0);
+        sk.CreateCornerRectangle(-0.073, -0.013, 0, 0.073, 0.013, 0);
+        if (variant == 3) sk.AddToDB = false;
+        sk.InsertSketch(true);
+        if (variant == 2) model.EditRebuild3();
+        Feature? sketch = null;
+        for (var f = (Feature?)model.FirstFeature(); f != null; f = (Feature?)f.GetNextFeature()) if (f.GetTypeName2() == "ProfileFeature") sketch = f;
+        if (variant == 4) { model.ClearSelection2(true); model.Extension.SelectByID2(sketch!.Name, "SKETCH", 0, 0, 0, false, 0, null, 0); }
+        else sketch!.Select2(false, 0);
+        var body = model.FeatureManager.FeatureExtrusion3(true, false, false, (int)swEndConditions_e.swEndCondBlind, (int)swEndConditions_e.swEndCondBlind, 1.85, 0, false, false, false, false, 0, 0, false, false, false, false, true, true, true, (int)swStartConditions_e.swStartSketchPlane, 0, false);
+        Console.WriteLine("RESULT variant " + variant + ": extrusion " + (body == null ? "NULL" : "ok (" + body.Name + ")"));
+        return body == null ? 1 : 0;
+    }
+
     static string BuildBox(SolidWorksSession sw, string outDir, string name, double w, double h, double len)
     {
         var model = (ModelDoc2)sw.App.NewDocument(sw.Template(assembly: false), 0, 0, 0);

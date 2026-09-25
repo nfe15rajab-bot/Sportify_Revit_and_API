@@ -4,7 +4,7 @@
 //   node Tools/run-checks.js --web <folder>        where the web app is (default: $SPORTIFY_WEB, then a sibling folder called Sportify, sportify_frontend, sportfify_goldbeck or web)
 //   node Tools/run-checks.js --require-web         fail, not skip, when the web app is not found (CI does this)
 //   node Tools/run-checks.js --only sun            only the steps whose name contains this (the build of the tools always runs first; --no-build skips it)
-//   node Tools/run-checks.js --local               also the checks that need an installed Unity / Revit: the Unity project still compiles, the add-in still compiles
+//   node Tools/run-checks.js --local               also the checks that need an installed Unity / Revit: the Unity project still compiles, the add-in still compiles, the SOLIDWORKS tool works
 //   node Tools/run-checks.js --unity               also re-run real Unity on every golden (about 6 minutes, uses a scratch copy of the project) and fail if a golden has gone stale
 //   node Tools/run-checks.js --list                the steps, without running them
 //
@@ -297,6 +297,26 @@ step("Revit add-in still compiles (needs Revit 2025; scratch copy, nothing is de
     const r = await dotnet(["build", path.join(tmp, "SportfyRevit", "SportfyRevit", "SportfyRevit.csproj"), "-c", "Release", "-v", "q", "-nologo"], { env: { APPDATA: path.join(tmp, "appdata") } });
     return r.code === 0 ? { status: "pass" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => / error /.test(l)).join("\n") || r.out + r.err, 20) };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}, { local: true });
+
+step("the SOLIDWORKS tool: a hung SOLIDWORKS is stopped (watchdog), and a small louvre is built, moved, recorded and saved (needs SOLIDWORKS; about a minute)", async () => {
+  const interop = "C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\api\\redist\\SolidWorks.Interop.sldworks.dll";
+  if (!fs.existsSync(interop)) return { status: "skip", detail: "SOLIDWORKS is not installed here" };
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sportify-mechanical-"));
+  const lines = text => text.split(/\r?\n/);
+  try {
+    const built = await dotnet(["build", path.join(repo, "Sportify.Mechanical", "Sportify.Mechanical.csproj"), "-c", "Release", "-v", "q", "-nologo", "-o", path.join(tmp, "tool")]);
+    if (built.code !== 0) return { status: "fail", output: tail(lines(built.out).filter(l => / error /.test(l)).join("\n") || built.out + built.err, 20) };
+    const exe = path.join(tmp, "tool", "Sportify.Mechanical.exe");
+    // a run that hangs must end by itself with exit code 4 (the watchdog), without needing SOLIDWORKS
+    const hang = await run(exe, ["watchdog-test"]);
+    if (hang.code !== 4 || !/STALLED/.test(hang.out)) return { status: "fail", output: "watchdog-test: exit code " + hang.code + " (4 expected)\n" + tail(hang.out + hang.err, 8) };
+    // the whole path on a small unit: the real cores plan it, SOLIDWORKS builds, moves and records it
+    const smoke = await run(exe, ["smoke", "--out", path.join(tmp, "smoke")]);
+    if (smoke.code === 2) return { status: "skip", detail: tail(smoke.out, 1) };
+    if (smoke.code !== 0) return { status: "fail", output: tail(lines(smoke.out).filter(l => !l.startsWith("PROGRESS")).join("\n") + smoke.err, 20) };
+    return { status: "pass", detail: lines(smoke.out).filter(l => l.startsWith("smoke unit")).join(" ") };
+  } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* SOLIDWORKS may still hold a file for a moment */ } }
 }, { local: true });
 
 step("real Unity: every golden is still what Unity writes", async () => {
