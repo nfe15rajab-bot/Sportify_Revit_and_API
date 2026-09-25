@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sportify - User guide</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1d2733; max-width: 780px; margin: 0 auto; padding: 0 8px; }
+  h1 { font-size: 24pt; margin: 0 0 2pt; color: #0d3b66; }
+  h2 { font-size: 15pt; margin: 22pt 0 6pt; color: #0d3b66; border-bottom: 2px solid #d8e1ea; padding-bottom: 3pt; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 12pt 0 3pt; page-break-after: avoid; }
+  .sub { color: #5b6b7b; margin-bottom: 14pt; }
+  .note { background: #fff6dd; border-left: 4px solid #e0a800; padding: 6pt 10pt; margin: 8pt 0; }
+  .tip { background: #e8f3ee; border-left: 4px solid #2f8f5b; padding: 6pt 10pt; margin: 8pt 0; }
+  ol, ul { margin: 4pt 0 6pt 18pt; padding-left: 8pt; }
+  li { margin: 2pt 0; }
+  code, kbd { font-family: Consolas, monospace; background: #eef2f6; padding: 0 3px; border-radius: 3px; font-size: 9.5pt; }
+  table { border-collapse: collapse; margin: 6pt 0; width: 100%; }
+  th, td { border: 1px solid #ccd6e0; padding: 4pt 7pt; text-align: left; vertical-align: top; font-size: 9.8pt; }
+  th { background: #eef2f6; }
+  .step { font-weight: 600; }
+  footer { margin-top: 24pt; color: #5b6b7b; font-size: 9pt; border-top: 1px solid #d8e1ea; padding-top: 6pt; }
+</style>
+</head>
+<body>
+
+<h1>Sportify</h1>
+<div class="sub">User guide &middot; version {{VERSION}} (beta, still under testing) &middot; Revit 2025 &middot; Digital Tools and Methods &ndash; Group of Sports and Gardens, TH OWL</div>
+
+<h2>What Sportify does</h2>
+<p>Sportify helps you design sports and gardens on a roof. You <b>design the layout in the web app</b> (fields, gardens, furniture, structure), <b>send it to Revit</b> where it becomes real
+model elements, and <b>check it with analyses</b> (fire, carbon, accessibility, structure, sun and shade, wind, rain, dynamic loads, ball paths). From the results, <b>Kinetics</b>
+places moving elements (louvres, screens, sails, roller fences) and can build them as a mechanism in SOLIDWORKS. Everything you produce is collected in <b>your Sportify folder</b>.</p>
+<div class="note"><b>Beta.</b> Sportify is still under testing. Its results are preliminary and are not a substitute for the checks of a qualified architect or engineer.</div>
+
+<h2>1. What you need</h2>
+<table>
+<tr><th>Needed</th><th>Why</th></tr>
+<tr><td>Windows 10 or 11 (64-bit) and <b>Autodesk Revit 2025</b></td><td>The add-in is built for Revit 2025.</td></tr>
+<tr><td>Google Chrome (recommended)</td><td>To use the web app on its own. Without Chrome your default browser is used.</td></tr>
+<tr><td>About 600 MB of disk space</td><td>The add-in, the web app, the local database service and the library.</td></tr>
+</table>
+<p><b>Optional:</b> Unity (for the analysis videos, otherwise you get the charts as PDF) and SOLIDWORKS (for the Simulate button in Kinetics). Setup installs everything else itself:
+the web app, its local API and database, and the Microsoft components they need (WebView2 and the Visual C++ runtime, if your computer does not have them yet).</p>
+
+<h2>2. Install</h2>
+<ol>
+<li>Close Revit. Double-click <code>Sportify-Setup-{{VERSION}}-Revit2025.exe</code>. Windows may show a blue &ldquo;protected your PC&rdquo; screen because the file is not code-signed yet: click <b>More info</b>, then <b>Run anyway</b>.</li>
+<li><b>License agreement</b>: read it, choose <i>I accept the agreement</i>, click <b>Next</b>.</li>
+<li><b>Install folder</b>: keep the suggested folder or choose another one you can write to (not <code>Program Files</code>), click <b>Next</b>.</li>
+<li><b>Your Sportify folder</b> (deliverables): choose where your layouts, charts, videos, reports and schedules go. The suggestion is <code>Documents\Sportify Workspace</code>. Click <b>Next</b>, then <b>Install</b>.</li>
+<li><b>Wait</b> while Sportify is installed. Setup copies the add-in, the web app and its API, the library, registers the add-in with Revit (you never copy a DLL yourself), installs missing Microsoft
+components and starts the local API once so that its database is ready.</li>
+<li><b>Finish</b>: keep <i>Open the Sportify web app</i> ticked to see it in Chrome right away. If you would rather have it inside Revit, untick it and tick <i>Open Revit with the web app docked inside it</i>.</li>
+</ol>
+<div class="tip">If an older Sportify add-in from June is found, setup offers to switch it off: say yes, otherwise Revit shows the error &ldquo;The name already exists&rdquo; at every start.</div>
+
+<h2>3. First start in Revit</h2>
+<ol>
+<li>Start Revit 2025. Revit asks about an add-in from an unknown publisher (Sportify is not code-signed yet). It shows <b>Digital Tools and Methods &ndash; Group of Sports and Gardens</b>. Choose <b>Always Load</b>.</li>
+<li>A new tab called <b>Sportify</b> appears in the ribbon with six panels: <i>App &amp; Data Import</i>, <i>Algorithmic Analysis</i>, <i>Simulation &amp; Analytics</i>, <i>Kinetics</i>, <i>BIM &amp; Documentation</i>
+and <i>Data Export / Deliverables</i>.</li>
+<li>Open a project. For a first try, a project with a roof (or a simple floor slab standing for it) is enough.</li>
+</ol>
+
+<h2>4. Guided walkthrough: your first roof</h2>
+<h3><span class="step">Step 1 &middot; Open the web app</span></h3>
+<p>Either use the shortcut <b>Sportify web app</b> in the Start menu (opens in Chrome, works with Revit closed), or click <b>Open Sportify App</b> in Revit (opens docked inside Revit). Both are the same app.</p>
+<h3><span class="step">Step 2 &middot; Give it your roof</span></h3>
+<p>In Revit select the roof (or slab) and use <b>Push to Sportify &rarr; Everything</b>. The outline, structure, entries, openings and edges reach the web app. To switch to a different roof later use
+<b>Push to Sportify &rarr; Update</b>. You can also start in the web app without Revit and give it a roof of your own size, then bring Revit in later.</p>
+<h3><span class="step">Step 3 &middot; Design the layout</span></h3>
+<p>In the web app: <i>Site</i> (place, orientation), <i>Structure</i> (grid, columns, deck capacity), <i>Sport</i> (fields and their variants), <i>Garden</i> (parcels and build-ups), then <i>Combine</i> to put everything on the roof.
+The algorithmic placement mode suggests a layout you can adjust. Save your work with <b>Save Session</b> (top bar).</p>
+<h3><span class="step">Step 4 &middot; Send the layout to Revit</span></h3>
+<p>In the web app use <b>Export Combined JSON</b> in <i>Combine</i>. In Revit click <b>Import Configuration</b> (panel <i>App &amp; Data Import</i>): the fields, gardens and furniture are built as elements, on worksets
+<i>Sports</i>, <i>Gardens</i> and <i>Combine</i>. Families the project does not have yet are made for you (or load your own with <b>Load Families</b>).</p>
+<h3><span class="step">Step 5 &middot; Run the analyses</span></h3>
+<p>Panel <i>Algorithmic Analysis</i>: fire safety, carbon impact, life-cycle, accessibility. Panel <i>Simulation &amp; Analytics</i>: structure (bay utilisation, dynamic frequency), environment (sun and shade, wind uplift and erosion, soil percolation, ball trajectory).
+Each command asks whether you have Unity (a video) or not (charts as PDF). <b>Send All to Web App</b> puts every result in the web app&rsquo;s <i>Analysis</i> tab.</p>
+<h3><span class="step">Step 6 &middot; Look at the results and improve</span></h3>
+<p>In the web app, <i>Analysis</i> lists every result, marks what is preliminary and which inputs are still default values. <i>Compare</i> puts up to three saved layouts side by side.
+<i>Post Analysis</i> shows where to improve the design and what Kinetics placed.</p>
+<h3><span class="step">Step 7 &middot; Kinetics: moving elements from the analysis</span></h3>
+<ol>
+<li><b>Generate Family</b> once per project (makes the two adaptive families every moving unit is built from).</li>
+<li><b>Import Analysis Adaptation</b>: choose what to make &ndash; overhead louvre, slat screen, fin screen (select a wall or railing first), tensile sail on movable masts, roller fence. Kinetics uses the sun analysis to decide the number
+and spacing of blades and how the unit moves through the day, and places it as adaptive components (moving parts on the worksets <i>Sportify Dynamic Furniture</i> and <i>Structure</i>).</li>
+<li><b>Record Isolated Video</b> (needs Unity) and <b>Simulate (SOLIDWORKS)</b> (needs SOLIDWORKS) make a film of the unit moving; the SOLIDWORKS assembly and a STEP file go to the <i>Mechanical</i> folder of your Sportify folder.</li>
+</ol>
+<h3><span class="step">Step 8 &middot; Documents for the project</span></h3>
+<p>Panel <i>BIM &amp; Documentation</i>: <b>Generate Schedules</b>, <b>Apply View Filters</b>, and the <b>Phasing &amp; Worksets</b> drop-down. Panel <i>Data Export / Deliverables</i>: <b>Analysis Report (PDF)</b>, <b>Functional Diagrams</b>,
+<b>Schedules (CSV)</b>. <b>Open Sportify Folder</b> shows everything in one place.</p>
+
+<h2>5. Your Sportify folder</h2>
+<table>
+<tr><th>Subfolder</th><th>What is in it</th></tr>
+<tr><td>Layouts</td><td>Your layouts (JSON) and roof pictures</td></tr>
+<tr><td>Sport fields</td><td>Field data and CAD outlines (DXF)</td></tr>
+<tr><td>Garden</td><td>Garden parcels</td></tr>
+<tr><td>Physical analysis</td><td>The charts of the analyses as PDF</td></tr>
+<tr><td>Videos</td><td>The analysis videos</td></tr>
+<tr><td>Analysis reports</td><td>The analysis report (PDF)</td></tr>
+<tr><td>Schedules</td><td>Schedules (CSV)</td></tr>
+<tr><td>Diagrams</td><td>Functional diagrams (PNG)</td></tr>
+<tr><td>Mechanical</td><td>SOLIDWORKS assemblies, STEP files and films (Kinetics)</td></tr>
+</table>
+
+<h2>6. The library</h2>
+<p>Setup also puts a <b>Library</b> folder in the install folder (Start menu: <i>Sportify library</i>):</p>
+<table>
+<tr><th>Folder</th><th>What is in it</th></tr>
+<tr><td><code>Templates</code></td><td>Revit project templates <code>Sportify_EN.rte</code> and <code>Sportify_DE.rte</code> (view templates, sheets, schedules). Start a project with <i>File &rarr; New &rarr; Project &rarr; Browse</i>.</td></tr>
+<tr><td><code>Families</code></td><td>The Revit families Sportify uses (fields, sports equipment, garden parcels, adaptive families). Load them with <i>Insert &rarr; Load Family</i>, or point Revit&rsquo;s <i>File Locations &rarr; Places</i> at this folder.</td></tr>
+<tr><td><code>Worksets</code></td><td>The list of Sportify worksets and phases (what each holds), as a sheet and as data.</td></tr>
+<tr><td><code>Documentation</code></td><td>This guide, the license agreement, and notes on the Sportify folder and on the Revit&ndash;SOLIDWORKS bridge.</td></tr>
+<tr><td><code>Database</code></td><td>Notes on the reference database (sport fields, build-ups, materials, prices). It is created by the local API the first time it runs.</td></tr>
+</table>
+
+<h2>7. If something does not work</h2>
+<table>
+<tr><th>What you see</th><th>What to do</th></tr>
+<tr><td>No <b>Sportify</b> tab in Revit</td><td>Close Revit, run setup again and accept the offer to switch off the old add-in; check that Revit 2025 (not another year) is the one you start.</td></tr>
+<tr><td>&ldquo;The name already exists&rdquo; at Revit start</td><td>An older Sportify add-in is still installed. Setup can switch it off (it renames <code>Sportify.addin</code> in <code>%APPDATA%\Autodesk\Revit\Addins\2025</code> to <code>.disabled</code>).</td></tr>
+<tr><td>&ldquo;Revit cannot run the external application Sportify&hellip; HttpListenerException&rdquo;</td><td>Another program uses one of Sportify&rsquo;s local ports (5679, 8123). Close it and restart Revit.</td></tr>
+<tr><td>The web app in Chrome shows no catalogue</td><td>Use the Start menu shortcut <b>Sportify web app</b> (it starts the local API first) and wait a few seconds.</td></tr>
+<tr><td>The docked web app pane is empty</td><td>Microsoft WebView2 is missing: run setup again with internet access, or use the web app in Chrome.</td></tr>
+<tr><td>Windows warns about the setup file</td><td>Sportify is not code-signed yet: <b>More info &rarr; Run anyway</b>.</td></tr>
+</table>
+
+<h2>8. Uninstall</h2>
+<p><b>Settings &rarr; Apps &rarr; Sportify &rarr; Uninstall</b> (or the Start menu entry). It removes the add-in, the web app, the API and the library. Your Sportify folder with your own files is kept unless you choose to delete it.</p>
+
+<h2>About</h2>
+<p>Sportify is an open source project of the <b>Digital Tools and Methods &ndash; Group of Sports and Gardens</b>: computational and facade design students of TH OWL, School of Architecture, in the context of the MID project, with
+architecture and engineering backgrounds. Main partner: GOLDBECK. Developed with the main assistance of Claude (Anthropic), led by the computational design team Nada, Moamen, Sukriti and Ali.
+Source code: <code>github.com/nfe15rajab-bot/Sportify_Revit_and_API</code> and <code>github.com/nfe15rajab-bot/sportfify_goldbeck</code>. Open source for educational purposes; still under testing and deployment. See <code>LICENSE_AGREEMENT.txt</code>.</p>
+<footer>Sportify {{VERSION}} &middot; Revit 2025 &middot; this guide is for the people who use Sportify; developer notes are in the repositories.</footer>
+</body>
+</html>

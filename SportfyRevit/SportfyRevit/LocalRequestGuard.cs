@@ -34,6 +34,8 @@ namespace SportfyRevit
         {
             "http://localhost:8123", "http://127.0.0.1:8123",
             "http://localhost:8124", "http://127.0.0.1:8124",
+            // the web app served by the installed API (Sportify.Api.exe serves ..web on 5107): what the installer's "Open the web app" opens when Revit is not running yet
+            "http://localhost:5107", "http://127.0.0.1:5107",
         };
 
         public enum Outcome { Proceed, Preflight, Session, Refuse }

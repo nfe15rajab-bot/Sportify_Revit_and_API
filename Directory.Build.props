@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    One version for everything Sportify builds, read from the VERSION file at the root of this repository (Semantic Versioning: MAJOR.MINOR.PATCH, and -beta.N while it is
+    under testing). The add-in, the API, the installer and the tools all carry it, the installer's file name and the Git tag (v<VERSION>) are made from it, and
+    Tools/run-checks.js checks that they still agree. To release: change VERSION, commit, tag v<VERSION>: see RELEASING.md.
+  -->
+  <PropertyGroup>
+    <SportifyVersion Condition="Exists('$(MSBuildThisFileDirectory)VERSION')">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</SportifyVersion>
+    <SportifyVersion Condition="'$(SportifyVersion)' == ''">0.0.0-dev</SportifyVersion>
+    <SportifyVersionNumeric>$([System.Text.RegularExpressions.Regex]::Match('$(SportifyVersion)', '^\d+\.\d+\.\d+').Value)</SportifyVersionNumeric>
+    <Version>$(SportifyVersion)</Version>
+    <AssemblyVersion>$(SportifyVersionNumeric).0</AssemblyVersion>
+    <FileVersion>$(SportifyVersionNumeric).0</FileVersion>
+    <Product>Sportify</Product>
+    <Authors>Digital Tools and Methods - Group of Sports and Gardens</Authors>
+    <Company>Digital Tools and Methods - Group of Sports and Gardens (TH OWL)</Company>
+    <Copyright>Open source, for educational purposes: see LICENSE_AGREEMENT.txt</Copyright>
+    <RepositoryUrl>https://github.com/nfe15rajab-bot/Sportify_Revit_and_API</RepositoryUrl>
+  </PropertyGroup>
+</Project>

@@ -148,6 +148,13 @@ step("the analysis tools' own checks (Structural, Dynamic, Percolation, Sun: han
   return failures.length ? { status: "fail", output: failures.join("\n") } : { status: "pass", detail: "4 tools" };
 });
 
+// what makes a release (VERSION, the license the installer shows, the author Revit shows, the Sportify folder's subfolders, the worksets and phases sheet, the API port): the same
+// everywhere. Reads files only.
+step("the release: the version, the license, the author, the Sportify folder, the worksets and phases, the API port and the installer agree (ReleaseCheck)", async () => {
+  const r = await node([path.join(tools, "ReleaseCheck", "check.js"), ...(web ? [web] : [])]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^RELEASE OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+});
+
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
 step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
@@ -331,6 +338,16 @@ step("the SOLIDWORKS tool: a hung SOLIDWORKS is stopped (watchdog), and a small 
     if (smoke.code !== 0) return { status: "fail", output: tail(lines(smoke.out).filter(l => !l.startsWith("PROGRESS")).join("\n") + smoke.err, 20) };
     return { status: "pass", detail: lines(smoke.out).filter(l => l.startsWith("smoke unit")).join(" ") };
   } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* SOLIDWORKS may still hold a file for a moment */ } }
+}, { local: true });
+
+step("the installer: a silent install into scratch folders registers the add-in, the installed API serves the web app, and it uninstalls cleanly (needs a built dist\\Sportify-Setup-*.exe)", async () => {
+  const dist = path.join(repo, "dist");
+  const built = fs.existsSync(dist) ? fs.readdirSync(dist).filter(f => /^Sportify-Setup-.*\.exe$/.test(f)) : [];
+  if (built.length === 0) return { status: "skip", detail: "no installer built here: run BuildDistribution.ps1 first" };
+  const busy = await new Promise(resolve => { require("http").get("http://localhost:5107/api/AnalysisParameters", () => resolve(true)).on("error", () => resolve(false)); });
+  if (busy) return { status: "skip", detail: "port 5107 is in use (the API is running): stop it first" };
+  const r = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(repo, "Sportify.Setup", "Test-Installer.ps1"), "-RunApi"]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out.split(/\r?\n/).filter(l => /^\s+ok /.test(l)).join("\n"), 1).trim() + " (" + r.out.split(/\r?\n/).filter(l => /^\s+ok /.test(l)).length + " checks)" } : { status: r.code === 2 ? "skip" : "fail", detail: r.code === 2 ? tail(r.out, 1) : undefined, output: tail(r.out + r.err, 30) };
 }, { local: true });
 
 step("real Unity: every golden is still what Unity writes", async () => {

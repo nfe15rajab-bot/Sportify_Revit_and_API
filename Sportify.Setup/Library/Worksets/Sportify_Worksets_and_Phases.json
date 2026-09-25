@@ -1,0 +1,21 @@
+{
+  "note": "The worksets and phases Sportify uses. Sportify makes the worksets itself (Phasing & Worksets > Set Up Phases & Worksets, and on import); Revit's API can neither create nor rename a phase, so the phases are named once by hand in Manage > Phasing. This file is kept equal to the add-in's own lists by Tools/run-checks.js.",
+  "worksets": [
+    { "name": "Sportify Existing Roof Base", "holds": "the roof as it stands: the base of an import" },
+    { "name": "Sportify Structure", "holds": "grid, columns, beams and bearing walls, and the frame of a Kinetics unit" },
+    { "name": "Sportify Gardens", "holds": "garden parcels, planting and their build-ups" },
+    { "name": "Sportify Sports", "holds": "fields, courts and their markings" },
+    { "name": "Sportify Furniture", "holds": "benches, stands and other static furniture" },
+    { "name": "Sportify Dynamic Furniture", "holds": "the moving parts Kinetics places from the analyses: louvres, screens, sails, roller fences" }
+  ],
+  "importWorksets": [
+    { "name": "Sports", "holds": "what an import of a layout brings for sports" },
+    { "name": "Gardens", "holds": "what an import of a layout brings for gardens" },
+    { "name": "Combine", "holds": "the combined layout: paths, boundaries and the rest" }
+  ],
+  "phases": [
+    { "name": "Existing", "holds": "the building and the roof as they stand (the project's first phase, whatever it is called)" },
+    { "name": "Design and analysis", "holds": "what an import from the web app brings: the layout being designed and analysed" },
+    { "name": "Post analysis", "holds": "the dynamic furniture Kinetics places from the results of the analyses" }
+  ]
+}
