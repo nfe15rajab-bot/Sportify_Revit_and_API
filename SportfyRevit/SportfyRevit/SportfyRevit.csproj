@@ -124,8 +124,15 @@
   <Target Name="BundleWebApp" AfterTargets="Build" Condition="Exists('$(SportifyWebAppDir)index.html')">
     <ItemGroup>
       <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
+      <!-- vendor\ (Titillium Web, Tabler Icons, Leaflet, SunCalc) — added once
+           the app stopped pulling these from a CDN; without them the bundled
+           pane loads but with missing icons/fonts/map tiles. RecursiveDir
+           preserves the vendor\<lib>\... structure the app's own <link>/<script>
+           tags expect, same trick DeployToRevitAddins already uses below. -->
+      <SportifyWebVendorFiles Include="$(SportifyWebAppDir)vendor\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SportifyWebVendorFiles)" DestinationFolder="$(OutDir)web\vendor\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- The .addin manifest under %APPDATA%\Autodesk\Revit\Addins\2025\ points

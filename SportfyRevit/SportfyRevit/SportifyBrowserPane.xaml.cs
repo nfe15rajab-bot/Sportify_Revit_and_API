@@ -1,5 +1,8 @@
+using System;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Web.WebView2.Core;
 
 namespace SportfyRevit
 {
@@ -30,7 +33,18 @@ namespace SportfyRevit
         {
             try
             {
-                await Browser.EnsureCoreWebView2Async();
+                // EnsureCoreWebView2Async() with no explicit environment puts
+                // WebView2's user-data folder next to the HOST executable —
+                // Revit.exe, normally under Program Files — which a
+                // non-admin user can't write to, failing with E_ACCESSDENIED
+                // (0x80070005) before any navigation is even attempted. Point
+                // it at a folder this user definitely owns instead.
+                var userDataFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "SportfyRevit", "WebView2");
+                Directory.CreateDirectory(userDataFolder);
+                var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder);
+                await Browser.EnsureCoreWebView2Async(environment);
 
                 // Clear the disk cache before every load. The add-in's build
                 // copies fresh web files into the served folder on each rebuild,
