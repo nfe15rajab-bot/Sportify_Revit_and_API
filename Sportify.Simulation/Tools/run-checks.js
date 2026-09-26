@@ -156,6 +156,10 @@ step("the release: the version, the license, the author, the Sportify folder, th
 });
 
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
+step("the IFC pre-flight: what it reads of an IFC file and the sentences it warns with (IfcScan)", async () => {
+  const r = await node([path.join(tools, "IfcScan", "test.js")]);
+  return r.code === 0 ? { status: "pass", detail: "small IFC files written by the test: the probable roof, the units, the site, the repeated grid, the columns" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+});
 step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
 step("the API's reference.db guard on throw-away databases (ReferenceDbCheck)", () => runTool("ReferenceDbCheck"));
