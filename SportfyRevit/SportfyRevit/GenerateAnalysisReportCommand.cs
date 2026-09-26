@@ -43,7 +43,7 @@ namespace SportfyRevit
             string outputPath;
             try
             {
-                var reportsDir = SportifyWorkspace.PathFor("reports");
+                var reportsDir = SportifyWorkspace.PathFor("reports", DeliverableNaming.FolderFor("reports"));      // in the iteration's own folder when the session has one
                 outputPath = Path.Combine(reportsDir, DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
                 var (session, iteration) = DeliverableNaming.Current();
                 AnalysisReportPdfBuilder.Generate(outputPath, layout, results, circulationImagePath, axoImagePath, session, iteration);
@@ -113,8 +113,9 @@ namespace SportfyRevit
         internal static (string? Circulation, string? Axo) KeepDiagrams(string? circulationPath, string? axoPath)
         {
             var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            return (circulationPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", circulationPath, DeliverableNaming.Named($"circulation_{stamp}.png")),
-                    axoPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", axoPath, DeliverableNaming.Named($"axonometric_{stamp}.png")));
+            var folder = DeliverableNaming.FolderFor("diagrams");
+            return (circulationPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", circulationPath, DeliverableNaming.Named($"circulation_{stamp}.png"), folder),
+                    axoPath == null ? null : SportifyWorkspace.AdoptAs("diagrams", axoPath, DeliverableNaming.Named($"axonometric_{stamp}.png"), folder));
         }
 
         /// <summary>

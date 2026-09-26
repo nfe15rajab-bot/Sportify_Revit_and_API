@@ -99,6 +99,18 @@ namespace SportfyRevit
             return Named(fileName, session, iteration);
         }
 
+        /// <summary>
+        /// The subfolder of a kind's folder that the current iteration's files go into (Analysis reports\Algorithmic): the iteration's name, cleaned, for a kind that is kept apart by iteration (SportifyWorkspace.PerIterationKinds);
+        /// null when there is no iteration name (the files stay in the kind's folder as before) or the kind has none. With the layout that is being worked on, its names count as in Resolve.
+        /// </summary>
+        public static string? FolderFor(string kind, string? layoutJson = null)
+        {
+            if (!SportifyWorkspace.IsPerIteration(kind)) return null;
+            var iteration = (layoutJson == null ? Current() : Resolve(layoutJson)).Iteration;
+            var clean = Clean(iteration, MaxIteration);
+            return clean.Length > 0 && SportifyWorkspace.SafeName(clean) == clean ? clean : null;
+        }
+
         /// <summary>The file name pattern for "the newest file of this kind": the current session's and iteration's first, else any (a name is only what a person typed on top of the stem, the stem is what counts).</summary>
         public static string[] PatternsFor(string stem, string extension)
         {

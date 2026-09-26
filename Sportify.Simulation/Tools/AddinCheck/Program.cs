@@ -1437,6 +1437,56 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("the report says what it is for under its title, from the same names", DnSrc("AnalysisReportPdfBuilder.cs").Contains("string? sessionName = null") && DnSrc("AnalysisReportPdfBuilder.cs").Contains("if (forWhat.Length > 0)") && DnSrc("WorkspaceEndpoints.cs").Contains("var (session, iteration) = DeliverableNaming.Current();") && DnSrc("GenerateAnalysisReportCommand.cs").Contains("DeliverableNaming.Current()"));
     Check("the newest diagram is found by its stem under the current names first, so a report embeds the diagrams of its own iteration", DnSrc("WorkspaceEndpoints.cs").Contains("DeliverableNaming.PatternsFor(stem + \"_\", \"png\")"));
     Check("the layout files are not renamed: what looks for the newest export by 'sportify_combined_revit*.json' (Import Configuration, the walk-through) still finds it", DnSrc("LayoutFilePicker.cs").Contains("ExportPattern = \"sportify_combined_revit*.json\"") && !DnSrc("WorkspaceEndpoints.cs").Contains("Named(\"sportify_combined"));
+
+    // ------------------------------------------------------------------------------------------------ the iteration's folder
+    Console.WriteLine("\n===== deliverables of an iteration go into a folder of its name (SportifyWorkspace, DeliverableNaming.FolderFor) =====");
+    var iterRoot = Path.Combine(Path.GetTempPath(), "sportify-iter-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+    SportifyWorkspace.UseFolder(iterRoot);
+    try
+    {
+        DeliverableNaming.Set("Session", "Algorithmic");
+        Check("the folder of an iteration is its cleaned name, for the kinds that are kept apart by iteration (analysis, videos, reports, schedules, diagrams) and for no other",
+              new[] { "analysis", "videos", "reports", "schedules", "diagrams" }.All(k => DeliverableNaming.FolderFor(k) == "Algorithmic") && new[] { "layouts", "sport", "garden", "profile", "mechanical", "nonsense", "" }.All(k => DeliverableNaming.FolderFor(k) == null));
+        DeliverableNaming.Set("Session", "a/b\\c:d?");
+        Check("whatever was typed, the folder is a name Windows accepts, and no iteration name means no folder (the files stay in the kind's folder, as before)",
+              DeliverableNaming.FolderFor("reports") == "a b c d" && (DeliverableNaming.FolderFor("reports") ?? "").IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && DeliverableNaming.Set("Session", "") == ("Session", "") && DeliverableNaming.FolderFor("reports") == null);
+        Check("a layout that carries its own iteration decides its folder (as its names decide the file names)", DeliverableNaming.FolderFor("reports", "{\"session\":{\"name\":\"S\",\"iteration\":\"Manual\"}}") == "Manual" && DeliverableNaming.FolderFor("reports", "{\"placements\":[]}") == null);
+        DeliverableNaming.Set("", "");
+
+        var saved = SportifyWorkspace.Save("reports", "a.pdf", new byte[] { 1 }, "Algorithmic");
+        var kept = SportifyWorkspace.Save("layouts", "a.json", new byte[] { 1 }, "Algorithmic");
+        var flat = SportifyWorkspace.Save("reports", "b.pdf", new byte[] { 1 });
+        Check("a file with a folder goes into it, inside its kind's folder; a kind without iterations ignores the folder; no folder is the kind's folder itself",
+              saved == Path.Combine(iterRoot, "Analysis reports", "Algorithmic", "a.pdf") && File.Exists(saved) && kept == Path.Combine(iterRoot, "Layouts", "a.json") && flat == Path.Combine(iterRoot, "Analysis reports", "b.pdf"));
+        var hostile = new[] { "..", "..\\..", "x\\y", "C:\\Windows", "a/b" }.Select(sub => SportifyWorkspace.Save("reports", "h.pdf", new byte[] { 1 }, sub)).ToList();
+        Check("a folder that is not only a name (a path, '..', a drive) is not used: the file goes into the kind's folder itself, and nothing lands outside the workspace",
+              hostile.All(p => Path.GetDirectoryName(p) == Path.Combine(iterRoot, "Analysis reports")) && Directory.GetFiles(Path.GetTempPath(), "h*.pdf").Length == 0);
+        Directory.CreateDirectory(Path.Combine(iterRoot, "Layouts", "Sub")); File.WriteAllBytes(Path.Combine(iterRoot, "Layouts", "Sub", "z.json"), new byte[] { 1 });
+        var listed = SportifyWorkspace.List().Where(x => x.Kind == "reports").ToList();
+        Check("the list shows a file with its folder (empty for the kind's own), and a subfolder of a kind that has no iterations is not listed",
+              listed.Any(x => x.Name == "a.pdf" && x.Folder == "Algorithmic") && listed.Any(x => x.Name == "b.pdf" && x.Folder == "") && !SportifyWorkspace.List().Any(x => x.Name == "z.json"));
+        Check("a file is found by its folder and only there: the folder, the kind and the name all have to fit, and '..' or a path in any of them is refused",
+              SportifyWorkspace.TryResolve("reports", "a.pdf", out var found, "Algorithmic") && found == saved && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _) && !SportifyWorkspace.TryResolve("reports", "b.pdf", out _, "Algorithmic")
+              && !SportifyWorkspace.TryResolve("layouts", "a.json", out _, "Algorithmic") && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _, "..") && !SportifyWorkspace.TryResolve("reports", "..\\Algorithmic\\a.pdf", out _) && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _, "Algorithmic\\.."));
+        var video = Path.Combine(Path.GetTempPath(), "iter-adopt-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".mp4");
+        File.WriteAllText(video, "x");
+        var adopted = SportifyWorkspace.Adopt("videos", video, "Algorithmic");
+        var adoptedAs = SportifyWorkspace.AdoptAs("diagrams", video, "circulation_1.png", "Algorithmic");
+        Check("a film and a diagram are copied into the iteration's folder too (Adopt, AdoptAs), and the original is left where it was",
+              adopted == Path.Combine(iterRoot, "Videos", "Algorithmic", Path.GetFileName(video)) && adoptedAs == Path.Combine(iterRoot, "Diagrams", "Algorithmic", "circulation_1.png") && File.Exists(video) && File.Exists(adopted) && File.Exists(adoptedAs));
+        File.Delete(video);
+    }
+    finally { SportifyWorkspace.UseFolder(null); DeliverableNaming.Set("", ""); try { Directory.Delete(iterRoot, true); } catch (Exception) { } }
+
+    var allSrc = dnSrc == null ? "" : string.Concat(Directory.GetFiles(dnSrc, "*.cs").Select(File.ReadAllText));
+    Check("every producer puts its file in the iteration's folder: the schedule (button and web action), the report (button and web action), the two diagrams, the charts PDF (button and web action), and every film Unity or Kinetics makes",
+          DnSrc("WorkspaceEndpoints.cs").Split("DeliverableNaming.FolderFor(").Length - 1 >= 4 && DnSrc("GenerateAnalysisReportCommand.cs").Split("DeliverableNaming.FolderFor(").Length - 1 >= 2 && DnSrc("GenerateSchedulesCommand.cs").Contains("DeliverableNaming.FolderFor(\"schedules\")")
+          && DnSrc("PhysicalAnalysisPdf.cs").Contains("DeliverableNaming.FolderFor(\"analysis\", layoutJson)") && DnSrc("AnalysisMedia.cs").Contains("DefaultFolder(layoutJson)") && DnSrc("GenerateFunctionalDiagramsCommand.cs").Contains("FolderFor(\"diagrams\")")
+          && System.Text.RegularExpressions.Regex.Matches(allSrc, "SportifyWorkspace\\.Adopt\\(\"videos\", [\\w.]+, DeliverableNaming\\.FolderFor\\(\"videos\"\\)\\)").Count >= 8
+          && !System.Text.RegularExpressions.Regex.IsMatch(allSrc, "SportifyWorkspace\\.Adopt\\(\"videos\", [\\w.]+\\)"));
+    Check("the answers and the list carry the folder, and the link to a file has it (&folder=), so the Documents tab opens the right file",
+          DnSrc("WorkspaceEndpoints.cs").Contains("static string Url(string kind, string name, string? folder = null)") && DnSrc("WorkspaceEndpoints.cs").Contains("GetDeliverable(query[\"kind\"], query[\"name\"], query[\"folder\"])") && DnSrc("WorkspaceEndpoints.cs").Contains("folder = f.Folder"));
+    Check("the report looks for the diagrams of the current iteration's own folder first, then anywhere under Diagrams", DnSrc("WorkspaceEndpoints.cs").Contains("SearchOption.AllDirectories") && DnSrc("WorkspaceEndpoints.cs").Contains("var own = DeliverableNaming.FolderFor(\"diagrams\")"));
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

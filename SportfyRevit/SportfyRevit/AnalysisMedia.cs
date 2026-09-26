@@ -84,7 +84,7 @@ namespace SportfyRevit
         public static void ExportPdf(string title, string layoutJson, IEnumerable<string>? keys, string projectName)
         {
             PdfExport pdf;
-            try { pdf = PhysicalAnalysisPdf.Export(layoutJson, PhysicalAnalysisPdf.DefaultFolder(), projectName, keys); }
+            try { pdf = PhysicalAnalysisPdf.Export(layoutJson, PhysicalAnalysisPdf.DefaultFolder(layoutJson), projectName, keys); }
             catch (Exception ex) { TaskDialog.Show(title, "The PDF could not be made: " + ex.Message); return; }
 
             if (!pdf.Ok)

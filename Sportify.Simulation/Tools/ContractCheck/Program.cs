@@ -441,17 +441,38 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     Check("POST /session-names keeps the two names for the files made from now on, and says the prefix they give", setNames!.Status == 200 && Reply(setNames).GetProperty("prefix").GetString() == "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - " && Reply(Call("GET", "/session-names")).GetProperty("iteration").GetString() == "Algorithmic");
     Check("a body that is not JSON, or not an object, is refused and changes nothing", Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("nonsense"))!.Status == 400 && Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("[1]"))!.Status == 400 && Reply(Call("GET", "/session-names")).GetProperty("name").GetString()!.StartsWith("DIGITAL"));
     const string namedPrefix = "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - ";
-    var namedCsv = Reply(Call("POST", "/schedule")).GetProperty("name").GetString()!;
-    var namedReport = Reply(Call("POST", "/analysis-report")).GetProperty("name").GetString()!;
-    var namedPdf = Reply(Call("POST", "/analysis-pdf", Q("keys", "sun_and_shading"))).GetProperty("name").GetString()!;
-    Check("a layout that names its session and iteration: the schedule, the report and the charts PDF start with them, and the files are where they always are",
-          namedCsv.StartsWith(namedPrefix + "Sportify_Schedule_") && File.Exists(Path.Combine(root, "Schedules", namedCsv)) && namedReport.StartsWith(namedPrefix + "Sportify_Analysis_Report_") && File.Exists(Path.Combine(root, "Analysis reports", namedReport))
-          && namedPdf.StartsWith(namedPrefix + "Sportify_sun_and_shading") && File.Exists(Path.Combine(root, "Physical analysis", namedPdf)), namedCsv + " | " + namedReport + " | " + namedPdf);
+    var namedCsvReply = Reply(Call("POST", "/schedule"));
+    var namedReportReply = Reply(Call("POST", "/analysis-report"));
+    var namedPdfReply = Reply(Call("POST", "/analysis-pdf", Q("keys", "sun_and_shading")));
+    var namedCsv = namedCsvReply.GetProperty("name").GetString()!;
+    var namedReport = namedReportReply.GetProperty("name").GetString()!;
+    var namedPdf = namedPdfReply.GetProperty("name").GetString()!;
+    Check("a layout that names its session and iteration: the schedule, the report and the charts PDF start with them, and the files are in the iteration's own folder inside their kind's folder (Schedules\\Algorithmic ...)",
+          namedCsv.StartsWith(namedPrefix + "Sportify_Schedule_") && File.Exists(Path.Combine(root, "Schedules", "Algorithmic", namedCsv)) && namedReport.StartsWith(namedPrefix + "Sportify_Analysis_Report_") && File.Exists(Path.Combine(root, "Analysis reports", "Algorithmic", namedReport))
+          && namedPdf.StartsWith(namedPrefix + "Sportify_sun_and_shading") && File.Exists(Path.Combine(root, "Physical analysis", "Algorithmic", namedPdf)) && !File.Exists(Path.Combine(root, "Schedules", namedCsv)), namedCsv + " | " + namedReport + " | " + namedPdf);
+    Check("the answers say the iteration's folder, and the link to the file carries it",
+          namedCsvReply.GetProperty("folder").GetString() == "Algorithmic" && namedCsvReply.GetProperty("url").GetString()!.EndsWith("&folder=Algorithmic") && namedReportReply.GetProperty("folder").GetString() == "Algorithmic" && namedPdfReply.GetProperty("folder").GetString() == "Algorithmic"
+          && namedPdfReply.GetProperty("url").GetString()!.EndsWith("&folder=Algorithmic"));
+    Check("that link streams the file, and the same name without the folder is a 404 (it is not in the kind's folder itself)",
+          Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", "Algorithmic"))!.FilePath != null && Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv))!.Status == 404);
+    Check("a folder is only a name: one with a path or '..' in it, one that is not there, and one for a kind that has none (layouts, sport, garden, profile, SOLIDWORKS) are all 404",
+          new[] { "..", "..\\Layouts", "Algorithmic\\..", "C:\\Windows", "Algorithmic\\x" }.All(f => Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", f))!.Status == 404)
+          && Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", "Nothing"))!.Status == 404 && Call("GET", "/deliverable", Q("kind", "layouts", "name", "sportify_combined_revit.json", "folder", "Algorithmic"))!.Status == 404);
+    var listedFiles = Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().ToList();
+    Check("the file list shows them with their folder (empty for a file in the kind's folder itself), and a kind's count in /workspace includes them",
+          listedFiles.Any(f => f.GetProperty("name").GetString() == namedCsv && f.GetProperty("kind").GetString() == "schedules" && f.GetProperty("folder").GetString() == "Algorithmic" && f.GetProperty("url").GetString()!.Contains("folder=Algorithmic"))
+          && listedFiles.Where(f => f.GetProperty("kind").GetString() == "layouts").All(f => f.GetProperty("folder").GetString() == "")
+          && Reply(Call("GET", "/workspace")).GetProperty("kinds").EnumerateArray().First(k => k.GetProperty("key").GetString() == "schedules").GetProperty("count").GetInt32() == listedFiles.Count(f => f.GetProperty("kind").GetString() == "schedules"));
+    Check("a second iteration gets a folder of its own, next to the first one's",
+          DeliverableNaming.Set("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Manual") == ("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Manual") && Reply(Call("POST", "/schedule")).GetProperty("folder").GetString() == "Manual"
+          && Directory.Exists(Path.Combine(root, "Schedules", "Manual")) && Directory.Exists(Path.Combine(root, "Schedules", "Algorithmic")));
+    DeliverableNaming.Set("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Algorithmic");
     Check("the file list shows them (a name in front changes nothing for the Documents tab)", Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().Select(f => f.GetProperty("name").GetString()).Contains(namedCsv));
     Check("naming the session does not touch the layout: its identity is the same, so no result becomes 'about an earlier layout'", RoofBoundaryServer.TryGetLatestCombinedLayout(out var stillSample, out _) && stillSample == sample && LayoutIdentity.Of(stillSample!) == LayoutIdentity.Of(sample));
     Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("{\"name\":\"\",\"iteration\":\"\"}"));
-    var plainCsv = Reply(Call("POST", "/schedule")).GetProperty("name").GetString()!;
-    Check("and a layout that does not: the names are what they always were", plainCsv.StartsWith("Sportify_Schedule_") && !plainCsv.Contains(" - "), plainCsv);
+    var plainReply = Reply(Call("POST", "/schedule"));
+    var plainCsv = plainReply.GetProperty("name").GetString()!;
+    Check("and a layout that does not: the names are what they always were, and the file is in the kind's folder itself (no iteration, no subfolder)", plainCsv.StartsWith("Sportify_Schedule_") && !plainCsv.Contains(" - ") && plainReply.GetProperty("folder").GetString() == "" && File.Exists(Path.Combine(root, "Schedules", plainCsv)), plainCsv);
 
     // a Unity video is adopted, and the folder is opened on request
     var video = Path.Combine(Path.GetTempPath(), "sportify-adopt-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".mp4");

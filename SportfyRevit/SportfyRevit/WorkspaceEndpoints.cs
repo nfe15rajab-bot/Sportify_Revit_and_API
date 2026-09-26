@@ -53,7 +53,7 @@ namespace SportfyRevit
 
         public static string ContentTypeOf(string path) => ContentTypes.TryGetValue(Path.GetExtension(path), out var t) ? t : "application/octet-stream";
 
-        static string Url(string kind, string name) => $"/deliverable?kind={Uri.EscapeDataString(kind)}&name={Uri.EscapeDataString(name)}";
+        static string Url(string kind, string name, string? folder = null) => $"/deliverable?kind={Uri.EscapeDataString(kind)}&name={Uri.EscapeDataString(name)}" + (string.IsNullOrEmpty(folder) ? "" : "&folder=" + Uri.EscapeDataString(folder));
 
         /// <summary>The answer for one of these paths, or null when the path is not one of theirs.</summary>
         public static EndpointResponse? Handle(string method, string? path, NameValueCollection query, Func<byte[]> readBody)
@@ -67,7 +67,7 @@ namespace SportfyRevit
                 case "/session-names" when method == "GET": return SessionNames();
                 case "/session-names" when method == "POST": return SaveSessionNames(readBody);
                 case "/deliverables" when method == "GET": return Deliverables();
-                case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"]);
+                case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"], query["folder"]);
                 case "/deliverable" when method == "POST": return SaveDeliverable(query["kind"], query["name"], readBody);
                 case "/run-analysis" when method == "POST": return RunAnalysis();
                 case "/analysis-pdf" when method == "POST": return AnalysisPdf(query["keys"]);
@@ -177,13 +177,13 @@ namespace SportfyRevit
             return EndpointResponse.Json(new
             {
                 folder = root,
-                files = SportifyWorkspace.List().Select(f => new { kind = f.Kind, name = f.Name, size = f.Size, modified_utc = f.ModifiedUtc.ToString("o"), url = Url(f.Kind, f.Name) }),
+                files = SportifyWorkspace.List().Select(f => new { kind = f.Kind, folder = f.Folder, name = f.Name, size = f.Size, modified_utc = f.ModifiedUtc.ToString("o"), url = Url(f.Kind, f.Name, f.Folder) }),
             });
         }
 
-        static EndpointResponse GetDeliverable(string? kind, string? name)
+        static EndpointResponse GetDeliverable(string? kind, string? name, string? folder = null)
         {
-            if (!SportifyWorkspace.TryResolve(kind, name, out var path)) return EndpointResponse.Error(404, "No such file in the workspace.");
+            if (!SportifyWorkspace.TryResolve(kind, name, out var path, folder)) return EndpointResponse.Error(404, "No such file in the workspace.");
             return new EndpointResponse { ContentType = ContentTypeOf(path), FilePath = path };
         }
 
@@ -266,12 +266,13 @@ namespace SportfyRevit
         {
             if (!TryLayout(out var json, out var failure)) return failure!;
             var wanted = string.IsNullOrWhiteSpace(keys) ? null : keys.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            var pdf = PhysicalAnalysisPdf.Export(json, SportifyWorkspace.PathFor("analysis"), "", wanted);
+            var folder = DeliverableNaming.FolderFor("analysis", json);      // the iteration's own folder, when it has a name
+            var pdf = PhysicalAnalysisPdf.Export(json, SportifyWorkspace.PathFor("analysis", folder), "", wanted);
             if (!pdf.Ok) return EndpointResponse.Error(409, pdf.Error ?? "The PDF could not be made.");
             var name = Path.GetFileName(pdf.Path!);
             return EndpointResponse.Json(new
             {
-                kind = "analysis", name, path = pdf.Path, url = Url("analysis", name),
+                kind = "analysis", folder = folder ?? "", name, path = pdf.Path, url = Url("analysis", name, folder),
                 drawn = pdf.Sections.Select(s => s.Title), skipped = pdf.Skipped.Select(k => new { title = k.Title, reason = k.Reason }),
             }, 201);
         }
@@ -284,8 +285,9 @@ namespace SportfyRevit
             catch (Exception ex) { return EndpointResponse.Error(400, "The layout could not be read: " + ex.Message); }
             if (layout?.Placements == null || layout.Placements.Count == 0) return EndpointResponse.Error(409, "The layout has no pieces yet: place a sport, an activity or a garden piece in Combine.");
             var name = DeliverableNaming.Named($"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");      // with the session's and the iteration's name in front of it, when the layout has them
-            var path = SportifyWorkspace.Save("schedules", name, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());   // BOM: Excel reads the umlauts
-            return EndpointResponse.Json(new { kind = "schedules", name = Path.GetFileName(path), path, url = Url("schedules", Path.GetFileName(path)), rows = layout.Placements.Count }, 201);
+            var folder = DeliverableNaming.FolderFor("schedules");      // from the same names as the file's name (Named)
+            var path = SportifyWorkspace.Save("schedules", name, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray(), folder);   // BOM: Excel reads the umlauts
+            return EndpointResponse.Json(new { kind = "schedules", folder = folder ?? "", name = Path.GetFileName(path), path, url = Url("schedules", Path.GetFileName(path), folder), rows = layout.Placements.Count }, 201);
         }
 
         static EndpointResponse AnalysisReport()
@@ -300,7 +302,8 @@ namespace SportfyRevit
             {
                 try { results = JsonSerializer.Deserialize<AnalysisResultPayload>(resultsJson); } catch (Exception) { /* malformed: without it */ }
             }
-            var path = Path.Combine(SportifyWorkspace.PathFor("reports"), DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
+            var folder = DeliverableNaming.FolderFor("reports");
+            var path = Path.Combine(SportifyWorkspace.PathFor("reports", folder), DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
             try
             {
                 // the diagram images Revit exported to the workspace, when it has (the newest of each)
@@ -309,18 +312,29 @@ namespace SportfyRevit
             }
             catch (Exception ex) { return EndpointResponse.Error(500, "The report could not be made: " + ex.Message); }
             var name = Path.GetFileName(path);
-            return EndpointResponse.Json(new { kind = "reports", name, path, url = Url("reports", name), has_results = results != null, has_diagrams = NewestDiagram("circulation") != null }, 201);
+            return EndpointResponse.Json(new { kind = "reports", folder = folder ?? "", name, path, url = Url("reports", name, folder), has_results = results != null, has_diagrams = NewestDiagram("circulation") != null }, 201);
         }
 
-        /// <summary>The newest diagram of this kind: the current session's and iteration's own first (its name is in front of the stem), else the newest of any.</summary>
+        /// <summary>The newest diagram of this kind: the current iteration's own folder first, and in it the current session's and iteration's own files (their name is in front of the stem); else the newest of any, in the Diagrams folder or any iteration's folder in it.</summary>
         static string? NewestDiagram(string stem)
         {
             try
             {
                 var dir = new DirectoryInfo(SportifyWorkspace.PathFor("diagrams"));
-                foreach (var pattern in DeliverableNaming.PatternsFor(stem + "_", "png"))
+                var patterns = DeliverableNaming.PatternsFor(stem + "_", "png");
+                var own = DeliverableNaming.FolderFor("diagrams");
+                if (own != null)
                 {
-                    var found = dir.EnumerateFiles(pattern).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                    var mine = new DirectoryInfo(SportifyWorkspace.PathFor("diagrams", own));
+                    foreach (var pattern in patterns)
+                    {
+                        var found = mine.EnumerateFiles(pattern).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                        if (found != null) return found.FullName;
+                    }
+                }
+                foreach (var pattern in patterns)
+                {
+                    var found = dir.EnumerateFiles(pattern, SearchOption.AllDirectories).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
                     if (found != null) return found.FullName;
                 }
                 return null;

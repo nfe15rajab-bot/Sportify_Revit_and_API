@@ -168,7 +168,7 @@ namespace SportfyRevit
 
             var video = results.Video;
             var videoPath = video != null && !string.IsNullOrEmpty(video.FilePath) && File.Exists(video.FilePath) ? video.FilePath : null;
-            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath);     // the workspace holds the video, not just Unity's Recordings folder
+            if (videoPath != null) videoPath = SportifyWorkspace.Adopt("videos", videoPath, DeliverableNaming.FolderFor("videos"));     // the workspace holds the video, not just Unity's Recordings folder
             var disagreement = results.Analysis != null ? Compare(report, results.Analysis) : "Unity's results carried no analysis to compare.";
 
             AnalysisResultPublisher.PublishStructuralLoads(BuildPublishedResult(report, caseStudy, videoPath));

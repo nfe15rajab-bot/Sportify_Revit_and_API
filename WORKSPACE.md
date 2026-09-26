@@ -66,12 +66,12 @@ Not connected is a normal state: exports download through the browser as before;
 
 | Path | |
 |---|---|
-| `GET /workspace`, `GET /deliverables` | the folder, its kinds, the files with a link each |
-| `GET /deliverable?kind=&name=` | a file (ranges for video); only files really in the workspace |
+| `GET /workspace`, `GET /deliverables` | the folder, its kinds, the files with a link each (and, for a file in an iteration's folder, its `folder`) |
+| `GET /deliverable?kind=&name=[&folder=]` | a file (ranges for video); only files really in the workspace; `folder` is the iteration's folder inside the kind's folder, and only a plain name of a kind that has iteration folders is accepted |
 | `POST /deliverable?kind=&name=` | the web app's own exports, into the kind's folder |
 | `POST /combined-layout?draft=1` | the layout as it changes (no Auto Import); without `draft`, the explicit export |
 | `POST /run-analysis`, `GET /charts`, `POST /analysis-pdf`, `POST /analysis-report`, `POST /schedule` | the analyses and what they make |
-| `GET /session-names`, `POST /session-names` | the session's and the iteration's name (Documents tab): the reports, schedules, diagrams, charts PDFs and films start with `Session - Iteration - `; kept apart from the layout so that a layout's identity (a hash of its text) does not change |
+| `GET /session-names`, `POST /session-names` | the session's and the iteration's name (Documents tab): the reports, schedules, diagrams, charts PDFs and films start with `Session - Iteration - ` and, with an iteration name, are kept in a folder of that name inside their kind's folder (`Analysis reports\Algorithmic\...`; the kinds Analysis reports, Schedules, Diagrams, Physical analysis and Videos: `SportifyWorkspace.PerIterationKinds`; layouts, sport, garden, profile and SOLIDWORKS stay flat); kept apart from the layout so that a layout's identity (a hash of its text) does not change |
 | `GET /analysis-config` | what was decided in Revit's assumptions window for the project on screen |
 | `POST /revit-command?name=diagrams` | asks Revit (which owns its API thread) to draw the diagrams; 202, 501 outside Revit |
 | `POST /open-folder?kind=` | opens the folder in Explorer |

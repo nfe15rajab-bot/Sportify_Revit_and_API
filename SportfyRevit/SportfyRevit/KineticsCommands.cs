@@ -522,7 +522,7 @@ namespace SportfyRevit
             }
 
             string? videoPath = null;
-            try { if (run.VideoPath != null && File.Exists(run.VideoPath)) videoPath = SportifyWorkspace.Adopt("videos", run.VideoPath); }
+            try { if (run.VideoPath != null && File.Exists(run.VideoPath)) videoPath = SportifyWorkspace.Adopt("videos", run.VideoPath, DeliverableNaming.FolderFor("videos")); }
             catch (Exception ex) { SportifyLog.Warn("kinetics", "the simulation video could not be adopted into the Sportify folder: " + ex.Message); videoPath = run.VideoPath; }
 
             var summary = new List<string>();
@@ -601,7 +601,7 @@ namespace SportfyRevit
             {
                 var results = JsonSerializer.Deserialize<KineticsUnityResults>(run.ResultsJson!);
                 if (results?.Video?.FilePath != null && File.Exists(results.Video.FilePath))
-                    videoPath = SportifyWorkspace.Adopt("videos", results.Video.FilePath);
+                    videoPath = SportifyWorkspace.Adopt("videos", results.Video.FilePath, DeliverableNaming.FolderFor("videos"));
             }
             catch (Exception ex) { TaskDialog.Show(KineticsShared.Title, "The video was rendered, but Unity's results file couldn't be read: " + ex.Message); }
 
