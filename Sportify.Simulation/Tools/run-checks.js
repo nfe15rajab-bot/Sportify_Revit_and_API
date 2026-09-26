@@ -287,6 +287,14 @@ step("the web app: the start-up quiz (questions, what the answers set, only for 
   return r.code === 0 ? { status: "pass", detail: "the real quiz.js, siteField.js and siteController.js against a stand-in page, map and geocoder" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: the rundgang (which steps a profile sees, where the card goes, every target still in the page, a whole tour with the buttons and the keyboard)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "tour-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/tour-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real tour.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "escape-audit-test.js");
