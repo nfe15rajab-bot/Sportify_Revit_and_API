@@ -946,5 +946,99 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
 }
 
+// ---------------------------------------------------------------------------------------------------------------- the ribbon follows the view and this computer
+{
+    Console.WriteLine("\n===== the ribbon follows the view and this computer (RibbonVisibility, SportifyCapabilities) =====");
+    var found = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var all = new Capabilities(found, true, found, found);
+    var noUnity = all with { Unity = new ToolStatus(false, null, "Unity was not found on this computer."), UnityProjectFree = false };
+    var noSw = all with { SolidWorks = new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer.") };
+    var nothing = noUnity with { SolidWorks = noSw.SolidWorks, Chrome = new ToolStatus(false, null, "no Chrome") };
+
+    var layoutPanels = RibbonLayout.Panels;
+    var buttonNames = layoutPanels.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).Append(RibbonVisibility.PushMenuName).ToList();
+    var pulldownNames = layoutPanels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().Select(pd => pd.InternalName).ToList();
+    string[] Shown(string? view, Capabilities c, bool showAll = false) => buttonNames.Where(n => RibbonVisibility.Plan(view, c, showAll)[n].Visible).ToArray();
+    bool PanelShown(string? view, Capabilities c, string name) => RibbonVisibility.Plan(view, c)[RibbonVisibility.PanelKey(name)].Visible;
+
+    Check("every name the rules mention is a real button of the layout (or the Push menu): a renamed button cannot silently stop being ruled",
+          RibbonVisibility.Needs.Keys.Concat(RibbonVisibility.SimpleButtons).Concat(RibbonVisibility.AlwaysVisible).All(buttonNames.Contains),
+          string.Join(", ", RibbonVisibility.Needs.Keys.Concat(RibbonVisibility.SimpleButtons).Concat(RibbonVisibility.AlwaysVisible).Where(n => !buttonNames.Contains(n))));
+    Check("the plan has an entry for every button, drop-down item, drop-down and panel of the layout", buttonNames.Concat(pulldownNames).Concat(layoutPanels.Select(p => RibbonVisibility.PanelKey(p.Name))).All(n => RibbonVisibility.Plan("advanced", all).ContainsKey(n)));
+    Check("the words on every button are found by its internal name (what the web app tells the person is hidden)", buttonNames.All(n => RibbonVisibility.TextOf(n) != n) && RibbonVisibility.TextOf("SimulateKinetics") == "Simulate (SOLIDWORKS)" && RibbonVisibility.TextOf("PushToSportify") == "Push to Sportify" && RibbonVisibility.TextOf("nope") == "nope");
+
+    // the computer
+    Check("Advanced view and every tool found: everything is shown, every panel too", Shown("advanced", all).Length == buttonNames.Count && layoutPanels.All(p => PanelShown("advanced", all, p.Name)) && RibbonVisibility.Hidden(RibbonVisibility.Plan("advanced", all)).Count == 0);
+    var hiddenNoTools = buttonNames.Except(Shown("advanced", nothing)).OrderBy(n => n).ToArray();
+    Check("with no Unity and no SOLIDWORKS exactly the buttons that cannot work are hidden: Ball Trajectory, Record Isolated Video and Simulate (SOLIDWORKS)", string.Join(",", hiddenNoTools) == "RecordKineticsVideo,SimulateBallTrajectories,SimulateKinetics", string.Join(",", hiddenNoTools));
+    Check("the five physical analyses stay without Unity (they give a PDF), and so do their drop-downs and panels", new[] { "AnalyzeStructuralLoads", "AnalyzeDynamicLoads", "AnalyzeSunShade", "AnalyzeWindErosionRisk", "SimulateSoilPercolation" }.All(n => Shown("advanced", nothing).Contains(n))
+          && pulldownNames.All(n => RibbonVisibility.Plan("advanced", nothing)[n].Visible) && layoutPanels.All(p => PanelShown("advanced", nothing, p.Name)));
+    Check("Unity alone: only Simulate (SOLIDWORKS) is hidden; SOLIDWORKS alone: the two Unity buttons are", string.Join(",", buttonNames.Except(Shown("advanced", noSw))) == "SimulateKinetics" && string.Join(",", buttonNames.Except(Shown("advanced", noUnity)).OrderBy(n => n)) == "RecordKineticsVideo,SimulateBallTrajectories");
+    Check("a hidden button's reason is the tool's own sentence (what to do about it)", RibbonVisibility.Plan("advanced", nothing)["SimulateKinetics"].Reason == "SOLIDWORKS is not installed on this computer." && RibbonVisibility.Plan("advanced", nothing)["RecordKineticsVideo"].Reason == "Unity was not found on this computer.");
+    Check("Unity found but its Editor holding the project does not hide the buttons (that is asked at click time, with a way out)", Shown("advanced", all with { UnityProjectFree = false }).Length == buttonNames.Count);
+
+    // the view
+    var simple = Shown("simple", all);
+    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons), in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.OrderBy(n => n)) && RibbonVisibility.SimpleButtons.Count <= 8 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
+    Check("the Simple view shows the panels that keep a button and hides the ones that keep none", PanelShown("simple", all, "App & Data Import") && PanelShown("simple", all, "Simulation & Analytics") && PanelShown("simple", all, "Data Export / Deliverables")
+          && !PanelShown("simple", all, "Algorithmic Analysis") && !PanelShown("simple", all, "Kinetics") && !PanelShown("simple", all, "BIM & Documentation"));
+    Check("Simple with no tools shows the same main path (nothing it keeps needs a tool)", Shown("simple", nothing).OrderBy(n => n).SequenceEqual(simple.OrderBy(n => n)));
+    Check("an unknown or missing view is the Advanced view", new string?[] { null, "", "expert", "SIMPLEX" }.All(v => Shown(v, all).Length == buttonNames.Count) && RibbonVisibility.NormalizeView("Simple") == "simple" && RibbonVisibility.NormalizeView(null) == "advanced");
+
+    // the guard
+    var views = new string?[] { "simple", "advanced", null, "garbage" };
+    Check("the way into the web app and into the person's files is visible in every view and on every computer", views.All(v => new[] { all, nothing, noUnity, noSw }.All(c => RibbonVisibility.AlwaysVisible.All(n => RibbonVisibility.Plan(v, c)[n].Visible))));
+    Check("SPORTIFY_SHOW_ALL_BUTTONS turns both rules off: Simple with no tools still shows everything", Shown("simple", nothing, showAll: true).Length == buttonNames.Count && layoutPanels.All(p => RibbonVisibility.Plan("simple", nothing, true)[RibbonVisibility.PanelKey(p.Name)].Visible));
+    Check("a drop-down is shown exactly when one of its items is, a panel exactly when one of its entries is", views.All(v => new[] { all, nothing }.All(c =>
+    {
+        var plan = RibbonVisibility.Plan(v, c);
+        return layoutPanels.All(p => plan[RibbonVisibility.PanelKey(p.Name)].Visible == p.Entries.Any(e => e switch
+        {
+            RibbonButtonSpec b => plan[b.InternalName].Visible,
+            RibbonPulldownSpec pd => plan[pd.InternalName].Visible && pd.Items.Any(i => plan[i.InternalName].Visible),
+            RibbonPushMenuSpec => plan[RibbonVisibility.PushMenuName].Visible,
+            _ => false,
+        })) && layoutPanels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().All(pd => plan[pd.InternalName].Visible == pd.Items.Any(i => plan[i.InternalName].Visible));
+    })));
+    Check("the ribbon is never left with nothing: there is always something visible", views.All(v => new[] { all, nothing }.All(c => Shown(v, c).Length >= 2)));
+
+    // what this computer has: one answer, kept for a while, safe when the look fails
+    var looks = 0;
+    SportifyCapabilities.UseProbe(() => { looks++; return all; });
+    var first = SportifyCapabilities.Current();
+    SportifyCapabilities.Current();
+    Check("the computer is looked at once and the answer is reused; refresh looks again", looks == 1 && first.Unity.Found && SportifyCapabilities.Current(refresh: true) != null && looks == 2);
+    SportifyCapabilities.UseProbe(() => throw new InvalidOperationException("registry unreadable"));
+    var failed = SportifyCapabilities.Current();
+    Check("a look that fails counts as 'nothing found' with the reason, and never throws", !failed.Unity.Found && failed.Unity.Note.Contains("registry unreadable") && !failed.SolidWorks.Found);
+    SportifyCapabilities.UseProbe(() => Capabilities.None);
+    Check("with no probe installed nothing is found (the safe answer: no button that can only fail is offered)", !SportifyCapabilities.Current(true).Unity.Found);
+    var json = all.ToJson();
+    Check("the answer as JSON has each tool's found/path/note and whether Unity's project is free", json["unity"]!["found"]!.GetValue<bool>() && json["solidworks"]!["path"]!.GetValue<string>() == @"C:\Tools\x.exe" && json["chrome"]!["note"]!.GetValue<string>() == "found" && json["unity_project_free"]!.GetValue<bool>());
+
+    // the wiring in the add-in's sources
+    string? src = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && src == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) src = candidate;
+    }
+    string Src(string file) => src == null ? "" : File.ReadAllText(Path.Combine(src, file));
+    var app = Src("SportfyRevitApp.cs");
+    Check("OnStartup installs the probe before the server starts, and the refresh bridge", app.IndexOf("SportifyCapabilities.UseProbe(CapabilityProbes.Detect)", StringComparison.Ordinal) is var at && at > 0 && at < app.IndexOf("RoofBoundaryServer.Start()", StringComparison.Ordinal) && app.Contains("RibbonRefreshBridge.Install()"));
+    Check("BuildRibbon registers every panel, button, drop-down and drop-down item, and applies the plan after the last panel", app.Contains("RibbonApplier.RegisterPanel(spec.Name, panel)") && (app.Split("RibbonApplier.Register(").Length - 1) >= 4 && app.Contains("RibbonApplier.Apply()")
+          && app.IndexOf("RibbonApplier.Apply()", StringComparison.Ordinal) > app.IndexOf("RibbonApplier.RegisterPanel", StringComparison.Ordinal));
+    Check("a ribbon that cannot follow is logged and left as it was: Apply is inside its own try/catch, and each item's Visible is set inside one", app.Contains("the ribbon could not be made to follow the view and this computer: every button stays visible") && Src("RibbonApplier.cs").Contains("the visibility of \" + key + \" could not be set"));
+    Check("the applier runs on Revit's own thread only (start-up, or the external event RibbonRefreshBridge), and SPORTIFY_SHOW_ALL_BUTTONS is honoured", Src("RibbonApplier.cs").Contains("IExternalEventHandler") && Src("RibbonApplier.cs").Contains("SPORTIFY_SHOW_ALL_BUTTONS") && Src("RibbonApplier.cs").Contains("ExternalEvent.Create(this)"));
+    var media = Src("AnalysisMedia.cs");
+    Check("the analysis dialogs no longer ask 'do you have Unity?': the video link is offered only where Unity is, the PDF always", !media.Contains("I have Unity") && !media.Contains("I don't have Unity") && media.Contains("if (!haveUnity)") && media.Contains("dialog.AddCommandLink(VideoLink, \"Render the 3D video with Unity\""));
+    Check("SOLIDWORKS has one detector: the probe asks MechanicalTool, which the Simulate command uses too", Src("CapabilityProbes.cs").Contains("MechanicalTool.SolidWorksInstalled()") && Src("CapabilityProbes.cs").Contains("MechanicalTool.Locate(") && Src("CapabilityProbes.cs").Contains("UnityHeadlessRunner.TryLocate("));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;

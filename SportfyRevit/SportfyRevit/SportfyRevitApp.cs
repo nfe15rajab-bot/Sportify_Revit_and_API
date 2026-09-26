@@ -32,6 +32,9 @@ namespace SportfyRevit
             AppDomain.CurrentDomain.UnhandledException += (_, args) => SportifyLog.Error("app", "unhandled exception" + (args.IsTerminating ? " (Revit is terminating)" : ""), args.ExceptionObject as Exception);
             TaskScheduler.UnobservedTaskException += (_, args) => { SportifyLog.Error("app", "unobserved task exception", args.Exception); args.SetObserved(); };
 
+            // What this computer has (Unity, SOLIDWORKS, Chrome), looked at once and shared: the dialogs, the ribbon and GET /capabilities all ask this, nobody asks the person.
+            SportifyCapabilities.UseProbe(CapabilityProbes.Detect);
+
             RoofBoundaryServer.Start();
             StaticWebServer.Start();
             EnsureApiRunning();
@@ -40,6 +43,7 @@ namespace SportfyRevit
             // and find its files; and the way for the web app to ask Revit for the functional diagrams.
             try { SportifyWorkspace.EnsureCreated(); } catch (System.Exception) { /* read-only Documents: the folder is made when the first file is saved */ }
             RevitCommandBridge.Install();
+            RibbonRefreshBridge.Install();      // the profile (Simple or Advanced view) or GET /capabilities?refresh=1 have the ribbon follow, on Revit's own thread
 
             // Must happen in OnStartup, before any document is open — see
             // SportifyDockablePaneProvider's own notes on the GUID needing
@@ -189,7 +193,7 @@ namespace SportfyRevit
         /// </summary>
         private static void AddPushMenu(RibbonPanel panel)
         {
-            var menu = (PulldownButton)panel.AddItem(new PulldownButtonData("PushToSportify", "Push to\nSportify")
+            var menu = (PulldownButton)panel.AddItem(new PulldownButtonData(RibbonVisibility.PushMenuName, "Push to\nSportify")
             {
                 ToolTip = "Send the selected roof or floor to the Sportify web app's Combine tab: everything the model knows about it at once, or one part at a time.",
                 LongDescription = "The roof's outline and size always go with it (they fix the plan). A part pushed alone is laid onto the roof pushed before, so you can push the " +
@@ -209,6 +213,7 @@ namespace SportfyRevit
             var menuSmall = RibbonIcons.Small("push");
             if (menuLarge != null) menu.LargeImage = menuLarge;
             if (menuSmall != null) menu.Image = menuSmall;
+            RibbonApplier.Register(RibbonVisibility.PushMenuName, menu);
 
             void Item(string name, string text, Type command, string tip)
             {
@@ -257,12 +262,17 @@ namespace SportfyRevit
                 RibbonPanel panel;
                 try { panel = application.CreateRibbonPanel(TabName, spec.Name); }
                 catch (Exception ex) { SportifyLog.Error("ribbon", "the panel \"" + spec.Name + "\" could not be created", ex); continue; }
+                RibbonApplier.RegisterPanel(spec.Name, panel);
                 foreach (var entry in spec.Entries)
                 {
                     try { AddEntry(panel, assembly, entry); }
                     catch (Exception ex) { SportifyLog.Error("ribbon", "an entry of the panel \"" + spec.Name + "\" could not be added (" + Describe(entry) + ")", ex); }
                 }
             }
+
+            // What this computer cannot do (no Unity, no SOLIDWORKS) and what the person's Simple view leaves out is not shown: RibbonVisibility decides, RibbonApplier applies.
+            try { RibbonApplier.Apply(); }
+            catch (Exception ex) { SportifyLog.Error("ribbon", "the ribbon could not be made to follow the view and this computer: every button stays visible", ex); }
         }
 
         private static string Describe(RibbonEntry entry) => entry switch
@@ -279,6 +289,7 @@ namespace SportfyRevit
                 case RibbonButtonSpec button:
                     var pushButton = (PushButton)panel.AddItem(ButtonData(assembly, button, item: false));
                     if (button.InternalName == "ToggleAutoImport") AutoImportSync.ToggleButton = pushButton;
+                    RibbonApplier.Register(button.InternalName, pushButton);
                     break;
                 case RibbonPulldownSpec pulldown:
                     var data = new PulldownButtonData(pulldown.InternalName, pulldown.Text) { ToolTip = Tooltip(pulldown.Tooltip) };
@@ -287,9 +298,10 @@ namespace SportfyRevit
                     var small = RibbonIcons.Small(pulldown.Icon);
                     if (small != null) data.Image = small;
                     var menu = (PulldownButton)panel.AddItem(data);
+                    RibbonApplier.Register(pulldown.InternalName, menu);
                     foreach (var item in pulldown.Items)
                     {
-                        try { menu.AddPushButton(ButtonData(assembly, item, item: true)); }
+                        try { RibbonApplier.Register(item.InternalName, menu.AddPushButton(ButtonData(assembly, item, item: true))); }
                         catch (Exception ex) { SportifyLog.Error("ribbon", "the item " + item.InternalName + " of " + pulldown.InternalName + " could not be added", ex); }
                     }
                     break;

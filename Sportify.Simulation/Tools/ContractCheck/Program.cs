@@ -319,6 +319,33 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
         Parallel.For(0, 24, i => Call("POST", "/profile", null, Json(new { view = i % 2 == 0 ? "simple" : "advanced", updated = $"2026-09-25T20:00:{i:00}Z", person = new { name = "n" + i } })));
         Check("24 saves at once leave a valid settings file with one of them, and the other settings", JsonDocument.Parse(File.ReadAllText(pSettings)).RootElement.GetProperty("profile").GetProperty("person").GetProperty("name").GetString()!.StartsWith("n") && !File.Exists(pSettings + ".tmp") && Directory.GetFiles(profileDir).Length == 1);
 
+        // what this computer has (GET /capabilities), and the ribbon following the view
+        {
+            var unityStatus = new ToolStatus(true, @"C:\Unity\Editor\Unity.exe", "Unity was found: the 3D videos can be rendered.");
+            SportifyCapabilities.UseProbe(() => new Capabilities(unityStatus, true, new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer."), new ToolStatus(true, @"C:\Chrome\chrome.exe", "Chrome was found.")));
+            var refreshes = 0;
+            WorkspaceEndpoints.RibbonRefreshRequested = () => refreshes++;
+            Call("POST", "/profile", null, Json(new { view = "advanced", updated = "2026-09-26T08:00:00Z" }));
+            refreshes = 0;
+            var caps = Reply(Call("GET", "/capabilities"));
+            Check("GET /capabilities says what this computer has: Unity, SOLIDWORKS and Chrome, each found or not, with where and a sentence", caps.GetProperty("unity").GetProperty("found").GetBoolean() && caps.GetProperty("unity").GetProperty("path").GetString() == @"C:\Unity\Editor\Unity.exe" &&
+                  !caps.GetProperty("solidworks").GetProperty("found").GetBoolean() && caps.GetProperty("solidworks").GetProperty("note").GetString() == "SOLIDWORKS is not installed on this computer." && caps.GetProperty("chrome").GetProperty("found").GetBoolean() && caps.GetProperty("unity_project_free").GetBoolean());
+            var hiddenNow = caps.GetProperty("ribbon_hidden").EnumerateArray().ToArray();
+            Check("...and which buttons of the Revit ribbon are hidden because of it, by name, words and reason (Advanced view: only Simulate (SOLIDWORKS))", caps.GetProperty("view").GetString() == "advanced" && hiddenNow.Length == 1 && hiddenNow[0].GetProperty("name").GetString() == "SimulateKinetics" &&
+                  hiddenNow[0].GetProperty("text").GetString() == "Simulate (SOLIDWORKS)" && hiddenNow[0].GetProperty("reason").GetString() == "SOLIDWORKS is not installed on this computer.");
+            Check("a plain GET leaves the ribbon alone; ?refresh=1 looks at the computer again and asks the ribbon to follow", refreshes == 0 && Call("GET", "/capabilities", Q("refresh", "1"))!.Status == 200 && refreshes == 1);
+            Call("POST", "/profile", null, Json(new { view = "simple", updated = "2026-09-26T08:01:00Z" }));
+            Check("saving the profile asks the ribbon to follow the view", refreshes == 2);
+            var simpleCaps = Reply(Call("GET", "/capabilities"));
+            Check("the Simple view is reported and hides the rest of the ribbon too (the drop-downs, three panels' buttons), each with the reason", simpleCaps.GetProperty("view").GetString() == "simple" && simpleCaps.GetProperty("ribbon_hidden").GetArrayLength() > 15 &&
+                  simpleCaps.GetProperty("ribbon_hidden").EnumerateArray().All(h => h.GetProperty("reason").GetString()!.Length > 0) && !simpleCaps.GetProperty("ribbon_hidden").EnumerateArray().Any(h => h.GetProperty("name").GetString() is "OpenSportifyApp" or "OpenSportifyFolder" or "SendPhysicalAnalysisToWeb"));
+            WorkspaceEndpoints.RibbonRefreshRequested = () => throw new InvalidOperationException("Revit is busy");
+            Check("a ribbon that cannot take the request does not fail the profile save or the answer", Call("POST", "/profile", null, Json(new { view = "advanced" }))!.Status == 200 && Call("GET", "/capabilities", Q("refresh", "1"))!.Status == 200);
+            Check("only GET is /capabilities's: a POST is left to the server", Call("POST", "/capabilities") == null);
+            WorkspaceEndpoints.RibbonRefreshRequested = null;
+            SportifyCapabilities.UseProbe(() => Capabilities.None);
+        }
+
         SportifyWorkspace.UseFolder(root);
         SportifyWorkspace.UseSettingsFile(settings);
         try { Directory.Delete(Path.GetDirectoryName(pRoot)!, true); } catch (IOException) { /* a temp folder: leave it */ }

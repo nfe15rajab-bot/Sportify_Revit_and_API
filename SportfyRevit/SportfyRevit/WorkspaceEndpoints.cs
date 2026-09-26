@@ -36,6 +36,9 @@ namespace SportfyRevit
         /// <summary>Set by the add-in to ask Revit to run a command that needs its API ("diagrams"); returns null when started, else why not. Null = not wired.</summary>
         public static Func<string, string?>? RevitCommandRequested;
 
+        /// <summary>Set by the add-in to have the ribbon re-follow the view and this computer (RibbonRefreshBridge: on Revit's own thread). Null = not wired (tests).</summary>
+        public static Action? RibbonRefreshRequested;
+
         /// <summary>Opens a folder in Explorer. Replaced in tests.</summary>
         public static Action<string> OpenFolder = folder => Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
 
@@ -57,6 +60,7 @@ namespace SportfyRevit
                 case "/workspace" when method == "GET": return Workspace();
                 case "/profile" when method == "GET": return GetProfile();
                 case "/profile" when method == "POST": return SaveProfile(readBody);
+                case "/capabilities" when method == "GET": return GetCapabilities(query["refresh"] == "1");
                 case "/deliverables" when method == "GET": return Deliverables();
                 case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"]);
                 case "/deliverable" when method == "POST": return SaveDeliverable(query["kind"], query["name"], readBody);
@@ -112,7 +116,34 @@ namespace SportfyRevit
             try { SportifyProfile.SaveToSettings(clean); }
             catch (Exception ex) { return EndpointResponse.Error(500, "The settings file could not be written: " + ex.Message); }
             var (file, photo, error) = SportifyProfile.WriteToFolder(clean);
+            RequestRibbonRefresh();      // the view may have changed: the Sportify tab in Revit follows it
             return EndpointResponse.Json(new { profile = clean, file, photo_file = photo, folder_error = error });
+        }
+
+        static void RequestRibbonRefresh()
+        {
+            try { RibbonRefreshRequested?.Invoke(); }
+            catch (Exception) { /* Revit could not take the request just now: the ribbon follows at the next change */ }
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ what this computer has
+
+        /// <summary>
+        /// What this computer can do (Unity for the 3D videos, SOLIDWORKS for the mechanical assemblies, Chrome for the web app), and what the Sportify tab in Revit therefore hides
+        /// besides what the person's Simple view hides. The add-in knows, so nobody is asked. ?refresh=1 looks at the computer again (the Profile tab does when it opens: Unity may
+        /// have been installed since Revit started) and has the ribbon follow.
+        /// </summary>
+        static EndpointResponse GetCapabilities(bool refresh)
+        {
+            var caps = SportifyCapabilities.Current(refresh);
+            var view = RibbonVisibility.NormalizeView(SportifyProfile.Read()?["view"]?.GetValue<string>());
+            var plan = RibbonVisibility.Plan(view, caps, Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS") == "1");
+            var body = caps.ToJson();
+            body["view"] = view;
+            body["ribbon_hidden"] = new System.Text.Json.Nodes.JsonArray(RibbonVisibility.Hidden(plan)
+                .Select(name => (System.Text.Json.Nodes.JsonNode?)new System.Text.Json.Nodes.JsonObject { ["name"] = name, ["text"] = RibbonVisibility.TextOf(name), ["reason"] = plan[name].Reason }).ToArray());
+            if (refresh) RequestRibbonRefresh();
+            return EndpointResponse.Json(body);
         }
 
         static EndpointResponse Deliverables()

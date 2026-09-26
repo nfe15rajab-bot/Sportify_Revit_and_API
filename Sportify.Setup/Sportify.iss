@@ -111,7 +111,9 @@ Name: "{autoprograms}\Sportify\Stop Sportify API"; Filename: "{sys}\WindowsPower
 Name: "{autoprograms}\Sportify\Uninstall Sportify"; Filename: "{uninstallexe}"; Check: Shortcuts
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Description: "Open the Sportify web app"; Flags: postinstall nowait skipifsilent runhidden
+; Setup looks for Chrome itself and words the choice accordingly (Open-Sportify-WebApp.ps1 does the same when it runs: Chrome, else the default browser)
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Description: "Open the Sportify web app in Chrome"; Flags: postinstall nowait skipifsilent runhidden; Check: ChromeInstalled
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Description: "Open the Sportify web app in your browser (Chrome was not found)"; Flags: postinstall nowait skipifsilent runhidden; Check: not ChromeInstalled
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-InRevit.ps1"""; Description: "Open Revit {#RevitYear} with the web app docked inside it instead"; Flags: postinstall nowait skipifsilent runhidden unchecked; Check: RevitInstalled
 
 [UninstallRun]
@@ -184,6 +186,17 @@ end;
 function RevitInstalled: Boolean;
 begin
   Result := FileExists(RevitExe);
+end;
+
+// Chrome the way Windows finds it: its "App Paths" entry (machine-wide in either registry view, or the person's own)
+function ChromeInstalled: Boolean;
+var
+  Path: String;
+begin
+  Result := False;
+  if RegQueryStringValue(HKLM64, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', '', Path) then Result := FileExists(Path);
+  if (not Result) and RegQueryStringValue(HKLM32, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', '', Path) then Result := FileExists(Path);
+  if (not Result) and RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe', '', Path) then Result := FileExists(Path);
 end;
 
 function RevitRunning: Boolean;

@@ -13,9 +13,9 @@ namespace SportfyRevit
 {
     /// <summary>
     /// What an analysis offers after its numbers: a 3D video (which needs the Unity Editor on this computer) or, for everybody else, the same results drawn as charts
-    /// in a PDF. The dialogs of the Unity-based commands ask it as one question, "do you have Unity?", by their two links: "I have Unity: render the 3D video" runs Unity
-    /// headless (with a progress window and a Cancel button, so Revit is not left frozen); "I don't have Unity: charts as a PDF" needs nothing installed and writes to
-    /// the Physical analysis folder of the Sportify workspace. Choosing the video without a usable Unity says why and offers the PDF instead.
+    /// in a PDF. The dialogs of the Unity-based commands no longer ask "do you have Unity?": the add-in knows (SportifyCapabilities). With Unity they offer "Render the 3D
+    /// video" (Unity runs headless, with a progress window and a Cancel button, so Revit is not left frozen) and "Charts as a PDF"; without it only the PDF, which needs
+    /// nothing installed and writes to the Physical analysis folder of the Sportify workspace. Choosing the video when Unity turns out to be unusable still says why and offers the PDF.
     /// </summary>
     internal static class AnalysisMedia
     {
@@ -30,15 +30,22 @@ namespace SportfyRevit
         /// </summary>
         public const string SeeReport = "See the Analysis Report (BIM & Documentation → Generate Analysis Report) for the numbers, chart and recommendations.";
 
-        /// <summary>Adds the two answers to a result dialog.</summary>
+        /// <summary>
+        /// Adds what the result dialog offers next. Nobody is asked whether they have Unity: the add-in knows (SportifyCapabilities). With Unity, the 3D video and the PDF are both
+        /// offered; without it only the PDF is, with the reason, so there is no link that can only fail. The ids stay the same (VideoLink, PdfLink), so <see cref="Read"/> is unchanged.
+        /// </summary>
         public static void AddLinks(TaskDialog dialog, bool haveUnity, bool unityFree, string videoTakes)
         {
-            var video = unityFree ? $"Runs Unity headless (found). {videoTakes} A progress window shows it, and you can cancel."
-                      : haveUnity ? "The Unity Editor has the Sportify.Simulation project open: close it first (you will be asked). Or choose the PDF."
-                      : "Unity was not found on this computer. You will be offered the PDF instead.";
-            dialog.AddCommandLink(VideoLink, "I have Unity: render the 3D video", video);
-            dialog.AddCommandLink(PdfLink, "I don't have Unity: charts as a PDF",
-                "The same results drawn as plans, bars and curves, saved as a PDF in the Physical analysis folder of your Sportify folder. Needs no Unity; takes a few seconds.");
+            const string PdfText = "The same results drawn as plans, bars and curves, saved as a PDF in the Physical analysis folder of your Sportify folder. Needs no Unity; takes a few seconds.";
+            if (!haveUnity)
+            {
+                dialog.AddCommandLink(PdfLink, "Charts as a PDF", "Unity was not found on this computer, so there is no 3D video here. " + PdfText);
+                return;
+            }
+            var video = unityFree ? $"Unity was found. {videoTakes} A progress window shows it, and you can cancel."
+                                  : "Unity was found, but its Editor has the Sportify.Simulation project open: close it first (you will be asked). Or choose the PDF.";
+            dialog.AddCommandLink(VideoLink, "Render the 3D video with Unity", video);
+            dialog.AddCommandLink(PdfLink, "Charts as a PDF instead", PdfText);
         }
 
         public static SummaryChoice Read(TaskDialogResult result)
