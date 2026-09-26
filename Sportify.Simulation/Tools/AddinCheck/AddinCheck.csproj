@@ -39,6 +39,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RibbonVisibility.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyProfile.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\GettingStarted.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\IfcWorksetRules.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyWorkspace.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyCapabilities.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RibbonIconData.cs" />

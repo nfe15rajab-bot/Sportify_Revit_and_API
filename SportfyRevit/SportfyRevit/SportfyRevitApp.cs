@@ -133,6 +133,8 @@ namespace SportfyRevit
             KineticsSelfTest.Install(application);
             // SPORTIFY_KINETICS_WALKTHROUGH=<folder>: an unattended walk through the Kinetics ribbon buttons on a real exported layout (see KineticsWalkthrough). Nothing otherwise.
             KineticsWalkthrough.Install(application);
+            // SPORTIFY_IFC_WORKSETS_SELFTEST=<folder> + SPORTIFY_IFC_WORKSETS_FILE=<project.rvt>: an unattended check of IFC Worksets by Class on a copy of a real model (see IfcWorksetsSelfTest). Nothing otherwise.
+            IfcWorksetsSelfTest.Install(application);
 
             return Result.Succeeded;
         }

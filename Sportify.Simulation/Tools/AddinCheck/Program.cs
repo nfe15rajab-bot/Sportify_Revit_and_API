@@ -866,10 +866,10 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
           && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
     Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
-    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, Import Iterations as Design Options, Show Iteration",
+    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, IFC Worksets by Class, Import Iterations as Design Options, Show Iteration",
           phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
           {
-              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"),
+              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"), ("IFC Worksets by Class", "AssignIfcWorksetsCommand"),
               ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
           }));
 
@@ -1284,6 +1284,99 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("the project's import ledger is what says the layout was built here, read inside a try so a project without one is just 'not yet'", cmd.Contains("ImportLedger.ReadElements(doc).Count > 0") && cmd.IndexOf("try { built", StringComparison.Ordinal) > 0);
     Check("another button's command is only posted when Revit can take it, else the person is told which button to click", cmd.Contains("uiApp.CanPostCommand(id)") && cmd.Contains("SportfyRevitApp.CommandIdFor(internalName)") && cmd.Contains("Click \\\"\" + text + \"\\\" on the Sportify tab"));
     Check("nothing opens the checklist by itself: only the ribbon button names it (the app's start-up never does)", !GsSrc("SportfyRevitApp.cs").Contains("GettingStartedCommand") && !GsSrc("SportfyRevitApp.cs").Contains("GettingStarted."));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- IFC Worksets by Class
+{
+    Console.WriteLine("\n===== IFC worksets by class (IfcWorksetRules, IfcWorksetService, AssignIfcWorksetsCommand) =====");
+    string? ifSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && ifSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) ifSrc = candidate;
+    }
+    string IfSrc(string file) => ifSrc == null ? "" : File.ReadAllText(Path.Combine(ifSrc, file));
+    var D = IfcWorksetRules.Defaults;
+    string? N(string? s) => IfcWorksetRules.NormalizeClass(s);
+
+    Check("the IFC import writes the class of the TYPE, and the element is an instance of it: IfcColumnType is an IfcColumn, IfcRampFlightType an IfcRampFlight, IfcWallStandardCase an IfcWall",
+          N("IfcColumnType") == "IfcColumn" && N("IfcRampFlightType") == "IfcRampFlight" && N("IfcWallStandardCase") == "IfcWall" && N("IfcWallStandardCaseType") == "IfcWall" && N("  IfcBeamType ") == "IfcBeam" && N("IfcSlab") == "IfcSlab");
+    Check("'By Type', 'Default', 'Not Exported', Yes, No, empty, null and text that is no IFC class say nothing", new string?[] { null, "", "  ", "By Type", "default", "<Default>", "Not Exported", "Yes", "No", "Column", "Type" }.All(v => N(v) == null));
+    Check("a predefined type refines nothing when it is NOTDEFINED, USERDEFINED, empty or 'By Type'; otherwise it is upper case",
+          IfcWorksetRules.NormalizePredefined("beam") == "BEAM" && IfcWorksetRules.NormalizePredefined("NOTDEFINED") == null && IfcWorksetRules.NormalizePredefined("USERDEFINED") == null && IfcWorksetRules.NormalizePredefined(" ") == null && IfcWorksetRules.NormalizePredefined("By Type") == null && IfcWorksetRules.NormalizePredefined(null) == null);
+
+    // what the inspection of the Goldbeck model found (2026-09-26): every class it holds has a workset of its own kind, none falls to the fallback
+    var goldbeck = new[] { "IfcFurnitureType", "IfcColumnType", "IfcBeamType", "IfcMemberType", "IfcWallType", "IfcRailingType", "IfcRampFlightType", "IfcRampType", "IfcSlabType", "IfcPipeSegmentType" };
+    Check("every class the Goldbeck model holds (furniture, columns, beams, members, walls, railings, ramps and their flights, slabs, pipes) has a workset in the defaults, and none goes to the fallback",
+          goldbeck.All(c => IfcWorksetRules.WorksetFor(D, N(c), null, false) != D.Fallback && D.Map.ContainsKey(N(c)!)), string.Join(",", goldbeck.Where(c => IfcWorksetRules.WorksetFor(D, N(c), null, false) == D.Fallback)));
+    Check("columns, beams and members share IFC Structure; walls, railings, furniture and slabs each have their own; ramps and their flights share one",
+          IfcWorksetRules.WorksetFor(D, "IfcColumn", null, false) == "IFC Structure" && IfcWorksetRules.WorksetFor(D, "IfcBeam", null, false) == "IFC Structure" && IfcWorksetRules.WorksetFor(D, "IfcMember", null, false) == "IFC Structure"
+          && new[] { "IfcWall", "IfcRailing", "IfcFurniture", "IfcSlab" }.Select(c => IfcWorksetRules.WorksetFor(D, c, null, false)).Distinct().Count() == 4 && IfcWorksetRules.WorksetFor(D, "IfcRamp", null, false) == IfcWorksetRules.WorksetFor(D, "IfcRampFlight", null, false));
+    Check("the default names never meet Sportify's own worksets (Sports, Gardens, Combine, 'Sportify ...') except the roof, which is Sportify's Existing Roof Base on purpose",
+          IfcWorksetRules.WorksetNames(D).Where(n => n != D.Roof).All(n => n.StartsWith("IFC ") && !BimRules.WorksetNames.Contains(n)) && D.Roof == "Sportify Existing Roof Base" && D.Fallback == "IFC Other");
+    Check("the roof workset is the name SportifyWorksetSet gives the existing roof base (one name, two files)", IfSrc("SportifyWorksetSet.cs").Contains("ExistingRoofBase = \"" + IfcWorksetRules.RoofWorkset + "\""));
+
+    // what is read from an element: its own class first, then its type's, then its category's
+    string? Inst(string n) => n == "Export to IFC As" ? "IfcColumnType" : n == "IFC Predefined Type" ? "COLUMN" : null;
+    string? Typ(string n) => n == "Export Type to IFC As" ? "IfcBeamType" : n == "Type IFC Predefined Type" ? "BEAM" : null;
+    string? None(string n) => null;
+    Check("the class is the instance's if it has one, else the type's, else the one the Revit category stands for, else none",
+          IfcWorksetRules.ClassOf(Inst, Typ, "OST_Walls") == "IfcColumn" && IfcWorksetRules.ClassOf(None, Typ, "OST_Walls") == "IfcBeam" && IfcWorksetRules.ClassOf(None, None, "OST_Walls") == "IfcWall"
+          && IfcWorksetRules.ClassOf(None, None, "OST_Furniture") == "IfcFurniture" && IfcWorksetRules.ClassOf(None, None, "OST_StructuralColumns") == "IfcColumn" && IfcWorksetRules.ClassOf(None, None, "OST_Cameras") == null && IfcWorksetRules.ClassOf(None, None, null) == null);
+    Check("...and 'By Type' on the instance does not hide the type's class", IfcWorksetRules.ClassOf(n => n == "Export to IFC As" ? "By Type" : null, Typ, null) == "IfcBeam");
+    Check("the predefined type is the instance's, else the type's", IfcWorksetRules.PredefinedOf(Inst, Typ) == "COLUMN" && IfcWorksetRules.PredefinedOf(None, Typ) == "BEAM" && IfcWorksetRules.PredefinedOf(None, None) == null);
+
+    // the table
+    var refined = new IfcWorksetTable("Other", "Roof base", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["IfcMember"] = "Members", ["IfcMember:BRACE"] = "Bracing", ["IfcWall"] = "Walls" });
+    Check("the roof the person named goes on the roof workset whatever its class; 'class:PREDEFINED' beats the class; a class the table does not name goes to the fallback; an element with no class at all gets no workset (it stays where it is); classes are matched without regard to case",
+          IfcWorksetRules.WorksetFor(refined, "IfcWall", null, true) == "Roof base" && IfcWorksetRules.WorksetFor(refined, "IfcMember", "BRACE", false) == "Bracing" && IfcWorksetRules.WorksetFor(refined, "IfcMember", "STRUT", false) == "Members"
+          && IfcWorksetRules.WorksetFor(refined, "IfcMember", null, false) == "Members" && IfcWorksetRules.WorksetFor(refined, "IfcDuct", null, false) == "Other" && IfcWorksetRules.WorksetFor(refined, null, null, false) == null && IfcWorksetRules.WorksetFor(refined, null, "BRACE", false) == null && IfcWorksetRules.WorksetFor(refined, "ifcwall", null, false) == "Walls");
+    var round = IfcWorksetRules.Parse(IfcWorksetRules.ToJson(D));
+    Check("the table written to the file reads back the same (fallback, roof, every class)", round.Fallback == D.Fallback && round.Roof == D.Roof && round.Map.Count == D.Map.Count && D.Map.All(kv => round.Map.TryGetValue(kv.Key, out var w) && w == kv.Value));
+    Check("the file's note says how to edit it and which command reads it", IfcWorksetRules.ToJson(D).Contains("_about") && IfcWorksetRules.ToJson(D).Contains("IFC Worksets by Class") && IfcWorksetRules.ToJson(D).Contains("IfcMember:BRACE"));
+    var edited = IfcWorksetRules.Parse("{ \"fallback\": \"Rest\", \"map\": { \"IfcColumn\": \"Stützen\", \"IfcWall\": \"  \", \"\": \"x\", \"IfcSlab\": 5 } }");
+    Check("an edited file: its own map replaces the default map (blank names, blank keys and non-text values are dropped), its fallback is used, a missing roof is the default one",
+          edited.Fallback == "Rest" && edited.Roof == D.Roof && edited.Map.Count == 1 && edited.Map["IfcColumn"] == "Stützen" && IfcWorksetRules.WorksetFor(edited, "IfcWall", null, false) == "Rest");
+    Check("a file that is broken, empty, not an object, or missing gives the defaults and never throws", new string?[] { null, "", "not json", "[1,2]", "{ \"map\": 3 }", "{" }.All(t => IfcWorksetRules.Parse(t).Map.Count == D.Map.Count || t == "{ \"map\": 3 }") && IfcWorksetRules.Parse("{ \"map\": 3 }").Map.Count == D.Map.Count);
+    var ifDir = Path.Combine(Path.GetTempPath(), "sportify-ifcws-" + Guid.NewGuid().ToString("N")[..8]);
+    try
+    {
+        var file = Path.Combine(ifDir, "sub", "ifc-worksets.json");
+        var first = IfcWorksetRules.EnsureFile(file);
+        File.WriteAllText(file, "{ \"fallback\": \"Mine\" }");
+        var second = IfcWorksetRules.EnsureFile(file);
+        Check("the default table is written once, where a person can find it (folders made), and an edited file is never overwritten", first && !second && IfcWorksetRules.Load(file).Fallback == "Mine" && IfcWorksetRules.Load(Path.Combine(ifDir, "nothing.json")).Fallback == D.Fallback);
+        File.WriteAllBytes(file, new byte[] { 0xff, 0xfe, 0x00 });
+        Check("an unreadable file is the defaults", IfcWorksetRules.Load(file).Map.Count == D.Map.Count);
+    }
+    finally { try { Directory.Delete(ifDir, true); } catch (Exception) { } }
+    Check("the workset names a table can use are its map's, its fallback and its roof, each once", IfcWorksetRules.WorksetNames(D).Count == D.Map.Values.Append(D.Fallback).Append(D.Roof).Distinct(StringComparer.OrdinalIgnoreCase).Count() && IfcWorksetRules.WorksetNames(D).Contains("IFC Other"));
+    Check("the summary lines list the largest first and leave out what is zero", IfcWorksetRules.Lines(new Dictionary<string, int> { ["B"] = 3, ["A"] = 10, ["Z"] = 0 }) == "  A: 10\n  B: 3");
+
+    // the parts that need Revit, as far as they can be read
+    var svc = IfSrc("IfcWorksetService.cs"); var cmd = IfSrc("AssignIfcWorksetsCommand.cs"); var self = IfSrc("IfcWorksetsSelfTest.cs");
+    Check("an IFC element is a DirectShape or one with IfcSpatialContainer; what Sportify made (its ledger, its worksets) is left alone, and only the roof workset of Sportify's is one an IFC element may be on",
+          svc.Contains("el is DirectShape || el.LookupParameter(\"IfcSpatialContainer\") != null") && svc.Contains("SportifyElementScan.Find(doc)") && svc.Contains("IsSportifyWorkset(current, table)") && svc.Contains("!name.Equals(table.Roof, StringComparison.OrdinalIgnoreCase)"));
+    Check("an element with no IFC class (the IFC's grid axes are plain model lines) is counted by its category and left where it is, never moved to the fallback",
+          svc.Contains("if (workset == null)") && svc.Contains("plan.Unclassified[kind]") && svc.Contains("WithoutClass => Unclassified.Values.Sum()") && cmd.Contains("stay where they are") && self.Contains("must stay where they are"));
+    Check("the roof is never guessed: only the ids the caller names are the roof", svc.Contains("roofIds != null && roofIds.Contains(el.Id)") && cmd.Contains("uidoc!.Selection.GetElementIds()") && !svc.Contains("BoundingBox"));
+    Check("Apply is one transaction that is rolled back if anything throws, makes the missing worksets, counts what was already there, and asks who owns an element only in a project that has a central model",
+          svc.Contains("new Transaction(doc, \"Sportify: IFC worksets by class\")") && svc.Contains("t.RollBack()") && svc.Contains("Workset.Create(doc, item.Workset)") && svc.Contains("item.AlreadyThere") && svc.Contains("doc.GetWorksharingCentralModelPath() != null"));
+    Check("the command shows what it would do (the worksets and counts, no-class, phases, the table's path) before it does it, offers to open the table, and only the first link changes anything",
+          cmd.Contains("IfcWorksetService.Plan(doc, table, roof)") && cmd.IndexOf("ask.Show()", StringComparison.Ordinal) < cmd.IndexOf("IfcWorksetService.Apply(doc, plan)", StringComparison.Ordinal) && cmd.Contains("Open the table to edit it") && cmd.Contains("answer != TaskDialogResult.CommandLink1) return Result.Cancelled")
+          && cmd.Contains("Phase Created of these elements"));
+    Check("it asks before turning worksharing on, and a document that cannot have worksharing is told why; every failure is caught and reported by BimCommandErrors", cmd.Contains("doc.CanEnableWorksharing()") && cmd.Contains("Cannot be undone.") && cmd.Contains("BimCommandErrors.Failed(Title"));
+    var pull = RibbonLayout.Panels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().First(p => p.InternalName == "PullPhasingWorksets");
+    var ifcBtn = pull.Items.FirstOrDefault(i => i.InternalName == "AssignIfcWorksets");
+    Check("the button is in the Phasing & Worksets drop-down next to Organize Multi-Worksets, runs AssignIfcWorksetsCommand, has an icon of the table and a tooltip that names the table and the roof selection",
+          ifcBtn != null && ifcBtn.CommandClass == "AssignIfcWorksetsCommand" && RibbonIconData.Icons.ContainsKey(ifcBtn.Icon) && ifcBtn.Tooltip.Contains("ifc-worksets.json") && ifcBtn.Tooltip.Contains("Select the roof")
+          && pull.Items.ToList().FindIndex(i => i.InternalName == "AssignIfcWorksets") == pull.Items.ToList().FindIndex(i => i.InternalName == "AssignWorksets") + 1);
+    Check("it is an Advanced-view button: the Simple view does not show it, Advanced does", !RibbonVisibility.SimpleButtons.Contains("AssignIfcWorksets") && RibbonVisibility.Plan("advanced", Capabilities.None)["AssignIfcWorksets"].Visible && !RibbonVisibility.Plan("simple", Capabilities.None)["AssignIfcWorksets"].Visible);
+    Check("the unattended self-test copies the project (the original is never opened), opens the copy detached, closes it without saving, and is installed only when its two variables are set",
+          self.Contains("File.Copy(file, copy, true)") && self.Contains("DetachAndPreserveWorksets") && self.Contains("doc.Close(false)") && self.Contains("SPORTIFY_IFC_WORKSETS_SELFTEST") && self.Contains("SPORTIFY_IFC_WORKSETS_FILE")
+          && self.Contains("string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(file)") && IfSrc("SportfyRevitApp.cs").Contains("IfcWorksetsSelfTest.Install(application)"));
+    Check("the self-test checks what matters: every element on its planned workset, nothing of Sportify's moved, a second run with nothing left to move, the element count unchanged",
+          self.Contains("are not on the workset the plan gave them") && self.Contains("Sportify element(s) changed workset") && self.Contains("a second run would still move") && self.Contains("the number of elements changed"));
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

@@ -79,6 +79,8 @@ namespace SportfyRevit
             ["phase_setup"] = new("bim", "M4 6h16v14h-16z M4 11h16 M8 3v4 M16 3v4 M12 13v5 M9.5 15.5h5", "M4 6h16v5h-16z"),
             ["worksets"] = new("bim", Layers + " M3 17l9 5l9 -5", "M12 3l9 5l-9 5l-9 -5z"),
             ["workset_assign"] = new("bim", "M12 3l9 5l-9 5l-9 -5z M3 13l9 5l9 -5 M9 8l2 2l4 -4", "M12 3l9 5l-9 5l-9 -5z"),
+            // three layers with a small "I": the worksets of an IFC, by class
+            ["workset_ifc"] = new("bim", "M12 3l9 4.5l-9 4.5l-9 -4.5z M3 12l9 4.5l9 -4.5 M3 16.5l9 4.5l9 -4.5 M12 6v3", "M12 3l9 4.5l-9 4.5l-9 -4.5z"),
             ["iteration_switch"] = new("bim", "M4 14h9v6h-9z M7.5 9h9v6h-9z M11 4h9v6h-9z", "M11 4h9v6h-9z"),
 
             // ---- export
