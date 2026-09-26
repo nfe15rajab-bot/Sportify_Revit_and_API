@@ -35,6 +35,8 @@ namespace SportfyRevit
             public double Seconds { get; set; }
             /// <summary>What Push to Sportify's structure part reads under the roof that was named (IFC shapes included), when a roof was named.</summary>
             public Dictionary<string, object>? Structure { get; set; }
+            /// <summary>What the whole push (Push to Sportify, everything) makes of the named roof, in the roof's own plan coordinates, without sending it anywhere.</summary>
+            public Dictionary<string, object>? Push { get; set; }
             public bool Ok => Failures.Count == 0;
         }
 
@@ -103,6 +105,57 @@ namespace SportfyRevit
             r.Steps.Add("structure under the roof: " + c.Grids.Count + " grids, " + c.Columns.Count + " columns, " + c.Beams.Count + " beams, " + c.Walls.Count + " walls");
             if (c.Columns.Count == 0) r.Failures.Add("no column was found under the roof");
             if (c.Columns.Count > 0 && r.Structure["columns_inside_roof_box"] is int inside && inside < c.Columns.Count) r.Failures.Add((c.Columns.Count - inside) + " column(s) lie outside the roof's box: the IFC's whole building is being read");
+        }
+
+        /// <summary>
+        /// The push itself on the named roof (PushRoofCommandBase.Build, the very code the ribbon button runs, scope everything): the outline and its area, the frame, the height, the structure
+        /// and the features as the app would get them. It fails when the outline was not read, when the size is not positive, or when a column falls outside the roof's own plan.
+        /// </summary>
+        static void PushStep(Document doc, HashSet<ElementId> roof, Report r)
+        {
+            try
+            {
+                var el = doc.GetElement(roof.First());
+                var built = PushRoofCommandBase.Build(doc, el, RoofPushScope.All, roof, out var failure);
+                if (built == null) { r.Failures.Add("the roof could not be pushed: " + failure); return; }
+                using var json = JsonDocument.Parse(built.Json);
+                var rf = json.RootElement.GetProperty("roof");
+                double Num(JsonElement e, string name) => e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : double.NaN;
+                int Count(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.Array ? p.GetArrayLength() : 0;
+
+                var pts = new List<(double x, double y)>();
+                if (rf.TryGetProperty("boundary_m", out var bm) && bm.ValueKind == JsonValueKind.Array)
+                    foreach (var p in bm.EnumerateArray()) pts.Add((Num(p, "x_m"), Num(p, "y_m")));
+                double twiceArea = 0;
+                for (var i = 0; i < pts.Count; i++) { var a = pts[i]; var b = pts[(i + 1) % pts.Count]; twiceArea += a.x * b.y - b.x * a.y; }
+
+                var structure = rf.TryGetProperty("structure", out var st) ? st : default;
+                var features = rf.TryGetProperty("features", out var ft) ? ft : default;
+                var outside = 0;
+                if (structure.ValueKind == JsonValueKind.Object && structure.TryGetProperty("columns", out var cols) && cols.ValueKind == JsonValueKind.Array)
+                    foreach (var c in cols.EnumerateArray()) { var x = Num(c, "x_m"); var y = Num(c, "y_m"); if (x < -2 || x > built.LengthM + 2 || y < -2 || y > built.WidthM + 2) outside++; }
+
+                r.Push = new Dictionary<string, object>
+                {
+                    ["source_element"] = rf.TryGetProperty("source_element_name", out var nm) ? nm.GetString() ?? "" : "",
+                    ["length_m"] = built.LengthM, ["width_m"] = built.WidthM, ["rotation_deg"] = Num(rf, "rotation_deg"),
+                    ["origin_x_m"] = Num(rf, "origin_x_m"), ["origin_y_m"] = Num(rf, "origin_y_m"), ["origin_z_m"] = Num(rf, "origin_z_m"),
+                    ["outline_points"] = pts.Count, ["outline_area_m2"] = Math.Round(Math.Abs(twiceArea) / 2, 1),
+                    ["height_above_ground_m"] = built.Height?.HeightM ?? double.NaN, ["height_source"] = built.Height?.Source ?? "none",
+                    ["grid_lines"] = Count(structure, "grid_lines"), ["columns"] = Count(structure, "columns"), ["columns_outside_the_plan"] = outside,
+                    ["beams"] = Count(structure, "beams"), ["walls"] = Count(structure, "walls"),
+                    ["openings"] = Count(features, "openings"), ["entries"] = Count(features, "entries"), ["edges"] = Count(features, "edges"), ["drains"] = Count(features, "drains"),
+                    ["obstacles"] = Count(features, "obstacles"), ["equipment"] = Count(features, "equipment"), ["levels"] = Count(features, "levels"),
+                    ["slab_read"] = features.ValueKind == JsonValueKind.Object && features.TryGetProperty("slab", out var sl) && sl.ValueKind == JsonValueKind.Object,
+                    ["feature_notes"] = features.ValueKind == JsonValueKind.Object && features.TryGetProperty("notes", out var fn) && fn.ValueKind == JsonValueKind.Array ? fn.EnumerateArray().Select(n => n.GetString() ?? "").ToList() : new List<string>(),
+                    ["dialog_text"] = (built.StructureText + built.FeaturesText).Trim(),
+                };
+                r.Steps.Add("push of the roof: " + pts.Count + " outline points, " + Math.Round(built.LengthM, 2) + " x " + Math.Round(built.WidthM, 2) + " m, " + Count(structure, "columns") + " columns");
+                if (pts.Count < 3) r.Failures.Add("the roof's outline was not read (" + pts.Count + " points): the push would send a rectangle");
+                if (!(built.LengthM > 0) || !(built.WidthM > 0)) r.Failures.Add("the roof's size is not positive: " + built.LengthM + " x " + built.WidthM);
+                if (outside > 0) r.Failures.Add(outside + " column(s) fall outside the roof's own plan after the frame is applied");
+            }
+            catch (Exception ex) { r.Failures.Add("the push of the roof threw: " + ex.GetType().Name + ": " + ex.Message); }
         }
 
         static void Run(UIApplication uiApp, string dir, string file, Report r)
@@ -174,7 +227,7 @@ namespace SportfyRevit
                 if (again.Items.Count != plan.Items.Count) r.Failures.Add("a second run finds " + again.Items.Count + " IFC element(s) instead of " + plan.Items.Count);
                 var totalAfter = new FilteredElementCollector(doc).WhereElementIsNotElementType().GetElementCount();
                 if (totalAfter != total) r.Failures.Add("the number of elements changed from " + total + " to " + totalAfter);
-                if (roof.Count > 0) StructureStep(doc, roof, r);
+                if (roof.Count > 0) { StructureStep(doc, roof, r); PushStep(doc, roof, r); }
             }
             finally
             {
