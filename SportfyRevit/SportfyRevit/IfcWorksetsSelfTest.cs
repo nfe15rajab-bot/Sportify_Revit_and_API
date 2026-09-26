@@ -149,6 +149,7 @@ namespace SportfyRevit
                     ["slab_read"] = features.ValueKind == JsonValueKind.Object && features.TryGetProperty("slab", out var sl) && sl.ValueKind == JsonValueKind.Object,
                     ["feature_notes"] = features.ValueKind == JsonValueKind.Object && features.TryGetProperty("notes", out var fn) && fn.ValueKind == JsonValueKind.Array ? fn.EnumerateArray().Select(n => n.GetString() ?? "").ToList() : new List<string>(),
                     ["dialog_text"] = (built.StructureText + built.FeaturesText).Trim(),
+                    ["edge_shapes"] = EdgeShapes(doc, el),
                 };
                 r.Steps.Add("push of the roof: " + pts.Count + " outline points, " + Math.Round(built.LengthM, 2) + " x " + Math.Round(built.WidthM, 2) + " m, " + Count(structure, "columns") + " columns");
                 if (pts.Count < 3) r.Failures.Add("the roof's outline was not read (" + pts.Count + " points): the push would send a rectangle");
@@ -156,6 +157,27 @@ namespace SportfyRevit
                 if (outside > 0) r.Failures.Add(outside + " column(s) fall outside the roof's own plan after the frame is applied");
             }
             catch (Exception ex) { r.Failures.Add("the push of the roof threw: " + ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        /// <summary>What stands at the roof's edge as IFC shapes (DirectShapes in Railings and Walls whose top is at or above the roof's top face and whose box meets the roof's): the roof features read only real Railing and Wall elements, so this says what they would miss.</summary>
+        static Dictionary<string, object> EdgeShapes(Document doc, Element roofEl)
+        {
+            var bb = roofEl.get_BoundingBox(null)!;
+            double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+            var top = M(bb.Max.Z);
+            var near = new BoundingBoxIntersectsFilter(new Outline(bb.Min, bb.Max));
+            var found = new List<string>(); var counts = new Dictionary<string, int>();
+            foreach (var cat in new[] { BuiltInCategory.OST_Railings, BuiltInCategory.OST_Walls })
+                foreach (var ds in new FilteredElementCollector(doc).OfCategory(cat).WhereElementIsNotElementType().WherePasses(near).OfType<DirectShape>())
+                {
+                    var b = ds.get_BoundingBox(null);
+                    if (b == null || M(b.Max.Z) < top - 0.3) continue;
+                    var key = cat + " " + (StructureCollector.IfcClassOf(doc, ds) ?? "no class");
+                    counts[key] = counts.GetValueOrDefault(key) + 1;
+                    if (found.Count < 14)
+                        found.Add(key + " " + ds.Name + " x " + Math.Round(M(b.Min.X), 2) + ".." + Math.Round(M(b.Max.X), 2) + " y " + Math.Round(M(b.Min.Y), 2) + ".." + Math.Round(M(b.Max.Y), 2) + " z " + Math.Round(M(b.Min.Z) - top, 2) + ".." + Math.Round(M(b.Max.Z) - top, 2));
+                }
+            return new Dictionary<string, object> { ["counts"] = counts, ["samples"] = found };
         }
 
         static void Run(UIApplication uiApp, string dir, string file, Report r)

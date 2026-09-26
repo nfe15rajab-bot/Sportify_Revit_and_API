@@ -104,7 +104,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The IFC class of a shape (IfcColumn, IfcBeam, IfcMember ...), from what the IFC import wrote on it and on its type; null when it says none.</summary>
-        static string? IfcClassOf(Document doc, Element el)
+        internal static string? IfcClassOf(Document doc, Element el)
         {
             var type = doc.GetElement(el.GetTypeId());
             return IfcWorksetRules.ClassOf(n => ParameterText(el, n), n => ParameterText(type, n), null);
