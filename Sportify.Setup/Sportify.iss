@@ -126,7 +126,7 @@ Type: files; Name: "{code:AddinsDir}\SportfyRevit.addin"
 
 [Code]
 const
-  WorkspaceFolders = 'Layouts,Sport fields,Garden,Physical analysis,Videos,Analysis reports,Schedules,Diagrams,Mechanical';
+  WorkspaceFolders = 'Layouts,Sport fields,Garden,Physical analysis,Videos,Analysis reports,Schedules,Diagrams,Mechanical,Profile';
   WebView2Client = 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
   LegacyDisabledSuffix = '.disabled';
 

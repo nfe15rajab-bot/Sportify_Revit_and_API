@@ -216,7 +216,9 @@ step("results: the sections the add-in publishes against the web's Analysis rail
 
 step("workspace: the endpoints the web app calls against the ones the add-in serves", async () => {
   if (!web) return noWeb();
-  const r = await node([path.join(tools, "ContractCheck", "endpoints-parity.js"), path.join(web, "workspaceBridge.js")]);
+  // every web script that calls the add-in through localApi(): workspaceBridge.js, and profile.js (the PROFILE: GET/POST /profile) once the web app has it
+  const callers = ["workspaceBridge.js", "profile.js"].map(f => path.join(web, f)).filter(f => fs.existsSync(f));
+  const r = await node([path.join(tools, "ContractCheck", "endpoints-parity.js"), ...callers]);
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: r.out + r.err };
 }, { needsWeb: true });
 
@@ -267,6 +269,14 @@ step("the web app reaches the add-in only through localSession.js (the session t
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/local-session-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
   return r.code === 0 ? { status: "pass", detail: "no script calls the add-in with a bare fetch" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: the PROFILE (Simple/Advanced view against the real page, name and photo rules, role and theme, the sync with Revit's copy)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "profile-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/profile-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real profile.js against a stand-in page and a stand-in add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {

@@ -22,8 +22,13 @@ Sportify-Setup-<version>-Revit2025.exe /VERYSILENT /DELIVERABLES="D:\Projects\Sp
 | `Schedules` | component schedules (CSV) | the Schedules button in Revit or in the web app |
 | `Diagrams` | functional diagrams (PNG) | Revit's views, from the ribbon or from the web app |
 | `Mechanical` | the SOLIDWORKS assemblies (SLDASM), STEP files and films of the Kinetics dynamic units | the Kinetics panel's Simulate button in Revit (needs SOLIDWORKS) |
+| `Profile` | your PROFILE: `Sportify-PROFILE.json` (name, view, role, theme) and your photo as a picture | the web app's Profile tab, at every change (and its Export button, which adds a dated copy) |
 
-Files are never overwritten: a name that exists gets a number. `SportifyWorkspace.cs` is the one description of all this; the installer, the add-in and `Tools/ContractCheck` compile the same file.
+Files are never overwritten: a name that exists gets a number. The one exception is the profile: `Sportify-PROFILE.json` and `Sportify-PROFILE-photo.*` are always the profile in force. `SportifyWorkspace.cs` is the one description of all this; the installer, the add-in and `Tools/ContractCheck` compile the same file.
+
+## The profile (name, photo, Simple or Advanced view)
+
+The web app's **Profile** tab (next to New Session) keeps who you are (a name and a photo) and how Sportify looks for you: the **view** (Simple shows the main path, Advanced everything: a view, not a lock), your role (planner or client) and the theme. Every change is saved at once in the browser and sent to the add-in (`POST /profile`), which keeps it in `%APPDATA%\Sportify\settings.json` under `"profile"` (so the Revit ribbon and the web app read one copy; whichever copy is newer wins) and writes it into the `Profile` folder above. The add-in rebuilds the profile from the fields it knows before it keeps it: a photo is only ever a small JPEG, PNG or WebP (no SVG, no address), a name is one line of at most 60 characters. `Tools/ContractCheck` and the web app's `tools/profile-test.js` test both sides against the same hostile inputs.
 
 ## The loop
 
