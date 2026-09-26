@@ -36,6 +36,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalyzeSunShadeCommand.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisMedia.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyWorkspace.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyProfile.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WorkspaceEndpoints.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\ScheduleCsv.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PhysicalAnalysisBatch.cs" />

@@ -67,7 +67,7 @@ $json = Get-Content "$settings\settings.json" -Raw -Encoding UTF8 | ConvertFrom-
 Expect ($json.workspace_folder -eq $work) "settings.json names the chosen deliverables folder"
 Expect ($json.install_folder -eq $app) "settings.json names the install folder"
 Expect ($json.version -eq $version) "settings.json carries version $version"
-foreach ($n in "Layouts", "Sport fields", "Garden", "Physical analysis", "Videos", "Analysis reports", "Schedules", "Diagrams", "Mechanical") { Expect (Test-Path (Join-Path $work $n)) "the Sportify folder has $n" }
+foreach ($n in "Layouts", "Sport fields", "Garden", "Physical analysis", "Videos", "Analysis reports", "Schedules", "Diagrams", "Mechanical", "Profile") { Expect (Test-Path (Join-Path $work $n)) "the Sportify folder has $n" }
 
 if ($RunApi) {
     Write-Host "The installed API and web app:"

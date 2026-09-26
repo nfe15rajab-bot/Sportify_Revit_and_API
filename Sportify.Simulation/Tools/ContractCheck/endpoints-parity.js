@@ -2,16 +2,16 @@
 // WorkspaceEndpoints.cs (and RoofBoundaryServer.cs for the roof and the layout). A path the web app calls that the add-in does not serve is a button that can never
 // work; a chart section the add-in draws that the web app has no title for is a card without a name. This compares the two, and the two lists of analysis keys.
 //
-//   node Tools/ContractCheck/endpoints-parity.js <path to the web app's workspaceBridge.js>
+//   node Tools/ContractCheck/endpoints-parity.js <path to the web app's workspaceBridge.js> [more web scripts that call the add-in through localApi, e.g. profile.js]
 const fs = require("fs");
 const path = require("path");
 
-const jsPath = process.argv[2];
-if (!jsPath) { console.error("usage: node endpoints-parity.js <workspaceBridge.js>"); process.exit(2); }
+const jsPaths = process.argv.slice(2);
+if (!jsPaths.length) { console.error("usage: node endpoints-parity.js <workspaceBridge.js> [profile.js ...]"); process.exit(2); }
 const addin = path.join(__dirname, "..", "..", "..", "SportfyRevit", "SportfyRevit");
 const read = f => fs.readFileSync(path.join(addin, f), "utf8");
 
-const web = fs.readFileSync(jsPath, "utf8");
+const web = jsPaths.map(p => fs.readFileSync(p, "utf8")).join("\n");
 const called = [...new Set([...web.matchAll(/localApi\(\s*[`"'](\/[a-z-]+)/g)].map(m => m[1]))].sort();
 
 const served = new Set([
@@ -38,7 +38,7 @@ else {
 const kinds = [...read("SportifyWorkspace.cs").matchAll(/new\("([a-z]+)", "/g)].map(m => m[1]);
 for (const m of web.matchAll(/deliverFile\("([a-z]+)"/g)) if (!kinds.includes(m[1])) differ(`the web app saves into "${m[1]}", which is not a workspace kind (${kinds.join(", ")})`);
 for (const f of ["sportController.js", "gardenController.js", "combineController.js", "analysisController.js"]) {
-  const file = path.join(path.dirname(jsPath), f);
+  const file = path.join(path.dirname(jsPaths[0]), f);
   if (!fs.existsSync(file)) continue;
   for (const m of fs.readFileSync(file, "utf8").matchAll(/deliverFile\("([a-z]+)"/g)) if (!kinds.includes(m[1])) differ(`${f} saves into "${m[1]}", which is not a workspace kind (${kinds.join(", ")})`);
 }

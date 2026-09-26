@@ -41,7 +41,7 @@ namespace SportfyRevit
 
         static readonly Dictionary<string, string> ContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
-            [".pdf"] = "application/pdf", [".png"] = "image/png", [".jpg"] = "image/jpeg", [".mp4"] = "video/mp4", [".csv"] = "text/csv; charset=utf-8",
+            [".pdf"] = "application/pdf", [".png"] = "image/png", [".jpg"] = "image/jpeg", [".webp"] = "image/webp", [".mp4"] = "video/mp4", [".csv"] = "text/csv; charset=utf-8",
             [".json"] = "application/json", [".dxf"] = "application/dxf", [".svg"] = "image/svg+xml", [".txt"] = "text/plain; charset=utf-8",
         };
 
@@ -55,6 +55,8 @@ namespace SportfyRevit
             switch (path)
             {
                 case "/workspace" when method == "GET": return Workspace();
+                case "/profile" when method == "GET": return GetProfile();
+                case "/profile" when method == "POST": return SaveProfile(readBody);
                 case "/deliverables" when method == "GET": return Deliverables();
                 case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"]);
                 case "/deliverable" when method == "POST": return SaveDeliverable(query["kind"], query["name"], readBody);
@@ -83,6 +85,34 @@ namespace SportfyRevit
                 settings_file = SportifyWorkspace.SettingsPath,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ the profile
+
+        /// <summary>The PROFILE the settings file holds (null when there is none yet) and where its file is in the Sportify folder.</summary>
+        static EndpointResponse GetProfile()
+        {
+            var profile = SportifyProfile.Read();
+            return EndpointResponse.Json(new { profile, file = profile == null ? null : SportifyProfile.FilePath(), settings_file = SportifyWorkspace.SettingsPath });
+        }
+
+        /// <summary>
+        /// Keeps the profile the web app sends: rebuilt from the fields it knows (SportifyProfile.Sanitize), written into the settings file, and as Sportify-PROFILE.json (and the photo) into the
+        /// Profile folder of the Sportify folder. The answer is the profile as kept, and where the file is; a folder that cannot be written does not fail the save (folder_error says why).
+        /// </summary>
+        static EndpointResponse SaveProfile(Func<byte[]> readBody)
+        {
+            var body = readBody();
+            if (body.Length == 0) return EndpointResponse.Error(400, "The profile is empty.");
+            System.Text.Json.Nodes.JsonNode? node;
+            try { node = System.Text.Json.Nodes.JsonNode.Parse(body); }
+            catch (JsonException) { return EndpointResponse.Error(400, "The profile is not valid JSON."); }
+            var clean = SportifyProfile.Sanitize(node);
+            if (clean == null) return EndpointResponse.Error(400, "The profile has to be a JSON object.");
+            try { SportifyProfile.SaveToSettings(clean); }
+            catch (Exception ex) { return EndpointResponse.Error(500, "The settings file could not be written: " + ex.Message); }
+            var (file, photo, error) = SportifyProfile.WriteToFolder(clean);
+            return EndpointResponse.Json(new { profile = clean, file, photo_file = photo, folder_error = error });
         }
 
         static EndpointResponse Deliverables()

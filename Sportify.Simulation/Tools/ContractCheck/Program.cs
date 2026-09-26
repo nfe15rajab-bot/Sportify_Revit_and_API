@@ -221,7 +221,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     // the folder
     Check("the default is a \"Sportify Workspace\" folder in Documents (never Documents\\Sportify, where the web app itself lives), and the installer's choice wins", SportifyWorkspace.DefaultFolder.EndsWith("Sportify Workspace") && SportifyWorkspace.Folder == root);
     SportifyWorkspace.EnsureCreated();
-    Check("it is made with a subfolder for every kind of deliverable", SportifyWorkspace.Kinds.Length == 9 && SportifyWorkspace.Kinds.All(k => Directory.Exists(Path.Combine(root, k.Folder))), string.Join(", ", SportifyWorkspace.Kinds.Select(k => k.Folder)));
+    Check("it is made with a subfolder for every kind of deliverable", SportifyWorkspace.Kinds.Length == 10 && SportifyWorkspace.Kinds.All(k => Directory.Exists(Path.Combine(root, k.Folder))), string.Join(", ", SportifyWorkspace.Kinds.Select(k => k.Folder)));
     SportifyWorkspace.SaveSetting(@"D:\Somewhere Else");
     SportifyWorkspace.SaveSetting(@"D:\Another Place");
     Check("the choice is kept in the settings file (the installer writes it, the add-in reads it), other settings untouched",
@@ -235,6 +235,94 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     // what the web app sees
     var ws = Reply(Call("GET", "/workspace"));
     Check("GET /workspace names the folder and every kind, with a count", ws.GetProperty("folder").GetString() == root && ws.GetProperty("kinds").GetArrayLength() == SportifyWorkspace.Kinds.Length && ws.GetProperty("kinds")[0].TryGetProperty("count", out _));
+
+    // the PROFILE: what the web app keeps with POST /profile and the ribbon reads. Its own folder and settings file, so nothing else here is disturbed.
+    {
+        var pRoot = Path.Combine(Path.GetDirectoryName(root)!, "profile-test", "My Sportify");
+        var pSettings = Path.Combine(Path.GetDirectoryName(pRoot)!, "settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(pSettings)!);
+        SportifyWorkspace.UseFolder(pRoot);
+        SportifyWorkspace.UseSettingsFile(pSettings);
+        SportifyWorkspace.EnsureCreated();
+        File.WriteAllText(pSettings, "{ \"workspace_folder\": \"D:\\\\Elsewhere\", \"version\": \"0.1.0-beta.1\" }");
+        var photoBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9 };
+        var jpeg = "data:image/jpeg;base64," + Convert.ToBase64String(photoBytes);
+        byte[] Json(object o) => JsonSerializer.SerializeToUtf8Bytes(o);
+        var profileDir = Path.Combine(pRoot, "Profile");
+
+        var none0 = Reply(Call("GET", "/profile"));
+        Check("GET /profile with nothing saved answers a null profile and no file", none0.GetProperty("profile").ValueKind == JsonValueKind.Null && none0.GetProperty("file").ValueKind == JsonValueKind.Null && none0.GetProperty("settings_file").GetString() == pSettings);
+
+        var posted = Call("POST", "/profile", null, Json(new
+        {
+            schema = 9, name = "PROFILE", updated = "2026-09-25T20:00:00Z", view = "simple", role = "client", theme = "light", evil = "<script>",
+            quiz = new { goal = "design", analyses = new[] { "structure", "sun" }, site_data = new object[] { "location", 5, null! }, experience = "beginner", extra = 1 },
+            person = new { name = "  Nada\u0007 \n Rajab  ", photo = jpeg, extra = 1 }
+        }));
+        var kept = Reply(posted).GetProperty("profile");
+        Check("POST /profile keeps the profile, rebuilt from the fields it knows (the time in the web app's form, no unknown fields, a clean name)",
+              posted!.Status == 200 && kept.GetProperty("view").GetString() == "simple" && kept.GetProperty("role").GetString() == "client" && kept.GetProperty("theme").GetString() == "light" &&
+              kept.GetProperty("schema").GetInt32() == 1 && kept.GetProperty("updated").GetString() == "2026-09-25T20:00:00.000Z" && !kept.TryGetProperty("evil", out _) &&
+              kept.GetProperty("person").GetProperty("name").GetString() == "Nada Rajab" && kept.GetProperty("person").GetProperty("photo").GetString() == jpeg && !kept.GetProperty("person").TryGetProperty("extra", out _) &&
+              kept.GetProperty("quiz").GetProperty("analyses").GetArrayLength() == 2 && kept.GetProperty("quiz").GetProperty("site_data").GetArrayLength() == 1 && !kept.GetProperty("quiz").TryGetProperty("extra", out _));
+        var profileFile = Path.Combine(profileDir, "Sportify-PROFILE.json");
+        Check("the profile is written into the Profile folder of the Sportify folder as Sportify-PROFILE.json, the file the web app imports", Reply(posted).GetProperty("file").GetString() == profileFile && File.Exists(profileFile) &&
+              JsonDocument.Parse(File.ReadAllText(profileFile)).RootElement.GetProperty("kind").GetString() == "sportify-profile" && JsonDocument.Parse(File.ReadAllText(profileFile)).RootElement.GetProperty("profile").GetProperty("person").GetProperty("name").GetString() == "Nada Rajab");
+        var photoFile = Path.Combine(profileDir, "Sportify-PROFILE-photo.jpg");
+        Check("the photo is written beside it as a picture file, byte for byte", Reply(posted).GetProperty("photo_file").GetString() == photoFile && File.Exists(photoFile) && File.ReadAllBytes(photoFile).SequenceEqual(photoBytes));
+        var settingsNow = JsonDocument.Parse(File.ReadAllText(pSettings)).RootElement;
+        Check("the settings file holds the profile and every other setting it had", settingsNow.GetProperty("workspace_folder").GetString() == @"D:\Elsewhere" && settingsNow.GetProperty("version").GetString() == "0.1.0-beta.1" && settingsNow.GetProperty("profile").GetProperty("view").GetString() == "simple" && !File.Exists(pSettings + ".tmp"));
+        var got0 = Reply(Call("GET", "/profile"));
+        Check("GET /profile answers what was kept, and where the file is", got0.GetProperty("profile").GetProperty("person").GetProperty("name").GetString() == "Nada Rajab" && got0.GetProperty("file").GetString() == profileFile && SportifyProfile.Read()!["view"]!.GetValue<string>() == "simple");
+        var kinds = Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().Where(f => f.GetProperty("kind").GetString() == "profile").Select(f => f.GetProperty("name").GetString()).OrderBy(n => n).ToArray();
+        Check("the profile files are deliverables of the kind 'profile': listed, and the file can be fetched", string.Join(",", kinds) == "Sportify-PROFILE-photo.jpg,Sportify-PROFILE.json" &&
+              Call("GET", "/deliverable", Q("kind", "profile", "name", "Sportify-PROFILE.json"))!.ContentType == "application/json" && Call("GET", "/deliverable", Q("kind", "profile", "name", "Sportify-PROFILE-photo.jpg"))!.ContentType == "image/jpeg");
+
+        // hostile and broken input
+        var hostile = Call("POST", "/profile", null, Json(new { view = "expert", role = "boss", theme = "blue", updated = "yesterday", name = new string('x', 300), quiz = "answers", person = new { name = new string('n', 500), photo = "data:image/svg+xml;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+" } }));
+        var h = Reply(hostile).GetProperty("profile");
+        Check("junk falls back field by field: Advanced, planner, no theme, no time, a short name, no quiz, and a photo that is an SVG is dropped",
+              hostile!.Status == 200 && h.GetProperty("view").GetString() == "advanced" && h.GetProperty("role").GetString() == "planner" && h.GetProperty("theme").ValueKind == JsonValueKind.Null && h.GetProperty("updated").ValueKind == JsonValueKind.Null &&
+              h.GetProperty("name").GetString()!.Length == 40 && h.GetProperty("quiz").ValueKind == JsonValueKind.Null && h.GetProperty("person").GetProperty("name").GetString()!.Length == 60 && h.GetProperty("person").GetProperty("photo").ValueKind == JsonValueKind.Null);
+        Check("a profile without a photo removes the photo file and replaces the profile file (one file, no numbered copies)", !File.Exists(photoFile) && Directory.GetFiles(profileDir).Select(Path.GetFileName).SequenceEqual(new[] { "Sportify-PROFILE.json" }));
+        var badPhotos = new[] { "javascript:alert(1)", "https://example.com/x.jpg", "data:text/html;base64,PGgxPmhpPC9oMT4=", "data:image/gif;base64,R0lGODlhAQABAAAAACw=", "data:image/jpeg;base64,not base64!", "data:image/jpeg;base64,", jpeg + "\"onerror=\"x", " " + jpeg,
+                                "data:image/jpeg;base64," + new string('A', SportifyProfile.MaxPhotoChars) };
+        Check("every photo that is not a small JPEG, PNG or WebP data URL is dropped (SVG, HTML, an address, bad base64, another type, too long)", badPhotos.All(p => SportifyProfile.IsPhoto(p) == false) &&
+              badPhotos.All(p => Reply(Call("POST", "/profile", null, Json(new { person = new { name = "x", photo = p } }))).GetProperty("profile").GetProperty("person").GetProperty("photo").ValueKind == JsonValueKind.Null));
+        Check("a PNG and a WebP are kept, each under its own file name (and the other picture is removed)", new Func<bool>(() =>
+        {
+            var png = "data:image/png;base64," + Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+            var r1 = Call("POST", "/profile", null, Json(new { person = new { photo = png } }));
+            var ok1 = File.Exists(Path.Combine(profileDir, "Sportify-PROFILE-photo.png")) && !File.Exists(photoFile);
+            var webp = "data:image/webp;base64," + Convert.ToBase64String(new byte[] { 0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50 });
+            Call("POST", "/profile", null, Json(new { person = new { photo = webp } }));
+            return r1!.Status == 200 && ok1 && File.Exists(Path.Combine(profileDir, "Sportify-PROFILE-photo.webp")) && !File.Exists(Path.Combine(profileDir, "Sportify-PROFILE-photo.png")) && Call("GET", "/deliverable", Q("kind", "profile", "name", "Sportify-PROFILE-photo.webp"))!.ContentType == "image/webp";
+        })());
+        var beforeBad = File.ReadAllText(pSettings);
+        Check("a body that is empty, not JSON, or not an object is refused with 400 and changes nothing",
+              Call("POST", "/profile")!.Status == 400 && Call("POST", "/profile", null, Encoding.UTF8.GetBytes("{ not json"))!.Status == 400 && Call("POST", "/profile", null, Encoding.UTF8.GetBytes("[1,2]"))!.Status == 400 &&
+              Call("POST", "/profile", null, Encoding.UTF8.GetBytes("\"a string\""))!.Status == 400 && Call("POST", "/profile", null, Encoding.UTF8.GetBytes("42"))!.Status == 400 && File.ReadAllText(pSettings) == beforeBad);
+        Check("only GET and POST are the profile's: another method is left to the server", Call("PUT", "/profile") == null && Call("DELETE", "/profile") == null);
+        Check("the person's name goes through as text, markup and all", Reply(Call("POST", "/profile", null, Json(new { person = new { name = "<b>Ali</b> & co" } }))).GetProperty("profile").GetProperty("person").GetProperty("name").GetString() == "<b>Ali</b> & co");
+
+        // a settings file that cannot be read, and a folder that cannot be written
+        File.WriteAllText(pSettings, "{ not json");
+        var afterCorrupt = Call("POST", "/profile", null, Json(new { view = "simple" }));
+        Check("an unreadable settings file is started afresh: the profile is kept and the file is valid again", afterCorrupt!.Status == 200 && JsonDocument.Parse(File.ReadAllText(pSettings)).RootElement.GetProperty("profile").GetProperty("view").GetString() == "simple");
+        Directory.Delete(profileDir, true);
+        File.WriteAllText(profileDir, "a file where the Profile folder should be");
+        var blocked = Call("POST", "/profile", null, Json(new { view = "advanced" }));
+        Check("a Profile folder that cannot be made does not fail the save: the settings file has it, and the answer says why the folder has not", blocked!.Status == 200 && Reply(blocked).GetProperty("file").ValueKind == JsonValueKind.Null && Reply(blocked).GetProperty("folder_error").ValueKind == JsonValueKind.String && SportifyProfile.Read()!["view"]!.GetValue<string>() == "advanced");
+        File.Delete(profileDir);
+
+        // several saves at once (two browsers, the ribbon): the settings file is never left broken
+        Parallel.For(0, 24, i => Call("POST", "/profile", null, Json(new { view = i % 2 == 0 ? "simple" : "advanced", updated = $"2026-09-25T20:00:{i:00}Z", person = new { name = "n" + i } })));
+        Check("24 saves at once leave a valid settings file with one of them, and the other settings", JsonDocument.Parse(File.ReadAllText(pSettings)).RootElement.GetProperty("profile").GetProperty("person").GetProperty("name").GetString()!.StartsWith("n") && !File.Exists(pSettings + ".tmp") && Directory.GetFiles(profileDir).Length == 1);
+
+        SportifyWorkspace.UseFolder(root);
+        SportifyWorkspace.UseSettingsFile(settings);
+        try { Directory.Delete(Path.GetDirectoryName(pRoot)!, true); } catch (IOException) { /* a temp folder: leave it */ }
+    }
 
     // saving from the web app, and refusing what does not belong
     var saved = Call("POST", "/deliverable", Q("kind", "layouts", "name", "sportify_combined_revit.json"), Encoding.UTF8.GetBytes("{\"a\":1}"));

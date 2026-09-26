@@ -26,6 +26,7 @@ Written for the black-box test (2026-09-21). Every rule below is pinned by a che
 - Text goes into markup through `escapeHtml` / `safeUrl` (`escape.js`); the lint `tools/escape-audit.js` fails the suite when a name, label, description, note, source, provider, id or message reaches a template without it. `tools/xss-canary-proxy.js` poisons the API's answers so a real browser can show what the lint cannot.
 - `index.html` carries a Content-Security-Policy (`script-src 'self'`, no inline script, nothing from another site except map tiles and photographs as images and the address lookup as a `connect`). Leaflet, SunCalc, the icon font and Titillium Web are in `vendor/` (`tools/csp-test.js`).
 - `style-src` still allows inline styles: the app sets `style` attributes throughout. A style cannot run script; it can restyle a page.
+- The person's profile (name, photo, view, role, theme; `profileCore.js`, `SportifyProfile.cs`) is rebuilt from the fields it knows on both sides before it is kept: unknown fields are dropped, the name is one line of at most 60 characters and is only ever put on the page as text, and a photo is only a small JPEG, PNG or WebP data URL of at most 120,000 characters (an SVG can carry script, an address is a request to somewhere else, so neither is kept). `POST /profile` needs the add-in's session token like every other write and is limited to 1 MB by the guard. `tools/profile-test.js` and `Tools/ContractCheck` test the same hostile inputs.
 
 ## What this does not cover
 

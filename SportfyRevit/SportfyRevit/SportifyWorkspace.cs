@@ -35,6 +35,7 @@ namespace SportfyRevit
             new("schedules", "Schedules", "Schedules", "Component schedules (CSV)."),
             new("diagrams", "Diagrams", "Diagrams", "Functional diagrams exported from Revit (PNG)."),
             new("mechanical", "Mechanical", "SOLIDWORKS assemblies", "The SOLIDWORKS assemblies (SLDASM), STEP files and films of the dynamic units Kinetics builds, for the mechanical engineer."),
+            new("profile", "Profile", "Profile", "Your PROFILE: name, photo, view (Simple or Advanced), role and theme, as Sportify-PROFILE.json and your photo. Kept up to date whenever you change it in the app."),
         };
 
         static string? _override;
