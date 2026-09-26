@@ -36,6 +36,9 @@ namespace SportfyRevit
         /// <summary>Set by the add-in to ask Revit to run a command that needs its API ("diagrams"); returns null when started, else why not. Null = not wired.</summary>
         public static Func<string, string?>? RevitCommandRequested;
 
+        /// <summary>The version of the Revit this add-in runs in ("2025"), set at start-up; "" when not known. The web app's status pill says "Revit 2025 connected".</summary>
+        public static string RevitVersion = "";
+
         /// <summary>Set by the add-in to have the ribbon re-follow the view and this computer (RibbonRefreshBridge: on Revit's own thread). Null = not wired (tests).</summary>
         public static Action? RibbonRefreshRequested;
 
@@ -87,6 +90,7 @@ namespace SportfyRevit
                 folder = root,
                 default_folder = SportifyWorkspace.DefaultFolder,
                 settings_file = SportifyWorkspace.SettingsPath,
+                revit_version = RevitVersion,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
         }

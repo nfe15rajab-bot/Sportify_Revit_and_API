@@ -295,6 +295,14 @@ step("the web app: the rundgang (which steps a profile sees, where the card goes
   return r.code === 0 ? { status: "pass", detail: "the real tour.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: what runs where (Revit's status and its wording, when an action that needs Revit, Unity or SOLIDWORKS is blocked, every claim of the Overview's card against the app)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "where-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/where-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real where.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "escape-audit-test.js");
@@ -370,6 +378,11 @@ step("the installer: a silent install into scratch folders registers the add-in,
   const dist = path.join(repo, "dist");
   const built = fs.existsSync(dist) ? fs.readdirSync(dist).filter(f => /^Sportify-Setup-.*\.exe$/.test(f)) : [];
   if (built.length === 0) return { status: "skip", detail: "no installer built here: run BuildDistribution.ps1 first" };
+  // An installer built before the script (or the folder list it makes) last changed is a stale artifact, not a regression: this test would fail on what it does not contain. CI always builds a fresh one.
+  const newestInstaller = Math.max(...built.map(f => fs.statSync(path.join(dist, f)).mtimeMs));
+  const sources = ["Sportify.Setup/Sportify.iss", "Sportify.Setup/Build-Installer.ps1", "SportfyRevit/SportfyRevit/SportifyWorkspace.cs"].map(f => path.join(repo, f)).filter(f => fs.existsSync(f));
+  const changed = sources.find(f => fs.statSync(f).mtimeMs > newestInstaller + 1000);
+  if (changed) return { status: "skip", detail: "the installer in dist was built before " + path.basename(changed) + " last changed: run BuildDistribution.ps1 to test the current one (the release workflow always builds a fresh installer)" };
   const busy = await new Promise(resolve => { require("http").get("http://localhost:5107/api/AnalysisParameters", () => resolve(true)).on("error", () => resolve(false)); });
   if (busy) return { status: "skip", detail: "port 5107 is in use (the API is running): stop it first" };
   const r = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(repo, "Sportify.Setup", "Test-Installer.ps1"), "-RunApi"]);

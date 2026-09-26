@@ -32,6 +32,8 @@ namespace SportfyRevit
             AppDomain.CurrentDomain.UnhandledException += (_, args) => SportifyLog.Error("app", "unhandled exception" + (args.IsTerminating ? " (Revit is terminating)" : ""), args.ExceptionObject as Exception);
             TaskScheduler.UnobservedTaskException += (_, args) => { SportifyLog.Error("app", "unobserved task exception", args.Exception); args.SetObserved(); };
 
+            WorkspaceEndpoints.RevitVersion = application.ControlledApplication.VersionNumber ?? "";      // the web app's status pill says which Revit is connected
+
             // What this computer has (Unity, SOLIDWORKS, Chrome), looked at once and shared: the dialogs, the ribbon and GET /capabilities all ask this, nobody asks the person.
             SportifyCapabilities.UseProbe(CapabilityProbes.Detect);
 

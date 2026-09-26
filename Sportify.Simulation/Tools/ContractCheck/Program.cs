@@ -235,6 +235,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     // what the web app sees
     var ws = Reply(Call("GET", "/workspace"));
     Check("GET /workspace names the folder and every kind, with a count", ws.GetProperty("folder").GetString() == root && ws.GetProperty("kinds").GetArrayLength() == SportifyWorkspace.Kinds.Length && ws.GetProperty("kinds")[0].TryGetProperty("count", out _));
+    Check("GET /workspace says which Revit this is (empty when it is not known), for the web app's 'Revit 2025 connected'", ws.GetProperty("revit_version").GetString() == "" && new Func<bool>(() => { WorkspaceEndpoints.RevitVersion = "2025"; var v = Reply(Call("GET", "/workspace")).GetProperty("revit_version").GetString(); WorkspaceEndpoints.RevitVersion = ""; return v == "2025"; })());
 
     // the PROFILE: what the web app keeps with POST /profile and the ribbon reads. Its own folder and settings file, so nothing else here is disturbed.
     {
