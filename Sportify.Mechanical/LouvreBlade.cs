@@ -41,9 +41,11 @@ internal static class LouvreBlade
             plane.Select2(false, 0);
             var sketches = model.SketchManager;
             sketches.InsertSketch(true);
+            sketches.AddToDB = true;                 // no inferred relations between the two outlines (see UnitAssembly.MakePart)
             double hc = s.ChordM / 2, ht = s.ThicknessM / 2, w = s.WallM;
             sketches.CreateCornerRectangle(-hc, -ht, 0, hc, ht, 0);
             sketches.CreateCornerRectangle(-(hc - w), -(ht - w), 0, hc - w, ht - w, 0);
+            sketches.AddToDB = false;
             sketches.InsertSketch(true);
 
             var sketch = LastFeature(model, "ProfileFeature") ?? throw new InvalidOperationException("The section sketch was not created.");

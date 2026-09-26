@@ -1,18 +1,24 @@
 name: release
 
-# Continuous delivery of the Revit side: builds what the team actually installs (Sportify_Revit.exe next to its payload\: the add-in, the bundled web app, a self-contained
-# Sportify.Api) with BuildDistribution.ps1, zips it and, for a version tag, publishes it as a GitHub Release.
+# Continuous delivery of Sportify: builds the ONE file people install with, Sportify-Setup-<version>-Revit2025.exe (Inno Setup), tests it, and for a version tag publishes it as a
+# GitHub Release. The installer carries the Revit add-in, the bundled web app, the self-contained local API (which also serves the web app), the library (Revit templates and
+# families, the worksets and phases sheet, the documentation) and the Microsoft components the web app needs.
 #
-#   git tag v1.0.0 && git push origin v1.0.0     -> builds the package and creates the release "v1.0.0" with the zip and its checksum
-#   a push to a branch named cd/...               -> builds the package and keeps it as a build artifact only (this is how the pipeline itself is tested)
-#   Actions > release > Run workflow              -> the same, on demand (no release is created)
+# The version is written in ONE place, the VERSION file (Semantic Versioning: MAJOR.MINOR.PATCH, and -beta.N while it is under testing). To release:
+#   1. change VERSION (e.g. 0.1.0-beta.2), commit, push
+#   2. git tag v0.1.0-beta.2 && git push origin v0.1.0-beta.2      -> builds, tests the installer, creates the release "v0.1.0-beta.2" (a pre-release while the version has a -)
+#   a push to a branch named cd/...          -> builds and tests the installer and keeps it as a build artifact only (this is how the pipeline itself is tested)
+#   Actions > release > Run workflow          -> the same, on demand (no release is created)
+# The tag must name the version in VERSION: the run stops if they differ. See RELEASING.md.
 #
-# The runner has no Revit: SportfyRevit.csproj then takes the Revit API from the public reference packages (compile-only, nothing of Revit is shipped).
-# The web app is a separate repository; it is checked out next to this one and bundled into the add-in (BuildDistribution.ps1 -WebAppDir).
+# The Revit templates (Sportify_DE.rte, Sportify_EN.rte) and the Revit families (.rfa) are made in Revit and are too big for Git: they live once as assets of the release named
+# "library-assets" (Sportify_DE.rte, Sportify_EN.rte and families.zip); this workflow downloads them. A release build stops when they are missing; a test build warns and goes on.
 #
-# Signing: with the repository secrets CODESIGN_PFX_BASE64 (the .pfx, base64) and CODESIGN_PFX_PASSWORD the add-in, the API and the installer are signed
-# (Sign-Artifacts.ps1). Without them the package is UNSIGNED and the run says so: SmartScreen warns on the installer and Revit asks whether to load an add-in from
-# an unknown publisher. No certificate exists yet; it has to be bought or issued.
+# The runner has no Revit: SportfyRevit.csproj then takes the Revit API from the public reference packages (compile-only, nothing of Revit is shipped) and the SOLIDWORKS tool is
+# not built (no SOLIDWORKS). The web app is a separate repository; it is checked out next to this one and bundled (BuildDistribution.ps1 -WebAppDir).
+#
+# Signing: with the repository secrets CODESIGN_PFX_BASE64 (the .pfx, base64) and CODESIGN_PFX_PASSWORD the add-in, the API and the installer are signed (Sign-Artifacts.ps1).
+# Without them the package is UNSIGNED and the run says so: SmartScreen warns on the installer and Revit asks whether to load an add-in from an unknown publisher.
 on:
   push:
     tags: ["v*"]
@@ -25,9 +31,22 @@ permissions:
 jobs:
   package:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw "VERSION is not a Semantic Version: '$version'" }
+          $isTag = "${{ github.ref }}" -like "refs/tags/v*"
+          if ($isTag -and "${{ github.ref_name }}" -ne "v$version") { throw "The tag ${{ github.ref_name }} does not name the version in VERSION (v$version). Change one of them." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$isTag" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-'))" >> $env:GITHUB_OUTPUT
+          "Sportify $version (release: $isTag)"
 
       - name: Check out the web app
         shell: pwsh
@@ -43,7 +62,41 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Build the package (add-in, bundled web app, self-contained API, installer)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: The release files agree (version, license, author, folders, worksets, API port)
+        shell: pwsh
+        run: node Sportify.Simulation/Tools/ReleaseCheck/check.js web
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc.exe -ErrorAction SilentlyContinue) -and -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --no-progress -y }
+          $iscc = if (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") { "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" } else { (Get-Command iscc.exe).Source }
+          & $iscc /? | Select-Object -First 1
+
+      - name: The library assets (Revit templates and families)
+        id: library
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force library-assets | Out-Null
+          gh release download library-assets --dir library-assets --repo "${{ github.repository }}" 2>&1 | Out-Host
+          $global:LASTEXITCODE = 0        # no such release yet is not an error here: the check below decides
+          if (Test-Path library-assets/families.zip) { Expand-Archive library-assets/families.zip -DestinationPath library-assets/families -Force }
+          $rte = @(Get-ChildItem library-assets -Filter *.rte -ErrorAction SilentlyContinue).Count
+          $rfa = @(Get-ChildItem library-assets/families -Filter *.rfa -ErrorAction SilentlyContinue).Count
+          "templates: $rte, families: $rfa"
+          "have=$($rte -gt 0 -and $rfa -gt 0)" >> $env:GITHUB_OUTPUT
+          if ($rte -eq 0 -or $rfa -eq 0) {
+            $msg = "The release 'library-assets' has no Sportify_*.rte templates and/or no families.zip: the installer would have no Library\Templates / Library\Families. See RELEASING.md."
+            if ("${{ steps.version.outputs.tag }}" -eq "True") { throw $msg } else { Write-Host "::warning title=No library assets::$msg" }
+          }
+
+      - name: Build the package (add-in, bundled web app, self-contained API, library, installer)
         shell: pwsh
         env:
           CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
@@ -58,44 +111,43 @@ jobs:
           } else {
             Write-Host "::notice title=Unsigned package::No code-signing certificate is configured (secrets CODESIGN_PFX_BASE64 and CODESIGN_PFX_PASSWORD), so this package is unsigned."
           }
-          ./BuildDistribution.ps1 -WebAppDir web @sign
+          $lib = @()
+          if ("${{ steps.library.outputs.have }}" -eq "True") { $lib = @("-TemplatesDir", "library-assets", "-FamiliesDir", "library-assets/families", "-RequireLibrary") }
+          ./BuildDistribution.ps1 -WebAppDir web @sign @lib
 
       - name: What is in the package
         shell: pwsh
         run: |
-          if (-not (Test-Path dist/Sportify_Revit.exe)) { throw "dist/Sportify_Revit.exe is missing" }
-          foreach ($f in "payload/SportfyRevit.dll", "payload/web/index.html", "payload/web/activitiesData.js", "payload/api/Sportify.Api.exe") {
+          $exe = "dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe"
+          if (-not (Test-Path $exe)) { throw "$exe is missing" }
+          foreach ($f in "payload/SportfyRevit.dll", "payload/web/index.html", "payload/web/activitiesData.js", "payload/api/Sportify.Api.exe", "library/Documentation/Sportify-User-Guide.pdf", "library/Documentation/LICENSE_AGREEMENT.txt", "library/Worksets/Sportify_Worksets_and_Phases.json") {
             if (-not (Test-Path (Join-Path dist $f))) { throw "the package lacks $f" }
           }
           if (Get-ChildItem dist/payload/api -Filter "reference.db*" -ErrorAction SilentlyContinue) { throw "the package must not carry a reference.db" }
-          $size = (Get-ChildItem dist -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
-          "package: {0:N0} MB, {1} files" -f $size, (Get-ChildItem dist -Recurse -File).Count
+          "installer: {0:N0} MB; payload {1:N0} MB; library {2:N0} MB" -f ((Get-Item $exe).Length / 1MB), ((Get-ChildItem dist/payload -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), ((Get-ChildItem dist/library -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
 
-      - name: Zip it
-        id: zip
+      - name: Test the installer (silent install into scratch folders, the installed API serves the web app, uninstall)
         shell: pwsh
-        run: |
-          $name = if ("${{ github.ref }}" -like "refs/tags/v*") { "${{ github.ref_name }}" } else { "build-$($env:GITHUB_SHA.Substring(0, 7))" }
-          $zip = "Sportify_Revit_$name.zip"
-          Compress-Archive -Path dist/* -DestinationPath $zip -CompressionLevel Optimal
-          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  " + $zip | Set-Content "$zip.sha256" -Encoding ascii
-          "zip=$zip" >> $env:GITHUB_OUTPUT
-          Get-Item $zip, "$zip.sha256" | Format-Table Name, Length
+        run: ./Sportify.Setup/Test-Installer.ps1 -Setup "dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe" -RunApi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.zip.outputs.zip }}
+          name: Sportify-Setup-${{ steps.version.outputs.version }}
           path: |
-            ${{ steps.zip.outputs.zip }}
-            ${{ steps.zip.outputs.zip }}.sha256
+            dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe
+            dist/Sportify-Setup-${{ steps.version.outputs.version }}-Revit2025.exe.sha256
+            dist/Sportify-${{ steps.version.outputs.version }}-Revit2025.zip
           retention-days: 30
 
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.version.outputs.tag == 'True'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" "${{ steps.zip.outputs.zip }}" "${{ steps.zip.outputs.zip }}.sha256" `
-            --title "Sportify for Revit ${{ github.ref_name }}" --generate-notes `
-            --notes "Unzip the whole folder and run Sportify_Revit.exe (it needs payload\ next to it). Revit 2025. Unsigned unless a certificate is configured: SmartScreen and Revit will ask once."
+          $v = "${{ steps.version.outputs.version }}"
+          $exe = "dist/Sportify-Setup-$v-Revit2025.exe"
+          $flags = @(); if ("${{ steps.version.outputs.prerelease }}" -eq "True") { $flags += "--prerelease" }
+          gh release create "${{ github.ref_name }}" $exe "$exe.sha256" @flags `
+            --title "Sportify $v for Revit 2025" --generate-notes `
+            --notes "Download **Sportify-Setup-$v-Revit2025.exe** and run it: accept the license, choose the install folder and the folder for your files, and wait. It installs the Revit 2025 add-in (nothing to copy), the web app and its local API, and the library of templates, families and documentation. Open the web app from the last page or from the Start menu; the user guide is in the Start menu (Sportify > User guide). Open source, for educational purposes, still under testing. The installer is unsigned unless a certificate is configured: Windows SmartScreen shows a blue screen once (More info > Run anyway) and Revit asks whether to load the add-in (Always Load)."

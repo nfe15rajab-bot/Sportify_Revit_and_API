@@ -564,6 +564,8 @@ namespace SportfyRevit
         [JsonPropertyName("travel_seconds")] public double TravelSeconds { get; set; }
         [JsonPropertyName("drive_power_w")] public double DrivePowerW { get; set; }
         [JsonPropertyName("storm_height_m")] public double StormHeightM { get; set; }
+        [JsonPropertyName("mast_stages")] public int MastStages { get; set; }
+        [JsonPropertyName("mast_stage_m")] public double MastStageM { get; set; }
         [JsonPropertyName("fabric_mass_kg")] public double FabricMassKg { get; set; }
         [JsonPropertyName("shade_fixed_min_percent")] public double ShadeFixedMinPercent { get; set; }
         [JsonPropertyName("shade_tracked_min_percent")] public double ShadeTrackedMinPercent { get; set; }

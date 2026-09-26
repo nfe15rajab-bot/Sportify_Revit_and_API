@@ -211,10 +211,19 @@ namespace SportfyRevit
         /// </summary>
         internal static SunEquipmentDto? PickPiece(UIDocument uidoc, KineticKind kind, EquipmentType type)
         {
+            if (TestPick != null) return TestPick(kind, type);
             XYZ picked;
             try { picked = uidoc.Selection.PickPoint("Pick the centre of the " + (kind == KineticKind.Sail ? "sail" : "louvre pergola")); }
             catch (Autodesk.Revit.Exceptions.OperationCanceledException) { return null; }
-            var p = KineticsPlan.FromFeet(picked);
+            return PieceAt(KineticsPlan.FromFeet(picked), kind, type);
+        }
+
+        /// <summary>The unattended walk-through picks the point itself (KineticsWalkthrough). Null in normal use.</summary>
+        internal static Func<KineticKind, EquipmentType, SunEquipmentDto?>? TestPick;
+
+        /// <summary>The piece a point (metres, model coordinates) stands for: its centre, turned into the roof's plan coordinates, at the catalogue's own size.</summary>
+        internal static SunEquipmentDto PieceAt(V3 p, KineticKind kind, EquipmentType type)
+        {
             var origin = KineticsPlan.ToWorld(0, 0);
             var (ex, ey) = KineticsPlan.PlanAxes();
             var d = p - origin;

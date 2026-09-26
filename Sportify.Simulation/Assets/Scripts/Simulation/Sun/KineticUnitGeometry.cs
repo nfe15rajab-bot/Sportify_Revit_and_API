@@ -124,6 +124,22 @@ namespace Sportify.Simulation.Sun
 
         // ------------------------------------------------------------------ the kinds
 
+        /// <summary>Length of an actuator's cylinder (its housing): constant, the piston runs in and out of it.</summary>
+        public const double CylinderM = 0.40;
+
+        /// <summary>
+        /// The linear actuator that drives a rod, as a real one is fitted: its cylinder is HINGED at a fixed point (a clevis on the frame) and its piston is pinned to the end of the
+        /// rod. The rod follows the arc of the crank pins, so it moves sideways a little as well as along itself; the cylinder swings a few degrees to allow that and the piston runs in
+        /// and out of it (its length is the distance from the hinge to the rod end, so the piston is the one bar of the mechanism whose length changes from state to state).
+        /// Both are drawn by Unity and SOLIDWORKS only (Detail), and both move with the state.
+        /// </summary>
+        static void Actuator(UnitPlan plan, V3 hinge, V3 rodEnd, V3 uHint)
+        {
+            var dir = (rodEnd - hinge).Unit();
+            plan.Bars.Add(Bar("piston", hinge, rodEnd, 0.02, 0.02, uHint, true, detail: true));
+            plan.Bars.Add(Bar("housing", hinge, hinge + dir * CylinderM, 0.10, 0.14, uHint, true, detail: true));
+        }
+
         /// <summary>
         /// An OVERHEAD louvre. Local x runs across the width (the blades are stacked along it), y along the depth (each blade's axis), z up. Posts at the corners
         /// and at every support line, rails along x at each support line carrying the blade bearings. In each bay the blades stop <see cref="HardwareGapM"/> short of the rail
@@ -160,8 +176,7 @@ namespace Sportify.Simulation.Sun
                 V3 first = Pin(0), last = Pin(count - 1);
                 var rodEnd = new V3(last.X + 0.06, yPin, last.Z);
                 plan.Bars.Add(Bar("rod", new V3(first.X - 0.06, yPin, first.Z), rodEnd, 0.02, 0.02, V3.UnitZ, true));
-                plan.Bars.Add(Bar("piston", rodEnd, rodEnd + new V3(0.32, 0, 0), 0.02, 0.02, V3.UnitZ, true, detail: true));
-                plan.Bars.Add(Bar("housing", new V3(widthM + 0.05, yPin, heightM - crankM / 2), new V3(widthM + 0.45, yPin, heightM - crankM / 2), 0.10, 0.14, V3.UnitZ, false, detail: true));
+                Actuator(plan, new V3(Math.Max(widthM + 0.45, (count - 0.5) * pitch + 0.06 + CylinderM + 0.15), yPin, heightM - crankM / 2), rodEnd, V3.UnitZ);
             }
             return plan;
         }
@@ -195,8 +210,7 @@ namespace Sportify.Simulation.Sun
                 V3 first = Pin(0), last = Pin(count - 1);
                 var rodTop = new V3(xPin, last.Y, last.Z + 0.06);
                 plan.Bars.Add(Bar("rod", new V3(xPin, first.Y, first.Z - 0.06), rodTop, 0.02, 0.02, V3.UnitX, true));
-                plan.Bars.Add(Bar("piston", rodTop, rodTop + new V3(0, 0, 0.55), 0.02, 0.02, V3.UnitX, true, detail: true));
-                plan.Bars.Add(Bar("housing", new V3(xPin, -crankM / 2, heightM + 0.02), new V3(xPin, -crankM / 2, heightM + 0.45), 0.10, 0.14, V3.UnitX, false, detail: true));
+                Actuator(plan, new V3(xPin, -crankM / 2, Math.Max(heightM + 0.55, Z(count - 1) + 0.06 + CylinderM + 0.15)), rodTop, V3.UnitX);
             }
             return plan;
         }
@@ -232,11 +246,19 @@ namespace Sportify.Simulation.Sun
                 V3 first = Pin(0), last = Pin(count - 1);
                 var rodEnd = new V3(last.X + 0.06, last.Y, zPin);
                 plan.Bars.Add(Bar("rod", new V3(first.X - 0.06, first.Y, zPin), rodEnd, 0.02, 0.02, V3.UnitZ, true));
-                plan.Bars.Add(Bar("piston", rodEnd, rodEnd + new V3(0.40, 0, 0), 0.02, 0.02, V3.UnitZ, true, detail: true));
-                plan.Bars.Add(Bar("housing", new V3(lengthM + 0.05, -crankM / 2, zPin), new V3(lengthM + 0.50, -crankM / 2, zPin), 0.10, 0.14, V3.UnitZ, false, detail: true));
+                Actuator(plan, new V3(Math.Max(lengthM + 0.50, (count - 0.5) * pitch + 0.06 + CylinderM + 0.15), -crankM / 2, zPin), rodEnd, V3.UnitZ);
             }
             return plan;
         }
+
+        /// <summary>The step in outer diameter from one telescope stage to the next: two walls (6 mm each) and 2 mm of clearance round the inner tube.</summary>
+        public const double TelescopeStepM = 0.016;
+
+        /// <summary>The length of one stage of a telescope of <paramref name="stages"/> equal stages that reaches <paramref name="fullLengthM"/> when it is fully out, each joint keeping <paramref name="overlapM"/> inserted.</summary>
+        public static double TelescopeStageM(double fullLengthM, int stages, double overlapM) => stages <= 1 ? fullLengthM : (fullLengthM + (stages - 1) * overlapM) / stages;
+
+        /// <summary>Where a mast starts: the top of its carriage above the roof (the track is a low profile, half sunk in the roof).</summary>
+        public static double CarriageTopM(double railSizeM) => railSizeM * 0.6 + 0.10;
 
         /// <summary>
         /// A TENSILE SAIL on MOVABLE PILLARS that slide on ground rails (photo: a fabric membrane hung between the tops of steel masts). Local x along the rails, y across them,
@@ -247,21 +269,29 @@ namespace Sportify.Simulation.Sun
         /// Each mast stands on a carriage on its track; a drive motor sits at the end of each track. The masts stay upright; the two diagonals of a rectangle differ in height
         /// by <paramref name="twistM"/> so the fabric is a hyperbolic paraboloid, not a flat sheet.
         /// </summary>
-        public static UnitPlan Sail(bool triangle, double widthM, double depthM, double scale, double anchorSide, double heightM, double mastDiameterM, double railSizeM, double minScale, double maxScale, double twistM, double carriageM = 0.30)
+        public static UnitPlan Sail(bool triangle, double widthM, double depthM, double scale, double anchorSide, double heightM, double mastDiameterM, double railSizeM, double minScale, double maxScale, double twistM, double carriageM = 0.30, int mastStages = 1, double mastOverlapM = 0.15, double fullMastM = 0)
         {
             var plan = new UnitPlan { Kind = triangle ? "sail_triangle" : "sail", Label = triangle ? "Tensile sail on ground rails (triangle)" : "Tensile sail on ground rails (rectangle)", LengthM = widthM * maxScale, DepthM = depthM * (triangle ? maxScale : 1), HeightM = heightM };
             var railH = railSizeM * 0.6;                                                             // a low profile track, half sunk in the roof
             double x1, x2;
             if (anchorSide > 0) { x1 = 0; x2 = scale * widthM; }
             else { x1 = widthM / 2 - scale * widthM / 2; x2 = widthM / 2 + scale * widthM / 2; }
-            var carriageTop = railH + 0.10;
+            var carriageTop = CarriageTopM(railSizeM);
             var mastD = mastDiameterM;
             V3 Base(double x, double y) => new V3(x, y, 0);
 
             void Mast(V3 baseAt, double topZ, bool moves)
             {
                 plan.Bars.Add(Bar("carriage", new V3(baseAt.X - carriageM / 2, baseAt.Y, railH + 0.05), new V3(baseAt.X + carriageM / 2, baseAt.Y, railH + 0.05), 0.22, 0.10, V3.UnitZ, moves));
-                plan.Bars.Add(Bar("mast", new V3(baseAt.X, baseAt.Y, carriageTop), new V3(baseAt.X, baseAt.Y, topZ), mastD, mastD, V3.UnitX, moves));
+                if (mastStages <= 1 || fullMastM <= 0) { plan.Bars.Add(Bar("mast", new V3(baseAt.X, baseAt.Y, carriageTop), new V3(baseAt.X, baseAt.Y, topZ), mastD, mastD, V3.UnitX, moves)); return; }
+                // a telescope: equal stages, each nesting in the one below; the mast is as long as the fabric asks (never shorter than one stage), the joints share the extension
+                var stage = TelescopeStageM(fullMastM, mastStages, mastOverlapM);
+                var e = Math.Max(0, (topZ - carriageTop - stage) / (mastStages - 1));
+                for (var i = 0; i < mastStages; i++)
+                {
+                    var z0 = carriageTop + i * e; var diameter = Math.Max(0.03, mastD - i * TelescopeStepM);
+                    plan.Bars.Add(Bar("mast", new V3(baseAt.X, baseAt.Y, z0), new V3(baseAt.X, baseAt.Y, z0 + stage), diameter, diameter, V3.UnitX, i > 0 || moves));
+                }
             }
             void Track(V3 a, V3 b) => plan.Bars.Add(Bar("track", new V3(a.X, a.Y, railH / 2), new V3(b.X, b.Y, railH / 2), railSizeM, railH, V3.UnitZ, false));
             void Motor(V3 at, V3 along) => plan.Bars.Add(Bar("motor", at, at + along, 0.24, 0.24, V3.UnitZ, false, detail: true));

@@ -154,7 +154,10 @@ namespace Sportify.Api
         public IActionResult Get()
         {
             var origin = Request.Headers.Origin.ToString();
-            if (!_security.IsAllowedOrigin(origin))
+            // A page this API serves itself (the installed web app on localhost:5107) asks with no Origin header, because a browser leaves it off a same-origin GET; what it sends
+            // instead is Sec-Fetch-Site: same-origin, which a page cannot forge or change. Only for a request that came to the local address.
+            var sameOrigin = string.Equals(Request.Headers["Sec-Fetch-Site"].ToString(), "same-origin", StringComparison.OrdinalIgnoreCase) && (Request.Host.Host is "localhost" or "127.0.0.1");
+            if (!sameOrigin && !_security.IsAllowedOrigin(origin))
                 return StatusCode(StatusCodes.Status403Forbidden, new { error = "The write key is given only to a page of the app (a request with no Origin, or another one, is not)." });
             if (!_security.KeyIsGenerated)
                 return Ok(new { mode = "configured", header = ApiSecurity.KeyHeader });      // the key was chosen by whoever runs this API: it is not handed out

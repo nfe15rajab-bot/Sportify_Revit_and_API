@@ -35,6 +35,8 @@ namespace Sportify.Simulation.Sun
         public double RecommendedMastDiameterM;           // the smallest standard-step tube that passes (the diameter in use when it does)
         public double CarriageForceKn, DriveSpeedMs, TravelSeconds, DrivePowerW;
         public double StormHeightM, StormSeconds;
+        public int MastStages = 1;                        // 1 = a rigid tube
+        public double MastStageM, MastCollapsedTopM;      // the length of one telescope stage, and the height of the top of the mast when it is fully in
         public double FabricMassKg, MastMassKgEach;
         public double ShadeFixedMinPercent, ShadeMovingMinPercent, ShadeFixedMeanPercent, ShadeMovingMeanPercent;
         public List<SailState> States = new List<SailState>();
@@ -221,9 +223,16 @@ namespace Sportify.Simulation.Sun
             r.UpliftKnPerMast = r.UpliftKnTotal / r.MastCount;
             var maxW = widthM * r.MaxScale; var maxD = triangle ? depthM * r.MaxScale : depthM;
             r.PretensionPullKnPerCorner = d["sail_pretension_kn_m"] * (maxW + maxD) / 2.0 * 0.7071;
-            r.StormHeightM = d["sail_storm_height_m"];
+            // the masts telescope: the lowest a sail can go in a storm is the collapsed mast, whatever height was asked for
+            r.MastStages = Math.Max(1, (int)Math.Round(d["mast_stages"]));
+            var carriageTop = KineticUnits.CarriageTopM(d["sail_rail_size_m"]);
+            var topMax = heightM + (triangle ? 0 : d["sail_twist_ratio"] * Math.Min(widthM, depthM) / 2);
+            r.MastStageM = KineticUnits.TelescopeStageM(topMax - carriageTop, r.MastStages, d["mast_overlap_m"]);
+            r.MastCollapsedTopM = carriageTop + r.MastStageM;
+            r.StormHeightM = r.MastStages > 1 ? Math.Max(d["sail_storm_height_m"], Math.Round(r.MastCollapsedTopM + 0.02, 2)) : d["sail_storm_height_m"];
             r.FabricMassKg = d["fabric_mass_kg_m2"] * r.AreaMaxM2;
-            r.MastMassKgEach = 7850 * AreaM2(dia, wall) * heightM;
+            if (r.MastStages > 1) { r.MastMassKgEach = 0; for (var i = 0; i < r.MastStages; i++) r.MastMassKgEach += 7850 * AreaM2(Math.Max(0.03, dia - i * KineticUnits.TelescopeStepM), wall) * r.MastStageM; }
+            else r.MastMassKgEach = 7850 * AreaM2(dia, wall) * heightM;
 
             // a mast is a cantilever from its carriage: the fabric pulls its top inward, the wind at the operating limit pushes the whole sail (the drag on the largest sail shared by the masts)
             var windPerMastKn = d["sail_wind_coeff"] * operatingQ * r.AreaMaxM2 * 1e-3 / r.MastCount;
@@ -268,6 +277,9 @@ namespace Sportify.Simulation.Sun
             }
 
             var inv = CultureInfo.InvariantCulture;
+            if (r.MastStages > 1)
+                r.Findings.Add(string.Format(inv, "Each mast is a telescope of {0} stages of {1:0.00} m (each joint keeps {2:0.00} m inserted at full extension): fully in it is {3:0.00} m tall, so the sail cannot go lower in a storm than {4:0.00} m{5}. The bending check below treats the mast as ONE tube of the base diameter: the thinner upper stages and the joints are not checked (a mechanical engineer has to).",
+                    r.MastStages, r.MastStageM, d["mast_overlap_m"], r.MastCollapsedTopM, r.StormHeightM, d["sail_storm_height_m"] + 1e-6 < r.StormHeightM ? " (the " + d["sail_storm_height_m"].ToString("0.0#", inv) + " m entered is below what the masts can collapse to)" : ""));
             r.Findings.Add(string.Format(inv, "{0} steel masts of {1:0} x {2:0.0} mm, {3:0.0} m high, {4:0} kg each, on carriages that run on {5} ground tracks {6:0.0} m long ({7}); the fabric between their tops covers {8:0.0} m2 at the analysed size, {9:0.0} m2 with the masts run in and {10:0.0} m2 run out ({11:0} kg of it).",
                 r.MastCount, dia * 1000, wall * 1000, heightM, r.MastMassKgEach, r.Tracks, r.RailLengthM,
                 triangle ? "an L: one track along x, one along y, the corner where they meet stays put" : anchorSide > 0 ? "two parallel tracks; the masts at one end stay put, the others run out" : "two parallel tracks; the masts run out from the middle",

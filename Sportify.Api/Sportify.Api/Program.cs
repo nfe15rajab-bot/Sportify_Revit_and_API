@@ -71,6 +71,17 @@ app.UseHttpsRedirection();
 
 app.UseCors(FrontendCorsPolicy);
 
+// The web app itself, when it sits beside the API (an installed copy: <install folder>apiSportify.Api.exe and <install folder>web): served at / so that a browser can use the
+// app with no Revit open (the installer's "Open the web app"). Beside Revit nothing changes: the add-in serves its own copy on 8123. SPORTIFY_WEB_DIR names another folder.
+var webRoot = Environment.GetEnvironmentVariable("SPORTIFY_WEB_DIR") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "web"));
+if (File.Exists(Path.Combine(webRoot, "index.html")))
+{
+    var webFiles = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(webRoot);
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webFiles });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = webFiles });
+    app.Logger.LogInformation("The web app in {Dir} is served at /.", webRoot);
+}
+
 // Every write needs the key, whatever its body looks like (ApiSecurity.cs). After CORS, so that the refusal is readable by the app.
 app.UseMiddleware<WriteKeyMiddleware>();
 

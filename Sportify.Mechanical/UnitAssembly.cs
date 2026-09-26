@@ -201,6 +201,9 @@ internal static class UnitAssembly
         plane!.Select2(false, 0);
         var sk = model.SketchManager;
         sk.InsertSketch(true);
+        // entities are added without SOLIDWORKS inferring relations between them: with inference on (a setting that differs from one session or machine to the next) the inner outline of a
+        // hollow section snaps to the outer one and the extrusion of the two loops fails (found by the smoke test)
+        sk.AddToDB = true;
         var hollow = spec.Wall > 0 && spec.Wall < Math.Min(spec.SizeU, spec.SizeV) / 2 - 1e-6;
         if (spec.Poly != null)
         {
@@ -221,13 +224,14 @@ internal static class UnitAssembly
             sk.CreateCornerRectangle(-spec.SizeU / 2, -spec.SizeV / 2, 0, spec.SizeU / 2, spec.SizeV / 2, 0);
             if (hollow) sk.CreateCornerRectangle(-(spec.SizeU / 2 - spec.Wall), -(spec.SizeV / 2 - spec.Wall), 0, spec.SizeU / 2 - spec.Wall, spec.SizeV / 2 - spec.Wall, 0);
         }
+        sk.AddToDB = false;
         sk.InsertSketch(true);
         Feature? sketch = null;
         for (var f = (Feature?)model.FirstFeature(); f != null; f = (Feature?)f.GetNextFeature()) if (f.GetTypeName2() == "ProfileFeature") sketch = f;
         sketch!.Select2(false, 0);
         var body = model.FeatureManager.FeatureExtrusion3(true, false, false, (int)swEndConditions_e.swEndCondBlind, (int)swEndConditions_e.swEndCondBlind,
             spec.Length, 0, false, false, false, false, 0, 0, false, false, false, false, true, true, true, (int)swStartConditions_e.swStartSketchPlane, 0, false);
-        if (body == null) throw new InvalidOperationException("The extrusion of the " + spec.Role + " failed.");
+        if (body == null) throw new InvalidOperationException("The extrusion of the " + spec.Role + " failed (section " + spec.SizeU.ToString("0.####", CultureInfo.InvariantCulture) + " x " + spec.SizeV.ToString("0.####", CultureInfo.InvariantCulture) + " m, wall " + spec.Wall.ToString("0.####", CultureInfo.InvariantCulture) + ", length " + spec.Length.ToString("0.####", CultureInfo.InvariantCulture) + " m).");
 
         // the colour is only for the eye: the part's appearance (R, G, B, ambient, diffuse, specular, shininess, transparency, emission), not its physics
         var appearance = new[] { spec.Colour[0], spec.Colour[1], spec.Colour[2], 0.5, 0.7, 0.4, 0.3, 0, 0 };
@@ -247,10 +251,11 @@ internal static class UnitAssembly
 
     // ------------------------------------------------------------------ the run
 
-    static void Progress(int percent, string text) { Console.WriteLine("PROGRESS " + percent + " " + text); Console.Out.Flush(); }
+    internal static void Progress(int percent, string text) { Watchdog.Beat(text); Console.WriteLine("PROGRESS " + percent + " " + text); Console.Out.Flush(); }
 
     static void CheckCancel(SimulateOptions o)
     {
+        Watchdog.Beat();
         if (o.CancelFile != null && File.Exists(o.CancelFile)) throw new OperationCanceledException("cancelled");
     }
 
@@ -292,7 +297,7 @@ internal static class UnitAssembly
                 var to = req.States[Math.Min(fr.To, req.States.Count - 1)];
                 lengths.Add(BarLength(req.States[fr.From].Bars[i], to.Bars[Math.Min(i, to.Bars.Count - 1)], fr.T));
             }
-            if (lengths.Max() - lengths.Min() > 0.05)
+            if (lengths.Max() - lengths.Min() > 0.02)
             {
                 // a mast that runs in and out: a part of its own whose length is a dimension, set at every frame
                 var body = new Body { Role = b.Role, Dynamic = b.Dynamic, Index = i, Varies = true, Part = Spec(b.Role, b.SizeU, b.SizeV, length, false, "bar" + i + "|") };

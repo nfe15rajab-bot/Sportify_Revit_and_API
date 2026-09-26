@@ -121,9 +121,13 @@ namespace SportfyRevit
             };
         }
 
+        /// <summary>The unattended walk-through (KineticsWalkthrough) answers for the person: what it returns is what the dialog would have chosen. Null in normal use.</summary>
+        internal static Func<bool, Choice?>? AutoAnswer;
+
         /// <summary>Shows the dialog; returns what was chosen, or null if cancelled.</summary>
         public static Choice? Ask(string title, IntPtr owner, string lastPriorityKey, KineticKind lastKind, bool askKind)
         {
+            if (AutoAnswer != null) return AutoAnswer(askKind);
             var dialog = new KineticsPriorityDialog(title, lastPriorityKey, lastKind, askKind);
             if (owner != IntPtr.Zero) new WindowInteropHelper(dialog) { Owner = owner };
             return dialog.ShowDialog() == true ? dialog.Chosen : null;

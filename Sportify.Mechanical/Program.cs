@@ -51,7 +51,7 @@ if (command == "thumb")
 }
 if (command == "simulate")
 {
-    // Sportify.Mechanical simulate --request FILE --out DIR --name NAME [--cancel-file FILE] [--fps 15] [--width 1280] [--height 720] [--stills] [--no-video] [--no-detail] [--cam X,Y] [--visible]
+    // Sportify.Mechanical simulate --request FILE --out DIR --name NAME [--cancel-file FILE] [--fps 15] [--width 1280] [--height 720] [--stills] [--no-video] [--no-detail] [--stall-min 5] [--timeout-min 45] [--cam X,Y] [--visible]
     //   The unit in the request (the add-in writes it: KineticsRender) as a SOLIDWORKS assembly, moved through its states, checked for interferences, recorded as an MP4.
     //   Talks in lines: PROGRESS <percent> <text>, then RESULT <path of the report json>. Exit code 3 when cancelled.
     try
@@ -76,20 +76,33 @@ if (command == "simulate")
             var parts = cam.Split(',');
             if (parts.Length == 2) { options.CamX = double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture); options.CamY = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture); }
         }
+        // a SOLIDWORKS that stops answering (a window of its own that a hidden session cannot show) is stopped after --stall-min minutes without a sign of life, and a run
+        // that takes longer than --timeout-min altogether is ended: exit code 4, "STALLED ..."
+        Watchdog.Start(TimeSpan.FromMinutes(Math.Max(6, D("stall-min", 5))), TimeSpan.FromMinutes(D("stall-min", 5)), TimeSpan.FromMinutes(D("timeout-min", 45)));
         Console.WriteLine("PROGRESS 1 Starting SOLIDWORKS (the first start can take a minute or two)");
         Console.Out.Flush();
         using var simSession = SolidWorksSession.Open(opt.ContainsKey("visible"), opt.ContainsKey("keep-open"));
+        Watchdog.Beat("SOLIDWORKS started");
         Console.WriteLine("PROGRESS 2 " + simSession.Info());
         var simReport = UnitAssembly.Run(simSession, request, simOut, simName, options);
+        Watchdog.Stop();
         var reportPath = Path.Combine(simOut, simName + "_simulation.json");
         File.WriteAllText(reportPath, UnitAssembly.ToJson(simReport));
         Console.WriteLine("PROGRESS 100 Done");
         Console.WriteLine("RESULT " + reportPath);
         return 0;
     }
-    catch (OperationCanceledException) { Console.WriteLine("CANCELLED"); return 3; }
-    catch (Exception ex) { Console.Error.WriteLine(ex.ToString()); return 1; }
+    catch (OperationCanceledException) { Watchdog.Stop(); Console.WriteLine("CANCELLED"); return 3; }
+    catch (Exception ex) { Watchdog.Stop(); Console.Error.WriteLine(ex.ToString()); return 1; }
 }
+if (command == "probe-extrude")
+{
+    using var extrudeSession = SolidWorksSession.Open(opt.ContainsKey("visible"), opt.ContainsKey("keep-open"));
+    Console.WriteLine(extrudeSession.Info());
+    return Probe.RunExtrude(extrudeSession, (int)D("variant", 1));
+}
+if (command == "watchdog-test") return Smoke.WatchdogTest();
+if (command == "smoke") return Smoke.Run(opt.TryGetValue("out", out var smokeOut) ? smokeOut : Path.Combine(Path.GetTempPath(), "sportify-smoke"));
 if (command == "probe")
 {
     using var probeSession = SolidWorksSession.Open(opt.ContainsKey("visible"), opt.ContainsKey("keep-open"));

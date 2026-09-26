@@ -22,7 +22,7 @@ internal sealed class SolidWorksSession : IDisposable
         var running = Process.GetProcessesByName("SLDWORKS").Length > 0;
         var type = Type.GetTypeFromProgID("SldWorks.Application") ?? throw new InvalidOperationException("SOLIDWORKS is not registered on this machine (SldWorks.Application).");
         var app = (ISldWorks)(Activator.CreateInstance(type) ?? throw new InvalidOperationException("SOLIDWORKS did not start."));
-        if (!running) app.Visible = visible;              // an instance the user already has open keeps its own visibility
+        if (!running) { app.Visible = visible; _runStartedAt = beganAt; }              // an instance the user already has open keeps its own visibility
         return new SolidWorksSession(app, !running, keepOpen, beganAt);
     }
 
@@ -63,4 +63,17 @@ internal sealed class SolidWorksSession : IDisposable
     }
 
     readonly DateTime _started;
+
+    static DateTime? _runStartedAt;
+
+    /// <summary>Stops the SOLIDWORKS (and its file-search helper) this run started, when it will not answer. A SOLIDWORKS the person already had open is left alone.</summary>
+    public static void KillStartedByThisRun()
+    {
+        if (_runStartedAt == null) return;
+        foreach (var name in new[] { "SLDWORKS", "sldworks_fs" })
+            foreach (var p in Process.GetProcessesByName(name))
+            {
+                try { if (p.StartTime.ToUniversalTime() >= _runStartedAt.Value.AddSeconds(-5)) p.Kill(); } catch (Exception) { /* already gone */ }
+            }
+    }
 }

@@ -27,6 +27,9 @@ namespace SportfyRevit
             public List<string> Lines = new();
         }
 
+        /// <summary>How long the tool may be silent before Revit stops it (the tool's own watchdog acts after 5 minutes; this only covers the tool itself hanging).</summary>
+        const int SilentMinutes = 12;
+
         internal static bool SolidWorksInstalled() => Type.GetTypeFromProgID("SldWorks.Application") != null;
 
         /// <summary>Where Sportify.Mechanical.exe is: SPORTIFY_MECHANICAL_EXE, else the "mechanical" folder next to the add-in, else the development build beside the source.</summary>
@@ -58,6 +61,8 @@ namespace SportfyRevit
             var cancel = false;
             var cancelFile = Path.Combine(Path.GetTempPath(), "sportify-mechanical-cancel-" + Guid.NewGuid().ToString("N") + ".flag");
             var swBefore = Process.GetProcessesByName("SLDWORKS").Select(p => p.Id).ToHashSet();
+            var lastOutput = DateTime.UtcNow;      // the tool has its own watchdog (exit code 4 after a few minutes without a sign of life); this is the backstop if the tool itself hangs
+            var silent = false;
             var window = new ToolProgressWindow("Sportify — SOLIDWORKS", what,
                 "SOLIDWORKS starts hidden, builds the parts and the assembly, and records each frame of the motion; the first start can take a minute or two. Revit is only waiting, not frozen.", () => { cancel = true; try { File.WriteAllText(cancelFile, "cancel"); } catch (Exception) { } });
             Process? process = null;
@@ -75,6 +80,7 @@ namespace SportfyRevit
                         process.OutputDataReceived += (_, e) =>
                         {
                             if (e.Data == null) return;
+                            lastOutput = DateTime.UtcNow;
                             outcome.Lines.Add(e.Data);
                             if (e.Data.StartsWith("PROGRESS "))
                             {
@@ -89,11 +95,14 @@ namespace SportfyRevit
                         while (!process.WaitForExit(500))
                         {
                             if (cancel && (DateTime.UtcNow - started).TotalSeconds > 0 && !process.WaitForExit(20000)) { try { process.Kill(true); } catch (Exception) { } break; }
+                            if ((DateTime.UtcNow - lastOutput).TotalMinutes > SilentMinutes) { silent = true; try { process.Kill(true); } catch (Exception) { } break; }
                         }
                         process.WaitForExit();
                         outcome.Cancelled = cancel;
                         outcome.Ok = !cancel && process.ExitCode == 0 && outcome.ReportPath != null && File.Exists(outcome.ReportPath);
                         outcome.Message = outcome.Cancelled ? "Cancelled: SOLIDWORKS was stopped and no video was made."
+                            : silent ? "The SOLIDWORKS tool said nothing for " + SilentMinutes + " minutes and was stopped. SOLIDWORKS is probably waiting on a window of its own (a dialog): open it once by hand and look."
+                            : process.ExitCode == 4 ? "SOLIDWORKS stopped responding and the run was stopped. " + (stderr.Length > 0 ? stderr.ToString().Trim() : string.Join("\n", outcome.Lines.TakeLast(2)))
                             : outcome.Ok ? "" : "The SOLIDWORKS tool stopped (exit code " + process.ExitCode + "). " + (stderr.Length > 0 ? stderr.ToString().Trim() : string.Join("\n", outcome.Lines.TakeLast(6)));
                         if (outcome.Ok)
                         {
