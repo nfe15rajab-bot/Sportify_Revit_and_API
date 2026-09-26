@@ -62,15 +62,17 @@ components and starts the local API once so that its database is ready.</li>
 and <i>Data Export / Deliverables</i>.</li>
 <li>Open a project. For a first try, a project with a roof (or a simple floor slab standing for it) is enough.</li>
 </ol>
+<div class="tip">The ribbon follows the <b>view</b> you choose in the web app&rsquo;s <i>Profile</i> tab. In the <b>Simple</b> view it shows only the main path (three panels, eight buttons) and hides what cannot work on this computer (for example Simulate without SOLIDWORKS); <b>Advanced</b> shows everything. Sportify finds Unity, SOLIDWORKS and Chrome by itself and does not ask. The way into the web app and into your Sportify folder is never hidden.</div>
 
 <h2>4. Guided walkthrough: your first roof</h2>
 <h3><span class="step">Step 1 &middot; Open the web app</span></h3>
-<p>Either use the shortcut <b>Sportify web app</b> in the Start menu (opens in Chrome, works with Revit closed), or click <b>Open Sportify App</b> in Revit (opens docked inside Revit). Both are the same app.</p>
+<p>Either use the shortcut <b>Sportify web app</b> in the Start menu (opens in Chrome, works with Revit closed), or click <b>Open Sportify App</b> in Revit (opens docked inside Revit). Both are the same app. The rule: <b>decide in the web app, build in Revit</b>. The pill at the top right of the web app says <i>Revit 2025 connected</i> or <i>Revit not open</i>; not being in Revit is a normal state, you keep working in 2D.</p>
+<p>The first time, four short questions (what you want to do, which analyses matter, what you already have about the site, how well you know Sportify) set what is shown first and where the app opens; skip them if you like. <i>Show me around</i> on the Overview gives a one-minute tour. The <i>Profile</i> tab (next to New Session) keeps your name and photo, the Simple or Advanced view, your role and the theme; it is saved on your computer, in Revit&rsquo;s settings and in the <code>Profile</code> folder of your Sportify folder.</p>
 <h3><span class="step">Step 2 &middot; Give it your roof</span></h3>
 <p>In Revit select the roof (or slab) and use <b>Push to Sportify &rarr; Everything</b>. The outline, structure, entries, openings and edges reach the web app. To switch to a different roof later use
 <b>Push to Sportify &rarr; Update</b>. You can also start in the web app without Revit and give it a roof of your own size, then bring Revit in later.</p>
 <h3><span class="step">Step 3 &middot; Design the layout</span></h3>
-<p>In the web app: <i>Site</i> (place, orientation), <i>Structure</i> (grid, columns, deck capacity), <i>Sport</i> (fields and their variants), <i>Garden</i> (parcels and build-ups), then <i>Combine</i> to put everything on the roof.
+<p>In the web app: <i>Site</i> (place, orientation, roof size), <i>Structure inputs</i> (grid, columns, deck capacity), <i>Site conditions</i> (wind, snow, the day&rsquo;s use, sun and shade targets), <i>Sport</i> (fields and their variants), <i>Garden</i> (parcels and build-ups), then <i>Combine</i> to put everything on the roof.
 The algorithmic placement mode suggests a layout you can adjust. Save your work with <b>Save Session</b> (top bar).</p>
 <h3><span class="step">Step 4 &middot; Send the layout to Revit</span></h3>
 <p>In the web app use <b>Export Combined JSON</b> in <i>Combine</i>. In Revit click <b>Import Configuration</b> (panel <i>App &amp; Data Import</i>): the fields, gardens and furniture are built as elements, on worksets
@@ -79,7 +81,7 @@ The algorithmic placement mode suggests a layout you can adjust. Save your work 
 <p>Panel <i>Algorithmic Analysis</i>: fire safety, carbon impact, life-cycle, accessibility. Panel <i>Simulation &amp; Analytics</i>: structure (bay utilisation, dynamic frequency), environment (sun and shade, wind uplift and erosion, soil percolation, ball trajectory).
 Each command asks whether you have Unity (a video) or not (charts as PDF). <b>Send All to Web App</b> puts every result in the web app&rsquo;s <i>Results</i> tab.</p>
 <h3><span class="step">Step 6 &middot; Look at the results and improve</span></h3>
-<p>In the web app, <i>Results</i> shows every analysis on one page (Revit&rsquo;s full analysis where it has run, the app&rsquo;s quick estimate otherwise), marks what is preliminary and which inputs are still default values. <i>Compare</i> puts up to three saved layouts side by side.
+<p>In the web app, <i>Results</i> shows every analysis on one page (Revit&rsquo;s full analysis where it has run, the app&rsquo;s quick estimate otherwise), marks what is preliminary and which inputs are still default values. In <i>Combine</i>, select a piece to see its own results beside the roof, live as you move it. <i>Compare</i> puts up to three saved layouts side by side.
 <i>Improve</i> shows where to improve the design and what Kinetics placed.</p>
 <h3><span class="step">Step 7 &middot; Kinetics: moving elements from the analysis</span></h3>
 <ol>
@@ -90,7 +92,7 @@ and spacing of blades and how the unit moves through the day, and places it as a
 </ol>
 <h3><span class="step">Step 8 &middot; Documents for the project</span></h3>
 <p>Panel <i>BIM &amp; Documentation</i>: <b>Generate Schedules</b>, <b>Apply View Filters</b>, and the <b>Phasing &amp; Worksets</b> drop-down. Panel <i>Data Export / Deliverables</i>: <b>Analysis Report (PDF)</b>, <b>Functional Diagrams</b>,
-<b>Schedules (CSV)</b>. <b>Open Sportify Folder</b> shows everything in one place.</p>
+<b>Schedules (CSV)</b>. <b>Open Sportify Folder</b> shows everything in one place; the web app&rsquo;s <i>Documents</i> tab lists the same folder and can ask Revit for the report, the schedule and the diagrams.</p>
 
 <h2>5. Your Sportify folder</h2>
 <table>
