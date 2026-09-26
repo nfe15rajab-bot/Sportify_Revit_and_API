@@ -40,6 +40,20 @@ namespace SportfyRevit
             "GenerateAnalysisReport", "GenerateFunctionalDiagrams", "GenerateSchedules", "OpenSportifyFolder",
         };
 
+        /// <summary>
+        /// What each extra a person added to the Simple view (the start-up quiz: an analysis they chose) brings back to the ribbon. The keys are the web app's PROFILE_EXTRAS (SportifyProfile.Extras);
+        /// Tools/ReleaseCheck compares them. An extra changes nothing in the Advanced view, which shows everything the computer can do.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string[]> ExtraButtons = new Dictionary<string, string[]>
+        {
+            ["structure"] = new[] { "AnalyzeStructuralLoads", "AnalyzeDynamicLoads" },
+            ["conditions"] = new[] { "AnalyzeSunShade", "AnalyzeWindErosionRisk", "SimulateSoilPercolation" },
+            ["compare"] = new[] { "ImportIterationsAsOptions", "SwitchIteration" },
+            ["postAnalysis"] = new[] { "ChooseKineticFamily", "GenerateKineticFamily", "ImportKineticAdaptation", "RecordKineticsVideo", "SimulateKinetics" },
+            ["safety"] = new[] { "AnalyzeFireSafety", "AnalyzeAccessibility", "SimulateBallTrajectories" },
+            ["carbon"] = new[] { "AnalyzeCarbonImpact", "AnalyzeLca" },
+        };
+
         /// <summary>Never hidden: the way into the web app (where the view is changed) and into the person's own files.</summary>
         public static readonly IReadOnlyList<string> AlwaysVisible = new[] { "OpenSportifyApp", "OpenSportifyFolder" };
 
@@ -47,12 +61,12 @@ namespace SportfyRevit
         public static string NormalizeView(string? view) => string.Equals(view, "simple", StringComparison.OrdinalIgnoreCase) ? "simple" : "advanced";
 
         /// <summary>The decision for one button (or drop-down item, or the push menu) by its internal name.</summary>
-        public static RibbonDecision ForButton(string internalName, string? view, Capabilities caps, bool showAll = false)
+        public static RibbonDecision ForButton(string internalName, string? view, Capabilities caps, bool showAll = false, IEnumerable<string>? extras = null)
         {
             if (showAll) return new RibbonDecision(true, "");
             if (AlwaysVisible.Contains(internalName)) return new RibbonDecision(true, "");
-            if (NormalizeView(view) == "simple" && !SimpleButtons.Contains(internalName))
-                return new RibbonDecision(false, "Hidden in the Simple view: choose Advanced in the web app's Profile tab to show it.");
+            if (NormalizeView(view) == "simple" && !SimpleButtons.Contains(internalName) && !BroughtBackBy(internalName, extras))
+                return new RibbonDecision(false, "Hidden in the Simple view: choose Advanced in the web app's Profile tab (or add it there, or in the quiz) to show it.");
             if (Needs.TryGetValue(internalName, out var need))
             {
                 var tool = need == RibbonNeed.Unity ? caps.Unity : caps.SolidWorks;
@@ -61,11 +75,15 @@ namespace SportfyRevit
             return new RibbonDecision(true, "");
         }
 
+        /// <summary>Does an extra the person added bring this button back to the Simple view?</summary>
+        static bool BroughtBackBy(string internalName, IEnumerable<string>? extras) =>
+            extras != null && extras.Any(e => ExtraButtons.TryGetValue(e, out var buttons) && buttons.Contains(internalName));
+
         /// <summary>
         /// The decision for every button, drop-down item, drop-down and panel of the layout, by internal name (panels as PanelKey(name)). A drop-down and a panel are visible when
-        /// anything in them is.
+        /// anything in them is. <paramref name="extras"/> are what the person added to the Simple view.
         /// </summary>
-        public static IReadOnlyDictionary<string, RibbonDecision> Plan(string? view, Capabilities caps, bool showAll = false)
+        public static IReadOnlyDictionary<string, RibbonDecision> Plan(string? view, Capabilities caps, bool showAll = false, IEnumerable<string>? extras = null)
         {
             var plan = new Dictionary<string, RibbonDecision>();
             foreach (var panel in RibbonLayout.Panels)
@@ -76,17 +94,17 @@ namespace SportfyRevit
                     switch (entry)
                     {
                         case RibbonButtonSpec button:
-                            plan[button.InternalName] = ForButton(button.InternalName, view, caps, showAll);
+                            plan[button.InternalName] = ForButton(button.InternalName, view, caps, showAll, extras);
                             anyVisible |= plan[button.InternalName].Visible;
                             break;
                         case RibbonPulldownSpec pulldown:
-                            foreach (var item in pulldown.Items) plan[item.InternalName] = ForButton(item.InternalName, view, caps, showAll);
+                            foreach (var item in pulldown.Items) plan[item.InternalName] = ForButton(item.InternalName, view, caps, showAll, extras);
                             var shown = pulldown.Items.Any(i => plan[i.InternalName].Visible);
                             plan[pulldown.InternalName] = new RibbonDecision(shown, shown ? "" : "Every item of this drop-down is hidden.");
                             anyVisible |= shown;
                             break;
                         case RibbonPushMenuSpec:
-                            plan[PushMenuName] = ForButton(PushMenuName, view, caps, showAll);
+                            plan[PushMenuName] = ForButton(PushMenuName, view, caps, showAll, extras);
                             anyVisible |= plan[PushMenuName].Visible;
                             break;
                     }

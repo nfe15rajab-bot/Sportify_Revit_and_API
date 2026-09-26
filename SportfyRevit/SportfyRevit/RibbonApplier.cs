@@ -29,8 +29,9 @@ namespace SportfyRevit
         /// <summary>Must run on Revit's thread (start-up, or an external event).</summary>
         public static void Apply()
         {
-            var view = CurrentView();
-            var plan = RibbonVisibility.Plan(view, SportifyCapabilities.Current(refresh: true), ShowAll);
+            var profile = SportifyProfile.Read();
+            var view = RibbonVisibility.NormalizeView(profile?["view"]?.GetValue<string>());
+            var plan = RibbonVisibility.Plan(view, SportifyCapabilities.Current(refresh: true), ShowAll, SportifyProfile.ExtrasIn(profile));      // the Simple view plus what the person added (the quiz)
             int changed = 0, failed = 0;
             foreach (var (key, decision) in plan)
             {

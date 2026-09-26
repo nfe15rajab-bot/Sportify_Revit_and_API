@@ -279,6 +279,14 @@ step("the web app: the PROFILE (Simple/Advanced view against the real page, name
   return r.code === 0 ? { status: "pass", detail: "the real profile.js against a stand-in page and a stand-in add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: the start-up quiz (questions, what the answers set, only for a new session, the address search and what goes to the Site tab, the Overview)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "quiz-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/quiz-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real quiz.js, siteField.js and siteController.js against a stand-in page, map and geocoder" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "escape-audit-test.js");

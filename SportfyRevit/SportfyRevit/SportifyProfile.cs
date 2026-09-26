@@ -32,6 +32,10 @@ namespace SportfyRevit
         static readonly string[] Views = { "simple", "advanced" };
         static readonly string[] Roles = { "planner", "client" };
         static readonly string[] Themes = { "dark", "light" };
+        /// <summary>What a person can add to the Simple view (the web app's PROFILE_EXTRAS; Tools/ReleaseCheck compares the two lists, and RibbonVisibility.ExtraButtons has the same keys).</summary>
+        public static readonly string[] Extras = { "structure", "conditions", "compare", "postAnalysis", "safety", "carbon" };
+        /// <summary>The workspaces a person can start in (the web app's PROFILE_LANDINGS).</summary>
+        public static readonly string[] Landings = { "guide", "site", "sport", "combine", "analysis", "deliverables" };
         static readonly object Gate = new();
         static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -51,10 +55,26 @@ namespace SportfyRevit
                 ["role"] = OneOf(o["role"], Roles) ?? "planner",
                 ["theme"] = OneOf(o["theme"], Themes),
                 ["quiz"] = Quiz(o["quiz"]),
+                ["extras"] = ExtrasOf(o["extras"]),
+                ["landing"] = OneOf(o["landing"], Landings),
+                ["onboarded"] = o["onboarded"] is JsonValue ob && ob.TryGetValue<bool>(out var done) && done,
                 ["person"] = Person(o["person"]),
             };
             return profile;
         }
+
+        /// <summary>The extras, cleaned: only the ones that exist, each once, in the order of <see cref="Extras"/>.</summary>
+        static JsonArray ExtrasOf(JsonNode? n)
+        {
+            var wanted = n is JsonArray a ? a.Select(Str).Where(s => s != null).ToHashSet() : new HashSet<string?>();
+            var list = new JsonArray();
+            foreach (var e in Extras.Where(wanted.Contains)) list.Add(e);
+            return list;
+        }
+
+        /// <summary>The extras a profile holds (as Sanitize kept them), for the ribbon.</summary>
+        public static IReadOnlyList<string> ExtrasIn(JsonObject? profile) =>
+            profile?["extras"] is JsonArray a ? a.Select(Str).Where(s => s != null && Extras.Contains(s)).Select(s => s!).ToList() : new List<string>();
 
         static string? Str(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
 

@@ -305,6 +305,24 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
         Check("only GET and POST are the profile's: another method is left to the server", Call("PUT", "/profile") == null && Call("DELETE", "/profile") == null);
         Check("the person's name goes through as text, markup and all", Reply(Call("POST", "/profile", null, Json(new { person = new { name = "<b>Ali</b> & co" } }))).GetProperty("profile").GetProperty("person").GetProperty("name").GetString() == "<b>Ali</b> & co");
 
+        // what the start-up quiz sets: the extras added to the Simple view, where Sportify opens, and that the quiz was taken
+        {
+            var quizPost = Reply(Call("POST", "/profile", null, Json(new { view = "simple", extras = new object?[] { "carbon", "structure", "nope", "structure", 5, null, "<script>" }, landing = "analysis", onboarded = true }))).GetProperty("profile");
+            Check("POST /profile keeps the extras the start-up quiz chose: only the ones that exist, each once, in the web app's order", string.Join(",", quizPost.GetProperty("extras").EnumerateArray().Select(e => e.GetString())) == "structure,carbon");
+            Check("...the workspace to start in (one of the six the web app allows) and that the quiz was taken", quizPost.GetProperty("landing").GetString() == "analysis" && quizPost.GetProperty("onboarded").GetBoolean());
+            var bad = Reply(Call("POST", "/profile", null, Json(new { extras = "structure", landing = "profile", onboarded = "yes" }))).GetProperty("profile");
+            Check("an extras that is not a list, a landing that is not allowed (the Profile tab itself, script) and an onboarded that is not true or false are dropped", bad.GetProperty("extras").GetArrayLength() == 0 && bad.GetProperty("landing").ValueKind == JsonValueKind.Null && bad.GetProperty("onboarded").GetBoolean() == false
+                  && Reply(Call("POST", "/profile", null, Json(new { landing = "<script>alert(1)</script>" }))).GetProperty("profile").GetProperty("landing").ValueKind == JsonValueKind.Null);
+            Check("every landing and extra the add-in allows is the web app's, and the ribbon has buttons for every extra (the lists are compared with profileCore.js by Tools/ReleaseCheck)", string.Join(",", SportifyProfile.Extras) == "structure,conditions,compare,postAnalysis,safety,carbon" && SportifyProfile.Landings.Length == 6
+                  && SportifyProfile.Extras.OrderBy(x => x).SequenceEqual(RibbonVisibility.ExtraButtons.Keys.OrderBy(x => x)));
+            Call("POST", "/profile", null, Json(new { view = "simple", extras = new[] { "structure" }, updated = "2026-09-26T09:00:00Z" }));
+            SportifyCapabilities.UseProbe(() => new Capabilities(new ToolStatus(true, "u", "ok"), true, new ToolStatus(true, "s", "ok"), new ToolStatus(true, "c", "ok")));
+            var withExtra = Reply(Call("GET", "/capabilities"));
+            var hiddenNames = withExtra.GetProperty("ribbon_hidden").EnumerateArray().Select(h => h.GetProperty("name").GetString()).ToList();
+            Check("GET /capabilities follows the extras: with structure added the Structural analyses are not in the hidden list, the Environmental ones still are", !hiddenNames.Contains("AnalyzeStructuralLoads") && !hiddenNames.Contains("AnalyzeDynamicLoads") && hiddenNames.Contains("AnalyzeSunShade") && hiddenNames.Contains("PullEnvironmental") && !hiddenNames.Contains("PullStructural"));
+            SportifyCapabilities.UseProbe(() => Capabilities.None);
+        }
+
         // a settings file that cannot be read, and a folder that cannot be written
         File.WriteAllText(pSettings, "{ not json");
         var afterCorrupt = Call("POST", "/profile", null, Json(new { view = "simple" }));

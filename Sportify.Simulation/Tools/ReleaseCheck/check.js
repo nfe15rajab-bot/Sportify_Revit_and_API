@@ -96,6 +96,19 @@ if (webArg && fs.existsSync(path.join(webArg, "index.html"))) {
     const html = fs.readFileSync(path.join(webArg, "index.html"), "utf8");
     check(html.includes("http://localhost:" + apiPort), "the web app's Content-Security-Policy allows its own API on " + apiPort);
 }
+// the PROFILE: what a person can add to the Simple view and where they can start are written in two places (the web app's profileCore.js and the add-in's SportifyProfile.cs / RibbonVisibility.cs) and must be the same
+if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {
+    const core = fs.readFileSync(path.join(webArg, "profileCore.js"), "utf8");
+    const webExtras = [...(/const PROFILE_EXTRAS = \{([\s\S]*?)\n\};/.exec(core)?.[1] ?? "").matchAll(/^\s{2}(\w+):/gm)].map(m => m[1]);
+    const webLandings = [...(/const PROFILE_LANDINGS = \[([^\]]*)\]/.exec(core)?.[1] ?? "").matchAll(/"(\w+)"/g)].map(m => m[1]);
+    const profileCs = read("SportfyRevit", "SportfyRevit", "SportifyProfile.cs");
+    const csExtras = [...(/Extras = \{([^}]*)\}/.exec(profileCs)?.[1] ?? "").matchAll(/"(\w+)"/g)].map(m => m[1]);
+    const csLandings = [...(/Landings = \{([^}]*)\}/.exec(profileCs)?.[1] ?? "").matchAll(/"(\w+)"/g)].map(m => m[1]);
+    const ribbonExtras = [...(/ExtraButtons = new Dictionary<string, string\[\]>\s*\{([\s\S]*?)\n        \};/.exec(read("SportfyRevit", "SportfyRevit", "RibbonVisibility.cs"))?.[1] ?? "").matchAll(/\["(\w+)"\] = new/g)].map(m => m[1]);
+    check(webExtras.length > 0 && JSON.stringify(webExtras) === JSON.stringify(csExtras), "the extras a person can add to the Simple view are the same in the web app (PROFILE_EXTRAS) and in the add-in (SportifyProfile.Extras), in the same order", webExtras.join(",") + " / " + csExtras.join(","));
+    check(JSON.stringify([...webExtras].sort()) === JSON.stringify([...ribbonExtras].sort()), "the ribbon has buttons for exactly those extras (RibbonVisibility.ExtraButtons)", webExtras.join(",") + " / " + ribbonExtras.join(","));
+    check(webLandings.length > 0 && JSON.stringify(webLandings) === JSON.stringify(csLandings), "the workspaces a person can start in are the same in the web app (PROFILE_LANDINGS) and in the add-in (SportifyProfile.Landings)", webLandings.join(",") + " / " + csLandings.join(","));
+}
 
 console.log(problems === 0 ? "RELEASE OK: version " + version + ", the license, the author, the Sportify folder (" + folders.length + " subfolders), the worksets and phases, the API port and the installer agree" : problems + " DIFFERENCE(S) in what makes the release");
 process.exit(problems === 0 ? 0 : 1);
