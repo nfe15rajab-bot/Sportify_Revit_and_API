@@ -36,6 +36,8 @@ namespace SportfyRevit
             ["dxf"] = new("setup", "M6 3h8l4 4v14h-12z M14 3v4h4 M9 14h6 M9 17h4", "M6 3h8l4 4v14h-12z"),
             ["location_sun"] = new("setup", "M12 21c-4 -4.5 -6 -7.5 -6 -10.5a6 6 0 0 1 12 0c0 3 -2 6 -6 10.5z M12 8.5a2.2 2.2 0 1 1 0 4.4a2.2 2.2 0 1 1 0 -4.4", "M12 21c-4 -4.5 -6 -7.5 -6 -10.5a6 6 0 0 1 12 0c0 3 -2 6 -6 10.5z"),
             ["sync"] = new("setup", "M20 11a8 8 0 0 0 -14.5 -3 M4 4v4h4 M4 13a8 8 0 0 0 14.5 3 M20 20v-4h-4", "M12 6a6 6 0 1 1 0 12a6 6 0 1 1 0 -12"),
+            // four tiles: every button of the ribbon, shown
+            ["allbuttons"] = new("setup", "M4 4h7v7h-7z M13 4h7v7h-7z M4 13h7v7h-7z M13 13h7v7h-7z", "M4 4h7v7h-7z M13 13h7v7h-7z"),
             // a list with ticks: the Getting started checklist
             ["checklist"] = new("setup", "M4 6.5l1.5 1.5l2.5 -2.5 M4 12.5l1.5 1.5l2.5 -2.5 M4 18.5l1.5 1.5l2.5 -2.5 M12 7h8 M12 13h8 M12 19h8", "M3 4h18v16h-18z"),
 

@@ -298,7 +298,12 @@ step("the web app: the rundgang (which steps a profile sees, where the card goes
   const test = path.join(web, "tools", "tour-test.js");
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/tour-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
-  return r.code === 0 ? { status: "pass", detail: "the real tour.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+  if (r.code !== 0) return { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+  // the tour beside the question "What is this roof?" (it once blocked the tour): run when the web app has it, so an older checkout of the web app is still checked
+  const beside = path.join(web, "tools", "tour-roofprompt-test.js");
+  if (!fs.existsSync(beside)) return { status: "pass", detail: "the real tour.js against a stand-in page" };
+  const r2 = await node([beside], { cwd: web });
+  return r2.code === 0 ? { status: "pass", detail: "the real tour.js against a stand-in page, and beside the roof question" } : { status: "fail", output: tail(r2.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r2.out + r2.err, 30) };
 }, { needsWeb: true });
 
 step("the web app: what runs where (Revit's status and its wording, when an action that needs Revit, Unity or SOLIDWORKS is blocked, every claim of the Overview's card against the app)", async () => {

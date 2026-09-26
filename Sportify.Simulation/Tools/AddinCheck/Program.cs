@@ -1031,7 +1031,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
     // the view
     var simple = Shown("simple", all);
-    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons), in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.OrderBy(n => n)) && RibbonVisibility.SimpleButtons.Count <= 9 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
+    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons) and the All Buttons toggle, in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.Append(RibbonVisibility.ShowAllName).OrderBy(n => n)) &&RibbonVisibility.SimpleButtons.Count <= 9 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
     Check("the Simple view shows the panels that keep a button and hides the ones that keep none", PanelShown("simple", all, "App & Data Import") && PanelShown("simple", all, "Simulation & Analytics") && PanelShown("simple", all, "Data Export / Deliverables")
           && !PanelShown("simple", all, "Algorithmic Analysis") && !PanelShown("simple", all, "Kinetics") && !PanelShown("simple", all, "BIM & Documentation"));
     Check("Simple with no tools shows the same main path (nothing it keeps needs a tool)", Shown("simple", nothing).OrderBy(n => n).SequenceEqual(simple.OrderBy(n => n)));
@@ -1057,6 +1057,48 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var views = new string?[] { "simple", "advanced", null, "garbage" };
     Check("the way into the web app and into the person's files is visible in every view and on every computer", views.All(v => new[] { all, nothing, noUnity, noSw }.All(c => RibbonVisibility.AlwaysVisible.All(n => RibbonVisibility.Plan(v, c)[n].Visible))));
     Check("SPORTIFY_SHOW_ALL_BUTTONS turns both rules off: Simple with no tools still shows everything", Shown("simple", nothing, showAll: true).Length == buttonNames.Count && layoutPanels.All(p => RibbonVisibility.Plan("simple", nothing, true)[RibbonVisibility.PanelKey(p.Name)].Visible));
+
+    // the All Buttons toggle on the ribbon: the same switch, put in the person's hands
+    var appPanel = layoutPanels.First(p => p.Name == "App & Data Import").Entries.OfType<RibbonButtonSpec>().ToList();
+    var showAllButton = appPanel.FirstOrDefault(b => b.InternalName == RibbonVisibility.ShowAllName);
+    Check("the All Buttons toggle is a button of the App & Data Import panel, next to Auto Import, with its own command and icon", showAllButton != null && showAllButton.CommandClass == "ToggleShowAllCommand" && RibbonIconData.Icons.ContainsKey(showAllButton.Icon)
+          && appPanel.FindIndex(b => b.InternalName == "ToggleAutoImport") + 1 == appPanel.FindIndex(b => b.InternalName == RibbonVisibility.ShowAllName) && showAllButton.Text == RibbonVisibility.ShowAllText(false));
+    Check("it is never hidden, in either view and on any computer: it is the way to the full ribbon from the Simple one", views.All(v => new[] { all, nothing, noUnity, noSw }.All(c => RibbonVisibility.Plan(v, c)[RibbonVisibility.ShowAllName].Visible)) && RibbonVisibility.AlwaysVisible.Contains(RibbonVisibility.ShowAllName));
+    Check("its words say the state, and the tooltip says what it does in each state", RibbonVisibility.ShowAllText(false).EndsWith("OFF") && RibbonVisibility.ShowAllText(true).EndsWith("ON") && RibbonVisibility.ShowAllTooltip(true) != RibbonVisibility.ShowAllTooltip(false)
+          && RibbonVisibility.ShowAllTooltip(false).Contains("Simple") && RibbonVisibility.ShowAllTooltip(true).Contains("Click to go back"));
+    var saDir = Path.Combine(Path.GetTempPath(), "sportify-showall-" + Guid.NewGuid().ToString("N")[..8]);
+    Directory.CreateDirectory(saDir);
+    var saSettings = Path.Combine(saDir, "settings.json");
+    SportifyWorkspace.UseSettingsFile(saSettings);
+    var envWas = Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS");
+    Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", null);
+    try
+    {
+        Check("with no settings file the toggle is off, and the ribbon follows the view", !SportifyProfile.ShowAllButtons() && !RibbonVisibility.ShowAllRequested());
+        var saProfile = SportifyProfile.Sanitize(System.Text.Json.Nodes.JsonNode.Parse("{\"view\":\"simple\",\"role\":\"planner\"}"))!;
+        SportifyProfile.SaveToSettings(saProfile);
+        SportifyProfile.SetShowAllButtons(true);
+        Check("turning it on is remembered in the settings file and keeps the profile (view: simple)", SportifyProfile.ShowAllButtons() && RibbonVisibility.ShowAllRequested() && SportifyProfile.Read()?["view"]?.GetValue<string>() == "simple");
+        SportifyProfile.SaveToSettings(saProfile);
+        Check("saving the profile afterwards (the web app does) does not turn it off", SportifyProfile.ShowAllButtons());
+        Check("with it on, a Simple view on a computer with no tools shows the whole ribbon", Shown("simple", nothing, showAll: RibbonVisibility.ShowAllRequested()).Length == buttonNames.Count);
+        SportifyProfile.SetShowAllButtons(false);
+        Check("turning it off puts the ribbon back to the view, and leaves the profile alone", !SportifyProfile.ShowAllButtons() && !RibbonVisibility.ShowAllRequested() && SportifyProfile.Read()?["view"]?.GetValue<string>() == "simple"
+              && !File.ReadAllText(saSettings).Contains("ribbon_show_all") && Shown("simple", all, showAll: RibbonVisibility.ShowAllRequested()).Length == simple.Length);
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", "1");
+        Check("the environment variable still turns it on, whatever the file says", RibbonVisibility.ShowAllRequested() && !SportifyProfile.ShowAllButtons());
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", null);
+        File.WriteAllText(saSettings, "{ this is not json");
+        var unreadableIsOff = !SportifyProfile.ShowAllButtons();
+        SportifyProfile.SetShowAllButtons(true);
+        Check("an unreadable settings file is off (the ribbon follows the view), and turning it on writes a readable file again", unreadableIsOff && SportifyProfile.ShowAllButtons());
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", envWas);
+        SportifyWorkspace.UseSettingsFile(null);
+        try { Directory.Delete(saDir, true); } catch (Exception) { }
+    }
     Check("a drop-down is shown exactly when one of its items is, a panel exactly when one of its entries is", views.All(v => new[] { all, nothing }.All(c =>
     {
         var plan = RibbonVisibility.Plan(v, c);
@@ -1097,7 +1139,15 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BuildRibbon registers every panel, button, drop-down and drop-down item, and applies the plan after the last panel", app.Contains("RibbonApplier.RegisterPanel(spec.Name, panel)") && (app.Split("RibbonApplier.Register(").Length - 1) >= 4 && app.Contains("RibbonApplier.Apply()")
           && app.IndexOf("RibbonApplier.Apply()", StringComparison.Ordinal) > app.IndexOf("RibbonApplier.RegisterPanel", StringComparison.Ordinal));
     Check("a ribbon that cannot follow is logged and left as it was: Apply is inside its own try/catch, and each item's Visible is set inside one", app.Contains("the ribbon could not be made to follow the view and this computer: every button stays visible") && Src("RibbonApplier.cs").Contains("the visibility of \" + key + \" could not be set"));
-    Check("the applier runs on Revit's own thread only (start-up, or the external event RibbonRefreshBridge), and SPORTIFY_SHOW_ALL_BUTTONS is honoured", Src("RibbonApplier.cs").Contains("IExternalEventHandler") && Src("RibbonApplier.cs").Contains("SPORTIFY_SHOW_ALL_BUTTONS") && Src("RibbonApplier.cs").Contains("ExternalEvent.Create(this)"));
+    Check("the applier runs on Revit's own thread only (start-up, or the external event RibbonRefreshBridge), and the All Buttons toggle (or SPORTIFY_SHOW_ALL_BUTTONS) is honoured, in the ribbon and in what the web app is told", Src("RibbonApplier.cs").Contains("IExternalEventHandler") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllRequested()") && Src("RibbonApplier.cs").Contains("ExternalEvent.Create(this)")
+          && Src("WorkspaceEndpoints.cs").Contains("RibbonVisibility.ShowAllRequested()"));
+    Check("the toggle's command saves the choice, applies it on Revit's thread and says how it ended; the applier rewrites the button's words", Src("ToggleShowAllCommand.cs").Contains("SportifyProfile.SetShowAllButtons(turningOn)") && Src("ToggleShowAllCommand.cs").Contains("RibbonApplier.Apply()")
+          && Src("ToggleShowAllCommand.cs").Contains("Result.Failed") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllText(on)") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllTooltip(on)"));
+    var picker = Src("LayoutFilePicker.cs");
+    Check("no command opens Revit's own FileOpenDialog any more: layout and DXF files come from LayoutFilePicker (newest export first, then a Windows file dialog owned by Revit's window)",
+          new[] { "ImportSportifyLayoutCommand.cs", "SetSunAndLocationCommand.cs", "AnalysisLayoutSource.cs", "ImportDxfCommand.cs" }.All(f => !Src(f).Contains("new FileOpenDialog") && Src(f).Contains("LayoutFilePicker."))
+          && picker.Contains("OpenFileDialog") && picker.Contains("dialog.ShowDialog(new Owner(revitWindow))") && picker.Contains("TaskDialogCommandLinkId.CommandLink1") && picker.Contains("NewestExport("));
+    Check("Import Configuration logs where it is (start, the choice, the dialog opening and closing), so a stall shows in the add-in log", Src("ImportSportifyLayoutCommand.cs").Contains("Import Configuration started") && picker.Contains("file dialog opening") && picker.Contains("file dialog closed"));
     var media = Src("AnalysisMedia.cs");
     Check("the analysis dialogs no longer ask 'do you have Unity?': the video link is offered only where Unity is, the PDF always", !media.Contains("I have Unity") && !media.Contains("I don't have Unity") && media.Contains("if (!haveUnity)") && media.Contains("dialog.AddCommandLink(VideoLink, \"Render the 3D video with Unity\""));
     Check("SOLIDWORKS has one detector: the probe asks MechanicalTool, which the Simulate command uses too", Src("CapabilityProbes.cs").Contains("MechanicalTool.SolidWorksInstalled()") && Src("CapabilityProbes.cs").Contains("MechanicalTool.Locate(") && Src("CapabilityProbes.cs").Contains("UnityHeadlessRunner.TryLocate("));

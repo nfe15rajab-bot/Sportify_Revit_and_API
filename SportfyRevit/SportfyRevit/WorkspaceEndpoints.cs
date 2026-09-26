@@ -142,7 +142,7 @@ namespace SportfyRevit
             var caps = SportifyCapabilities.Current(refresh);
             var profile = SportifyProfile.Read();
             var view = RibbonVisibility.NormalizeView(profile?["view"]?.GetValue<string>());
-            var plan = RibbonVisibility.Plan(view, caps, Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS") == "1", SportifyProfile.ExtrasIn(profile));
+            var plan = RibbonVisibility.Plan(view, caps, RibbonVisibility.ShowAllRequested(), SportifyProfile.ExtrasIn(profile));
             var body = caps.ToJson();
             body["view"] = view;
             body["ribbon_hidden"] = new System.Text.Json.Nodes.JsonArray(RibbonVisibility.Hidden(plan)

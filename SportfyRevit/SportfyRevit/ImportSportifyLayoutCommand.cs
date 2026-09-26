@@ -30,22 +30,10 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
-            var fod = new FileOpenDialog("Sportify layout JSON (*.json)|*.json");
-            fod.Title = "Select the Sportify Combine export (sportify_combined_revit.json)";
-            if (fod.Show() != ItemSelectionDialogResult.Confirmed)
+            SportifyLog.Info("import", "Import Configuration started in " + (string.IsNullOrEmpty(doc.Title) ? "an unsaved project" : doc.Title));
+            var jsonPath = LayoutFilePicker.Pick(commandData.Application.MainWindowHandle, "Import Configuration", "Select the Sportify Combine export (sportify_combined_revit.json)");
+            if (jsonPath == null)
                 return Result.Cancelled;
-
-            string jsonPath;
-            try
-            {
-                jsonPath = ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath());
-            }
-            catch (Exception ex)
-            {
-                SportifyLog.Error("import", "the selected file could not be resolved", ex);
-                message = "Couldn't resolve the selected file: " + ex.Message;
-                return Result.Failed;
-            }
 
             string text;
             SportifyLayout? layout;

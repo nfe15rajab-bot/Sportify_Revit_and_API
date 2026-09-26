@@ -166,6 +166,35 @@ namespace SportfyRevit
             }
         }
 
+        /// <summary>The "All Buttons" toggle on the ribbon, kept in the settings file beside the profile (a top-level "ribbon_show_all"; false when absent or unreadable).</summary>
+        public static bool ShowAllButtons()
+        {
+            try
+            {
+                lock (Gate)
+                {
+                    if (!File.Exists(SportifyWorkspace.SettingsPath)) return false;
+                    var node = (JsonNode.Parse(File.ReadAllText(SportifyWorkspace.SettingsPath)) as JsonObject)?["ribbon_show_all"];
+                    return node is JsonValue v && v.TryGetValue<bool>(out var on) && on;
+                }
+            }
+            catch (Exception) { return false; }
+        }
+
+        /// <summary>Records the toggle, keeping every other setting (the profile too).</summary>
+        public static void SetShowAllButtons(bool on)
+        {
+            lock (Gate)
+            {
+                var path = SportifyWorkspace.SettingsPath;
+                JsonObject root;
+                try { root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject() : new JsonObject(); }
+                catch (Exception) { root = new JsonObject(); }
+                if (on) root["ribbon_show_all"] = true; else root.Remove("ribbon_show_all");
+                WriteAtomically(path, root.ToJsonString(Indented));
+            }
+        }
+
         static void WriteAtomically(string path, string text)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);

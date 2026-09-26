@@ -36,6 +36,7 @@ namespace SportfyRevit
                 new RibbonButtonSpec("ImportDxf", "Import\nDXF", "ImportDxfCommand", "Imports a DXF export (e.g. the Sport tab's \"Export DXF\") as reference geometry, placed in meters at the origin.", "dxf"),
                 new RibbonButtonSpec("SetSunAndLocation", "Set Sun +\nLocation", "SetSunAndLocationCommand", "Sets this project's real Site Location and Sun Settings from the web app's Site tab data.", "location_sun"),
                 new RibbonButtonSpec("ToggleAutoImport", "Auto Import:\nOFF", "ToggleAutoImportCommand", "Automatically apply every Combine export pushed from the web app, without opening a file picker. Click to turn on.", "sync"),
+                new RibbonButtonSpec(RibbonVisibility.ShowAllName, RibbonVisibility.ShowAllText(false), "ToggleShowAllCommand", RibbonVisibility.ShowAllTooltip(false), "allbuttons"),
             }),
             new RibbonPanelSpec("Algorithmic Analysis", new RibbonEntry[]
             {

@@ -16,7 +16,7 @@ namespace SportfyRevit
     ///    (their physics makes the numbers: there is no PDF alternative), Simulate needs SOLIDWORKS. The five physical analyses stay: without Unity they give a PDF.
     ///
     /// A drop-down is shown when any of its items is, a panel when any of its entries is. AlwaysVisible are never hidden by either rule, so the ribbon can never be left with
-    /// no way back; SPORTIFY_SHOW_ALL_BUTTONS=1 turns both rules off.
+    /// no way back; the "All Buttons" toggle on the ribbon (or SPORTIFY_SHOW_ALL_BUTTONS=1) turns both rules off.
     /// </summary>
     internal static class RibbonVisibility
     {
@@ -54,8 +54,21 @@ namespace SportfyRevit
             ["carbon"] = new[] { "AnalyzeCarbonImpact", "AnalyzeLca" },
         };
 
-        /// <summary>Never hidden: the way into the web app (where the view is changed) and into the person's own files.</summary>
-        public static readonly IReadOnlyList<string> AlwaysVisible = new[] { "OpenSportifyApp", "OpenSportifyFolder" };
+        /// <summary>The "All Buttons" toggle: it shows every button whatever the view and the computer say, even in the Simple view (ToggleShowAllCommand; the choice is kept in the settings file).</summary>
+        public const string ShowAllName = "ToggleShowAll";
+
+        public static string ShowAllText(bool on) => on ? "All Buttons:\nON" : "All Buttons:\nOFF";
+
+        public static string ShowAllTooltip(bool on) => on
+            ? "Every Sportify button is shown now, whatever your Simple or Advanced view says, including buttons that need Unity or SOLIDWORKS when they were not found (they tell you what is missing when clicked). Click to go back to your view."
+            : "Shows the full Sportify ribbon, even with a Simple view: every button, and the ones that need Unity or SOLIDWORKS too. Your view in the web app's Profile tab is not changed. Click to turn on.";
+
+        /// <summary>Is the full ribbon asked for: by the person (the "All Buttons" toggle, kept in the settings file) or by the environment variable SPORTIFY_SHOW_ALL_BUTTONS=1?</summary>
+        public static bool ShowAllRequested() =>
+            Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS") == "1" || SportifyProfile.ShowAllButtons();
+
+        /// <summary>Never hidden: the way into the web app (where the view is changed), into the person's own files, and the toggle that shows everything (so the ribbon can never be left without a way back).</summary>
+        public static readonly IReadOnlyList<string> AlwaysVisible = new[] { "OpenSportifyApp", "OpenSportifyFolder", ShowAllName };
 
         /// <summary>The view as the ribbon understands it: "simple", or anything else is "advanced" (the default).</summary>
         public static string NormalizeView(string? view) => string.Equals(view, "simple", StringComparison.OrdinalIgnoreCase) ? "simple" : "advanced";

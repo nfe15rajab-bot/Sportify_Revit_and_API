@@ -20,8 +20,8 @@ namespace SportfyRevit
 
         public static void RegisterPanel(string panelName, RibbonPanel panel) { Panels[panelName] = panel; }
 
-        /// <summary>SPORTIFY_SHOW_ALL_BUTTONS=1 shows every button whatever the view and the computer say (the way out if a rule ever hides too much).</summary>
-        public static bool ShowAll => Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS") == "1";
+        /// <summary>The "All Buttons" toggle or SPORTIFY_SHOW_ALL_BUTTONS=1 shows every button whatever the view and the computer say (the way out if a rule ever hides too much).</summary>
+        public static bool ShowAll => RibbonVisibility.ShowAllRequested();
 
         /// <summary>The view in force, from the profile in the settings file ("advanced" when there is none).</summary>
         public static string CurrentView() => RibbonVisibility.NormalizeView(SportifyProfile.Read()?["view"]?.GetValue<string>());
@@ -31,7 +31,9 @@ namespace SportfyRevit
         {
             var profile = SportifyProfile.Read();
             var view = RibbonVisibility.NormalizeView(profile?["view"]?.GetValue<string>());
-            var plan = RibbonVisibility.Plan(view, SportifyCapabilities.Current(refresh: true), ShowAll, SportifyProfile.ExtrasIn(profile));      // the Simple view plus what the person added (the quiz)
+            var showAll = ShowAll;
+            var plan = RibbonVisibility.Plan(view, SportifyCapabilities.Current(refresh: true), showAll, SportifyProfile.ExtrasIn(profile));      // the Simple view plus what the person added (the quiz)
+            ShowLabel(showAll);
             int changed = 0, failed = 0;
             foreach (var (key, decision) in plan)
             {
@@ -58,7 +60,21 @@ namespace SportfyRevit
                 }
             }
             if (changed > 0 || failed > 0)
-                SportifyLog.Info("ribbon", "the ribbon follows the " + view + " view and this computer: " + RibbonVisibility.Hidden(plan).Count + " hidden, " + changed + " changed" + (failed > 0 ? ", " + failed + " could not be set" : ""));
+                SportifyLog.Info("ribbon", (showAll ? "All Buttons is on, the full ribbon is shown: " : "the ribbon follows the " + view + " view and this computer: ") + RibbonVisibility.Hidden(plan).Count + " hidden, " + changed + " changed" + (failed > 0 ? ", " + failed + " could not be set" : ""));
+        }
+
+        /// <summary>The words of the "All Buttons" toggle follow its state, as Auto Import's do.</summary>
+        static void ShowLabel(bool on)
+        {
+            try
+            {
+                if (Items.TryGetValue(RibbonVisibility.ShowAllName, out var item) && item is PushButton button)
+                {
+                    button.ItemText = RibbonVisibility.ShowAllText(on);
+                    button.ToolTip = RibbonVisibility.ShowAllTooltip(on);
+                }
+            }
+            catch (Exception ex) { SportifyLog.Warn("ribbon", "the All Buttons toggle's label could not be set: " + ex.Message); }
         }
     }
 

@@ -85,7 +85,9 @@ const advanced = actual["advanced"];
   if (JSON.stringify(withEvery.tabs) !== JSON.stringify(advanced.tabs) || JSON.stringify(withEvery.ribbon_buttons) !== JSON.stringify(advanced.ribbon_buttons)) problem("extras change what Advanced shows: they should change nothing");
 }
 const simple = actual["simple"];
-if (JSON.stringify([...simple.ribbon_buttons].sort()) !== JSON.stringify([...ribbon.simple_buttons].sort())) problem("simple with no extras does not show exactly the ribbon's SimpleButtons");
+// the Simple view is the main path plus the buttons that are never hidden (the way into the app and the files, and the "All Buttons" toggle that leaves the Simple view)
+const simpleExpected = [...new Set([...ribbon.simple_buttons, ...ribbon.always_visible])];
+if (JSON.stringify([...simple.ribbon_buttons].sort()) !== JSON.stringify([...simpleExpected].sort())) problem("simple with no extras does not show exactly the ribbon's SimpleButtons and the buttons that are never hidden");
 const diff = (a, b) => a.filter(x => !b.includes(x));
 for (const key of extraKeys) {
   const e = actual[idOf("simple", [key])];

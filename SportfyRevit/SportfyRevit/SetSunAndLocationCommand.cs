@@ -31,21 +31,9 @@ namespace SportfyRevit
             }
             else
             {
-                var fod = new FileOpenDialog("Sportify layout JSON (*.json)|*.json");
-                fod.Title = "No live data from the web app yet — select a Combine export instead";
-                if (fod.Show() != ItemSelectionDialogResult.Confirmed)
+                var jsonPath = LayoutFilePicker.Pick(commandData.Application.MainWindowHandle, "Sun and Location", "No live data from the web app yet — select a Combine export instead");
+                if (jsonPath == null)
                     return Result.Cancelled;
-
-                string jsonPath;
-                try
-                {
-                    jsonPath = ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath());
-                }
-                catch (Exception ex)
-                {
-                    message = "Couldn't resolve the selected file: " + ex.Message;
-                    return Result.Failed;
-                }
 
                 string text;
                 try { text = File.ReadAllText(jsonPath); }
