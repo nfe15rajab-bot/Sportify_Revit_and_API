@@ -102,17 +102,19 @@ jobs:
           CODESIGN_PFX_BASE64: ${{ secrets.CODESIGN_PFX_BASE64 }}
           CODESIGN_PFX_PASSWORD: ${{ secrets.CODESIGN_PFX_PASSWORD }}
         run: |
-          $sign = @()
+          # The options go to BuildDistribution.ps1 as HASHTABLES (@sign, @lib): a splatted ARRAY of "-Name", value strings is passed positionally, so "-TemplatesDir" would land in the
+          # first positional parameter and the script would stop within a second (found by the first run that had the library assets).
+          $sign = @{}
           if ($env:CODESIGN_PFX_BASE64 -and $env:CODESIGN_PFX_PASSWORD) {
             $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
             [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CODESIGN_PFX_BASE64))
-            $sign = @("-PfxFile", $pfx, "-PfxPassword", (ConvertTo-SecureString $env:CODESIGN_PFX_PASSWORD -AsPlainText -Force))
+            $sign = @{ PfxFile = $pfx; PfxPassword = (ConvertTo-SecureString $env:CODESIGN_PFX_PASSWORD -AsPlainText -Force) }
             Write-Host "Signing with the certificate from the repository secrets."
           } else {
             Write-Host "::notice title=Unsigned package::No code-signing certificate is configured (secrets CODESIGN_PFX_BASE64 and CODESIGN_PFX_PASSWORD), so this package is unsigned."
           }
-          $lib = @()
-          if ("${{ steps.library.outputs.have }}" -eq "True") { $lib = @("-TemplatesDir", "library-assets", "-FamiliesDir", "library-assets/families", "-RequireLibrary") }
+          $lib = @{}
+          if ("${{ steps.library.outputs.have }}" -eq "True") { $lib = @{ TemplatesDir = (Resolve-Path library-assets).Path; FamiliesDir = (Resolve-Path library-assets/families).Path; RequireLibrary = $true } }
           ./BuildDistribution.ps1 -WebAppDir web @sign @lib
 
       - name: What is in the package
