@@ -109,26 +109,7 @@ namespace SportfyRevit
             if (s.preliminary)
                 body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
-            body.AppendLine($"{s.deadKn:0} kN permanent + {s.liveKn:0} kN imposed = {s.totalKn:0} kN on {s.roofAreaM2:0} m² ({s.meanKnM2:0.0} kN/m² on average, {s.peakBayKnM2:0.0} in the most loaded bay).");
-            body.AppendLine($"Deck capacity {s.capacityKnM2:0.#} kN/m²" + (!s.capacityAssumed ? " (entered)." : s.capacityAccepted ? " — the built-in value, accepted (not the structural engineer's figure)." : " — a PLACEHOLDER, not confirmed: enter the structural engineer's figure in the Structure tab, or accept the built-in value."));
-            body.AppendLine();
-            body.AppendLine($"Bays: {s.baysOver} of {s.baysChecked} over the {(s.capacityAssumed ? "assumed " : "")}capacity, {s.baysMarginal} marginal; most loaded {s.worstBay} at {s.peakUtilisation * 100:0}%.");
-            if (s.columnsChecked > 0)
-                body.AppendLine($"Columns: {s.columnsHigh} of {s.columnsChecked} take more than {StructureModel.ColumnHighFactor:0.#}× the average.");
-            body.AppendLine($"People expected: about {s.expectedPersons:0}; {s.busiestBaysSharePercent:0}% of them in the busiest fifth of the bays.");
-            body.AppendLine($"Balance: the load's centre is {Math.Abs(b.totalEccentricityX) * 100:0.#}% of the length and {Math.Abs(b.totalEccentricityY) * 100:0.#}% of the width off {b.centreBasis} ({b.status}" +
-                            (string.IsNullOrEmpty(b.heavySide) ? "" : $", heavy on the {b.heavySide}") + $"; {b.leftSharePercent:0}% left / {b.rightSharePercent:0}% right).");
-
-            var advice = report.recommendations.Where(r => r.kind != "vulnerable" && r.kind != "grid").Take(4).ToList();
-            if (advice.Count > 0)
-            {
-                body.AppendLine();
-                foreach (var r in advice) body.AppendLine("  • " + r.text);
-            }
-
-            body.AppendLine();
-            body.AppendLine("A screening estimate, not a structural verification. The assumptions are in the PDF report; crowds in motion and wind, rain and snow come with the dynamic analysis.");
-
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)
             {

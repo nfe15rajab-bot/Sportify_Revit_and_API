@@ -34,12 +34,12 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
+            // The decision is SafetyAnalysis.Access: the same as the web app's analyzeAccessibility() (Tools/AnalysisParity runs both on every fixture layout).
             double minWidth = AnalysisReferenceData.GetParam("Accessibility", "min_circulation_width_m");
-            double currentWidth = layout.DesignRules?.CirculationWidthM ?? 0;
-            bool widthOk = currentWidth >= minWidth;
-
-            var (_, unreachable) = CirculationEngine.ComputeTravelDistances(layout);
-            bool reachOk = (layout.EntryPoints?.Count ?? 0) > 0 && unreachable.Count == 0;
+            var outcome = SafetyAnalysis.Access(layout, minWidth);
+            double currentWidth = outcome.CurrentWidthM;
+            bool widthOk = outcome.WidthOk;
+            bool reachOk = outcome.ReachOk;
 
             AnalysisResultPublisher.PublishAccessibility(new AccessibilityResultDto
             {
@@ -50,12 +50,9 @@ namespace SportfyRevit
             });
 
             TaskDialog.Show(title,
-                $"Circulation width: {currentWidth:0.0} m (wheelchair two-way reference: {minWidth:0.#} m) — " +
-                $"{(widthOk ? "meets" : "BELOW")} the minimum.\n" +
-                $"Every piece reachable from an entry point: {(reachOk ? "yes" : "no")}.\n\n" +
-                "Tactile/contrast guidance at decision points (DIN 32984) and child-scaled equipment + fall-safety " +
-                "surfacing (DIN EN 1176/1177) still need a visual walkthrough — this check covers the part that's " +
-                "actually computable from the layout.");
+                $"Circulation width {currentWidth:0.0} m ({(widthOk ? "meets" : "BELOW")} the {minWidth:0.#} m reference); " +
+                $"every piece reachable: {(reachOk ? "yes" : "no")}.\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

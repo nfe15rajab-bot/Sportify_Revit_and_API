@@ -538,12 +538,12 @@ namespace Sportify.Simulation.Sun
 
             foreach (var it in inputs.Structure.Items)
             {
-                if (it.Kind == LoadKind.Tree) continue;
+                if (it.IsObject) continue;
                 var kind = it.Kind == LoadKind.Court ? "court" : it.Kind == LoadKind.Activity ? "people" : "garden";
                 var z = new Zone { Id = it.Id, Label = string.IsNullOrEmpty(it.Name) ? it.Label : it.Name, Kind = kind, X = it.X, Y = it.Y, W = it.Width, H = it.Height };
                 for (var j = 0; j < grid.Ny; j++)
                     for (var i = 0; i < grid.Nx; i++)
-                        if (grid.Active[grid.Index(i, j)] && InRect(grid.CentreX(i), grid.CentreY(j), it.X, it.Y, it.Width, it.Height)) z.Cells.Add(grid.Index(i, j));
+                        if (grid.Active[grid.Index(i, j)] && (it.Polygon != null && it.Polygon.Count >= 3 ? PointInPolygon(it.Polygon, grid.CentreX(i), grid.CentreY(j)) : InRect(grid.CentreX(i), grid.CentreY(j), it.X, it.Y, it.Width, it.Height))) z.Cells.Add(grid.Index(i, j));
                 zones.Add(z);
 
                 if (it.Kind == LoadKind.Court && it.Seats > 0)

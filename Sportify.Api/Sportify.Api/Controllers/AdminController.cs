@@ -9,17 +9,16 @@ namespace Sportify.Api.Controllers
     /// <summary>
     /// Write access to the reference catalog — lets the Data tab grow the
     /// database itself (manual entry or a .sql import) instead of only
-    /// ever reading what ReferenceDataSeeder shipped with. Deliberately
-    /// unauthenticated, matching every other reference-catalog endpoint in
-    /// this project (AuthController's JWT login was never wired up to this
-    /// DbContext at all — see the project notes); this is a local school-
-    /// project dev database, not a multi-tenant service.
+    /// ever reading what ReferenceDataSeeder shipped with. Reading the
+    /// catalogue is open; every write, here and in the other controllers, needs
+    /// the write key (WriteKeyMiddleware, ApiSecurity.cs).
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class AdminController : ControllerBase
     {
         private readonly ReferenceDbContext _db;
+        private readonly ApiSecurity _security;
 
         private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
@@ -44,10 +43,15 @@ namespace Sportify.Api.Controllers
             "FurnitureItem"
         };
 
-        public AdminController(ReferenceDbContext db)
+        public AdminController(ReferenceDbContext db, ApiSecurity security)
         {
             _db = db;
+            _security = security;
         }
+
+        /// <summary>What this API allows, so that the Data tab can say so instead of offering what would be refused.</summary>
+        [HttpGet("capabilities")]
+        public IActionResult Capabilities() => Ok(new { sqlImport = _security.SqlImportEnabled, writeKeyHeader = ApiSecurity.KeyHeader });
 
         public record CreateRecordRequest(string EntityType, JsonElement Data);
 
@@ -153,15 +157,21 @@ namespace Sportify.Api.Controllers
         /// reference SQLite database inside one transaction — an all-or-
         /// nothing bulk import, rolled back on the first failing statement.
         /// This runs whatever SQL it's given (Microsoft.Data.Sqlite executes
-        /// semicolon-separated statements in one call) — appropriate for a
-        /// single-user local dev database the caller already controls, not
-        /// something to expose beyond that.
+        /// semicolon-separated statements in one call), so it is off unless the
+        /// API runs in Development (or Admin:AllowSqlImport is true), needs the
+        /// write key like every write, and refuses ATTACH, DETACH, PRAGMA,
+        /// VACUUM and load_extension (ApiSecurity.SqlRefusal).
         /// </summary>
         [HttpPost("import-sql")]
         public async Task<ActionResult> ImportSql([FromBody] ImportSqlRequest req)
         {
+            // Runs whatever SQL it is given, so it exists only where the person running the API has said so: Development, or Admin:AllowSqlImport=true.
+            if (!_security.SqlImportEnabled)
+                return NotFound(new { error = "SQL import is turned off in this API: it runs only in Development, or when Admin:AllowSqlImport is true." });
             if (string.IsNullOrWhiteSpace(req.Sql))
                 return BadRequest("Empty SQL script.");
+            var refusal = ApiSecurity.SqlRefusal(req.Sql);
+            if (refusal != null) return BadRequest(refusal);
 
             await using var transaction = await _db.Database.BeginTransactionAsync();
             try

@@ -60,6 +60,10 @@ namespace SportfyRevit
                 try { before = JsonSerializer.Deserialize<AnalysisResultPayload>(beforeJson); } catch (Exception) { /* an unreadable earlier state: nothing to keep */ }
             }
 
+            // Results of another layout leave the document now, also when this run sends nothing (a layout without a garden sends no wind or rain result and used
+            // to leave the previous layout's in place). `before` was read first, so a recording that still fits the same numbers can be kept below.
+            AnalysisResultPublisher.RetireStale();
+
             results.Add(Attempt("wind_erosion", "Wind and erosion", () =>
             {
                 var inputs = WindLayoutAdapter.ToInputs(layout);

@@ -46,3 +46,21 @@ jobs:
           if (Test-Path web/rules.js) { $web = @("--web", "web", "--require-web") } else { $web = @("--web", "none") }
           node Sportify.Simulation/Tools/run-checks.js @web
           exit $LASTEXITCODE
+
+  # The add-in itself: the one thing no other job builds. Revit is not on the runner, so the Revit API comes from the public reference packages
+  # (SportfyRevit.csproj picks them when it finds no Revit install); a missing type or a syntax error in the add-in fails here, not on the next developer's machine.
+  add-in-compiles:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build SportfyRevit (Release)
+        shell: pwsh
+        run: |
+          dotnet build SportfyRevit/SportfyRevit/SportfyRevit.csproj -c Release --nologo -v q
+          exit $LASTEXITCODE

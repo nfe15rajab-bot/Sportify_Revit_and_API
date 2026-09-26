@@ -23,6 +23,13 @@ namespace SportfyRevit
         public const TaskDialogCommandLinkId VideoLink = TaskDialogCommandLinkId.CommandLink1;
         public const TaskDialogCommandLinkId PdfLink = TaskDialogCommandLinkId.CommandLink2;
 
+        /// <summary>
+        /// What every Analyze*/Simulate* command's result dialog now points to instead of repeating its own numbers, charts and recommendations as a
+        /// wall of text: the one combined report (AnalysisReportPdfBuilder) that already draws all of that, richer, from the same published result —
+        /// the dialog only needs to say what happened, not restate it.
+        /// </summary>
+        public const string SeeReport = "See the Analysis Report (BIM & Documentation → Generate Analysis Report) for the numbers, chart and recommendations.";
+
         /// <summary>Adds the two answers to a result dialog.</summary>
         public static void AddLinks(TaskDialog dialog, bool haveUnity, bool unityFree, string videoTakes)
         {
@@ -91,10 +98,10 @@ namespace SportfyRevit
                 MainInstruction = "The charts are ready as a PDF",
                 MainContent = body.ToString(),
                 CommonButtons = TaskDialogCommonButtons.Close,
-                DefaultButton = TaskDialogResult.CommandLink1,
             };
             dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Open the PDF", Path.GetFileName(pdf.Path!));
             dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Show it in its folder", Path.GetDirectoryName(pdf.Path!));
+            dialog.DefaultButton = TaskDialogResult.CommandLink1;       // after the links exist: Revit throws otherwise
             var result = dialog.Show();
             try
             {

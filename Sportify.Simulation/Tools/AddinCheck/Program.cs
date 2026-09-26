@@ -256,6 +256,14 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         if (started)
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            // the session: the app asks for its token, and every other request carries it
+            string Token(string origin)
+            {
+                var r = new HttpRequestMessage(HttpMethod.Get, "http://localhost:5679/session"); r.Headers.Add("Origin", origin);
+                return JsonDocument.Parse(http.Send(r).Content.ReadAsStringAsync().Result).RootElement.GetProperty("token").GetString()!;
+            }
+            var token = Token("http://localhost:8123");
+            http.DefaultRequestHeaders.Add("X-Sportify-Token", token);
             var url = "http://localhost:5679/recording?path=" + Uri.EscapeDataString(mp4);
             var whole = await http.GetAsync(url);
             var body = await whole.Content.ReadAsByteArrayAsync();
@@ -269,6 +277,66 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
             var denied = await http.GetAsync("http://localhost:5679/recording?path=" + Uri.EscapeDataString(secret));
             Check("a file no result names is not served", denied.StatusCode == System.Net.HttpStatusCode.NotFound);
             Check("the results document itself is still served", (await http.GetStringAsync("http://localhost:5679/analysis-results")).Contains("video_path"));
+
+            // ---- the lock on the local servers, against the real listener
+            Console.WriteLine("\n===== the local server admits only the app, with its token, and only so much =====");
+            HttpRequestMessage Ask(HttpMethod m, string path, string? origin = null, string? tokenHeader = null, HttpContent? content = null)
+            {
+                var r = new HttpRequestMessage(m, "http://localhost:5679" + path) { Content = content };
+                if (origin != null) r.Headers.Add("Origin", origin);
+                if (tokenHeader != null) r.Headers.Add("X-Sportify-Token", tokenHeader);
+                return r;
+            }
+            using var bare = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };          // no default headers: a client that has no token
+            var noToken = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results"));
+            Check("a request with no token is refused (401), so a page that has none reads nothing", (int)noToken.StatusCode == 401);
+            var wrongToken = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123", "0000"));
+            Check("a wrong token is refused too", (int)wrongToken.StatusCode == 401);
+            var foreign = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "https://evil.example", token));
+            Check("a page from another origin is refused (403) even holding the token, and gets no CORS header (the browser then hides the answer)", (int)foreign.StatusCode == 403 && !foreign.Headers.Contains("Access-Control-Allow-Origin"));
+            var foreignSession = await bare.SendAsync(Ask(HttpMethod.Get, "/session", "https://evil.example"));
+            Check("the session token is not given to another origin", (int)foreignSession.StatusCode == 403 && !(await foreignSession.Content.ReadAsStringAsync()).Contains(token));
+            var noOriginSession = await bare.SendAsync(Ask(HttpMethod.Get, "/session"));
+            Check("...nor to a request that has no Origin at all (a page always has one)", (int)noOriginSession.StatusCode == 403 && !(await noOriginSession.Content.ReadAsStringAsync()).Contains(token));
+            var nullOrigin = await bare.SendAsync(Ask(HttpMethod.Get, "/session", "null"));
+            Check("...nor to the opaque origin \"null\" (a sandboxed frame, a local file)", (int)nullOrigin.StatusCode == 403);
+            foreach (var origin in new[] { "http://localhost:8123", "http://127.0.0.1:8123", "http://localhost:8124" })
+            {
+                var ok = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", origin, token));
+                Check($"the app at {origin} with its token is served, and the CORS header names that origin, never *",
+                    ok.StatusCode == System.Net.HttpStatusCode.OK && ok.Headers.GetValues("Access-Control-Allow-Origin").Single() == origin);
+            }
+            var refusedButReadable = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123"));
+            Check("the app's own refusal (no token) is readable by the app, so that it can fetch a new session after Revit restarted", (int)refusedButReadable.StatusCode == 401 && refusedButReadable.Headers.GetValues("Access-Control-Allow-Origin").Single() == "http://localhost:8123");
+            var media = await bare.GetAsync("http://localhost:5679/recording?path=" + Uri.EscapeDataString(mp4) + "&token=" + token);
+            Check("a video or a download link, which cannot send a header, carries the token in the address", media.StatusCode == System.Net.HttpStatusCode.OK);
+            var pre = await bare.SendAsync(Ask(HttpMethod.Options, "/combined-layout", "http://localhost:8123"));
+            Check("the preflight of the app is answered, and allows the token header", (int)pre.StatusCode == 204 && string.Join(",", pre.Headers.GetValues("Access-Control-Allow-Headers")).Contains("X-Sportify-Token") && pre.Headers.GetValues("Access-Control-Allow-Origin").Single() == "http://localhost:8123");
+            var preForeign = await bare.SendAsync(Ask(HttpMethod.Options, "/combined-layout", "https://evil.example"));
+            Check("the preflight of another origin is refused, so its POST is never sent", (int)preForeign.StatusCode == 403);
+
+            // sizes
+            var smallLayout = await bare.SendAsync(Ask(HttpMethod.Post, "/combined-layout?draft=1", "http://localhost:8123", token, new StringContent("{\"placements\":[]}", System.Text.Encoding.UTF8, "application/json")));
+            Check("a layout of ordinary size is taken and its identity answered", smallLayout.StatusCode == System.Net.HttpStatusCode.OK && (await smallLayout.Content.ReadAsStringAsync()).Contains("layout_id"));
+            var big = new byte[LocalRequestGuard.MaxOtherBytes + 1];
+            var bigOther = await bare.SendAsync(Ask(HttpMethod.Post, "/run-analysis", "http://localhost:8123", token, new ByteArrayContent(big)));
+            Check("a body beyond what an endpoint takes (1 MB for the ones that take none) is refused with 413", (int)bigOther.StatusCode == 413);
+            System.Net.HttpStatusCode? chunkedStatus = null;
+            try { chunkedStatus = (await bare.SendAsync(Ask(HttpMethod.Post, "/run-analysis", "http://localhost:8123", token, new StreamContent(new MemoryStream(new byte[LocalRequestGuard.MaxOtherBytes * 2]))))).StatusCode; }
+            catch (Exception) { /* the server closed the connection while the body was still being sent: refused as well */ }
+            Check("a body sent in chunks, with no length to check up front, is cut off as it passes the cap", chunkedStatus == null || (int)chunkedStatus == 413);
+            using (var tcp = new System.Net.Sockets.TcpClient("localhost", 5679))
+            {
+                var stream = tcp.GetStream();
+                var head = $"POST /combined-layout HTTP/1.1\r\nHost: localhost:5679\r\nOrigin: http://localhost:8123\r\nX-Sportify-Token: {token}\r\nContent-Type: application/json\r\nContent-Length: 70000000\r\n\r\n";
+                stream.Write(System.Text.Encoding.ASCII.GetBytes(head));
+                stream.ReadTimeout = 5000;
+                var answerBuf = new byte[512]; var got = 0;
+                try { got = stream.Read(answerBuf, 0, answerBuf.Length); } catch (IOException) { }
+                Check("a Content-Length of 70 MB is answered 413 before a byte of the body is sent", System.Text.Encoding.ASCII.GetString(answerBuf, 0, got).StartsWith("HTTP/1.1 413"));
+            }
+            var after = await bare.SendAsync(Ask(HttpMethod.Get, "/analysis-results", "http://localhost:8123", token));
+            Check("the server is still serving after the refused bodies", after.StatusCode == System.Net.HttpStatusCode.OK);
             RoofBoundaryServer.Stop();
         }
     }
@@ -276,6 +344,97 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     {
         File.Delete(mp4); File.Delete(secret);
     }
+}
+
+// the holes of the roof finish (PlanGeometry) and the furniture families' shapes (FurnitureShape)
+{
+    Console.WriteLine("\n===== holes in the roof finish =====");
+    PlanGeometry.P P(double x, double y) => new(x, y);
+    List<PlanGeometry.P> Rect(double x0, double y0, double x1, double y1) => new() { P(x0, y0), P(x1, y0), P(x1, y1), P(x0, y1) };
+    var roof = Rect(0, 0, 40, 20);
+    var lRoof = new List<PlanGeometry.P> { P(0, 0), P(40, 0), P(40, 10), P(20, 10), P(20, 20), P(0, 20) };      // an L: the notch is x 20..40, y 10..20
+    const double tol = 1e-3;
+
+    Check("a rectangle inside the roof is a hole; one that touches the edge is too (a court on the edge is an ordinary layout)", PlanGeometry.HoleInside(roof, Rect(5, 5, 10, 10), tol) && PlanGeometry.HoleInside(roof, Rect(0, 0, 10, 5), tol));
+    Check("one that pokes out of the roof is a notch, not a hole", !PlanGeometry.HoleInside(roof, Rect(35, 5, 45, 10), tol) && !PlanGeometry.HoleInside(roof, Rect(-2, 5, 3, 10), tol));
+    var triangle = new List<PlanGeometry.P> { P(5, 5), P(15, 5), P(10, 12) };
+    Check("a polygon (a zone whose corners were moved) inside the roof is a hole", PlanGeometry.HoleInside(roof, triangle, tol) && Math.Abs(PlanGeometry.Area(triangle) - 35) < 1e-9);
+    var lZone = new List<PlanGeometry.P> { P(2, 2), P(12, 2), P(12, 6), P(6, 6), P(6, 12), P(2, 12) };      // an L-shaped bed: its box (2..12 x 2..12) is much bigger than it is
+    Check("...an L-shaped bed too, and the area is the bed's, not its box's (64 m2, not 100)", PlanGeometry.HoleInside(roof, lZone, tol) && Math.Abs(PlanGeometry.Area(lZone) - 64) < 1e-9);
+    var inNotch = Rect(22, 12, 26, 16);
+    Check("in an L-shaped roof a hole in the notch (outside the roof) is refused even though it is inside the roof's box", !PlanGeometry.HoleInside(lRoof, inNotch, tol) && PlanGeometry.HoleInside(lRoof, Rect(2, 2, 10, 8), tol));
+    var acrossNotch = new List<PlanGeometry.P> { P(15, 5), P(30, 5), P(30, 8), P(25, 8), P(25, 5.5), P(15, 6) };
+    Check("a hole whose corners are inside an L-shaped roof but whose edge cuts across the notch is refused", !PlanGeometry.HoleInside(lRoof, new List<PlanGeometry.P> { P(15, 5), P(30, 5), P(30, 12), P(15, 12) }, tol));
+    var bowTie = new List<PlanGeometry.P> { P(0, 0), P(10, 10), P(10, 0), P(0, 10) };
+    Check("a polygon that crosses itself is not simple", !PlanGeometry.IsSimple(bowTie, tol) && PlanGeometry.IsSimple(lZone, tol) && PlanGeometry.IsSimple(triangle, tol));
+
+    Check("two holes that share a side do not overlap; two that share a corner do not", !PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(5, 0, 10, 5), tol) && !PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(5, 5, 10, 10), tol));
+    Check("two that share area do: crossing, one inside the other, the same one twice", PlanGeometry.Overlap(Rect(0, 0, 6, 6), Rect(4, 4, 10, 10), tol) && PlanGeometry.Overlap(Rect(0, 0, 10, 10), Rect(2, 2, 4, 4), tol) && PlanGeometry.Overlap(Rect(0, 0, 5, 5), Rect(0, 0, 5, 5), tol));
+    Check("a polygon and a rectangle: the bed's L overlaps a court on its arm and not one in its corner notch", PlanGeometry.Overlap(lZone, Rect(8, 3, 11, 5), tol) && !PlanGeometry.Overlap(lZone, Rect(7, 7, 11, 11), tol));
+    Check("the skylight Revit has in the roof and a zone placed over it overlap (the second is refused, not the whole finish)", PlanGeometry.Overlap(Rect(10, 10, 14, 14), Rect(12, 8, 20, 12), tol));
+    var dupes = PlanGeometry.Clean(new[] { P(0, 0), P(0, 0), P(5, 0), P(5, 5), P(0, 5), P(0, 0) }, tol);
+    Check("a repeated point, and a closing point equal to the first, are dropped", dupes.Count == 4);
+    Check("a point on the boundary is inside-or-on, not strictly inside", PlanGeometry.InsideOrOn(roof, P(0, 10), tol) && !PlanGeometry.StrictlyInside(roof, P(0, 10), tol) && PlanGeometry.StrictlyInside(roof, P(20, 10), tol) && !PlanGeometry.InsideOrOn(roof, P(41, 10), tol));
+
+    // Revit refuses a sketch whose loops touch (the live import: every zone and court of a packed roof shares an edge): each hole is drawn a few millimetres smaller
+    var innerRect = PlanGeometry.Inset(Rect(10, 5, 20, 15), 0.1)!;
+    Check("a rectangle inset by 0.1 is 0.1 smaller on every side (9.8 x 9.8)", innerRect != null && Math.Abs(PlanGeometry.Area(innerRect) - 9.8 * 9.8) < 1e-9 && innerRect.Min(q => q.X) > 10.099 && innerRect.Max(q => q.X) < 19.901 && innerRect.Min(q => q.Y) > 5.099 && innerRect.Max(q => q.Y) < 14.901);
+    var cw = new List<PlanGeometry.P>(Rect(0, 0, 10, 10)); cw.Reverse();
+    Check("the turning of the polygon does not matter (clockwise gives the same)", Math.Abs(PlanGeometry.Area(PlanGeometry.Inset(cw, 0.1)!) - 9.8 * 9.8) < 1e-9);
+    var lInset = PlanGeometry.Inset(lZone, 0.05);
+    Check("an L-shaped bed inset keeps its shape: smaller, still simple, still inside its own outline", lInset != null && lInset.Count == 6 && PlanGeometry.Area(lInset) < 64 && PlanGeometry.Area(lInset) > 62 && PlanGeometry.IsSimple(lInset, 1e-6) && lInset.All(q => PlanGeometry.StrictlyInside(lZone, q, 1e-6)));
+    Check("a sliver thinner than the inset is not a hole (null), not a bow-tie", PlanGeometry.Inset(Rect(0, 0, 10, 0.15), 0.1) == null);
+    var left = PlanGeometry.Inset(Rect(0, 0, 5, 5), 0.005)!; var right = PlanGeometry.Inset(Rect(5, 0, 10, 5), 0.005)!;
+    Check("two zones that share a side end up 1 cm apart: they no longer touch, and are not overlapping", left.Max(q => q.X) < 4.9951 && right.Min(q => q.X) > 5.0049 && !PlanGeometry.Overlap(left, right, 1e-6));
+    var onEdge = PlanGeometry.Inset(Rect(0, 0, 10, 5), 0.005)!;
+    Check("a hole on the roof's outline ends up strictly inside it (5 mm from the edge), so the loops do not touch", onEdge.All(q => PlanGeometry.StrictlyInside(roof, q, 1e-6)) && PlanGeometry.HoleInside(roof, onEdge, 1e-3));
+    Check("a triangle inset stays a triangle of smaller area", PlanGeometry.Inset(triangle, 0.05) is { Count: 3 } tri && PlanGeometry.Area(tri) < 35 && PlanGeometry.Area(tri) > 33);
+
+    Console.WriteLine("\n===== the shapes of furniture families =====");
+    bool Inside(ShapePart q, double l, double w, double h) => q.X0 >= -l / 2 - 1e-9 && q.X1 <= l / 2 + 1e-9 && q.Y0 >= -w / 2 - 1e-9 && q.Y1 <= w / 2 + 1e-9 && q.Z0 >= -1e-9 && q.Z1 <= h + 1e-9 && q.X1 > q.X0 && q.Y1 > q.Y0 && q.Z1 > q.Z0;
+    foreach (var (cat, l, w, h) in new[] { ("bench", 1.8, 0.7, 0.8), ("table", 1.6, 0.8, 0.75), ("bin", 0.4, 0.4, 0.9), ("bollard", 0.15, 0.15, 1.0), ("light", 0.3, 0.3, 3.5), ("planter", 1.0, 0.5, 0.6), ("bench", 0.4, 0.3, 0.5) })
+    {
+        var parts = FurnitureShape.Parts(cat, l, w, h);
+        Check($"{cat} {l} x {w} x {h}: {parts.Count} solid(s), every one inside the product's box and with a size", parts.Count >= 1 && parts.All(q => Inside(q, l, w, h)));
+        Check($"{cat}: it reaches the product's height and touches the ground", Math.Abs(parts.Max(q => q.Z1) - h) < 1e-9 && parts.Min(q => q.Z0) < 1e-9);
+    }
+    Check("a bench has a seat, a backrest and two end frames; a table a top and four legs; a light a base, a pole and a head", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Count == 4 && FurnitureShape.Parts("table", 1.6, 0.8, 0.75).Count == 5 && FurnitureShape.Parts("light", 0.3, 0.3, 3.5).Select(q => q.Name).SequenceEqual(new[] { "base", "pole", "head" }));
+    Check("a bin, a bollard and a light are round; a bench is not", FurnitureShape.Parts("bin", 0.4, 0.4, 0.9).All(q => q.IsCylinder) && FurnitureShape.Parts("bollard", 0.15, 0.15, 1).All(q => q.IsCylinder) && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).All(q => !q.IsCylinder));
+    Check("a bench's seat is at seat height (0.44 m of 0.8) and its back rises above it", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "seat").Z1 is > 0.4 and < 0.5 && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "backrest").Z1 == 0.8);
+    Check("a category the catalogue grows that has no shape yet is a box of the product's size, not a failure", FurnitureShape.Parts("sculpture", 2, 1, 1.5).Single() is { Name: "body" } b && b.Volume == 3.0);
+    Check("the family name carries the size in cm, so a product that changed size in the catalogue is a new family: \"Sportify - X [180x70x80 cm]\"", FurnitureShape.FamilyName(null, "X", "k", 1.8, 0.7, 0.8) == "Sportify - X [180x70x80 cm]" && FurnitureShape.FamilyName("Sportify - ABES Public Design Parkbank 1.114", "l", "k", 1.8, 0.7, 0.8) == "Sportify - ABES Public Design Parkbank 1.114 [180x70x80 cm]");
+}
+
+// the guard's rules on their own (no listener): origins, hosts, tokens, sizes and the web folder's walls
+{
+    Console.WriteLine("\n===== who may ask, and how much =====");
+    var g = new LocalRequestGuard(5679, new[] { "http://dev.local:9000/", "*", "null", "ftp://x", "http://a.b/path" }, "tok");
+    Check("the app's four addresses are allowed; a stranger is not", new[] { "http://localhost:8123", "http://127.0.0.1:8123", "http://localhost:8124", "http://127.0.0.1:8124" }.All(g.IsAllowedOrigin)
+        && !g.IsAllowedOrigin("http://localhost:9999") && !g.IsAllowedOrigin("https://localhost:8123") && !g.IsAllowedOrigin("http://localhost.evil.example:8123") && !g.IsAllowedOrigin(null) && !g.IsAllowedOrigin(""));
+    Check("an origin added by the environment is allowed, normalised; a wildcard, \"null\", another scheme and a path are never added", g.IsAllowedOrigin("HTTP://Dev.Local:9000") && !g.IsAllowedOrigin("*") && !g.IsAllowedOrigin("null") && !g.IsAllowedOrigin("ftp://x") && !g.IsAllowedOrigin("http://a.b"));
+    LocalRequestGuard.Verdict J(string method, string? host, string? origin, string? path, string? th = null, string? tq = null) => g.Judge(method, host, origin, path, th, tq);
+    Check("a Host that is not this machine's name for the port is refused (DNS rebinding)", J("GET", "evil.example:5679", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse && J("GET", null, null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse && J("GET", "localhost:1234", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Refuse);
+    Check("with the token, no Origin (a local tool) or the app's Origin proceeds; another Origin does not", J("GET", "localhost:5679", null, "/x", "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "127.0.0.1:5679", "http://localhost:8123", "/x", "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "localhost:5679", "http://evil.example", "/x", "tok").Status == 403);
+    Check("the token may also come in the query; a token of another length, or empty, never matches", J("GET", "localhost:5679", null, "/x", null, "tok").Outcome == LocalRequestGuard.Outcome.Proceed && J("GET", "localhost:5679", null, "/x", "to").Status == 401 && J("GET", "localhost:5679", null, "/x", "").Status == 401 && J("GET", "localhost:5679", null, "/x", "tok0").Status == 401);
+    Check("the session goes only to a GET carrying an allowed Origin", J("GET", "localhost:5679", "http://localhost:8123", "/session").Outcome == LocalRequestGuard.Outcome.Session && J("GET", "localhost:5679", null, "/session").Status == 403 && J("POST", "localhost:5679", "http://localhost:8123", "/session").Status == 405);
+    Check("a preflight of a foreign origin is refused, of the app's answered without a token, of no origin answered with no CORS", J("OPTIONS", "localhost:5679", "http://evil.example", "/x").Status == 403 && J("OPTIONS", "localhost:5679", "http://localhost:8123", "/x") is { Outcome: LocalRequestGuard.Outcome.Preflight, CorsOrigin: "http://localhost:8123" } && J("OPTIONS", "localhost:5679", null, "/x").CorsOrigin == null);
+    var g2 = new LocalRequestGuard(5679); var g3 = new LocalRequestGuard(5679);
+    Check("the token is 256 random bits, different for every guard", g2.Token.Length == 64 && g2.Token.All(Uri.IsHexDigit) && g2.Token != g3.Token);
+
+    Check("limits: a layout and a saved file 64 MB, everything else 1 MB", LocalRequestGuard.BodyLimit("POST", "/combined-layout") == 64L * 1024 * 1024 && LocalRequestGuard.BodyLimit("POST", "/deliverable") == 64L * 1024 * 1024 && LocalRequestGuard.BodyLimit("POST", "/run-analysis") == 1024 * 1024 && LocalRequestGuard.BodyLimit("GET", "/combined-layout") == 1024 * 1024);
+    Check("a body inside the limit is read whole", LocalRequestGuard.ReadBounded(new MemoryStream(new byte[1000]), 1000).Length == 1000);
+    var tooBig = false; try { LocalRequestGuard.ReadBounded(new MemoryStream(new byte[1001]), 1000); } catch (LocalRequestGuard.BodyTooLargeException) { tooBig = true; }
+    var claimed = false; var untouched = new MemoryStream(new byte[10]); try { LocalRequestGuard.ReadBounded(untouched, 1000, 5000); } catch (LocalRequestGuard.BodyTooLargeException) { claimed = untouched.Position == 0; }
+    Check("one byte over is refused while reading, and a length that is over is refused before any byte is read", tooBig && claimed);
+
+    var web = Path.Combine(Path.GetTempPath(), "sportify-web-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    var sibling = web + "-secrets";
+    Directory.CreateDirectory(Path.Combine(web, "vendor")); Directory.CreateDirectory(sibling);
+    File.WriteAllText(Path.Combine(web, "index.html"), "x"); File.WriteAllText(Path.Combine(web, "vendor", "a b.js"), "x"); File.WriteAllText(Path.Combine(sibling, "key.txt"), "secret");
+    Check("the web server serves a file in the folder and in a subfolder, with a space in its name", LocalRequestGuard.ResolveInside(web, "/index.html") != null && LocalRequestGuard.ResolveInside(web, "/vendor/a%20b.js") != null);
+    Check("...but not one outside it: .. , an encoded .. , a sibling folder whose name begins with the web folder's, or a folder", LocalRequestGuard.ResolveInside(web, "/../" + Path.GetFileName(sibling) + "/key.txt") == null
+        && LocalRequestGuard.ResolveInside(web, "/%2e%2e/" + Path.GetFileName(sibling) + "/key.txt") == null && LocalRequestGuard.ResolveInside(web, "/vendor") == null && LocalRequestGuard.ResolveInside(web, "/nothing.js") == null);
+    try { Directory.Delete(web, true); Directory.Delete(sibling, true); } catch (IOException) { }
 }
 
 // the roof's own plan frame: a roof turned against the model's axes gets a plan of its own (RoofFrame), and everything pushed and imported goes through it
@@ -531,6 +690,260 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     // ---- the contract: beams, walls and equipment are read from a layout
     var layout = System.Text.Json.JsonSerializer.Deserialize<SportifyLayout>("{\"roof_context\":{\"length_m\":30,\"width_m\":12,\"features\":{\"equipment\":[{\"id\":\"mechanical_1\",\"kind\":\"mechanical\",\"name\":\"AHU\",\"x_m\":10,\"y_m\":5,\"width_m\":4,\"depth_m\":2,\"height_m\":1.8,\"weight_kn\":3.5}]}},\"structure\":{\"beams\":[{\"name\":\"IPE\",\"start_m\":{\"x_m\":0,\"y_m\":6},\"end_m\":{\"x_m\":30,\"y_m\":6},\"width_m\":0.15,\"depth_m\":0.3,\"top_elevation_m\":11.2}],\"walls\":[{\"name\":\"W\",\"bearing\":true,\"thickness_m\":0.25}]}}")!;
     Check("equipment, beams and walls are read back from the layout", layout.RoofContext!.Features!.Equipment.Count == 1 && layout.RoofContext.Features.Equipment[0].WeightKn == 3.5 && layout.Structure!.Beams![0].DepthM == 0.3 && layout.Structure.Walls![0].Bearing);
+}
+
+// ---- the log and the family template search: what the import's honesty rests on
+{
+    Console.WriteLine("\n===== the add-in's log =====");
+    var logDir = Path.Combine(Path.GetTempPath(), "sportify-log-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    SportifyLog.UseDirectory(logDir);
+    SportifyLog.Info("check", "hello");
+    SportifyLog.Warn("check", "careful");
+    SportifyLog.Error("check", "it broke", new InvalidOperationException("the reason"));
+    SportifyLog.Block("import", "report:", "line one\nline two\r\nline three");
+    var text = File.ReadAllText(SportifyLog.CurrentFile);
+    Check("the log is a file per day under the folder it was pointed at", SportifyLog.CurrentFile.StartsWith(logDir) && Path.GetFileName(SportifyLog.CurrentFile).StartsWith("addin-") && File.Exists(SportifyLog.CurrentFile));
+    Check("every entry has a UTC time, a level and an area", System.Text.RegularExpressions.Regex.Matches(text, @"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (INFO |WARN |ERROR) \[[a-z\-]+\] ", System.Text.RegularExpressions.RegexOptions.Multiline).Count == 4);
+    Check("an exception is logged with its type, its message and its stack", text.Contains("InvalidOperationException: the reason"));
+    Check("a report keeps its lines under one entry, indented", text.Contains("        line two") && text.Contains("        line three"));
+
+    var old = Path.Combine(logDir, "addin-20200101.log");
+    File.WriteAllText(old, "old"); File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-30));
+    var fresh = Path.Combine(logDir, "addin-20260101.log");
+    File.WriteAllText(fresh, "recent"); File.SetLastWriteTimeUtc(fresh, DateTime.UtcNow.AddDays(-3));
+    SportifyLog.UseDirectory(logDir);               // forgets that it pruned today
+    SportifyLog.Info("check", "prune");
+    Check("files older than two weeks are removed, newer ones are kept", !File.Exists(old) && File.Exists(fresh));
+
+    var blocker = Path.Combine(Path.GetTempPath(), "sportify-log-file-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+    File.WriteAllText(blocker, "a file where the log folder should be");
+    SportifyLog.UseDirectory(Path.Combine(blocker, "logs"));
+    var threw = false;
+    try { SportifyLog.Error("check", "nowhere to write", new Exception("x")); } catch (Exception) { threw = true; }
+    Check("a log that cannot be written never throws (it must not be what breaks an import)", !threw);
+    SportifyLog.UseDirectory(null);
+    try { Directory.Delete(logDir, true); File.Delete(blocker); } catch (IOException) { }
+
+    Console.WriteLine("\n===== finding the Generic Model family template in any language =====");
+    string[] Rank(params string[] names) => FamilyTemplateRanking.Rank(names.Select(n => @"C:\ProgramData\Autodesk\RVT 2025\Family Templates\" + n)).Select(Path.GetFileName).ToArray()!;
+    var en = Rank(@"English\Metric Generic Model wall based.rft", @"English\Metric Generic Model face based.rft", @"English\Metric Generic Model.rft", @"English\Metric Generic Model line based.rft",
+                  @"English\Metric Generic Model work plane based.rft", @"English\Metric Generic Model Adaptive.rft", @"English\Metric Door.rft", @"English\Metric Furniture.rft");
+    Check("English: the plain template first, the host-based variants and other categories never", en.Length >= 1 && en[0] == "Metric Generic Model.rft" && en.Length == 1, string.Join(" | ", en));
+    var de = Rank(@"German\Allgemeines Modell wandbasiert.rft", @"German\Allgemeines Modell flächenbasiert.rft", @"German\Allgemeines Modell.rft", @"German\Allgemeines Modell arbeitsebenenbasiert.rft",
+                  @"German\Allgemeines Modell deckenbasiert.rft", @"German\Tür.rft", @"German\Möbel.rft");
+    Check("German (Allgemeines Modell): the plain one, none of the wand-/flächen-/decken-/arbeitsebenenbasiert ones", de.Length == 1 && de[0] == "Allgemeines Modell.rft", string.Join(" | ", de));
+    var fr = Rank(@"French\Modèle générique métrique.rft", @"French\Modèle générique métrique basé sur un mur.rft", @"French\Modèle générique métrique basé sur une face.rft", @"French\Porte métrique.rft");
+    Check("French (Modèle générique): the plain one, accents and all, not the 'basé sur' ones", fr.Length == 1 && fr[0] == "Modèle générique métrique.rft", string.Join(" | ", fr));
+    var es = Rank(@"Spanish\Modelo genérico métrico.rft", @"Spanish\Modelo genérico métrico basado en pared.rft", @"Spanish\Puerta métrica.rft");
+    var it = Rank(@"Italian\Modello generico metrico.rft", @"Italian\Modello generico metrico basato su parete.rft", @"Italian\Porta metrica.rft");
+    Check("Spanish and Italian the same", es.Length == 1 && es[0] == "Modelo genérico métrico.rft" && it.Length == 1 && it[0] == "Modello generico metrico.rft", string.Join(" | ", es) + " / " + string.Join(" | ", it));
+    var both = FamilyTemplateRanking.Rank(new[] { @"C:\x\English-Imperial\Generic Model.rft", @"C:\x\English\Metric Generic Model.rft" }).Select(Path.GetFileName).ToArray();
+    Check("the metric template is preferred over the imperial one, but the imperial one is still a candidate", both.Length == 2 && both[0] == "Metric Generic Model.rft", string.Join(" | ", both));
+    Check("a language nobody listed gives no candidates (Revit's category check is then the way, on every template)", Rank(@"Klingon\Tlhab.rft").Length == 0);
+    Check("Normalise: accents and separators do not matter", FamilyTemplateRanking.Normalise("Modèle_générique-métrique") == "modele generique metrique");
+}
+
+{
+    Console.WriteLine("\n===== the ribbon (RibbonLayout, RibbonIconData) and the rules of the BIM & Documentation panel (BimRules) =====");
+    // the add-in's sources, found from here
+    string? sources = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && sources == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) sources = candidate;
+    }
+    Check("the add-in's sources are found from the check", sources != null);
+    var allSources = sources == null ? new Dictionary<string, string>() : Directory.GetFiles(sources, "*.cs", SearchOption.AllDirectories)
+        .Where(f => !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar) && !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
+        .ToDictionary(f => f, File.ReadAllText);
+    var commandClasses = new Dictionary<string, string>();       // class name -> "public" or "other", for every class that implements IExternalCommand
+    foreach (var kv in allSources)
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(kv.Value, @"(?<vis>public\s+|internal\s+)?(?:sealed\s+)?class\s+(?<name>\w+)\s*:\s*IExternalCommand\b"))
+            commandClasses[m.Groups["name"].Value] = m.Groups["vis"].Value.Trim() == "public" ? "public" : "other";
+
+    var panels = RibbonLayout.Panels;
+    var everyButton = panels.SelectMany(pn => pn.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b },
+        RibbonPulldownSpec pd => pd.Items.ToArray(),
+        _ => Array.Empty<RibbonButtonSpec>(),
+    }).ToList();
+    var everyName = panels.SelectMany(pn => pn.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName).Append(pd.InternalName).ToArray(),
+        _ => Array.Empty<string>(),
+    }).ToList();
+
+    Check("the panels are, in order: App & Data Import, Algorithmic Analysis, Simulation & Analytics, Kinetics, BIM & Documentation, Data Export / Deliverables",
+          panels.Select(pn => pn.Name).SequenceEqual(new[] { "App & Data Import", "Algorithmic Analysis", "Simulation & Analytics", "Kinetics", "BIM & Documentation", "Data Export / Deliverables" }));
+    Check("every internal name (buttons, drop-downs, items) is unique: Revit refuses a second item of the same name in one tab", everyName.Distinct().Count() == everyName.Count,
+          string.Join(", ", everyName.GroupBy(n => n).Where(g => g.Count() > 1).Select(g => g.Key)));
+    Check("every command class the ribbon names exists and implements IExternalCommand", everyButton.All(b => commandClasses.ContainsKey(b.CommandClass)),
+          string.Join(", ", everyButton.Where(b => !commandClasses.ContainsKey(b.CommandClass)).Select(b => b.CommandClass)));
+    Check("...and is public (Revit cannot load a command that is not)", everyButton.All(b => commandClasses.GetValueOrDefault(b.CommandClass) == "public"),
+          string.Join(", ", everyButton.Where(b => commandClasses.GetValueOrDefault(b.CommandClass) != "public").Select(b => b.CommandClass)));
+    Check("every button and drop-down has text and a tooltip, and every tooltip uses only the {APP_URL} placeholder",
+          everyButton.All(b => b.Text.Length > 0 && b.Tooltip.Length > 10 && System.Text.RegularExpressions.Regex.Matches(b.Tooltip, @"\{[^}]*\}").All(m => m.Value == "{APP_URL}"))
+          && panels.SelectMany(pn => pn.Entries).OfType<RibbonPulldownSpec>().All(pd => pd.Text.Length > 0 && pd.Tooltip.Length > 10));
+    var icons = everyButton.Select(b => b.Icon).Concat(panels.SelectMany(pn => pn.Entries).OfType<RibbonPulldownSpec>().Select(pd => pd.Icon)).ToList();
+    Check("every button, item and drop-down has an icon that exists", icons.All(i => RibbonIconData.Paths.ContainsKey(i)), string.Join(", ", icons.Where(i => !RibbonIconData.Paths.ContainsKey(i)).Distinct()));
+
+    // the algorithmic analyses (rules and calculations, no simulation engine) are one group of their own, and the physical (Unity based) ones are not in it
+    var algorithmic = panels.First(pn => pn.Name == "Algorithmic Analysis");
+    var algorithmicClasses = algorithmic.Entries.OfType<RibbonButtonSpec>().Select(b => b.CommandClass).ToList();
+    var physicalPanel = panels.First(pn => pn.Name == "Simulation & Analytics");
+    var physicalClasses = physicalPanel.Entries.SelectMany(e => e switch { RibbonButtonSpec b => new[] { b.CommandClass }, RibbonPulldownSpec pd => pd.Items.Select(i => i.CommandClass).ToArray(), _ => Array.Empty<string>() }).ToList();
+    Check("Algorithmic Analysis holds exactly the four rule-based analyses: fire safety, carbon impact, LCA, accessibility",
+          algorithmicClasses.OrderBy(c => c).SequenceEqual(new[] { "AnalyzeAccessibilityCommand", "AnalyzeCarbonImpactCommand", "AnalyzeFireSafetyCommand", "AnalyzeLcaCommand" }));
+    Check("...and the physical (Unity based) analyses stay independent of it: none of them in Algorithmic Analysis, none of the algorithmic ones in Simulation & Analytics",
+          !algorithmicClasses.Intersect(physicalClasses).Any() && physicalClasses.ToHashSet().IsSupersetOf(new[] { "AnalyzeStructuralLoadsCommand", "AnalyzeDynamicLoadsCommand", "AnalyzeSunShadeCommand", "AnalyzeWindErosionRiskCommand", "SimulateSoilPercolationCommand", "SimulateBallTrajectoriesCommand", "SendPhysicalAnalysisToWebCommand" })
+          && !physicalClasses.Any(c => algorithmicClasses.Contains(c)));
+
+    // the layout of the request: Simulation & Analytics
+    var sim = panels.First(pn => pn.Name == "Simulation & Analytics");
+    var structural = sim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text == "Structural");
+    var environmental = sim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text == "Environmental");
+    Check("Simulation & Analytics has a Structural drop-down: Run Bay Utilization Check (AnalyzeStructuralLoadsCommand), Dynamic Frequency & Vibration (AnalyzeDynamicLoadsCommand)",
+          structural != null && structural.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[] { ("Run Bay Utilization Check", "AnalyzeStructuralLoadsCommand"), ("Dynamic Frequency & Vibration", "AnalyzeDynamicLoadsCommand") }));
+    Check("...and an Environmental one that starts with Sun & Shade Analysis (AnalyzeSunShadeCommand) and the wind analysis (AnalyzeWindErosionRiskCommand)",
+          environmental != null && environmental.Items.Count >= 2 && environmental.Items[0].CommandClass == "AnalyzeSunShadeCommand" && environmental.Items[0].Text == "Sun & Shade Analysis"
+          && environmental.Items[1].CommandClass == "AnalyzeWindErosionRiskCommand");
+    Check("the wind button is not called \"comfort\": the analysis checks uplift, overturning and erosion", environmental != null && !environmental.Items.Any(i => i.Text.Contains("Comfort", StringComparison.OrdinalIgnoreCase)));
+
+    // BIM & Documentation
+    var bim = panels.First(pn => pn.Name == "BIM & Documentation");
+    var schedulesButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "GenerateRevitSchedulesCommand");
+    var filtersButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "ApplyViewFiltersCommand");
+    var phasing = bim.Entries.OfType<RibbonPulldownSpec>().FirstOrDefault(pd => pd.Text.Replace("\n", " ") == "Phasing & Worksets");
+    Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
+          && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
+    Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
+    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, Import Iterations as Design Options, Show Iteration",
+          phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
+          {
+              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"),
+              ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
+          }));
+
+    // nothing that was on the ribbon before is gone, and the CSV schedule command keeps its name
+    var before = new Dictionary<string, string>
+    {
+        ["OpenSportifyApp"] = "OpenSportifyAppCommand", ["ImportSportifyLayout"] = "ImportSportifyLayoutCommand", ["LoadFamilies"] = "LoadFamiliesCommand", ["ImportDxf"] = "ImportDxfCommand",
+        ["SetSunAndLocation"] = "SetSunAndLocationCommand", ["ToggleAutoImport"] = "ToggleAutoImportCommand", ["AnalyzeFireSafety"] = "AnalyzeFireSafetyCommand",
+        ["AnalyzeCarbonImpact"] = "AnalyzeCarbonImpactCommand", ["AnalyzeLca"] = "AnalyzeLcaCommand", ["AnalyzeAccessibility"] = "AnalyzeAccessibilityCommand",
+        ["SendPhysicalAnalysisToWeb"] = "SendPhysicalAnalysisToWebCommand", ["SimulateBallTrajectories"] = "SimulateBallTrajectoriesCommand", ["AnalyzeStructuralLoads"] = "AnalyzeStructuralLoadsCommand",
+        ["AnalyzeDynamicLoads"] = "AnalyzeDynamicLoadsCommand", ["AnalyzeSunShade"] = "AnalyzeSunShadeCommand", ["AnalyzeWindErosionRisk"] = "AnalyzeWindErosionRiskCommand",
+        ["SimulateSoilPercolation"] = "SimulateSoilPercolationCommand", ["GenerateAnalysisReport"] = "GenerateAnalysisReportCommand", ["GenerateFunctionalDiagrams"] = "GenerateFunctionalDiagramsCommand",
+        ["GenerateSchedules"] = "GenerateSchedulesCommand", ["OpenSportifyFolder"] = "OpenSportifyFolderCommand",
+    };
+    var missing = before.Where(kv => !everyButton.Any(b => b.InternalName == kv.Key && b.CommandClass == kv.Value)).Select(kv => kv.Key).ToList();
+    Check("all 21 buttons the ribbon had before are still on it, with the same internal name and the same command class (only re-mounted)", missing.Count == 0, string.Join(", ", missing));
+    Check("the CSV export keeps its class name (GenerateSchedulesCommand) and the native schedules have their own (GenerateRevitSchedulesCommand)",
+          commandClasses.ContainsKey("GenerateSchedulesCommand") && commandClasses.ContainsKey("GenerateRevitSchedulesCommand"));
+
+    // the four new commands, as requested
+    var bimSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("BimCommands.cs")).Value ?? "";
+    foreach (var cls in new[] { "GenerateRevitSchedulesCommand", "ApplyViewFiltersCommand", "AssignPhasingCommand", "AssignWorksetsCommand" })
+        Check($"{cls} is in Commands/BimCommands.cs, [Transaction(TransactionMode.Manual)], and catches its own errors",
+              System.Text.RegularExpressions.Regex.IsMatch(bimSource, @"\[Transaction\(TransactionMode\.Manual\)\][\s\S]{0,80}?class\s+" + cls + @"\s*:\s*IExternalCommand")
+              && System.Text.RegularExpressions.Regex.IsMatch(bimSource, "class " + cls + @"[\s\S]*?catch \(Exception ex\)"));
+    Check("GenerateRevitSchedulesCommand is also [Regeneration(RegenerationOption.Manual)] and calls BimScheduleBuilder.CreateSportifySchedules(doc, null) inside a transaction",
+          bimSource.Contains("[Regeneration(RegenerationOption.Manual)]") && bimSource.Contains("BimScheduleBuilder.CreateSportifySchedules(doc, null)") && bimSource.Contains("new Transaction(doc, \"Sportify: generate schedules\")"));
+    Check("ApplyViewFiltersCommand calls ViewFilterManager.ApplySportifyViewFilters(doc, doc.ActiveView) inside a transaction", bimSource.Contains("ViewFilterManager.ApplySportifyViewFilters(doc, doc.ActiveView)") && bimSource.Contains("new Transaction(doc, \"Sportify: apply view filters\")"));
+
+    // OnStartup: the ribbon is built from the layout, entry by entry, and OnStartup still returns Succeeded
+    var appSource = sources == null ? "" : File.ReadAllText(Path.Combine(sources, "SportfyRevitApp.cs"));
+    Check("OnStartup builds the ribbon from RibbonLayout, each entry inside its own try/catch, and returns Result.Succeeded",
+          appSource.Contains("BuildRibbon(application);") && appSource.Contains("try { AddEntry(panel, assembly, entry); }") && appSource.Contains("return Result.Succeeded;"));
+
+    // the icons: every path is well formed SVG path data (commands with the right number of numbers)
+    var arity = new Dictionary<char, int> { ['M'] = 2, ['L'] = 2, ['H'] = 1, ['V'] = 1, ['C'] = 6, ['S'] = 4, ['Q'] = 4, ['T'] = 2, ['A'] = 7, ['Z'] = 0 };
+    string? Malformed(string d)
+    {
+        var tokens = System.Text.RegularExpressions.Regex.Matches(d, @"[MmLlHhVvCcSsQqTtAaZz]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?");
+        var rest = System.Text.RegularExpressions.Regex.Replace(d, @"[MmLlHhVvCcSsQqTtAaZz]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?|[\s,]", "");
+        if (rest.Length > 0) return "stray text \"" + rest + "\"";
+        char cmd = ' '; int count = 0; bool first = true;
+        foreach (System.Text.RegularExpressions.Match t in tokens)
+        {
+            if (char.IsLetter(t.Value[0]))
+            {
+                if (cmd != ' ' && count % Math.Max(1, arity[char.ToUpperInvariant(cmd)]) != 0) return "wrong number of numbers for " + cmd;
+                if (cmd != ' ' && arity[char.ToUpperInvariant(cmd)] > 0 && count == 0) return cmd + " has no numbers";
+                cmd = t.Value[0]; count = 0;
+                if (first && char.ToUpperInvariant(cmd) != 'M') return "does not start with M";
+                first = false;
+            }
+            else count++;
+        }
+        if (cmd != ' ' && arity[char.ToUpperInvariant(cmd)] > 0 && (count == 0 || count % arity[char.ToUpperInvariant(cmd)] != 0)) return "wrong number of numbers for " + cmd;
+        return null;
+    }
+    var badIcons = RibbonIconData.Paths.Select(kv => (kv.Key, Problem: Malformed(kv.Value))).Where(x => x.Problem != null).ToList();
+    Check($"all {RibbonIconData.Paths.Count} icon paths are well formed (known commands, the right number of numbers, start with M)", badIcons.Count == 0, string.Join("; ", badIcons.Select(x => x.Key + ": " + x.Problem)));
+    Check("the checker itself catches a bad path", Malformed("M1 2 L3") != null && Malformed("L1 2") != null && Malformed("M1 2 x") != null && Malformed("M1 2 l3 4 h5") == null);
+
+    // the rules
+    Check("workset rules follow the import: floors and planting on Gardens, courts, activities and furniture on Sports, everything else (outline, paths, entries) on Combine",
+          BimRules.WorksetFor(BimRules.ElementKind.Floor, null, false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "field", false) == "Sports"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "furniture", false) == "Sports" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "activity", false) == "Sports"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "vegetation", false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "Garden", false) == "Gardens"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, null, true) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.Other, null, false) == "Combine");
+    Check("the three workset names are the ones SportifyLayoutBuilder makes", BimRules.WorksetNames.SequenceEqual(new[] { "Sports", "Gardens", "Combine" })
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyLayoutBuilder.cs") && kv.Value.Contains("new[] { \"Sports\", \"Gardens\", \"Combine\" }")));
+    Check("a Sportify floor type is one whose name starts with \"Sportify - \" (as SportifyFloorTypeBuilder names them), and only that",
+          BimRules.IsSportifyTypeName("Sportify - Gravel") && !BimRules.IsSportifyTypeName("Generic 150mm") && !BimRules.IsSportifyTypeName("sportify - x") && !BimRules.IsSportifyTypeName(null)
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyFloorTypeBuilder.cs") && kv.Value.Contains("Sportify - {assembly.Provider}")));
+    var zoneColours = Enumerable.Range(0, BimRules.ZonePaletteSize).Select(BimRules.ColorForZoneType).Distinct().Count();
+    Check("the zone-type palette has distinct colours and repeats after its last (and never fails on a negative index)", zoneColours == BimRules.ZonePaletteSize && BimRules.ColorForZoneType(BimRules.ZonePaletteSize) == BimRules.ColorForZoneType(0) && BimRules.ColorForZoneType(-1) == BimRules.ColorForZoneType(BimRules.ZonePaletteSize - 1));
+    var kinds = new[] { "field", "activity", "garden", "vegetation", "furniture" }.Select(BimRules.ColorForCategory).Distinct().Count();
+    Check("each kind of piece has its own colour, and an unknown one a grey", kinds == 5 && BimRules.ColorForCategory("nothing") == (150, 150, 150) && BimRules.ColorForCategory(null) == (150, 150, 150));
+    Check("filter and schedule names lose the characters Revit refuses, and keep the words", BimRules.SafeName("Sportify Zone - Bauder {extensive}: 69|mm") == "Sportify Zone - Bauder extensive 69 mm");
+    // the icons as logos: every one has a group colour, an outline and (mostly) a tint that are well formed, and each panel's icons are in the panel's own colour
+    Check("every icon belongs to a known colour group and has a well-formed outline", RibbonIconData.Icons.All(kv => RibbonIconData.GroupColors.ContainsKey(kv.Value.Group) && Malformed(kv.Value.Stroke) == null),
+          string.Join("; ", RibbonIconData.Icons.Where(kv => !RibbonIconData.GroupColors.ContainsKey(kv.Value.Group) || Malformed(kv.Value.Stroke) != null).Select(kv => kv.Key)));
+    var badFill = RibbonIconData.Icons.Where(kv => kv.Value.Fill != null && Malformed(kv.Value.Fill) != null).Select(kv => kv.Key + ": " + Malformed(kv.Value.Fill!)).ToList();
+    Check($"...and the tint shapes ({RibbonIconData.Icons.Count(kv => kv.Value.Fill != null)} of {RibbonIconData.Icons.Count} icons have one) are well formed too", badFill.Count == 0, string.Join("; ", badFill));
+    Check("the five colour groups are five different colours", RibbonIconData.GroupColors.Values.Distinct().Count() == 5 && RibbonIconData.GroupColors.Count == 5);
+    var panelGroup = new Dictionary<string, string> { ["App & Data Import"] = "setup", ["Algorithmic Analysis"] = "algorithmic", ["Simulation & Analytics"] = "physical", ["Kinetics"] = "physical", ["BIM & Documentation"] = "bim", ["Data Export / Deliverables"] = "export" };
+    var offColour = new List<string>();
+    foreach (var pn in panels)
+        foreach (var e in pn.Entries)
+        {
+            var named = e switch { RibbonButtonSpec b => new[] { b.Icon }, RibbonPulldownSpec pd => pd.Items.Select(i => i.Icon).Append(pd.Icon).ToArray(), _ => Array.Empty<string>() };
+            foreach (var icon in named)
+                if (RibbonIconData.Icons.TryGetValue(icon, out var spec) && spec.Group != panelGroup[pn.Name]) offColour.Add(pn.Name + ": " + icon + " is " + spec.Group);
+        }
+    Check("every icon on a panel is in that panel's colour (setup slate, algorithmic blue, physical teal, BIM amber, export violet)", offColour.Count == 0, string.Join("; ", offColour));
+    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First().Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
+
+    // Push to Sportify: the drop-down and each of its nine items have an icon that exists
+    var pushMap = System.Text.RegularExpressions.Regex.Matches(appSource, @"\[""(?<item>Push\w+)""\]\s*=\s*""(?<icon>\w+)""").Select(m => (Item: m.Groups["item"].Value, Icon: m.Groups["icon"].Value)).ToList();
+    var pushItems = System.Text.RegularExpressions.Regex.Matches(appSource, @"Item\(""(?<name>Push\w+)"",").Select(m => m.Groups["name"].Value).Distinct().ToList();
+    Check("every item of the Push to Sportify menu (" + pushItems.Count + ") has its own icon, and the icons exist", pushItems.Count == 9 && pushItems.All(n => pushMap.Any(x => x.Item == n)) && pushMap.All(x => RibbonIconData.Icons.ContainsKey(x.Icon)) && pushMap.Select(x => x.Icon).Distinct().Count() == pushMap.Count,
+          string.Join(", ", pushItems.Where(n => !pushMap.Any(x => x.Item == n))));
+    Check("...and the menu itself has the \"push\" icon", appSource.Contains("RibbonIcons.Large(\"push\")") && RibbonIconData.Icons.ContainsKey("push"));
+
+    // the duplicate views that carry the filters
+    Check("a duplicate view is named after the view it was made from: \"Level 1\" -> \"Level 1 - Sportify Zone Types\"", BimRules.SportifyViewName("Level 1", "Zone Types") == "Level 1 - Sportify Zone Types");
+    Check("...never chained: a duplicate of a duplicate gets the same name as a duplicate of the original", BimRules.SportifyViewName("Level 1 - Sportify Piece Kinds", "Zone Types") == "Level 1 - Sportify Zone Types");
+    Check("...and loses the characters Revit refuses in a view name (the default 3D view is \"{3D}\")", BimRules.SportifyViewName("{3D}", "Piece Kinds") == "3D - Sportify Piece Kinds");
+    Check("Apply View Filters makes duplicates and leaves the view alone (ViewFilterManager duplicates, then filters the duplicate)", allSources.Any(kv => kv.Key.EndsWith("ViewFilterManager.cs") && kv.Value.Contains("source.Duplicate(") && kv.Value.Contains("var target = duplicate ? DuplicateFor(doc, view, group, notes) : view;")));
+    // the pane's map: OpenStreetMap refuses tiles (and Nominatim searches) from a request with no Referer, so the add-in's web server must not send "no-referrer"
+    var webServer = allSources.FirstOrDefault(kv => kv.Key.EndsWith("StaticWebServer.cs")).Value ?? "";
+    Check("the add-in's web server lets the origin go to other sites (strict-origin-when-cross-origin), so OpenStreetMap's tiles and address search accept the app; never no-referrer",
+          webServer.Contains("\"Referrer-Policy\", \"strict-origin-when-cross-origin\"") && !webServer.Contains("\"Referrer-Policy\", \"no-referrer\""));
+    // Functional Diagrams and the report do not need worksets: what there is to draw is decided by what the import created
+    var diagrams = allSources.FirstOrDefault(kv => kv.Key.EndsWith("GenerateFunctionalDiagramsCommand.cs")).Value ?? "";
+    Check("Functional Diagrams works without worksets: what there is to draw is decided by the import's ledger, not doc.IsWorkshared, and every piece is styled (grey, labelled) and the circulation bold red the same way whether or not the project has worksets — nothing is hidden by view to fake that",
+          diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("HideAllButCombine") && diagrams.Contains("pieceOv.SetProjectionLineColor(gray)"));
+    Check("Organize Multi-Worksets asks before turning worksharing on (a choice with a default of leaving the project alone) instead of only refusing",
+          bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
+    Check("worksharing is only offered where Revit allows it (Document.CanEnableWorksharing): by Organize Multi-Worksets and by the import's question, so a template file or read-only document gets an explanation, not an exception",
+          bimSource.Contains("!doc.IsWorkshared && !doc.CanEnableWorksharing()") && allSources.Any(kv => kv.Key.EndsWith("WorksharingConsent.cs") && kv.Value.Contains("!doc.CanEnableWorksharing()")));
+    Check("a command inside a drop-down is found by the hook with one more CustomCtrl_% level than a button on a panel", appSource.Contains("CustomCtrl_%CustomCtrl_%CustomCtrl_%") && appSource.Contains("CustomCtrl_%CustomCtrl_%\" + TabName"));
+
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

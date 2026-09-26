@@ -66,5 +66,15 @@ namespace Sportify.Simulation.Editor
             EditorSceneManager.OpenScene(ScenePath);
             EditorApplication.isPlaying = true;
         }
+
+        // Kinetics' own isolated video: -executeMethod Sportify.Simulation.Editor.BatchRunner.RunKineticsAnalysis.
+        // Reads a small KineticsRenderRequest (not a full layout export) from -layoutFile=, animates just the one
+        // dynamic-family piece through its actuation states, and writes Recordings/kinetics_results.json.
+        public static void RunKineticsAnalysis()
+        {
+            Environment.SetEnvironmentVariable(AnalysisMode.EnvVar, AnalysisMode.Kinetics);
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
     }
 }

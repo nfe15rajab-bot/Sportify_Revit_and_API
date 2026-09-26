@@ -65,7 +65,7 @@ namespace SportfyRevit
             TaskDialog.Show(title,
                 $"Report saved and opened:\n{outputPath}" +
                 (results == null
-                    ? "\n\nNo Analysis panel checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
+                    ? "\n\nNo Algorithmic Analysis checks have been run yet this session — run Fire Safety/Accessibility/etc. first for real numbers here."
                     : "\n\nIncludes every check that's been run so far this session — run more Analysis commands and regenerate to add them."));
 
             return Result.Succeeded;
@@ -79,21 +79,18 @@ namespace SportfyRevit
         /// </summary>
         private static (string? Circulation, string? Axo) TryExportDiagramImages(Document doc)
         {
-            if (!doc.IsWorkshared) return (null, null);
+            // what there is to draw is decided by what the import created, not by whether the project has worksets (the views work either way)
+            if (SportifyElementScan.Find(doc).IsEmpty) return (null, null);
 
             try
             {
-                var worksets = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset)
-                    .ToDictionary(w => w.Name, w => w.Id);
-                if (!worksets.ContainsKey("Combine")) return (null, null);
-
                 ViewPlan circulationView;
                 View3D axoView;
                 using (var t = new Transaction(doc, "Sportify report: ensure diagram views"))
                 {
                     t.Start();
-                    circulationView = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc, worksets);
-                    axoView = GenerateFunctionalDiagramsCommand.CreateOrReuseAxonometricView(doc, worksets);
+                    circulationView = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc);
+                    axoView = GenerateFunctionalDiagramsCommand.CreateOrReuseAxonometricView(doc);
                     t.Commit();
                 }
 

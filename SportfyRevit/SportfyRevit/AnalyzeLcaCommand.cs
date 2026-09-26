@@ -29,28 +29,11 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            var materials = AnalysisReferenceData.GetMaterials();
-            double totalKg = 0;
-            int coveredCount = 0;
-
-            foreach (var it in items)
-            {
-                var bb = it.BoundingBox;
-                if (bb == null) continue;
-
-                string? materialName = PlacementDataHelpers.GetReferenceMaterialName(it);
-                var material = materialName != null
-                    ? materials.FirstOrDefault(m => m.Name == materialName)
-                    : null;
-
-                if (material?.EmbodiedCarbonValue is double carbonPerM2)
-                {
-                    totalKg += carbonPerM2 * bb.WidthM * bb.HeightM;
-                    coveredCount++;
-                }
-            }
-
-            int missingCount = items.Count - coveredCount;
+            // The sum is EmbodiedCarbon.Compute: the same function as the web app's carbon.js (Tools/AnalysisParity runs both on every fixture layout).
+            var carbon = EmbodiedCarbon.Compute(items, AnalysisReferenceData.GetMaterials());
+            double totalKg = carbon.TotalKg;
+            int coveredCount = carbon.CoveredCount;
+            int missingCount = carbon.MissingCount;
 
             AnalysisResultPublisher.PublishLca(new LcaResultDto
             {
@@ -60,14 +43,9 @@ namespace SportfyRevit
                 TotalCount = items.Count,
             });
 
-            string missingNote = missingCount > 0
-                ? $"\n\n{missingCount} of {items.Count} piece(s) don't have both a reference material and an embodied-carbon " +
-                  "figure filled in yet (Data tab -> Materials admin edit form) — excluded, not assumed zero."
-                : "";
-
             TaskDialog.Show(title,
-                $"Estimated embodied carbon: ~{totalKg:0.#} kg CO2e across {coveredCount} of {items.Count} piece(s)." +
-                missingNote);
+                $"Estimated embodied carbon: ~{totalKg:0.#} kg CO2e across {coveredCount} of {items.Count} piece(s).\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

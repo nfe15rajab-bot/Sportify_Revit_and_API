@@ -129,7 +129,7 @@ namespace Sportify.Simulation.Structure
         /// <summary>The label for a piece, at its centre and the given height above the roof; null for trees (too many, and they are not the point).</summary>
         public static TextMesh Label(SimulationHud hud, LoadItem item, float height, float size = 0.85f)
         {
-            if (item.Kind == LoadKind.Tree || string.IsNullOrEmpty(item.Name)) return null;
+            if (item.IsObject || string.IsNullOrEmpty(item.Name)) return null;
             var tm = hud.WorldLabel(Short(item.Name, 26), Position(item, height), size, Color.white);
             return tm;
         }

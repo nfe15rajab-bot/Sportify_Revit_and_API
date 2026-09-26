@@ -1,0 +1,48 @@
+SPORTIFY - LICENSE AGREEMENT
+Beta version: still under testing and deployment
+------------------------------------------------------------------------------
+
+ABOUT SPORTIFY
+
+Sportify is an open source project of the
+"Digital Tools and Methods - Group of Sports and Gardens":
+computational and facade design students of TH OWL (Technische Hochschule
+Ostwestfalen-Lippe), School of Architecture, developed in the context of the
+MID project. The students come from architecture and engineering backgrounds.
+The main partner of the project is GOLDBECK.
+
+The Revit add-in and the web app that comes with it were developed with the main
+assistance of Claude (Anthropic), and led by the computational design team:
+Nada, Moamen, Sukriti and Ali.
+
+SOURCE CODE
+
+  Revit add-in and API   https://github.com/nfe15rajab-bot/Sportify_Revit_and_API
+  Web app                https://github.com/nfe15rajab-bot/sportfify_goldbeck
+
+WHAT YOU MAY DO
+
+Sportify is open source and is released for educational purposes. You may
+install and use it, read it, copy it and change it, for study, teaching and
+research, as long as you keep this notice and the names above.
+
+PLEASE NOTE
+
+* Sportify is still under testing and deployment. What it calculates (areas,
+  loads, shade, wind, water, dynamic behaviour, mechanisms) is preliminary. It is
+  not a substitute for the checks of a qualified architect or engineer: do not
+  build from it without independent verification.
+
+* It is provided "as is", without warranty of any kind. The authors, TH OWL and
+  GOLDBECK are not liable for any damage or loss that comes from using it.
+
+* Being a partner of the project does not mean that GOLDBECK, TH OWL or Anthropic
+  endorse this software or its results. GOLDBECK, TH OWL, Autodesk Revit,
+  SOLIDWORKS, Claude and Anthropic are names of their owners.
+
+* Sportify runs on your computer. Your layouts, results and files stay in the
+  folders you choose. It uses the internet only for the site lookups the web app
+  asks for (OpenStreetMap) and, during setup, to fetch Microsoft's WebView2
+  runtime if your computer does not have it.
+
+By choosing "I accept the agreement" and clicking Next you agree to these terms.

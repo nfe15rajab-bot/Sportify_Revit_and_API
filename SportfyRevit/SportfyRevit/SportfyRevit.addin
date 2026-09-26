@@ -20,7 +20,7 @@
     <Assembly>SportfyRevit.dll</Assembly>
     <FullClassName>SportfyRevit.SportfyRevitApp</FullClassName>
     <AddInId>b7c46fc3-f9d9-4b51-8323-24632d2b42db</AddInId>
-    <VendorId>GBCK</VendorId>
-    <VendorDescription>Goldbeck</VendorDescription>
+    <VendorId>DTMSG</VendorId>
+    <VendorDescription>Digital Tools and Methods - Group of Sports and Gardens</VendorDescription>
   </AddIn>
 </RevitAddIns>

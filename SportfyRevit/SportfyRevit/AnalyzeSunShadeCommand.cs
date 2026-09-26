@@ -103,39 +103,7 @@ namespace SportfyRevit
             if (s.preliminary)
                 body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy + (s.latitudeAssumed ? " (latitude assumed)" : "") + (s.northAssumed ? " (orientation assumed)" : "") + ".");
-            body.AppendLine();
-
-            foreach (var d in report.days)
-                body.AppendLine($"{d.name}: sun from {d.sunriseH:0.#} to {d.sunsetH:0.#} h solar time, {d.noonElevationDeg:0}° at noon; the roof gets {d.roofMeanSunHours:0.#} h of direct sun on average" +
-                                (report.equipment.Count > 0 ? $" ({d.roofMeanSunHoursAfter:0.#} h with the equipment)." : "."));
-            body.AppendLine();
-
-            var people = report.zones.Where(z => z.kind is "people" or "spectators").ToList();
-            body.AppendLine($"People zones ({people.Count}): {s.peopleZonesTooSunny} below the {s.shadeTargetPercent:0}% shade target between 11 and 16 h on 21 June" + (report.equipment.Count > 0 ? $", {s.peopleZonesTooSunnyAfter} after the equipment." : "."));
-            foreach (var z in people.OrderBy(z => z.peakShadePercent).Take(5))
-                body.AppendLine($"    • {z.label}: {z.peakShadePercent:0}% shade{(report.equipment.Count > 0 ? $" → {z.afterPeakShadePercent:0}%" : "")}, {z.sunHoursJune:0.#} h of sun in June");
-            var gardens = report.zones.Where(z => z.kind == "garden").ToList();
-            body.AppendLine($"Gardens ({gardens.Count}): {s.gardenZonesTooShaded} under the {s.gardenMinSunHours:0.#} h of sun a planting needs on 21 June" + (report.equipment.Count > 0 ? $", {s.gardenZonesTooShadedAfter} after the equipment." : "."));
-
-            if (report.equipment.Count > 0)
-            {
-                body.AppendLine();
-                body.AppendLine($"Recommended ({report.equipment.Count} pieces, +{s.addedLoadKn:0.#} kN on the deck; the deck's most loaded bay {report.structure.peakUtilisationBefore * 100:0}% → {report.structure.peakUtilisationAfter * 100:0}%):");
-                foreach (var p in report.equipment)
-                    body.AppendLine($"    • {p.name} {(p.shape == "disc" ? $"{p.widthM:0.#} m across" : $"{p.widthM:0.#} × {p.depthM:0.#} m")}, {p.heightM:0.#} m high, at x {p.x + p.widthM / 2:0.#}, y {p.y + p.depthM / 2:0.#} for {p.zoneLabel}: {p.shadeBeforePercent:0}% → {p.shadeAfterPercent:0}% shade" +
-                                    (p.windUpliftKn > 0.05 ? $", wind up to {p.windUpliftKn:0.#} kN" : ""));
-            }
-
-            var advice = report.recommendations.Where(r => r.kind is "no-option" or "too-shaded" or "structure" or "fine").Take(4).ToList();
-            if (advice.Count > 0)
-            {
-                body.AppendLine();
-                foreach (var a in advice) body.AppendLine("  • " + a.text);
-            }
-
-            body.AppendLine();
-            body.AppendLine("A screening estimate: direct sun only, in solar time, without neighbouring buildings. The assumptions are in the PDF report.");
-
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)
             {

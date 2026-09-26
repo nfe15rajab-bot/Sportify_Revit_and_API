@@ -482,7 +482,7 @@ namespace Sportify.Simulation.Structure
             var labels = new List<GameObject>();
             foreach (var p in _pieces)
             {
-                if (p.Item.Kind == LoadKind.Tree) continue;
+                if (p.Item.IsObject) continue;
                 var kn = permanent ? p.Item.DeadKnM2 : p.Item.LiveKnM2;
                 if (!permanent && kn <= StructureModel.RoofLiveKnM2 + 1e-6) continue;
                 var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 0.9f);

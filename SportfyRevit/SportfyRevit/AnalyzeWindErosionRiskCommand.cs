@@ -98,43 +98,13 @@ namespace SportfyRevit
         static SummaryChoice ShowSummary(WindReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
         {
             var s = report.summary;
-            var site = report.site;
             var problems = s.plantsFailing + s.zonesUpliftFlagged;
 
             var body = new StringBuilder();
             if (usingBundledSample)
                 body.AppendLine("No layout imported into this Revit session yet — analysed Unity's bundled roof-garden sample instead.").AppendLine();
             body.AppendLine(caseStudy);
-            body.AppendLine($"Design wind: zone {site.windZone} ({site.basicWindSpeedMs:0.#} m/s) — {site.windZoneSource}.");
-            body.AppendLine($"Terrain {site.terrainCategory}; roof {site.roofElevationM:0.#} m above ground — {site.roofHeightSource}; peak pressure {site.peakPressureAtRoofPa:0} Pa.");
-            if (site.hasNorth && site.prevailingDirectionIndex >= 0)
-            {
-                var prevailing = report.directions[site.prevailingDirectionIndex];
-                body.AppendLine($"Prevailing wind ({prevailing.compassLabel}, generic for Germany): {prevailing.plantsFailing} tree(s) at risk, {prevailing.zonesUpliftFlagged} zone(s) lift.");
-            }
-            body.AppendLine();
-
-            if (s.plantsChecked > 0)
-            {
-                body.AppendLine($"Trees: {s.plantsFailing} of {s.plantsChecked} would be blown over, {s.plantsMarginal} marginal.");
-                foreach (var p in report.plants.Where(p => p.status == "fails").OrderByDescending(p => p.utilisation).Take(4))
-                    body.AppendLine($"  • {p.species} at ({p.xM:0.#}, {p.yM:0.#}): {p.utilisation:0.0}× its limit ({p.worstDirectionLabel})");
-            }
-            else
-            {
-                body.AppendLine("Trees: none in the layout.");
-            }
-
-            body.AppendLine($"Uplift: {s.zonesUpliftFlagged} of {s.zonesChecked} zones need ballast ({s.percentPlantedAreaUpliftFlagged:0.#}% of the planted area).");
-            foreach (var z in report.zones.Where(z => z.upliftStatus == "fails").Take(4))
-                body.AppendLine($"  • {z.label} ({z.system}): +{z.requiredBallastMm:0} mm gravel in the {z.flaggedDepthM:0.#} m band along the {z.worstEdge} edge");
-
-            var closed = report.zones.Where(z => z.erosionRisk != "n/a").Select(z => z.erosionOnsetEstablishedMs).DefaultIfEmpty(0f).Min();
-            body.AppendLine($"Erosion: bare substrate starts to move at {s.lowestBareOnsetMs:0.#} m/s; closed planting holds to {closed:0.#} m/s.");
-
-            body.AppendLine();
-            body.AppendLine("A screening estimate after EN 1991-1-4 and the FLL guideline, not a structural design. The assumptions are in the PDF report.");
-
+            body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)
             {

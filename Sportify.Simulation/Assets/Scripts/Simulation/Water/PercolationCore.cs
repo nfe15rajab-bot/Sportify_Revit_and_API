@@ -502,7 +502,7 @@ namespace Sportify.Simulation.Water
             report.assumptions.AddRange(Assumptions());
 
             double greenArea = 0;
-            foreach (var z in inputs.Zones) greenArea += z.Width * z.Height;
+            foreach (var z in inputs.Zones) greenArea += z.AreaM2;
             var roofArea = inputs.RoofAreaM2 > 0 ? inputs.RoofAreaM2 : inputs.RoofLength * inputs.RoofWidth;
             var otherArea = Math.Max(0, roofArea - greenArea);
 
@@ -536,7 +536,7 @@ namespace Sportify.Simulation.Water
             {
                 index++;
                 var spec = SpecFor(zone.Assembly);
-                var area = zone.Width * zone.Height;
+                var area = zone.AreaM2;
                 var result = new ZonePercolationResult
                 {
                     id = zone.Id,

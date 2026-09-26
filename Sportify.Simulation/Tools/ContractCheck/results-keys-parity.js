@@ -14,7 +14,9 @@ if (!jsPath) { console.error("usage: node results-keys-parity.js <analysisResult
 const dto = fs.readFileSync(path.join(__dirname, "..", "..", "..", "SportfyRevit", "SportfyRevit", "AnalysisResultDto.cs"), "utf8");
 const block = /class AnalysisResultPayload\s*\{([\s\S]*?)\n    \}/.exec(dto);
 if (!block) { console.error("AnalysisResultPayload not found in AnalysisResultDto.cs"); process.exit(2); }
-const published = [...block[1].matchAll(/JsonPropertyName\("([a-z_]+)"\)/g)].map(m => m[1]).sort();
+// layout_id, updated_at and sections describe the document (which layout, when), they are not analyses
+const DESCRIPTIVE = new Set(["layout_id", "updated_at", "sections"]);
+const published = [...block[1].matchAll(/JsonPropertyName\("([a-z_]+)"\)/g)].map(m => m[1]).filter(k => !DESCRIPTIVE.has(k)).sort();
 
 const ctx = { localStorage: undefined };
 vm.createContext(ctx);
@@ -22,11 +24,16 @@ vm.runInContext(fs.readFileSync(jsPath, "utf8") + "\n;this.__web = { sections: O
 const known = [...ctx.__web.sections].sort();
 const grouped = [...ctx.__web.grouped].sort();
 
+// Sections the Post Analysis tab shows instead of the Analysis rail (kineticsPostAnalysis.js, not analysisResults.js) — the
+// professor's "less confusing" note moved dynamic-family interpretation out of the rail on purpose, so RESULT_SECTIONS
+// still describes them (title, where to run it) but ANALYSIS_SUBTABS is not where they are shown.
+const SHOWN_ELSEWHERE = new Set(["kinetics"]);
+
 let problems = 0;
 const differ = m => { problems++; console.log("DIFFERENT " + m); };
 for (const k of published) if (!known.includes(k)) differ(`the add-in publishes "${k}" but the web app's RESULT_SECTIONS does not list it`);
 for (const k of known) if (!published.includes(k)) differ(`the web app lists "${k}" but the add-in never publishes it`);
-for (const k of known) if (!grouped.includes(k)) differ(`"${k}" is in RESULT_SECTIONS but in no group of the Analysis rail (ANALYSIS_SUBTABS), so it is never shown`);
+for (const k of known) if (!grouped.includes(k) && !SHOWN_ELSEWHERE.has(k)) differ(`"${k}" is in RESULT_SECTIONS but in no group of the Analysis rail (ANALYSIS_SUBTABS), so it is never shown`);
 for (const k of grouped) if (!known.includes(k)) differ(`the Analysis rail shows "${k}", which RESULT_SECTIONS does not describe`);
 
 console.log(problems === 0 ? `PARITY OK: ${published.length} published sections, all in the web app's RESULT_SECTIONS and its Analysis rail` : `${problems} DIFFERENCE(S): change AnalysisResultPayload and analysisResults.js together`);

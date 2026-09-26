@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The add-in's embodied carbon (LCA), fire safety and accessibility decisions, and its offline analysis parameters, run as the real C# files on a layout. Prints what they
+       compute for check.js to compare with the web app's own carbon.js / analysisController.js on the same layout. Not part of the Unity project or the add-in. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS8632</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\CirculationEngine.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PlacementDataHelpers.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\EmbodiedCarbon.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SafetyAnalysis.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisReferenceData.cs" />
+  </ItemGroup>
+</Project>

@@ -22,6 +22,15 @@ namespace Sportify.Simulation.Wind
             return list;
         }
 
+        /// <summary>A zone's outline as the model takes it (rounded like every input, see InputQuantiser), or null for the rectangle: fewer than three points is no outline.</summary>
+        internal static List<double[]> PointsOf(PointM[] points)
+        {
+            if (points == null || points.Length < 3) return null;
+            var list = new List<double[]>();
+            foreach (var p in points) list.Add(new double[] { InputQuantiser.Q(p.x_m), InputQuantiser.Q(p.y_m) });
+            return list;
+        }
+
         public static WindInputs ToInputs(GoldbeckPayload payload)
         {
             var roof = payload.roof_context;
@@ -77,6 +86,7 @@ namespace Sportify.Simulation.Wind
                         Y = bb.top_left_y_m,
                         Width = bb.width_m,
                         Height = bb.height_m,
+                        Points = PointsOf(z.points),
                         Assembly = assembly ?? Unknown(z.assembly_key),
                     });
                 }

@@ -34,27 +34,28 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            var (distancesM, unreachable) = CirculationEngine.ComputeTravelDistances(layout);
+            // The decision is SafetyAnalysis.Fire: the same as the web app's analyzeFireSafety() (Tools/AnalysisParity runs both on every fixture layout).
             double maxTravelDistance = AnalysisReferenceData.GetParam("Fire Safety", "max_travel_distance_m");
+            var outcome = SafetyAnalysis.Fire(layout, maxTravelDistance);
 
-            if (unreachable.Count > 0)
+            if (outcome.Status == "fail")
             {
                 AnalysisResultPublisher.PublishFireSafety(new FireSafetyResultDto
                 {
                     MaxDistM = 0,
                     MaxTravelDistanceM = maxTravelDistance,
                     WithinLimit = false,
-                    UnreachableCount = unreachable.Count,
+                    UnreachableCount = outcome.UnreachableCount,
                 });
 
                 TaskDialog.Show(title,
-                    $"{unreachable.Count} of {layout.Placements.Count} piece(s) have no walkable route to any entry point " +
-                    "— blocked by clearance/circulation width. Fix circulation before a travel-distance figure is meaningful.");
+                    $"{outcome.UnreachableCount} of {layout.Placements.Count} piece(s) have no walkable route to any entry point.\n\n" +
+                    AnalysisMedia.SeeReport);
                 return Result.Succeeded;
             }
 
-            double maxDist = distancesM.Count > 0 ? distancesM.Values.Max() : 0;
-            bool withinLimit = maxDist <= maxTravelDistance;
+            double maxDist = outcome.MaxDistM;
+            bool withinLimit = outcome.WithinLimit;
 
             AnalysisResultPublisher.PublishFireSafety(new FireSafetyResultDto
             {
@@ -65,8 +66,8 @@ namespace SportfyRevit
             });
 
             TaskDialog.Show(title,
-                $"{(withinLimit ? "Within limit" : "OVER LIMIT")} — longest route from a piece to its nearest entry point: " +
-                $"{maxDist:0.0} m (max. travel distance reference: {maxTravelDistance:0.#} m, MBO §35).");
+                $"{(withinLimit ? "Within limit" : "OVER LIMIT")} — longest route {maxDist:0.0} m (reference {maxTravelDistance:0.#} m, MBO §35).\n\n" +
+                AnalysisMedia.SeeReport);
 
             return Result.Succeeded;
         }

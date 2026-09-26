@@ -123,13 +123,14 @@ function fraction(x, y, sun, doy, pieces) {
 // ---- the zones
 const items = I.items;
 const inRect = (x, y, rx, ry, rw, rh) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
+const inPolygon = (x, y, poly) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; };
 const courts = items.filter(i => i.kind === "Court");
 const zones = [];
 for (const it of items) {
-  if (it.kind === "Tree") continue;
+  if (it.kind === "Tree" || it.kind === "Furniture") continue;         // a tree or a piece of furniture is an object on the roof, not a zone of it
   const kind = it.kind === "Court" ? "court" : it.kind === "Activity" ? "people" : "garden";
   const z = { id: it.id, label: it.name || it.label, kind, cells: [], x: it.x, y: it.y, w: it.w, h: it.h };
-  for (let c = 0; c < N; c++) if (active[c] && inRect(cx(c), cy(c), it.x, it.y, it.w, it.h)) z.cells.push(c);
+  for (let c = 0; c < N; c++) if (active[c] && (it.poly ? inPolygon(cx(c), cy(c), it.poly) : inRect(cx(c), cy(c), it.x, it.y, it.w, it.h))) z.cells.push(c);
   zones.push(z);
   if (it.kind === "Court" && it.seats > 0) {
     const b = { id: it.id + "_seats", label: z.label + " spectators", kind: "spectators", cells: [], x: it.x - MARGIN, y: it.y - MARGIN, w: it.w + 2 * MARGIN, h: it.h + 2 * MARGIN };

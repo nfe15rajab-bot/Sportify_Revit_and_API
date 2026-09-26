@@ -18,6 +18,11 @@
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\AnalysisAssumptions.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Structure\StructuralLoadCore.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\LouvreActuationModel.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\LouvreMechanicsModel.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SailMechanicsModel.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\RollerFenceMechanicsModel.cs" />
+    <Compile Include="..\..\Assets\Scripts\Simulation\Sun\KineticUnitGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyLayoutDto.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\WindLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureLayoutAdapter.cs" />

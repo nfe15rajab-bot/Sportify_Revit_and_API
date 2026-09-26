@@ -4,7 +4,7 @@
 //   node Tools/run-checks.js --web <folder>        where the web app is (default: $SPORTIFY_WEB, then a sibling folder called Sportify, sportify_frontend, sportfify_goldbeck or web)
 //   node Tools/run-checks.js --require-web         fail, not skip, when the web app is not found (CI does this)
 //   node Tools/run-checks.js --only sun            only the steps whose name contains this (the build of the tools always runs first; --no-build skips it)
-//   node Tools/run-checks.js --local               also the checks that need an installed Unity / Revit: the Unity project still compiles, the add-in still compiles
+//   node Tools/run-checks.js --local               also the checks that need an installed Unity / Revit: the Unity project still compiles, the add-in still compiles, the SOLIDWORKS tool works
 //   node Tools/run-checks.js --unity               also re-run real Unity on every golden (about 6 minutes, uses a scratch copy of the project) and fail if a golden has gone stale
 //   node Tools/run-checks.js --list                the steps, without running them
 //
@@ -92,7 +92,7 @@ step("fixtures match their generators", async () => {
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1) } : { status: "fail", output: r.out + r.err };
 });
 
-const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "ReaderParity"];
+const toolNames = ["StructuralCheck", "DynamicCheck", "PercolationCheck", "WindCoreCheck", "SunCheck", "RoofCheck", "AddinCheck", "ReferenceDbCheck", "CirculationCheck", "AnalysisParity", "InstallerCheck", "ReaderParity"];
 if (isWin) toolNames.push("ContractCheck");
 
 step("build the check tools", async () => {
@@ -134,7 +134,29 @@ for (const spec of analysisTools) {
   });
 }
 
+// The --json runs above only dump numbers for the oracles: the tool returns before its own checks (the hand-calculated values, the kinetic units' geometry and linkage, the
+// mechanics). Those run here, once each, in plain mode on the sample layout. (They did not run in the suite at all until 2026-09-25; two SunCheck ones had gone stale.)
+step("the analysis tools' own checks (Structural, Dynamic, Percolation, Sun: hand-calculated values, the kinetic units' geometry and linkage)", async () => {
+  const sample = path.join(sim, "Assets", "StreamingAssets", "sample_layout_roofgarden.json");
+  const failures = [];
+  for (const t of ["StructuralCheck", "DynamicCheck", "PercolationCheck", "SunCheck"]) {
+    const dll = dllOf(t);
+    if (!dll) { failures.push(t + ": not built"); continue; }
+    const r = await dotnet([dll, sample]);
+    if (r.code !== 0) failures.push(t + ": exit " + r.code + "\n" + tail(r.out.split(/\r?\n/).filter(l => /FAIL/.test(l)).join("\n") || r.out + r.err, 8));
+  }
+  return failures.length ? { status: "fail", output: failures.join("\n") } : { status: "pass", detail: "4 tools" };
+});
+
+// what makes a release (VERSION, the license the installer shows, the author Revit shows, the Sportify folder's subfolders, the worksets and phases sheet, the API port): the same
+// everywhere. Reads files only.
+step("the release: the version, the license, the author, the Sportify folder, the worksets and phases, the API port and the installer agree (ReleaseCheck)", async () => {
+  const r = await node([path.join(tools, "ReleaseCheck", "check.js"), ...(web ? [web] : [])]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^RELEASE OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+});
+
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
+step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
 step("the API's reference.db guard on throw-away databases (ReferenceDbCheck)", () => runTool("ReferenceDbCheck"));
 step("Unity results contract (ContractCheck)", () => runTool("ContractCheck"), { needsWindows: true });
@@ -159,6 +181,27 @@ step("circulation: the add-in's engine against the web's rules.js", async () => 
   return failures.length ? { status: "fail", output: failures.sort().join("\n") } : { status: "pass", detail: `${layouts.length} layouts` };
 }, { needsWeb: true });
 
+step("embodied carbon, fire safety, accessibility: the web's carbon.js / analysisController.js against the add-in (AnalysisParity)", async () => {
+  if (!web) return noWeb();
+  const layouts = layoutsOf(["circ", "export"]);
+  const r = await node([path.join(tools, "AnalysisParity", "check.js"), web, ...layouts.map(l => l[1])]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("one source: the API's seed, the web app's tables and the add-in's fallbacks (SourceParity, runs the real API)", async () => {
+  if (!web) return noWeb();
+  const r = await node([path.join(tools, "SourceParity", "check.js"), web]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: sport dimensions come from the database once the API answers (data.js)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "field-source-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/field-source-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the Data tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("assumptions register: the C# list against the web's assumptions.js", async () => {
   if (!web) return noWeb();
   const r = await node([path.join(tools, "StructuralCheck", "assumptions-parity.js"), path.join(web, "assumptions.js")]);
@@ -173,7 +216,9 @@ step("results: the sections the add-in publishes against the web's Analysis rail
 
 step("workspace: the endpoints the web app calls against the ones the add-in serves", async () => {
   if (!web) return noWeb();
-  const r = await node([path.join(tools, "ContractCheck", "endpoints-parity.js"), path.join(web, "workspaceBridge.js")]);
+  // every web script that calls the add-in through localApi(): workspaceBridge.js, and profile.js (the PROFILE: GET/POST /profile) once the web app has it
+  const callers = ["workspaceBridge.js", "profile.js"].map(f => path.join(web, f)).filter(f => fs.existsSync(f));
+  const r = await node([path.join(tools, "ContractCheck", "endpoints-parity.js"), ...callers]);
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^PARITY OK: /, "") } : { status: "fail", output: r.out + r.err };
 }, { needsWeb: true });
 
@@ -210,6 +255,59 @@ step("algorithmic placement: how it meets the rest of Combine (zones, specified 
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT UI CHECKS PASSED/, "the real scripts, the real packer, Apply") } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("results: the Analysis tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "results-freshness-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-freshness-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL RESULT FRESHNESS CHECKS PASSED/, "the real scripts, the same SHA-256 rule as the add-in") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app reaches the add-in only through localSession.js (the session token, a new one after a restart, links)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "local-session-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/local-session-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "no script calls the add-in with a bare fetch" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: the PROFILE (Simple/Advanced view against the real page, name and photo rules, role and theme, the sync with Revit's copy)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "profile-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/profile-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real profile.js against a stand-in page and a stand-in add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "escape-audit-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/escape-audit-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "no name, label, description, note, source or id reaches a template unescaped" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: its Content-Security-Policy, and that the page obeys it (no inline script, no CDN, vendored assets)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "csp-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/csp-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "script-src 'self', nothing from another site" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: catalogue writes carry the API's write key (apiSession.js)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "api-session-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/api-session-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "handshake, typed key, retry after a restart, no bare fetch writes" } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the API: writes need a key, SQL import is gated, no placeholder JWT (the real API, run twice)", async () => {
+  const r = await node([path.join(tools, "ApiSecurityCheck", "check.js")], { timeout: 280000 });
+  return r.code === 0 ? { status: "pass", detail: tail(r.out, 1) } : { status: "fail", output: tail(r.out + r.err, 40) };
+});
+
 // ---- local only: they need an installed Unity / Revit (CI has neither)
 step("Unity project still compiles (needs a Unity install)", async () => {
   const managed = process.env.UNITY_MANAGED || "C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.2f1\\Editor\\Data\\Managed\\UnityEngine";
@@ -230,6 +328,36 @@ step("Revit add-in still compiles (needs Revit 2025; scratch copy, nothing is de
     const r = await dotnet(["build", path.join(tmp, "SportfyRevit", "SportfyRevit", "SportfyRevit.csproj"), "-c", "Release", "-v", "q", "-nologo"], { env: { APPDATA: path.join(tmp, "appdata") } });
     return r.code === 0 ? { status: "pass" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => / error /.test(l)).join("\n") || r.out + r.err, 20) };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}, { local: true });
+
+step("the SOLIDWORKS tool: a hung SOLIDWORKS is stopped (watchdog), and a small louvre is built, moved, recorded and saved (needs SOLIDWORKS; about a minute)", async () => {
+  const interop = "C:\\Program Files\\SOLIDWORKS Corp\\SOLIDWORKS\\api\\redist\\SolidWorks.Interop.sldworks.dll";
+  if (!fs.existsSync(interop)) return { status: "skip", detail: "SOLIDWORKS is not installed here" };
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sportify-mechanical-"));
+  const lines = text => text.split(/\r?\n/);
+  try {
+    const built = await dotnet(["build", path.join(repo, "Sportify.Mechanical", "Sportify.Mechanical.csproj"), "-c", "Release", "-v", "q", "-nologo", "-o", path.join(tmp, "tool")]);
+    if (built.code !== 0) return { status: "fail", output: tail(lines(built.out).filter(l => / error /.test(l)).join("\n") || built.out + built.err, 20) };
+    const exe = path.join(tmp, "tool", "Sportify.Mechanical.exe");
+    // a run that hangs must end by itself with exit code 4 (the watchdog), without needing SOLIDWORKS
+    const hang = await run(exe, ["watchdog-test"]);
+    if (hang.code !== 4 || !/STALLED/.test(hang.out)) return { status: "fail", output: "watchdog-test: exit code " + hang.code + " (4 expected)\n" + tail(hang.out + hang.err, 8) };
+    // the whole path on a small unit: the real cores plan it, SOLIDWORKS builds, moves and records it
+    const smoke = await run(exe, ["smoke", "--out", path.join(tmp, "smoke")]);
+    if (smoke.code === 2) return { status: "skip", detail: tail(smoke.out, 1) };
+    if (smoke.code !== 0) return { status: "fail", output: tail(lines(smoke.out).filter(l => !l.startsWith("PROGRESS")).join("\n") + smoke.err, 20) };
+    return { status: "pass", detail: lines(smoke.out).filter(l => l.startsWith("smoke unit")).join(" ") };
+  } finally { try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* SOLIDWORKS may still hold a file for a moment */ } }
+}, { local: true });
+
+step("the installer: a silent install into scratch folders registers the add-in, the installed API serves the web app, and it uninstalls cleanly (needs a built dist\\Sportify-Setup-*.exe)", async () => {
+  const dist = path.join(repo, "dist");
+  const built = fs.existsSync(dist) ? fs.readdirSync(dist).filter(f => /^Sportify-Setup-.*\.exe$/.test(f)) : [];
+  if (built.length === 0) return { status: "skip", detail: "no installer built here: run BuildDistribution.ps1 first" };
+  const busy = await new Promise(resolve => { require("http").get("http://localhost:5107/api/AnalysisParameters", () => resolve(true)).on("error", () => resolve(false)); });
+  if (busy) return { status: "skip", detail: "port 5107 is in use (the API is running): stop it first" };
+  const r = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(repo, "Sportify.Setup", "Test-Installer.ps1"), "-RunApi"]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out.split(/\r?\n/).filter(l => /^\s+ok /.test(l)).join("\n"), 1).trim() + " (" + r.out.split(/\r?\n/).filter(l => /^\s+ok /.test(l)).length + " checks)" } : { status: r.code === 2 ? "skip" : "fail", detail: r.code === 2 ? tail(r.out, 1) : undefined, output: tail(r.out + r.err, 30) };
 }, { local: true });
 
 step("real Unity: every golden is still what Unity writes", async () => {
@@ -283,4 +411,19 @@ function report(results, started) {
   const passed = results.filter(r => r.status === "pass").length;
   console.log(`\n${failed.length ? "CHECKS FAILED" : "ALL CHECKS PASSED"}: ${passed} passed, ${failed.length} failed, ${skipped.length} skipped   ${((Date.now() - started) / 1000).toFixed(0)} s`);
   process.exitCode = failed.length ? 1 : 0;
+  if (process.env.GITHUB_ACTIONS) githubReport(results, passed, failed, skipped, started);
+}
+
+// On GitHub Actions the log of a failed step is behind a login. So each failed check also becomes an annotation (shown on the run's page and in the pull request, and readable through
+// the API without a login) and the whole list goes into the run's job summary: what ran, what failed and why, without opening the log.
+function githubReport(results, passed, failed, skipped, started) {
+  const esc = t => String(t).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  for (const r of failed) console.log(`::error title=${esc("check failed: " + r.name).replace(/,/g, "%2C").replace(/:/g, "%3A")}::${esc((r.output || "(no output)").trim().slice(-1800))}`);
+  const file = process.env.GITHUB_STEP_SUMMARY;
+  if (!file) return;
+  const cell = t => String(t || "").split(/\r?\n/)[0].replace(/\|/g, "\\|").slice(0, 160);
+  const rows = results.slice().sort((a, b) => (a.status === "fail" ? 0 : 1) - (b.status === "fail" ? 0 : 1)).map(r => `| ${{ pass: "pass", fail: "**FAIL**", skip: "skipped" }[r.status]} | ${cell(r.name)} | ${cell(r.detail)} | ${r.seconds.toFixed(1)} s |`);
+  let md = `## ${failed.length ? "Checks failed" : "All checks passed"}: ${passed} passed, ${failed.length} failed, ${skipped.length} skipped (${((Date.now() - started) / 1000).toFixed(0)} s)\n\n| Result | Check | Detail | Time |\n|---|---|---|---|\n${rows.join("\n")}\n`;
+  for (const r of failed) md += `\n### ${cell(r.name)}\n\n\`\`\`\n${(r.output || "(no output)").trim().slice(-3000)}\n\`\`\`\n`;
+  try { require("fs").appendFileSync(file, md); } catch (e) { /* the summary is a courtesy */ }
 }

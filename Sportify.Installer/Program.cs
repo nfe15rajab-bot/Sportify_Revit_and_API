@@ -21,12 +21,22 @@ internal static class Program
     private const string AddinFileName = "SportfyRevit.addin";
     private const string MainAssemblyName = "SportfyRevit.dll";
 
+    /// <summary>The Apps &amp; features entry. SPORTIFY_UNINSTALL_KEY names another key, for trying the registration without touching the real one.</summary>
+    private static readonly string RegistryKey = Environment.GetEnvironmentVariable("SPORTIFY_UNINSTALL_KEY") ?? @"Software\Microsoft\Windows\CurrentVersion\Uninstall\SportifyRevit";
+
     private static int Main(string[] args)
     {
         Console.WriteLine("=======================================");
         Console.WriteLine(" Sportify — Revit 2025 Add-in Installer");
         Console.WriteLine("=======================================");
         Console.WriteLine();
+
+        // where things go: the per-user Addins folder and %APPDATA%\Sportify, unless told otherwise (--addins-dir / --data-dir: for trying the install on a scratch folder)
+        var defaults = InstallLocations.Default();
+        var where = defaults with { AddinsDir = ArgValue(args, "--addins-dir") ?? defaults.AddinsDir, DataDir = ArgValue(args, "--data-dir") ?? defaults.DataDir };
+        if (ArgValue(args, "--data-dir") != null) SportfyRevit.SportifyWorkspace.UseSettingsFile(Path.Combine(where.DataDir, "settings.json"));
+
+        if (args.Contains("--uninstall")) return Uninstall(args, where);
 
         var installerDir = AppContext.BaseDirectory;
         var payloadDir = Path.Combine(installerDir, "payload");
@@ -39,20 +49,13 @@ internal static class Program
             return Fail();
         }
 
-        var revitAddinsDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "Autodesk", "Revit", "Addins", "2025");
-
+        var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
+        InstallRecord record;
         try
         {
-            Console.WriteLine($"Installing to: {revitAddinsDir}");
-            Directory.CreateDirectory(revitAddinsDir);
-            CopyDirectory(payloadDir, revitAddinsDir);
-            Console.WriteLine("Files copied.");
-
-            var dllPath = Path.Combine(revitAddinsDir, MainAssemblyName);
-            WriteAddinManifest(Path.Combine(revitAddinsDir, AddinFileName), dllPath);
-            Console.WriteLine(".addin manifest written.");
+            Console.WriteLine($"Installing to: {where.AddinsDir}");
+            record = Installation.Install(payloadDir, where, MainAssemblyName, version, WriteAddinManifestXml);
+            Console.WriteLine($"{record.Files.Count} files copied, .addin manifest written.");
         }
         catch (Exception ex)
         {
@@ -62,6 +65,26 @@ internal static class Program
 
         Console.WriteLine();
         ChooseWorkspace(args);
+        record.WorkspaceFolder = SportfyRevit.SportifyWorkspace.Folder;
+
+        // The way back out: a copy of this program that Windows' Apps & features can run with --uninstall after the download folder is gone, and the entry that names it.
+        try
+        {
+            Directory.CreateDirectory(where.UninstallerDir);
+            var self = Environment.ProcessPath;
+            if (self != null && File.Exists(self))
+            {
+                var kept = Path.Combine(where.UninstallerDir, Path.GetFileName(self));
+                if (!string.Equals(Path.GetFullPath(self), Path.GetFullPath(kept), StringComparison.OrdinalIgnoreCase)) File.Copy(self, kept, overwrite: true);
+                record.UninstallerPath = kept;
+                if (!args.Contains("--no-registry")) RegisterUninstall(record, kept);
+                Console.WriteLine($"To remove Sportify later: Windows Settings → Apps → Installed apps → \"Sportify for Revit 2025\", or run:  \"{kept}\" --uninstall");
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"Couldn't set up the uninstaller: {ex.Message} (the add-in is installed either way)"); }
+        record.Write(where.RecordPath);
+
+        if (args.Contains("--no-launch")) return Success();
 
         Console.WriteLine();
         CheckWebView2Runtime();
@@ -71,6 +94,81 @@ internal static class Program
         LaunchRevit(revitExe);
 
         return Success();
+    }
+
+    /// <summary>
+    /// --uninstall [--dry-run] [--purge]: removes what the install copied (from its record), the manifest, the empty folders, the Apps &amp; features entry and this copy of the
+    /// installer. --dry-run only says what it would do. --purge also removes the logs, the settings and the generated families. The person's Sportify folder is never removed.
+    /// </summary>
+    private static int Uninstall(string[] args, InstallLocations where)
+    {
+        var dryRun = args.Contains("--dry-run");
+        var purge = args.Contains("--purge");
+        Console.WriteLine(dryRun ? "Uninstall (dry run: nothing is removed)" : "Uninstall");
+        Console.WriteLine();
+
+        if (!dryRun && !args.Contains("--yes") && !Console.IsInputRedirected)
+        {
+            Console.Write($"Remove Sportify from {where.AddinsDir}{(purge ? " and its logs, settings and generated families" : "")}? Your Sportify folder of layouts and reports is kept. [y/N]: ");
+            if (!string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase)) { Console.WriteLine("Nothing was removed."); return 1; }
+        }
+
+        var result = Uninstaller.Run(where, purge, dryRun);
+        if (result.Stopped != null) { Console.WriteLine("STOPPED: " + result.Stopped + "."); return WaitAndReturn(2); }
+
+        foreach (var f in result.Removed) Console.WriteLine((dryRun ? "  would remove  " : "  removed       ") + f);
+        foreach (var f in result.Missing) Console.WriteLine("  already gone  " + f);
+        foreach (var f in result.Kept) Console.WriteLine("  kept          " + f);
+        foreach (var f in result.Refused) Console.WriteLine("  REFUSED       " + f);
+        foreach (var f in result.Failed) Console.WriteLine("  FAILED        " + f);
+
+        if (!dryRun && result.Ok)
+        {
+            if (!args.Contains("--no-registry")) { try { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(RegistryKey, throwOnMissingSubKey: false); } catch (Exception ex) { Console.WriteLine("  could not remove the Apps & features entry: " + ex.Message); } }
+            ScheduleRemovalOfThisCopy(where.UninstallerDir);
+            Console.WriteLine();
+            Console.WriteLine($"Sportify is removed. {result.Removed.Count} item(s) removed.");
+            Console.WriteLine("(Open Revit again to see that the Sportify tab is gone. Projects that were imported into keep their elements; they are ordinary Revit elements.)");
+        }
+        else if (!dryRun)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Some of it could not be removed (Revit closed? a file open in another program?). The record is kept: run the uninstall again.");
+        }
+        return WaitAndReturn(dryRun || result.Ok ? 0 : 1);
+    }
+
+    private static int WaitAndReturn(int code)
+    {
+        if (!Console.IsInputRedirected) { Console.WriteLine(); Console.WriteLine("Press any key to exit."); Console.ReadKey(); }
+        return code;
+    }
+
+    /// <summary>The running program cannot delete itself: a detached command line does it a moment after this process has ended.</summary>
+    private static void ScheduleRemovalOfThisCopy(string uninstallerDir)
+    {
+        try
+        {
+            if (!Directory.Exists(uninstallerDir)) return;
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{uninstallerDir}\"") { CreateNoWindow = true, UseShellExecute = false, WindowStyle = ProcessWindowStyle.Hidden });
+        }
+        catch (Exception) { /* a folder of one small program is left: harmless */ }
+    }
+
+    /// <summary>The Apps &amp; features entry (per user: no administrator needed).</summary>
+    private static void RegisterUninstall(InstallRecord record, string uninstallerPath)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RegistryKey);
+        key.SetValue("DisplayName", "Sportify for Revit 2025");
+        key.SetValue("DisplayVersion", record.Version);
+        key.SetValue("Publisher", "Sportify (school project)");
+        key.SetValue("InstallLocation", record.AddinsDir);
+        key.SetValue("UninstallString", $"\"{uninstallerPath}\" --uninstall");
+        key.SetValue("QuietUninstallString", $"\"{uninstallerPath}\" --uninstall --yes");
+        key.SetValue("DisplayIcon", uninstallerPath);
+        key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+        key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+        key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
     }
 
     /// <summary>
@@ -175,24 +273,15 @@ internal static class Program
         }
     }
 
-    private static void CopyDirectory(string sourceDir, string destDir)
-    {
-        foreach (var dirPath in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(dirPath.Replace(sourceDir, destDir));
-
-        foreach (var filePath in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
-            File.Copy(filePath, filePath.Replace(sourceDir, destDir), overwrite: true);
-    }
-
     /// <summary>
     /// Same shape as the manifest this project has used all along
     /// (AddInId/VendorId included verbatim) — only Assembly's path is
     /// generated, since that's the one field that has to match wherever
     /// this specific machine's install actually landed.
     /// </summary>
-    private static void WriteAddinManifest(string manifestPath, string dllPath)
+    private static string WriteAddinManifestXml(string dllPath)
     {
-        var xml = $"""
+        return $"""
             <?xml version="1.0" encoding="utf-8"?>
             <RevitAddIns>
               <AddIn Type="Application">
@@ -205,7 +294,6 @@ internal static class Program
               </AddIn>
             </RevitAddIns>
             """;
-        File.WriteAllText(manifestPath, xml);
     }
 
     /// <summary>
