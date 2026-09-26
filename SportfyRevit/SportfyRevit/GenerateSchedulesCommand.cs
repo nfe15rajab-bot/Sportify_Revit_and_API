@@ -37,7 +37,7 @@ namespace SportfyRevit
             string path;
             try
             {
-                path = SportifyWorkspace.UniquePath("schedules", $"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+                path = SportifyWorkspace.UniquePath("schedules", DeliverableNaming.Named($"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv"));
                 File.WriteAllBytes(path, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());
             }
             catch (Exception ex)

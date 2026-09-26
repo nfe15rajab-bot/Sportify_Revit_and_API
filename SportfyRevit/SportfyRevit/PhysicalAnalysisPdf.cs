@@ -71,7 +71,9 @@ namespace SportfyRevit
                 Directory.CreateDirectory(outputFolder);
                 var stem = only != null && only.Count() == 1 ? result.Sections[0].Key : "physical_analysis";
                 var safeName = string.Concat((projectName ?? "").Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')).Trim();
-                var file = Path.Combine(outputFolder, $"Sportify_{stem}{(safeName.Length > 0 ? "_" + safeName : "")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                // the session's and the iteration's name in front of the file name (DeliverableNaming), from the layout this PDF is made of
+                var (session, iteration) = DeliverableNaming.Resolve(layoutJson);
+                var file = Path.Combine(outputFolder, DeliverableNaming.Named($"Sportify_{stem}{(safeName.Length > 0 ? "_" + safeName : "")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf", session, iteration));
                 Render(result, projectName ?? "").GeneratePdf(file);
                 result.Path = file;
             }

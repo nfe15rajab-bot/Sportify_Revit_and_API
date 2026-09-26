@@ -64,6 +64,8 @@ namespace SportfyRevit
                 case "/profile" when method == "GET": return GetProfile();
                 case "/profile" when method == "POST": return SaveProfile(readBody);
                 case "/capabilities" when method == "GET": return GetCapabilities(query["refresh"] == "1");
+                case "/session-names" when method == "GET": return SessionNames();
+                case "/session-names" when method == "POST": return SaveSessionNames(readBody);
                 case "/deliverables" when method == "GET": return Deliverables();
                 case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"]);
                 case "/deliverable" when method == "POST": return SaveDeliverable(query["kind"], query["name"], readBody);
@@ -93,6 +95,24 @@ namespace SportfyRevit
                 revit_version = RevitVersion,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ the session's and the iteration's name
+
+        static EndpointResponse SessionNames()
+        {
+            var (session, iteration) = DeliverableNaming.Current();
+            return EndpointResponse.Json(new { name = session, iteration, prefix = DeliverableNaming.Prefix(session, iteration) });
+        }
+
+        /// <summary>The names the Documents tab holds, kept for the files made from now on (DeliverableNaming): the reports, schedules, diagrams, charts and films start with them.</summary>
+        static EndpointResponse SaveSessionNames(Func<byte[]> readBody)
+        {
+            var parsed = DeliverableNaming.ParseRequest(System.Text.Encoding.UTF8.GetString(readBody()));
+            if (parsed == null) return EndpointResponse.Error(400, "Send { \"name\": ..., \"iteration\": ... } as JSON.");
+            var (session, iteration) = DeliverableNaming.Set(parsed.Value.Session, parsed.Value.Iteration);
+            SportifyLog.Info("names", "session \"" + session + "\", iteration \"" + iteration + "\"");
+            return EndpointResponse.Json(new { name = session, iteration, prefix = DeliverableNaming.Prefix(session, iteration) });
         }
 
         // ------------------------------------------------------------------------------------------------------------ the profile
@@ -263,7 +283,7 @@ namespace SportfyRevit
             try { layout = JsonSerializer.Deserialize<SportifyLayout>(json); }
             catch (Exception ex) { return EndpointResponse.Error(400, "The layout could not be read: " + ex.Message); }
             if (layout?.Placements == null || layout.Placements.Count == 0) return EndpointResponse.Error(409, "The layout has no pieces yet: place a sport, an activity or a garden piece in Combine.");
-            var name = $"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            var name = DeliverableNaming.Named($"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");      // with the session's and the iteration's name in front of it, when the layout has them
             var path = SportifyWorkspace.Save("schedules", name, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());   // BOM: Excel reads the umlauts
             return EndpointResponse.Json(new { kind = "schedules", name = Path.GetFileName(path), path, url = Url("schedules", Path.GetFileName(path)), rows = layout.Placements.Count }, 201);
         }
@@ -280,22 +300,30 @@ namespace SportfyRevit
             {
                 try { results = JsonSerializer.Deserialize<AnalysisResultPayload>(resultsJson); } catch (Exception) { /* malformed: without it */ }
             }
-            var path = Path.Combine(SportifyWorkspace.PathFor("reports"), $"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+            var path = Path.Combine(SportifyWorkspace.PathFor("reports"), DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
             try
             {
                 // the diagram images Revit exported to the workspace, when it has (the newest of each)
-                AnalysisReportPdfBuilder.Generate(path, layout, results, NewestDiagram("circulation"), NewestDiagram("axonometric"));
+                var (session, iteration) = DeliverableNaming.Current();
+                AnalysisReportPdfBuilder.Generate(path, layout, results, NewestDiagram("circulation"), NewestDiagram("axonometric"), session, iteration);
             }
             catch (Exception ex) { return EndpointResponse.Error(500, "The report could not be made: " + ex.Message); }
             var name = Path.GetFileName(path);
             return EndpointResponse.Json(new { kind = "reports", name, path, url = Url("reports", name), has_results = results != null, has_diagrams = NewestDiagram("circulation") != null }, 201);
         }
 
-        static string? NewestDiagram(string prefix)
+        /// <summary>The newest diagram of this kind: the current session's and iteration's own first (its name is in front of the stem), else the newest of any.</summary>
+        static string? NewestDiagram(string stem)
         {
             try
             {
-                return new DirectoryInfo(SportifyWorkspace.PathFor("diagrams")).EnumerateFiles(prefix + "*.png").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault()?.FullName;
+                var dir = new DirectoryInfo(SportifyWorkspace.PathFor("diagrams"));
+                foreach (var pattern in DeliverableNaming.PatternsFor(stem + "_", "png"))
+                {
+                    var found = dir.EnumerateFiles(pattern).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                    if (found != null) return found.FullName;
+                }
+                return null;
             }
             catch (Exception) { return null; }
         }

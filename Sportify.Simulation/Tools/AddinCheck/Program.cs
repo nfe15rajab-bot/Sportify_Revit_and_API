@@ -1379,6 +1379,54 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           self.Contains("are not on the workset the plan gave them") && self.Contains("Sportify element(s) changed workset") && self.Contains("a second run would still move") && self.Contains("the number of elements changed"));
 }
 
+// ---------------------------------------------------------------------------------------------------------------- Deliverable names (session + iteration)
+{
+    Console.WriteLine("\n===== deliverable names carry the session and the iteration (DeliverableNaming) =====");
+    string? dnSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && dnSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) dnSrc = candidate;
+    }
+    string DnSrc(string file) => dnSrc == null ? "" : File.ReadAllText(Path.Combine(dnSrc, file));
+    var session = "DIGITAL TOOLS AND METHODS 2 - Roof and Sports";
+    Check("a name as a part of a file name: characters Windows refuses and control characters become spaces, spaces collapse, dots and spaces at the ends go, umlauts stay",
+          DeliverableNaming.Clean("  Dach: Sport / Garten?* ") == "Dach Sport Garten" && DeliverableNaming.Clean("Süd\tTeil\n2...") == "Süd Teil 2" && DeliverableNaming.Clean("a<b>c|d\"e") == "a b c d e" && DeliverableNaming.Clean(null) == "" && DeliverableNaming.Clean("  ...  ") == "" && DeliverableNaming.Clean("Über größe") == "Über größe");
+    Check("it is cut to the limit without leaving a space at the cut", DeliverableNaming.Clean(new string('x', 200)).Length == DeliverableNaming.MaxSession && DeliverableNaming.Clean(string.Join(" ", Enumerable.Repeat("word", 40)), 20) == "word word word word" && DeliverableNaming.Clean(string.Join(" ", Enumerable.Repeat("word", 40)), 25) == "word word word word word");
+    Check("the prefix is 'Session - Iteration - ', one of them alone with its ' - ', and nothing when neither is given (the file names stay as they were)",
+          DeliverableNaming.Prefix(session, "Algorithmic") == session + " - Algorithmic - " && DeliverableNaming.Prefix(session, null) == session + " - " && DeliverableNaming.Prefix("", "Manual") == "Manual - " && DeliverableNaming.Prefix(null, null) == "" && DeliverableNaming.Prefix("  ", "?*") == "");
+    Check("a file name gets the prefix in front, or stays", DeliverableNaming.Named("Sportify_Schedule_20260926_140000.csv", session, "Manual") == session + " - Manual - Sportify_Schedule_20260926_140000.csv" && DeliverableNaming.Named("x.pdf", null, null) == "x.pdf");
+    Check("the result is a file name Windows accepts, whatever was typed", new[] { "a/b\\c:d", "CON.", "<>|", "x\u0000y", "name?", new string('ü', 300) }.All(n => DeliverableNaming.Named("f.pdf", n, n).IndexOfAny(Path.GetInvalidFileNameChars()) < 0) && DeliverableNaming.Named("f.pdf", new string('ü', 300), new string('ü', 300)).Length < 130);
+    Check("the names in a layout: session.name and session.iteration, cleaned; nothing for a layout without them, one that is not an object, or JSON that is broken",
+          DeliverableNaming.FromLayoutJson("{\"session\":{\"name\":\" Dach: Süd \",\"iteration\":\"A/B\"},\"placements\":[]}") == ("Dach Süd", "A B") && DeliverableNaming.FromLayoutJson("{\"session\":{\"name\":\"Only\"}}") == ("Only", "") && DeliverableNaming.FromLayoutJson("{\"placements\":[]}") == ("", "")
+          && new[] { null, "", "not json", "[1]", "{\"session\":5}", "{\"session\":{\"name\":5,\"iteration\":null}}", "{\"session\":[]}" }.All(j => DeliverableNaming.FromLayoutJson(j) == ("", "")));
+    bool WithLayout(string layoutJson, Func<bool> then) { RoofBoundaryServer.SetDraftLayoutPayload(layoutJson); return then(); }
+    Check("the add-in reads them from the latest layout it holds (a draft from the web app counts), and has none for a layout that has none",
+          WithLayout("{\"session\":{\"name\":\"S\",\"iteration\":\"I\"}}", () => DeliverableNaming.Current() == ("S", "I") && DeliverableNaming.Named("a.pdf") == "S - I - a.pdf") && WithLayout("{\"placements\":[]}", () => DeliverableNaming.Current() == ("", "") && DeliverableNaming.Named("a.pdf") == "a.pdf"));
+    Check("the names the web app sent come first, cleaned (both empty clears them), then the ones a layout carries, and Resolve prefers the names of the very file it is given",
+          DeliverableNaming.Set("  Dach: Süd ", "A/B") == ("Dach Süd", "A B") && DeliverableNaming.Stored() == ("Dach Süd", "A B")
+          && WithLayout("{\"session\":{\"name\":\"Other\",\"iteration\":\"X\"}}", () => DeliverableNaming.Current() == ("Dach Süd", "A B") && DeliverableNaming.Named("a.pdf") == "Dach Süd - A B - a.pdf")
+          && DeliverableNaming.Resolve("{\"session\":{\"name\":\"Own\",\"iteration\":\"\"}}") == ("Own", "") && DeliverableNaming.Resolve("{\"placements\":[]}") == ("Dach Süd", "A B") && DeliverableNaming.Resolve(null) == ("Dach Süd", "A B")
+          && DeliverableNaming.Set("", "") == ("", "") && WithLayout("{\"session\":{\"name\":\"Other\",\"iteration\":\"X\"}}", () => DeliverableNaming.Current() == ("Other", "X")));
+    DeliverableNaming.Set("", "");
+    RoofBoundaryServer.SetDraftLayoutPayload("{}");
+    Check("the request body of POST /session-names is { name, iteration }: one of them alone is fine, anything else (not JSON, not an object, empty) is nothing",
+          DeliverableNaming.ParseRequest("{\"name\":\"S\",\"iteration\":\"I\"}") == ("S", "I") && DeliverableNaming.ParseRequest("{\"iteration\":\"I\"}") == ("", "I") && DeliverableNaming.ParseRequest("{\"name\":5}") == ("", "")
+          && new[] { null, "", " ", "nonsense", "[1]", "\"s\"" }.All(b => DeliverableNaming.ParseRequest(b) == null));
+    Check("the newest file of a kind is looked for under the current names first, then under any name (its stem is what counts)",
+          WithLayout("{\"session\":{\"name\":\"S\",\"iteration\":\"I\"}}", () => DeliverableNaming.PatternsFor("circulation_", "png").SequenceEqual(new[] { "S - I - circulation_*.png", "*circulation_*.png" })) && WithLayout("{}", () => DeliverableNaming.PatternsFor("circulation_", "png").SequenceEqual(new[] { "*circulation_*.png" })));
+    RoofBoundaryServer.SetDraftLayoutPayload("{}");
+
+    var namedSites = new (string File, int Count)[] { ("WorkspaceEndpoints.cs", 2), ("GenerateAnalysisReportCommand.cs", 3), ("GenerateSchedulesCommand.cs", 1), ("PhysicalAnalysisPdf.cs", 1), ("UnityHeadlessRunner.cs", 1) };
+    Check("the charts PDF and the film take the names of the layout they are made of when it has them, else the ones the web app sent (Resolve)", DnSrc("PhysicalAnalysisPdf.cs").Contains("DeliverableNaming.Resolve(layoutJson)") && DnSrc("UnityHeadlessRunner.cs").Contains("DeliverableNaming.Resolve(request.LayoutJson)"));
+    Check("the two routes exist and the names are kept apart from the layout (a layout's identity is a hash of its text)", DnSrc("WorkspaceEndpoints.cs").Contains("case \"/session-names\" when method == \"GET\"") && DnSrc("WorkspaceEndpoints.cs").Contains("case \"/session-names\" when method == \"POST\"") && DnSrc("DeliverableNaming.cs").Contains("LayoutIdentity"));
+    Check("every place that makes a file for the person names it through DeliverableNaming: the schedule (button and web action), the report (button and web action), the two diagrams, the charts PDF and the film",
+          namedSites.All(s => DnSrc(s.File).Split("DeliverableNaming.Named(").Length - 1 >= s.Count), string.Join(", ", namedSites.Where(s => DnSrc(s.File).Split("DeliverableNaming.Named(").Length - 1 < s.Count).Select(s => s.File)));
+    Check("the report says what it is for under its title, from the same names", DnSrc("AnalysisReportPdfBuilder.cs").Contains("string? sessionName = null") && DnSrc("AnalysisReportPdfBuilder.cs").Contains("if (forWhat.Length > 0)") && DnSrc("WorkspaceEndpoints.cs").Contains("var (session, iteration) = DeliverableNaming.Current();") && DnSrc("GenerateAnalysisReportCommand.cs").Contains("DeliverableNaming.Current()"));
+    Check("the newest diagram is found by its stem under the current names first, so a report embeds the diagrams of its own iteration", DnSrc("WorkspaceEndpoints.cs").Contains("DeliverableNaming.PatternsFor(stem + \"_\", \"png\")"));
+    Check("the layout files are not renamed: what looks for the newest export by 'sportify_combined_revit*.json' (Import Configuration, the walk-through) still finds it", DnSrc("LayoutFilePicker.cs").Contains("ExportPattern = \"sportify_combined_revit*.json\"") && !DnSrc("WorkspaceEndpoints.cs").Contains("Named(\"sportify_combined"));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 

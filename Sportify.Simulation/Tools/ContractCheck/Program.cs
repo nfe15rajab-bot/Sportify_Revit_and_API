@@ -435,6 +435,24 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     var report = Call("POST", "/analysis-report");
     Check("POST /analysis-report writes the analysis report PDF to the Reports folder, with what has been run", report!.Status == 201 && Reply(report).GetProperty("has_results").GetBoolean() && File.Exists(Reply(report).GetProperty("path").GetString()!));
 
+    // the files carry the session's and the iteration's name when the layout has them (the web app's Documents tab), and nothing new when it has not
+    var namesBody = Encoding.UTF8.GetBytes("{\"name\":\"DIGITAL TOOLS AND METHODS 2 - Roof and Sports\",\"iteration\":\"Algorithmic\"}");
+    var setNames = Call("POST", "/session-names", null, namesBody);
+    Check("POST /session-names keeps the two names for the files made from now on, and says the prefix they give", setNames!.Status == 200 && Reply(setNames).GetProperty("prefix").GetString() == "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - " && Reply(Call("GET", "/session-names")).GetProperty("iteration").GetString() == "Algorithmic");
+    Check("a body that is not JSON, or not an object, is refused and changes nothing", Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("nonsense"))!.Status == 400 && Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("[1]"))!.Status == 400 && Reply(Call("GET", "/session-names")).GetProperty("name").GetString()!.StartsWith("DIGITAL"));
+    const string namedPrefix = "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - ";
+    var namedCsv = Reply(Call("POST", "/schedule")).GetProperty("name").GetString()!;
+    var namedReport = Reply(Call("POST", "/analysis-report")).GetProperty("name").GetString()!;
+    var namedPdf = Reply(Call("POST", "/analysis-pdf", Q("keys", "sun_and_shading"))).GetProperty("name").GetString()!;
+    Check("a layout that names its session and iteration: the schedule, the report and the charts PDF start with them, and the files are where they always are",
+          namedCsv.StartsWith(namedPrefix + "Sportify_Schedule_") && File.Exists(Path.Combine(root, "Schedules", namedCsv)) && namedReport.StartsWith(namedPrefix + "Sportify_Analysis_Report_") && File.Exists(Path.Combine(root, "Analysis reports", namedReport))
+          && namedPdf.StartsWith(namedPrefix + "Sportify_sun_and_shading") && File.Exists(Path.Combine(root, "Physical analysis", namedPdf)), namedCsv + " | " + namedReport + " | " + namedPdf);
+    Check("the file list shows them (a name in front changes nothing for the Documents tab)", Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().Select(f => f.GetProperty("name").GetString()).Contains(namedCsv));
+    Check("naming the session does not touch the layout: its identity is the same, so no result becomes 'about an earlier layout'", RoofBoundaryServer.TryGetLatestCombinedLayout(out var stillSample, out _) && stillSample == sample && LayoutIdentity.Of(stillSample!) == LayoutIdentity.Of(sample));
+    Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("{\"name\":\"\",\"iteration\":\"\"}"));
+    var plainCsv = Reply(Call("POST", "/schedule")).GetProperty("name").GetString()!;
+    Check("and a layout that does not: the names are what they always were", plainCsv.StartsWith("Sportify_Schedule_") && !plainCsv.Contains(" - "), plainCsv);
+
     // a Unity video is adopted, and the folder is opened on request
     var video = Path.Combine(Path.GetTempPath(), "sportify-adopt-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".mp4");
     File.WriteAllText(video, "not really a video");

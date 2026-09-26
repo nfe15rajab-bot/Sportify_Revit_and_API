@@ -71,6 +71,7 @@ Not connected is a normal state: exports download through the browser as before;
 | `POST /deliverable?kind=&name=` | the web app's own exports, into the kind's folder |
 | `POST /combined-layout?draft=1` | the layout as it changes (no Auto Import); without `draft`, the explicit export |
 | `POST /run-analysis`, `GET /charts`, `POST /analysis-pdf`, `POST /analysis-report`, `POST /schedule` | the analyses and what they make |
+| `GET /session-names`, `POST /session-names` | the session's and the iteration's name (Documents tab): the reports, schedules, diagrams, charts PDFs and films start with `Session - Iteration - `; kept apart from the layout so that a layout's identity (a hash of its text) does not change |
 | `GET /analysis-config` | what was decided in Revit's assumptions window for the project on screen |
 | `POST /revit-command?name=diagrams` | asks Revit (which owns its API thread) to draw the diagrams; 202, 501 outside Revit |
 | `POST /open-folder?kind=` | opens the folder in Explorer |

@@ -30,9 +30,13 @@ namespace SportfyRevit
             SportifyLayout? layout,
             AnalysisResultPayload? results,
             string? circulationImagePath,
-            string? axoImagePath)
+            string? axoImagePath,
+            string? sessionName = null,
+            string? iterationName = null)
         {
             QuestPDF.Settings.License = LicenseType.Community;
+            // the session and the iteration the report is for, as they are in its file name (DeliverableNaming), under the title
+            var forWhat = string.Join(" — ", new[] { DeliverableNaming.Clean(sessionName), DeliverableNaming.Clean(iterationName, DeliverableNaming.MaxIteration) }.Where(p => p.Length > 0));
 
             Document.Create(container =>
             {
@@ -45,6 +49,7 @@ namespace SportfyRevit
                     page.Header().Column(col =>
                     {
                         col.Item().Text("Sportify — Analysis Report").FontSize(20).Bold().FontColor(Colors.Blue.Darken2);
+                        if (forWhat.Length > 0) col.Item().Text(forWhat).FontSize(11).SemiBold();
                         col.Item().Text($"Generated {DateTime.Now:yyyy-MM-dd HH:mm}").FontSize(9).FontColor(Colors.Grey.Medium);
                         col.Item().PaddingTop(6).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
                     });
