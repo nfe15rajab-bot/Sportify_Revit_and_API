@@ -15,7 +15,7 @@ Written for the black-box test (2026-09-21). Every rule below is pinned by a che
 | Setting | Where | Effect |
 |---|---|---|
 | `SPORTIFY_ALLOWED_ORIGINS` | environment of Revit | more origins for the add-in server (semicolon-separated); `*` and `null` are never accepted |
-| `Api:WriteKey` (`Api__WriteKey`) | API configuration | the write key. Not set: the API makes a random key per run and gives it, through `GET /api/session`, only to a request whose `Origin` is one of the app's. Set: it is never handed out, and the Data tab asks for it once per browser tab |
+| `Api:WriteKey` (`Api__WriteKey`) | API configuration | the write key. Not set: the API makes a random key per run and gives it, through `GET /api/session`, only to a request whose `Origin` is one of the app's. Set: it is never handed out, and the Catalogue tab asks for it once per browser tab |
 | `Api:AllowedOrigins` | API configuration | more origins for the API's CORS and session handshake |
 | `Admin:AllowSqlImport` | API configuration | `true` turns on `POST /api/Admin/import-sql` outside Development. It always needs the key and refuses `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, `load_extension` |
 | `Jwt:Key` | API configuration / user secrets | 32+ characters turns on the account endpoints. There is no key in the repository; the old placeholder is refused |

@@ -194,7 +194,7 @@ namespace SportfyRevit
                 report.Steps.Add("mechanics done for " + units.Count + " units");
                 try
                 {
-                    // what the web app's Post Analysis tab is given for these units, kept to look at the tab without Revit
+                    // what the web app's Improve tab is given for these units, kept to look at the tab without Revit
                     var payload = new KineticsResultDto
                     {
                         Priority = "sun", Preliminary = true, PreliminaryNote = "self-test", Pieces = units.Select(u => u.Dto).ToList(), MechanicalInputs = KineticsShared.InputsDto(design),

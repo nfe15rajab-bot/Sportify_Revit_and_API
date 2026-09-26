@@ -10,7 +10,7 @@ in it and the session is left open).
 ## From Revit
 
 Sportify ribbon, Kinetics panel, **Simulate (SOLIDWORKS)**: pick what to make, and a progress window (with Cancel) runs this tool. The film is published to the web app's Post
-Analysis tab; the assembly and its STEP file are in the **Mechanical** folder of your Sportify folder. The add-in finds the tool in a `mechanical` folder next to itself
+Results tab; the assembly and its STEP file are in the **Mechanical** folder of your Sportify folder. The add-in finds the tool in a `mechanical` folder next to itself
 (`SPORTIFY_MECHANICAL_EXE` overrides it); building the add-in on a machine with SOLIDWORKS publishes it there.
 
 ## Commands

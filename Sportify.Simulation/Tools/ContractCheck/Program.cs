@@ -403,10 +403,10 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     var run = Call("POST", "/run-analysis");
     Check("POST /run-analysis runs the five analyses on it and says what each found", run!.Status == 200 && Reply(run).GetProperty("sent").GetInt32() == 5 && Reply(run).GetProperty("analyses")[2].GetProperty("headline").GetString()!.Length > 10, run.Status.ToString());
     RoofBoundaryServer.TryGetLatestAnalysisResults(out var pub);
-    Check("and their results are published for the Analysis tab", pub != null && JsonDocument.Parse(pub).RootElement.TryGetProperty("structural_loads", out _));
+    Check("and their results are published for the Results tab", pub != null && JsonDocument.Parse(pub).RootElement.TryGetProperty("structural_loads", out _));
 
     var charts = Reply(Call("GET", "/charts"));
-    Check("GET /charts gives every analysis's charts as SVG for the Analysis tab", charts.GetProperty("sections").GetArrayLength() == 5 && charts.GetProperty("sections").EnumerateArray().All(s => s.GetProperty("charts").GetArrayLength() >= 2 && s.GetProperty("charts")[0].GetProperty("svg").GetString()!.StartsWith("<svg")));
+    Check("GET /charts gives every analysis's charts as SVG for the Results tab", charts.GetProperty("sections").GetArrayLength() == 5 && charts.GetProperty("sections").EnumerateArray().All(s => s.GetProperty("charts").GetArrayLength() >= 2 && s.GetProperty("charts")[0].GetProperty("svg").GetString()!.StartsWith("<svg")));
 
     // what was decided in Revit's assumptions dialog comes to the app: only for the project on screen
     AssumptionsSession.Forget();
@@ -769,7 +769,7 @@ int FakeUnity(string[] a)
 
 int ServeBatch(string[] a)
 {
-    // The five analyses the ribbon's Send All button sends, on a layout, with the real RoofBoundaryServer up so the web app's Analysis tab can be tried against it.
+    // The five analyses the ribbon's Send All button sends, on a layout, with the real RoofBoundaryServer up so the web app's Results tab can be tried against it.
     RoofBoundaryServer.PublishAnalysisResults("{}");
     foreach (var s in PhysicalAnalysisBatch.Run(File.ReadAllText(a[1]))) Console.WriteLine((s.Sent ? "sent     " : "not sent ") + s.Title + ": " + (s.Problem ?? s.Headline));
     if (a.Length > 2 && a[2].EndsWith(".json"))     // a file instead of a server: for trying the web app while a real Revit holds :5679

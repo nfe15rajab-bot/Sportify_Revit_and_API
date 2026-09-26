@@ -110,5 +110,23 @@ if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {
     check(webLandings.length > 0 && JSON.stringify(webLandings) === JSON.stringify(csLandings), "the workspaces a person can start in are the same in the web app (PROFILE_LANDINGS) and in the add-in (SportifyProfile.Landings)", webLandings.join(",") + " / " + csLandings.join(","));
 }
 
+// what the web app's tabs are called (its profileCore.js PROFILE_MODES is the table): the add-in's dialogs, tooltips and documents that send a person to a tab must use those names, and none may
+// still use an older one (Analysis tab, Post Analysis, Deliverables tab, Data tab, Families tab, Structure tab)
+if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {
+    const modes = require(path.join(path.resolve(webArg), "profileCore.js")).PROFILE_MODES;
+    const files = [];
+    const walk = (dir, ext) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) { if (!["bin", "obj", "node_modules", "Templates", "dist", "packages"].includes(e.name)) walk(p, ext); } else if (ext.some(x => e.name.endsWith(x))) files.push(p); } };
+    for (const d of ["SportfyRevit", "Sportify.Api", path.join("Sportify.Simulation", "Assets", "Scripts"), "Sportify.Installer"]) walk(path.join(repo, d), [".cs"]);
+    files.push(path.join(repo, "Sportify.Setup", "docs", "USER_GUIDE.html"));
+    const OLD = [/\bAnalysis tab\b/, /\bPost Analysis\b/, /\bDeliverables tab\b/, /\bData tab\b/, /\bFamilies tab\b/, /\bRevit Families\b/, /\bStructure tab\b/];
+    const offenders = [];
+    for (const f of files) { const text = fs.readFileSync(f, "utf8"); for (const re of OLD) { const m = re.exec(text); if (m) offenders.push(path.relative(repo, f) + ": " + m[0]); } }
+    check(offenders.length === 0, "no dialog, tooltip, comment or document of the add-in calls a web tab by an older name", offenders.slice(0, 6).join(" | "));
+    const said = (file, phrase) => read(...file.split("/")).includes(phrase);
+    check(said("SportfyRevit/SportfyRevit/SendPhysicalAnalysisToWebCommand.cs", "under the " + modes.analysis.label + " tab") && said("SportfyRevit/SportfyRevit/KineticsCommands.cs", "web app's " + modes.postAnalysis.label + " tab")
+        && said("SportfyRevit/SportfyRevit/AnalysisReportPdfBuilder.cs", "from the " + modes.data.label + " tab") && said("SportfyRevit/SportfyRevit/AnalysisAssumptionsDialog.cs", modes.structure.label + " and " + modes.conditions.label + " tabs"),
+        "what the add-in tells a person about the web app's tabs uses their names: " + [modes.analysis, modes.postAnalysis, modes.data, modes.structure, modes.conditions].map(m => m.label).join(", "));
+}
+
 console.log(problems === 0 ? "RELEASE OK: version " + version + ", the license, the author, the Sportify folder (" + folders.length + " subfolders), the worksets and phases, the API port and the installer agree" : problems + " DIFFERENCE(S) in what makes the release");
 process.exit(problems === 0 ? 0 : 1);

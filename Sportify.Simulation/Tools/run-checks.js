@@ -199,7 +199,7 @@ step("the web app: sport dimensions come from the database once the API answers 
   const test = path.join(web, "tools", "field-source-test.js");
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/field-source-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
-  return r.code === 0 ? { status: "pass", detail: "the Data tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
+  return r.code === 0 ? { status: "pass", detail: "the Catalogue tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("assumptions register: the C# list against the web's assumptions.js", async () => {
@@ -255,7 +255,7 @@ step("algorithmic placement: how it meets the rest of Combine (zones, specified 
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT UI CHECKS PASSED/, "the real scripts, the real packer, Apply") } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
-step("results: the Analysis tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
+step("results: the Results tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "results-freshness-test.js");
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-freshness-test.js not found in the web app" };
@@ -309,6 +309,14 @@ step("the web app: the one store of analysis results (the catalogue against the 
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-store-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
   return r.code === 0 ? { status: "pass", detail: "the real resultsStoreCore.js, analysisController.js, analysisResults.js and resultsStore.js on a small layout" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: what the tabs are called (the table against the page, the words of the quiz and the tour, no older name left, 'Revit not open' as the one wording)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "names-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/names-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "profileCore.js's PROFILE_MODES against index.html, and a lint over every script" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {

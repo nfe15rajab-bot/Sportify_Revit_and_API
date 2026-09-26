@@ -42,7 +42,7 @@ const assemblies = [
     ],
   },
   {
-    // Not a manufacturer system: the kind of build-up a designer adds in the Data tab's editor for a raised tree bed.
+    // Not a manufacturer system: the kind of build-up a designer adds in the Catalogue tab's editor for a raised tree bed.
     key: "sample_deep_tree_bed", provider: "Sample project", provider_country: "Germany", system_name: "Deep tree bed (800 mm)", category: "intensive",
     revit_type_name: "Sportify - Sample project Deep tree bed (800 mm)", build_up_mm: null, saturated_kg_m2: null, water_storage_l_m2: null,
     source_url: null, total_thickness_m: 0.968,

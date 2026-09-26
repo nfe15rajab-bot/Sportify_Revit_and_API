@@ -17,12 +17,12 @@ namespace Sportify.Api.Models
         public string? ForceReduction { get; set; } // e.g. "≥55%"
         public string? Notes { get; set; }
 
-        // LCA / embodied-carbon reference data, feeding the Analysis tab's
+        // LCA / embodied-carbon reference data, feeding the Results tab's
         // LCA card. Deliberately nullable and left unset for most seeded
         // materials — a real per-m² cradle-to-gate figure wasn't found for
         // every material researched, and this project's standing rule is
         // to leave a gap visibly missing rather than invent a plausible-
-        // looking number. Fill gaps via the Data tab's admin edit form.
+        // looking number. Fill gaps via the Catalogue tab's admin edit form.
         public double? EmbodiedCarbonValue { get; set; } // e.g. 9.1
         public string? EmbodiedCarbonUnit { get; set; } // e.g. "kg CO2e/m2"
         public string? EmbodiedCarbonSource { get; set; }

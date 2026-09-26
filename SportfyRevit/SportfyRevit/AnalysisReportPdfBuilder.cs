@@ -292,7 +292,7 @@ namespace SportfyRevit
                 Card(col, "LCA Estimate", null, "neutral", "no data", body =>
                 {
                     body.Item().Text($"None of the {lca.TotalCount} piece(s) have both a reference material picked and embodied-carbon data filled in yet.").FontSize(8.5f);
-                    BulletList(body, "Recommendations", new[] { "Pick a reference material for each piece and add missing embodied-carbon figures from the Data tab." });
+                    BulletList(body, "Recommendations", new[] { "Pick a reference material for each piece and add missing embodied-carbon figures from the Catalogue tab." });
                 });
                 return;
             }
@@ -303,7 +303,7 @@ namespace SportfyRevit
                     ("Embodied carbon", $"~{Math.Round(lca.TotalKg):#,0} kg", "CO2e, A1-A3, illustrative", null),
                     ("Pieces covered", $"{lca.CoveredCount} / {lca.TotalCount}", lca.MissingCount > 0 ? $"{lca.MissingCount} missing data" : "all covered", tone));
                 if (lca.MissingCount > 0)
-                    BulletList(body, "Recommendations", new[] { $"Fill in missing reference materials or embodied-carbon figures for {lca.MissingCount} piece(s) in the Data tab." });
+                    BulletList(body, "Recommendations", new[] { $"Fill in missing reference materials or embodied-carbon figures for {lca.MissingCount} piece(s) in the Catalogue tab." });
             });
         }
 

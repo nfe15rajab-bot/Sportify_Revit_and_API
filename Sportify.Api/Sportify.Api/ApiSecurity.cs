@@ -11,7 +11,7 @@ namespace Sportify.Api
     /// catalogue), and the JWT bearer was set up with a placeholder signing key that was in the repository, so a token signed with it would have been accepted.
     ///
     ///   write key   POST/PUT/PATCH/DELETE need the header <c>X-Sportify-Key</c>. Set <c>Api:WriteKey</c> (environment: <c>Api__WriteKey</c>) to choose it; the people who may write
-    ///               are then the ones who know it, and the Data tab asks for it once per browser tab. When none is set the API makes a random one at start and gives it,
+    ///               are then the ones who know it, and the Catalogue tab asks for it once per browser tab. When none is set the API makes a random one at start and gives it,
     ///               through <c>GET /api/session</c>, only to a page of the app (a request whose Origin is one of the app's): the local single-user case works without setup and
     ///               another web page in the same browser cannot get it. It is logged once at start for scripts.
     ///   origins     the app's own addresses (localhost and 127.0.0.1, ports 8123 and 8124) plus <c>Api:AllowedOrigins</c> (semicolon-separated); CORS allows only those.

@@ -60,7 +60,7 @@ const { buildApi, startApi, request, freePort } = require("../lib/runApi.js");
     const sql = await request(p1, "POST", "/api/Admin/import-sql", { headers: H({ "X-Sportify-Key": key }), body: { sql: "SELECT 1;" } });
     check("SQL import is off in Production, even with the key", sql.status === 404 && /turned off/.test(sql.text), sql.status + " " + sql.text.slice(0, 90));
     const cap = await get("/api/Admin/capabilities");
-    check("the API says so, for the Data tab", cap.status === 200 && cap.json.sqlImport === false);
+    check("the API says so, for the Catalogue tab", cap.status === 200 && cap.json.sqlImport === false);
 
     const badHost = await request(p1, "GET", "/api/Norms", { headers: { Host: "evil.example" } });
     check("a Host that is not localhost is refused", badHost.status === 400 || badHost.status === 404, String(badHost.status));

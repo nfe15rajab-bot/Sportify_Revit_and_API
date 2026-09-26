@@ -729,7 +729,7 @@ namespace Sportify.Simulation.Dynamics
             _hud.SetLegend(new List<string>
             {
                 "Each bay coloured by its natural frequency, red (low) to violet (high)",
-                r.estimated ? Tint("ESTIMATED from the spans: good to about 25%. Enter the engineer's first natural frequency in the Structure tab", Amber) : "The engineer's figure",
+                r.estimated ? Tint("ESTIMATED from the spans: good to about 25%. Enter the engineer's first natural frequency in the Structure inputs tab", Amber) : "The engineer's figure",
                 Tint("Heavier and longer means lower: the tree bed's bays are the lowest", Muted),
             });
 
@@ -1061,7 +1061,7 @@ namespace Sportify.Simulation.Dynamics
             }
             else CardText.Bullet(lines, Tint("Resonance", Good) + "  No bay exceeds its comfort limit.");
             CardText.Bullet(lines, Tint("Crowds", Amber) + "  The people are " + Num(s.crowdSharePercent, "0.#") + "% of the load: the build-ups decide the balance, not the crowd.");
-            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure and Site conditions tabs, or the window Revit opens before the analysis).");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure inputs and Site conditions tabs, or the window Revit opens before the analysis).");
             else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             _hud.ShowCard("What to change", Color.white, "Screening result: the results file lists every number and assumption", lines);
         }

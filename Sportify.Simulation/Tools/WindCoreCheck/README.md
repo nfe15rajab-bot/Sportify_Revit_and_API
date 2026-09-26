@@ -34,4 +34,4 @@ Unity reads the layout with `JsonUtility` and the add-in with `System.Text.Json`
 
 ## The sample layout
 
-`make-sample.js` writes `Assets/StreamingAssets/sample_layout_roofgarden.json` in the shape the web app's Combine tab exports (zones, build-ups, plants). One of its four build-ups, "Deep tree bed (800 mm)", is not a manufacturer system: it stands for what a designer adds in the Data tab's build-up editor for a raised tree bed.
+`make-sample.js` writes `Assets/StreamingAssets/sample_layout_roofgarden.json` in the shape the web app's Combine tab exports (zones, build-ups, plants). One of its four build-ups, "Deep tree bed (800 mm)", is not a manufacturer system: it stands for what a designer adds in the Catalogue tab's build-up editor for a raised tree bed.

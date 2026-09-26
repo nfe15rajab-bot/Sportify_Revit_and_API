@@ -458,7 +458,7 @@ namespace SportfyRevit
     }
 
     /// <summary>
-    /// Kinetics (Post Analysis): a dynamic family placed and actuated from another analysis's own numbers -- v1 is the
+    /// Kinetics (Improve): a dynamic family placed and actuated from another analysis's own numbers -- v1 is the
     /// louvre pergola the sun &amp; shade analysis already recommends (LouvreActuationModel.cs), driven by the sun's own
     /// elevation through the day. "priority" names which analysis is currently driving Kinetics (sun / wind_erosion /
     /// structural); only sun has a family behind it so far, so a piece list is only ever populated for that priority.

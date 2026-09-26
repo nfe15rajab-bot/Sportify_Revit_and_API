@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 var security = new ApiSecurity(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddSingleton(security);
 
-// A request body is read up to this and no further (the Data tab's photographs and .sql files are the biggest things sent).
+// A request body is read up to this and no further (the Catalogue tab's photographs and .sql files are the biggest things sent).
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = ApiSecurity.MaxBodyBytes);
 
 builder.Services.AddDbContext<AppDbContext>(options =>

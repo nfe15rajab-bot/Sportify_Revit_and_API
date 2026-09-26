@@ -503,7 +503,7 @@ namespace SportfyRevit
                             col.Item().Text(t => { t.Span(k.Title + ": ").Bold().FontColor(muted); t.Span("not drawn, " + k.Reason).FontColor(muted); });
 
                         if (export.Sections.Any(s => s.Preliminary))
-                            col.Item().PaddingTop(6).Background("#fff4d6").Padding(8).Text("PRELIMINARY: some values these results rest on (deck capacity, snow zone, orientation ...) are built-in values nobody has confirmed. Enter or accept them in the web app's Structure and Site conditions tabs or in Revit, and run the report again.").FontColor("#7a4b00");
+                            col.Item().PaddingTop(6).Background("#fff4d6").Padding(8).Text("PRELIMINARY: some values these results rest on (deck capacity, snow zone, orientation ...) are built-in values nobody has confirmed. Enter or accept them in the web app's Structure inputs and Site conditions tabs or in Revit, and run the report again.").FontColor("#7a4b00");
 
                         col.Item().PaddingTop(10).Text("These are the same numbers the 3D videos and the web app show, drawn as static charts so that no Unity is needed. They are screening models, not a structural, wind-engineering or hydrological verification; the assumptions behind each are listed with it. Ball trajectories are not included: they are simulated in Unity.")
                             .FontSize(9).FontColor(muted);

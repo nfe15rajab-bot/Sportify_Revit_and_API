@@ -441,7 +441,7 @@ namespace SportfyRevit
                 Summary(first) + "\n" +
                 (design.Preliminary ? "PRELIMINARY: the mechanical inputs are built-in values. Enter your own in " + KineticsInputsFile.Path + ".\n" : "") +
                 (notes.Count > 0 ? "\n" + string.Join("\n", notes) + "\n" : "") +
-                "\nPublished to the web app's Post Analysis tab. “Record Isolated Video” (Unity) shows the states move; “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study.");
+                "\nPublished to the web app's Improve tab. “Record Isolated Video” (Unity) shows the states move; “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study.");
             return Result.Succeeded;
         }
 
@@ -542,7 +542,7 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishKinetics(kinetics);
 
             var text = string.Join("\n", summary) + "\n\nFiles in " + outDir + ":\n  " + Path.GetFileName(run.AssemblyPath ?? "") + " (the assembly, to open in SOLIDWORKS)\n  " + Path.GetFileName(run.StepPath ?? "") + " (STEP)" +
-                       (videoPath != null ? "\n\nThe motion is recorded as " + Path.GetFileName(videoPath) + " and published to the web app's Post Analysis tab." : "\n\nNo video was made.");
+                       (videoPath != null ? "\n\nThe motion is recorded as " + Path.GetFileName(videoPath) + " and published to the web app's Improve tab." : "\n\nNo video was made.");
             TaskDialog.Show(KineticsShared.Title, text);
             return Result.Succeeded;
         }
@@ -610,7 +610,7 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishKinetics(kinetics);
 
             TaskDialog.Show(KineticsShared.Title, videoPath != null
-                ? "The isolated video is ready: " + Path.GetFileName(videoPath) + ". Published to the web app's Post Analysis tab."
+                ? "The isolated video is ready: " + Path.GetFileName(videoPath) + ". Published to the web app's Improve tab."
                 : "The video did not render (Unity produced no file).");
             return Result.Succeeded;
         }

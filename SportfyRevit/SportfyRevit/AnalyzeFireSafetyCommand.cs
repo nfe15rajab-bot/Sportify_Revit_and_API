@@ -10,7 +10,7 @@ namespace SportfyRevit
     /// same circulation-engine math (CirculationEngine — a line-for-line
     /// port of rules.js's computeCirculation), and the same
     /// max_travel_distance_m reference figure from Sportify.Api — so this
-    /// number can never disagree with the web app's own Analysis tab for
+    /// number can never disagree with the web app's own Results tab for
     /// the same layout.
     /// </summary>
     [Transaction(TransactionMode.ReadOnly)]

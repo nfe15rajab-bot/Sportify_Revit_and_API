@@ -24,7 +24,7 @@ namespace Sportify.Api.Controllers
         {
             var query = _db.SportOptions.AsNoTracking().AsQueryable();
 
-            // The configurator asks for one sport's options; the Data tab asks
+            // The configurator asks for one sport's options; the Catalogue tab asks
             // for all of them.
             if (!string.IsNullOrWhiteSpace(sport))
                 query = query.Where(o => o.Sport == sport);

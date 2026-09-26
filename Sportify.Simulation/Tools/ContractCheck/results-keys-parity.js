@@ -1,5 +1,5 @@
 // The add-in publishes its results as one JSON document (GET :5679/analysis-results, shape: AnalysisResultPayload in SportfyRevit/AnalysisResultDto.cs); the web app's
-// Analysis tab (analysisResults.js) lists the sections it knows how to show (RESULT_SECTIONS) and which sub-rail group each belongs to (ANALYSIS_SUBTABS).
+// Results tab (analysisResults.js) lists the sections it knows how to show (RESULT_SECTIONS) and which sub-rail group each belongs to (ANALYSIS_SUBTABS).
 // A section the add-in publishes that the web app does not list is a result nobody sees; a section the web lists that the add-in never publishes is a card that can
 // never fill. This compares the two lists, both ways.
 //
@@ -24,7 +24,7 @@ vm.runInContext(fs.readFileSync(jsPath, "utf8") + "\n;this.__web = { sections: O
 const known = [...ctx.__web.sections].sort();
 const grouped = [...ctx.__web.grouped].sort();
 
-// Sections the Post Analysis tab shows instead of the Analysis rail (kineticsPostAnalysis.js, not analysisResults.js) — the
+// Sections the Improve tab shows instead of the Analysis rail (kineticsPostAnalysis.js, not analysisResults.js) — the
 // professor's "less confusing" note moved dynamic-family interpretation out of the rail on purpose, so RESULT_SECTIONS
 // still describes them (title, where to run it) but ANALYSIS_SUBTABS is not where they are shown.
 const SHOWN_ELSEWHERE = new Set(["kinetics"]);

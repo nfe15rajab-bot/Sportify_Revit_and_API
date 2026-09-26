@@ -18,7 +18,7 @@ namespace SportfyRevit
     }
 
     /// <summary>
-    /// Same reference figures the web app's Analysis tab reads from
+    /// Same reference figures the web app's Results tab reads from
     /// Sportify.Api's AnalysisParameters table (analysisController.js,
     /// getAnalysisParam/ANALYSIS_PARAM_DEFAULTS) — fetched from the same
     /// endpoint here too, so a number can never quietly drift between the
@@ -90,7 +90,7 @@ namespace SportfyRevit
 
         private static List<MaterialEntry>? _materialsCache;
 
-        /// <summary>Same "sports/materials" list the web app's Data tab and LCA card read — no offline fallback here since there's no equivalent hardcoded materials table to fall back to.</summary>
+        /// <summary>Same "sports/materials" list the web app's Catalogue tab and LCA card read — no offline fallback here since there's no equivalent hardcoded materials table to fall back to.</summary>
         public static List<MaterialEntry> GetMaterials()
         {
             return _materialsCache ??= FetchMaterials();

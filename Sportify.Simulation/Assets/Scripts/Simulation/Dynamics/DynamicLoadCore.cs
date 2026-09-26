@@ -1349,7 +1349,7 @@ namespace Sportify.Simulation.Dynamics
                 recs.Add(new DynamicRecommendation
                 {
                     scenario = "resonance", kind = "frequency-input", target = "Natural frequency",
-                    text = "The deck's frequency is an ESTIMATE from the spans (" + F1(res.lowestFrequencyHz) + " to " + F1(res.highestFrequencyHz) + " Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Structure tab before relying on this.",
+                    text = "The deck's frequency is an ESTIMATE from the spans (" + F1(res.lowestFrequencyHz) + " to " + F1(res.highestFrequencyHz) + " Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Structure inputs tab before relying on this.",
                 });
             if (Open(r, AnalysisAssumptions.DeckCapacity))
                 recs.Add(new DynamicRecommendation

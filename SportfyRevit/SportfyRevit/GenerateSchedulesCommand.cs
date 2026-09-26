@@ -33,7 +33,7 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            // saved to the Schedules folder of the workspace: no file dialog (the web app's Deliverables tab makes the same file)
+            // saved to the Schedules folder of the workspace: no file dialog (the web app's Documents tab makes the same file)
             string path;
             try
             {
