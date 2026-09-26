@@ -1377,6 +1377,15 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           && self.Contains("string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(file)") && IfSrc("SportfyRevitApp.cs").Contains("IfcWorksetsSelfTest.Install(application)"));
     Check("the self-test checks what matters: every element on its planned workset, nothing of Sportify's moved, a second run with nothing left to move, the element count unchanged",
           self.Contains("are not on the workset the plan gave them") && self.Contains("Sportify element(s) changed workset") && self.Contains("a second run would still move") && self.Contains("the number of elements changed"));
+    var coll = IfSrc("StructureCollector.cs");
+    Check("the push reads an IFC model's structure: columns and beams that are DirectShapes, by their IFC class and their box, and only the ones that belong to this roof (a column that reaches it and stands within a metre of its box, a beam under it)",
+          coll.Contains("static void ReadColumnShapes(") && coll.Contains("static void ReadBeamShapes(") && coll.Contains("OfType<DirectShape>()") && coll.Contains("cls.Equals(\"IfcColumn\"") && coll.Contains("cls.Equals(\"IfcBeam\"")
+          && coll.Contains("M(bb.Max.Z) < roofTopM - ColumnReachesM") && coll.Contains("x < rx0 || x > rx1 || y < ry0 || y > ry1") && coll.Contains("top < roofTopM - BeamBelowM || top > roofTopM + BeamAboveM"));
+    Check("a brace or a strut (IfcMember) is not a beam, two columns on one spot count once, and the person is told these came from shapes",
+          coll.Contains("a brace or a strut (IfcMember) is not a beam") && coll.Contains("ShapeSameSpotM") && coll.Contains("read from IFC shapes (DirectShapes)") && coll.Contains("check them in the app"));
+    Check("what the model's families gave is unchanged: the FamilyInstance columns and beams are read as before, the shapes are simply read in front of them", coll.Contains("OfType<FamilyInstance>()") && coll.Contains("ReadColumnShapes(c, doc, roofTopM, roofBox, picked);") && coll.Contains("ReadBeamShapes(c, doc, near, roofTopM, picked);"));
+    Check("the live self-test also reads the structure under the named roof (grids, columns, beams, walls, where the columns are against the roof's box) and fails when none is found or the whole building is read",
+          self.Contains("static void StructureStep(") && self.Contains("StructureCollector.Collect(doc, RoofPushScope.Structure") && self.Contains("no column was found under the roof") && self.Contains("the IFC's whole building is being read"));
 }
 
 // ---------------------------------------------------------------------------------------------------------------- Deliverable names (session + iteration)

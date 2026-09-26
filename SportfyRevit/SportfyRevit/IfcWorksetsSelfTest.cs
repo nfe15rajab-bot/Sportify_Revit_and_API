@@ -33,6 +33,8 @@ namespace SportfyRevit
             public int RoofElements { get; set; }
             public int SecondRunToMove { get; set; } = -1;
             public double Seconds { get; set; }
+            /// <summary>What Push to Sportify's structure part reads under the roof that was named (IFC shapes included), when a roof was named.</summary>
+            public Dictionary<string, object>? Structure { get; set; }
             public bool Ok => Failures.Count == 0;
         }
 
@@ -77,6 +79,30 @@ namespace SportfyRevit
                 counts[n] = counts.GetValueOrDefault(n) + 1;
             }
             return counts;
+        }
+
+        /// <summary>What the push's structure part finds under the named roof: grid lines, columns, beams, bearing walls, and where the columns are against the roof's box.</summary>
+        static void StructureStep(Document doc, HashSet<ElementId> roof, Report r)
+        {
+            var el = doc.GetElement(roof.First());
+            var bb = el?.get_BoundingBox(null);
+            if (bb == null) { r.Failures.Add("the roof element has no bounding box: the structure could not be read"); return; }
+            var c = StructureCollector.Collect(doc, RoofPushScope.Structure, bb.Max.Z, bb);
+            double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
+            double x0 = M(bb.Min.X), x1 = M(bb.Max.X), y0 = M(bb.Min.Y), y1 = M(bb.Max.Y);
+            bool Inside(double x, double y) => x >= x0 - 2 && x <= x1 + 2 && y >= y0 - 2 && y <= y1 + 2;
+            r.Structure = new Dictionary<string, object>
+            {
+                ["roof_box_m"] = new[] { Math.Round(x0, 2), Math.Round(y0, 2), Math.Round(x1, 2), Math.Round(y1, 2), Math.Round(M(bb.Max.Z), 3) },
+                ["grids"] = c.Grids.Count, ["columns"] = c.Columns.Count, ["beams"] = c.Beams.Count, ["walls"] = c.Walls.Count,
+                ["columns_inside_roof_box"] = c.Columns.Count(k => Inside(k.X, k.Y)), ["beams_inside_roof_box"] = c.Beams.Count(b => Inside(b.X0, b.Y0) && Inside(b.X1, b.Y1)),
+                ["sample_columns"] = c.Columns.Take(6).Select(k => k.Label + " (" + Math.Round(k.X, 2) + ", " + Math.Round(k.Y, 2) + ")").ToList(),
+                ["sample_beams"] = c.Beams.Take(4).Select(b => b.Name + " " + Math.Round(b.X0, 1) + "," + Math.Round(b.Y0, 1) + " > " + Math.Round(b.X1, 1) + "," + Math.Round(b.Y1, 1) + " w" + Math.Round(b.WidthM, 2) + " d" + Math.Round(b.DepthM, 2)).ToList(),
+                ["notes"] = c.Notes,
+            };
+            r.Steps.Add("structure under the roof: " + c.Grids.Count + " grids, " + c.Columns.Count + " columns, " + c.Beams.Count + " beams, " + c.Walls.Count + " walls");
+            if (c.Columns.Count == 0) r.Failures.Add("no column was found under the roof");
+            if (c.Columns.Count > 0 && r.Structure["columns_inside_roof_box"] is int inside && inside < c.Columns.Count) r.Failures.Add((c.Columns.Count - inside) + " column(s) lie outside the roof's box: the IFC's whole building is being read");
         }
 
         static void Run(UIApplication uiApp, string dir, string file, Report r)
@@ -148,6 +174,7 @@ namespace SportfyRevit
                 if (again.Items.Count != plan.Items.Count) r.Failures.Add("a second run finds " + again.Items.Count + " IFC element(s) instead of " + plan.Items.Count);
                 var totalAfter = new FilteredElementCollector(doc).WhereElementIsNotElementType().GetElementCount();
                 if (totalAfter != total) r.Failures.Add("the number of elements changed from " + total + " to " + totalAfter);
+                if (roof.Count > 0) StructureStep(doc, roof, r);
             }
             finally
             {
