@@ -31,6 +31,8 @@ check(release.length > 0, "the release workflow exists");
 check(/tags:\s*\[?\s*["']v\*/.test(release), "the release workflow starts on a version tag (v*)");
 check(release.includes("VERSION") && /tag/i.test(release), "the release workflow checks that the tag names the version in VERSION");
 check(release.includes("Sportify-Setup") && !release.includes("Sportify_Revit_${{"), "the release publishes the Inno installer");
+// BuildDistribution.ps1 is called with splatted options: an ARRAY of "-Name", value strings is passed positionally (and stops the script at once), only a hashtable passes them by name
+check(!/\$(lib|sign)\s*=\s*@\(\s*"-/.test(release) && /\$lib\s*=\s*@\{/.test(release) && /\$sign\s*=\s*@\{/.test(release), "the release workflow passes the library and signing options to BuildDistribution.ps1 by name (hashtables, not arrays)");
 
 // ---- the ZIP that is carried to another computer
 for (const f of ["package/README-FIRST.txt", "package/Remove-Developer-Sportify.ps1", "Make-PackageZip.ps1"]) check(exists("Sportify.Setup", ...f.split("/")), "the test package has " + f);
