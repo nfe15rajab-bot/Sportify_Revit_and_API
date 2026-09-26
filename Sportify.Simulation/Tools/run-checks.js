@@ -158,6 +158,12 @@ step("the release: the version, the license, the author, the Sportify folder, th
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
 step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
+step("profiles: what each profile shows, the web app's tabs and the ribbon's buttons side by side, against a reviewed list (ProfileMatrix)", async () => {
+  if (!web) return noWeb();
+  if (!fs.existsSync(path.join(web, "profileCore.js")) || !fs.existsSync(path.join(web, "quizCore.js"))) return { status: "skip", detail: "this web app has no profile and quiz yet (profileCore.js, quizCore.js)" };
+  const r = await node([path.join(tools, "ProfileMatrix", "check.js"), web]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out.trim(), 1).replace(/^PROFILE MATRIX OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
 step("the API's reference.db guard on throw-away databases (ReferenceDbCheck)", () => runTool("ReferenceDbCheck"));
 step("Unity results contract (ContractCheck)", () => runTool("ContractCheck"), { needsWindows: true });
 step("Unity's layout readers against the add-in's (ReaderParity)", () => runTool("ReaderParity"));

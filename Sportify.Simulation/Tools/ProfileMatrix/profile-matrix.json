@@ -1,0 +1,3229 @@
+{
+ "_about": "What each profile shows: the web app's tabs (profileCore.js) and the Revit ribbon's buttons and panels (RibbonVisibility.cs, on a computer with every tool). Written by Tools/ProfileMatrix/check.js --update; read the diff when it changes.",
+ "_tabs_in_order": [
+  "Overview",
+  "Site",
+  "Structure inputs",
+  "Site conditions",
+  "Sport",
+  "Combine",
+  "Results",
+  "Compare",
+  "Improve",
+  "Catalogue",
+  "Revit families",
+  "Documents",
+  "Save Session",
+  "Profile"
+ ],
+ "_ribbon_buttons_in_order": [
+  "OpenSportifyApp",
+  "ImportSportifyLayout",
+  "LoadFamilies",
+  "ImportDxf",
+  "SetSunAndLocation",
+  "ToggleAutoImport",
+  "AnalyzeFireSafety",
+  "AnalyzeCarbonImpact",
+  "AnalyzeLca",
+  "AnalyzeAccessibility",
+  "SendPhysicalAnalysisToWeb",
+  "AnalyzeStructuralLoads",
+  "AnalyzeDynamicLoads",
+  "AnalyzeSunShade",
+  "AnalyzeWindErosionRisk",
+  "SimulateSoilPercolation",
+  "SimulateBallTrajectories",
+  "ChooseKineticFamily",
+  "GenerateKineticFamily",
+  "ImportKineticAdaptation",
+  "RecordKineticsVideo",
+  "SimulateKinetics",
+  "GenerateRevitSchedules",
+  "ApplyViewFilters",
+  "SetUpSportifyPhases",
+  "AssignPhasing",
+  "AssignWorksets",
+  "ImportIterationsAsOptions",
+  "SwitchIteration",
+  "GenerateAnalysisReport",
+  "GenerateFunctionalDiagrams",
+  "GenerateSchedules",
+  "OpenSportifyFolder",
+  "PushToSportify"
+ ],
+ "profiles": {
+  "advanced": {
+   "view": "advanced",
+   "extras": [],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Catalogue",
+    "Revit families",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "LoadFamilies",
+    "ImportDxf",
+    "SetSunAndLocation",
+    "ToggleAutoImport",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateRevitSchedules",
+    "ApplyViewFilters",
+    "SetUpSportifyPhases",
+    "AssignPhasing",
+    "AssignWorksets",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple": {
+   "view": "simple",
+   "extras": [],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure": {
+   "view": "simple",
+   "extras": [
+    "structure"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + conditions": {
+   "view": "simple",
+   "extras": [
+    "conditions"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, conditions": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + compare": {
+   "view": "simple",
+   "extras": [
+    "compare"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, compare": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + conditions, compare": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, conditions, compare": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + compare, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, compare, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, compare, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, compare, postAnalysis": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "postAnalysis"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + safety": {
+   "view": "simple",
+   "extras": [
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + conditions, safety": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, conditions, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + compare, safety": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, compare, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + conditions, compare, safety": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, conditions, compare, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + compare, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, compare, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, compare, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, compare, postAnalysis, safety": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "safety"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + carbon": {
+   "view": "simple",
+   "extras": [
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + conditions, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, conditions, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + compare, carbon": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, compare, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + conditions, compare, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + structure, conditions, compare, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": []
+  },
+  "simple + postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + compare, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, compare, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, compare, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, compare, postAnalysis, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + conditions, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, conditions, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + compare, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, compare, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + conditions, compare, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + structure, conditions, compare, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories"
+   ]
+  },
+  "simple + postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + compare, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "compare",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, compare, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "compare",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + conditions, compare, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  },
+  "simple + structure, conditions, compare, postAnalysis, safety, carbon": {
+   "view": "simple",
+   "extras": [
+    "structure",
+    "conditions",
+    "compare",
+    "postAnalysis",
+    "safety",
+    "carbon"
+   ],
+   "tabs": [
+    "Overview",
+    "Site",
+    "Structure inputs",
+    "Site conditions",
+    "Sport",
+    "Combine",
+    "Results",
+    "Compare",
+    "Improve",
+    "Documents",
+    "Save Session",
+    "Profile"
+   ],
+   "ribbon_panels": [
+    "App & Data Import",
+    "Algorithmic Analysis",
+    "Simulation & Analytics",
+    "Kinetics",
+    "BIM & Documentation",
+    "Data Export / Deliverables"
+   ],
+   "ribbon_buttons": [
+    "OpenSportifyApp",
+    "ImportSportifyLayout",
+    "AnalyzeFireSafety",
+    "AnalyzeCarbonImpact",
+    "AnalyzeLca",
+    "AnalyzeAccessibility",
+    "SendPhysicalAnalysisToWeb",
+    "AnalyzeStructuralLoads",
+    "AnalyzeDynamicLoads",
+    "AnalyzeSunShade",
+    "AnalyzeWindErosionRisk",
+    "SimulateSoilPercolation",
+    "SimulateBallTrajectories",
+    "ChooseKineticFamily",
+    "GenerateKineticFamily",
+    "ImportKineticAdaptation",
+    "RecordKineticsVideo",
+    "SimulateKinetics",
+    "ImportIterationsAsOptions",
+    "SwitchIteration",
+    "GenerateAnalysisReport",
+    "GenerateFunctionalDiagrams",
+    "GenerateSchedules",
+    "OpenSportifyFolder",
+    "PushToSportify"
+   ],
+   "hidden_without_unity_solidworks_chrome": [
+    "SimulateBallTrajectories",
+    "RecordKineticsVideo",
+    "SimulateKinetics"
+   ]
+  }
+ }
+}

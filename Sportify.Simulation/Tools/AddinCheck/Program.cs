@@ -9,6 +9,52 @@ using Sportify.Simulation.Sun;
 //   - the assumptions dialog's logic (AnalysisAssumptionsPatcher: read, apply, validate, session) against the add-in's own reader of the layout and the analyses,
 //   - the roof features (RoofFeaturesGeometry: openings, entries, edge, drains, slab, levels in the roof's canvas coordinates).
 // What needs Revit itself (the collectors, the WPF window) is not here; the sources compiled are the ones the add-in builds.
+//
+// AddinCheck --ribbon-matrix     reads [{ "id", "view", "extras": [...] }] on stdin and prints, as JSON, what the ribbon shows for each of those profiles on a computer with every tool
+//                                and on one with none (RibbonVisibility.Plan, the rules the add-in applies). Tools/ProfileMatrix compares it with what the web app shows for the same profile.
+if (args.Length >= 1 && args[0] == "--ribbon-matrix")
+{
+    var found0 = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var withTools = new Capabilities(found0, true, found0, found0);
+    var withoutTools = withTools with
+    {
+        Unity = new ToolStatus(false, null, "Unity was not found on this computer."), UnityProjectFree = false,
+        SolidWorks = new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer."), Chrome = new ToolStatus(false, null, "no Chrome"),
+    };
+    var panelsOfLayout = RibbonLayout.Panels;
+    var buttons = panelsOfLayout.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).Append(RibbonVisibility.PushMenuName).ToList();
+    var requests = JsonSerializer.Deserialize<List<MatrixRequest>>(Console.In.ReadToEnd(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<MatrixRequest>();
+    object Shown(string? view, string[] extras, Capabilities caps)
+    {
+        var plan = RibbonVisibility.Plan(view, caps, false, extras);
+        return new
+        {
+            panels = panelsOfLayout.Where(p => plan[RibbonVisibility.PanelKey(p.Name)].Visible).Select(p => p.Name).ToArray(),
+            buttons = buttons.Where(n => plan[n].Visible).ToArray(),
+        };
+    }
+    var matrix = new
+    {
+        panels = panelsOfLayout.Select(p => p.Name).ToArray(),
+        buttons = buttons.ToArray(),
+        simple_buttons = RibbonVisibility.SimpleButtons.ToArray(),
+        always_visible = RibbonVisibility.AlwaysVisible.ToArray(),
+        extra_buttons = RibbonVisibility.ExtraButtons.ToDictionary(kv => kv.Key, kv => kv.Value),
+        profiles = requests.Select(r => new
+        {
+            id = r.Id, view = r.View, extras = r.Extras ?? Array.Empty<string>(),
+            with_every_tool = Shown(r.View, r.Extras ?? Array.Empty<string>(), withTools),
+            with_no_tool = Shown(r.View, r.Extras ?? Array.Empty<string>(), withoutTools),
+        }).ToArray(),
+    };
+    Console.Out.Write(JsonSerializer.Serialize(matrix));
+    return 0;
+}
 if (args.Length == 0)
 {
     // no arguments: run from anywhere, on the sample layout the Unity project bundles
@@ -1058,3 +1104,6 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
+
+// the request of --ribbon-matrix: one profile (the web app's view and the extras a person added to the Simple view)
+record MatrixRequest(string Id, string? View, string[]? Extras);
