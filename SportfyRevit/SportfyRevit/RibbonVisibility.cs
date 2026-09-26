@@ -33,10 +33,10 @@ namespace SportfyRevit
             ["SimulateKinetics"] = RibbonNeed.SolidWorks,
         };
 
-        /// <summary>The main path, as it is in the web app's Simple view: open the app, push the roof, import the layout, send the analyses, and take the deliverables.</summary>
+        /// <summary>The main path, as it is in the web app's Simple view: the getting started checklist, open the app, push the roof, import the layout, send the analyses, and take the deliverables.</summary>
         public static readonly IReadOnlyList<string> SimpleButtons = new[]
         {
-            "OpenSportifyApp", PushMenuName, "ImportSportifyLayout", "SendPhysicalAnalysisToWeb",
+            "GettingStarted", "OpenSportifyApp", PushMenuName, "ImportSportifyLayout", "SendPhysicalAnalysisToWeb",
             "GenerateAnalysisReport", "GenerateFunctionalDiagrams", "GenerateSchedules", "OpenSportifyFolder",
         };
 

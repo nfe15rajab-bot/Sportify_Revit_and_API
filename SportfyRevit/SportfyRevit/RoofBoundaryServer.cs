@@ -36,6 +36,23 @@ namespace SportfyRevit
         /// <summary>Who may talk to this server and how much they may send (see LocalRequestGuard). Replaced in tests.</summary>
         internal static LocalRequestGuard Guard { get; set; } = LocalRequestGuard.FromEnvironment(Port);
         private static int _refusals;
+        private static int _webAppSeen;
+
+        /// <summary>
+        /// True once a page of the web app has asked this server for its session (GET /session from an origin of the app): the web app has been opened since Revit started, docked in
+        /// Revit or in a browser. The Getting started checklist reads it; nothing else does.
+        /// </summary>
+        public static bool WebAppSeen => Volatile.Read(ref _webAppSeen) != 0;
+
+        /// <summary>Notes what the guard made of a request: a session handshake is the web app arriving. Called by the listener for every request it judges.</summary>
+        internal static void NoteRequest(LocalRequestGuard.Verdict verdict)
+        {
+            if (verdict.Outcome == LocalRequestGuard.Outcome.Session) Volatile.Write(ref _webAppSeen, 1);
+        }
+
+        /// <summary>For the checks: back to "the web app has not been seen".</summary>
+        internal static void ForgetWebAppSeen() => Volatile.Write(ref _webAppSeen, 0);
+
         private static readonly object PayloadLock = new();
         private static string? _payloadJson;
 
@@ -384,6 +401,7 @@ namespace SportfyRevit
                     // answer; they name the asking origin when it is one of the app's, and are never "*". Everything but the handshake needs the session token.
                     var verdict = Guard.Judge(ctx.Request.HttpMethod, ctx.Request.Headers["Host"], ctx.Request.Headers["Origin"], path,
                         ctx.Request.Headers[LocalRequestGuard.TokenHeader], ctx.Request.QueryString[LocalRequestGuard.TokenQuery]);
+                    NoteRequest(verdict);
                     if (verdict.CorsOrigin != null)
                     {
                         ctx.Response.Headers.Add("Access-Control-Allow-Origin", verdict.CorsOrigin);

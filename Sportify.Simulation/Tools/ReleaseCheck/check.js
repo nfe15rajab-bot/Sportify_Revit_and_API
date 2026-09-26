@@ -110,6 +110,14 @@ if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {
     check(webLandings.length > 0 && JSON.stringify(webLandings) === JSON.stringify(csLandings), "the workspaces a person can start in are the same in the web app (PROFILE_LANDINGS) and in the add-in (SportifyProfile.Landings)", webLandings.join(",") + " / " + csLandings.join(","));
 }
 
+// the Getting Started button: the guide and WORKSPACE.md name it as the ribbon does, and the guide's walk-through has the steps the checklist walks (the ribbon text is "Getting\nStarted")
+{
+    const layout = read("SportfyRevit", "SportfyRevit", "RibbonLayout.cs"), guide = read("Sportify.Setup", "docs", "USER_GUIDE.html"), workspace = read("WORKSPACE.md");
+    check(layout.includes('"GettingStarted", "Getting\\nStarted"') && guide.includes("<b>Getting Started</b>") && workspace.includes("Getting Started, Open Sportify App") && workspace.includes("**Getting started in Revit**"), "the Getting Started button is in the ribbon, the user guide and WORKSPACE.md under the same name");
+    const steps = [...read("SportfyRevit", "SportfyRevit", "GettingStarted.cs").matchAll(/new GettingStartedStep\("(\w+)", "([^"]+)"/g)].map(m => m[2]);
+    check(steps.length === 6 && steps.every(t => t.length > 3), "the checklist has six steps in GettingStarted.cs", steps.join(" | "));
+}
+
 // what the web app's tabs are called (its profileCore.js PROFILE_MODES is the table): the add-in's dialogs, tooltips and documents that send a person to a tab must use those names, and none may
 // still use an older one (Analysis tab, Post Analysis, Deliverables tab, Data tab, Families tab, Structure tab)
 if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {

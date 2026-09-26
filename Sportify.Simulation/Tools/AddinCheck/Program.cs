@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SportfyRevit;
 using Sportify.Simulation.Dynamics;
 using Sportify.Simulation.Structure;
@@ -962,7 +963,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
                 if (RibbonIconData.Icons.TryGetValue(icon, out var spec) && spec.Group != panelGroup[pn.Name]) offColour.Add(pn.Name + ": " + icon + " is " + spec.Group);
         }
     Check("every icon on a panel is in that panel's colour (setup slate, algorithmic blue, physical teal, BIM amber, export violet)", offColour.Count == 0, string.Join("; ", offColour));
-    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First().Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
+    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First(b => b.InternalName == "OpenSportifyApp").Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
 
     // Push to Sportify: the drop-down and each of its nine items have an icon that exists
     var pushMap = System.Text.RegularExpressions.Regex.Matches(appSource, @"\[""(?<item>Push\w+)""\]\s*=\s*""(?<icon>\w+)""").Select(m => (Item: m.Groups["item"].Value, Icon: m.Groups["icon"].Value)).ToList();
@@ -1030,7 +1031,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
     // the view
     var simple = Shown("simple", all);
-    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons), in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.OrderBy(n => n)) && RibbonVisibility.SimpleButtons.Count <= 8 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
+    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons), in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.OrderBy(n => n)) && RibbonVisibility.SimpleButtons.Count <= 9 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
     Check("the Simple view shows the panels that keep a button and hides the ones that keep none", PanelShown("simple", all, "App & Data Import") && PanelShown("simple", all, "Simulation & Analytics") && PanelShown("simple", all, "Data Export / Deliverables")
           && !PanelShown("simple", all, "Algorithmic Analysis") && !PanelShown("simple", all, "Kinetics") && !PanelShown("simple", all, "BIM & Documentation"));
     Check("Simple with no tools shows the same main path (nothing it keeps needs a tool)", Shown("simple", nothing).OrderBy(n => n).SequenceEqual(simple.OrderBy(n => n)));
@@ -1100,6 +1101,139 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var media = Src("AnalysisMedia.cs");
     Check("the analysis dialogs no longer ask 'do you have Unity?': the video link is offered only where Unity is, the PDF always", !media.Contains("I have Unity") && !media.Contains("I don't have Unity") && media.Contains("if (!haveUnity)") && media.Contains("dialog.AddCommandLink(VideoLink, \"Render the 3D video with Unity\""));
     Check("SOLIDWORKS has one detector: the probe asks MechanicalTool, which the Simulate command uses too", Src("CapabilityProbes.cs").Contains("MechanicalTool.SolidWorksInstalled()") && Src("CapabilityProbes.cs").Contains("MechanicalTool.Locate(") && Src("CapabilityProbes.cs").Contains("UnityHeadlessRunner.TryLocate("));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- the Getting started checklist
+{
+    Console.WriteLine("\n===== the Getting started checklist (GettingStarted, GettingStartedCommand) =====");
+    var gsSteps = GettingStarted.Steps;
+    var gsButtons = RibbonLayout.Panels.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).ToList();
+
+    Check("six steps in the order of the user guide's walk-through, each with a title and a hint of a sentence or two", gsSteps.Select(s => s.Id).SequenceEqual(new[] { "web_app", "roof", "layout", "built", "analyses", "documents" })
+          && gsSteps.All(s => s.Title.Length > 3 && s.Hint.Length > 30 && s.Hint.Length < 330) && gsSteps.Select(s => s.Id).Distinct().Count() == gsSteps.Count);
+    Check("a step's action is a real ribbon button with its own words; the two steps only the person can do (giving the roof, designing the layout) have none",
+          gsSteps.All(s => (s.Action == null) == (s.ActionText == null) && (s.Action == null || gsButtons.Contains(s.Action))) && gsSteps.Where(s => s.Action == null).Select(s => s.Id).SequenceEqual(new[] { "roof", "layout" }),
+          string.Join(", ", gsSteps.Where(s => s.Action != null && !gsButtons.Contains(s.Action!)).Select(s => s.Action)));
+
+    // what each step is judged by
+    var only = (string id) => new GettingStartedFacts(id == "web_app", id == "roof", id == "layout", id == "built", id == "analyses", id == "documents");
+    Check("every step holds on its own fact and on no other (an unknown step never holds)", gsSteps.All(s => gsSteps.All(t => only(s.Id).Holds(t.Id) == (s.Id == t.Id))) && !GettingStartedFacts.Nothing.Holds("nope") && !only("web_app").Holds("nope"));
+
+    // the rows
+    var none = GettingStarted.Rows(GettingStartedFacts.Nothing, null);
+    Check("with nothing true and nothing remembered the first step is next and the rest later", none[0].State == StepState.Next && none.Skip(1).All(r => r.State == StepState.Later) && GettingStarted.NextRow(none)!.Step.Id == "web_app");
+    var some = GettingStarted.Rows(new GettingStartedFacts(true, true, false, false, false, false), null);
+    Check("what holds is done, and the first step that does not is next", some.Take(2).All(r => r.State == StepState.Done) && some[2].State == StepState.Next && some.Skip(3).All(r => r.State == StepState.Later));
+    var skipped = GettingStarted.Rows(only("layout"), null);
+    Check("a later step that holds does not hide the step before it: the first one missing is still next, and there is only one next", skipped[0].State == StepState.Next && skipped[2].State == StepState.Done && skipped.Count(r => r.State == StepState.Next) == 1);
+    var before = GettingStarted.Rows(new GettingStartedFacts(false, false, true, false, false, false), new[] { "web_app", "roof", "layout", "not a step" });
+    Check("a step seen to hold before but not now is done before, one that holds now is done (not 'before'), and an unknown remembered id is ignored", before[0].State == StepState.DoneBefore && before[1].State == StepState.DoneBefore && before[2].State == StepState.Done && before[3].State == StepState.Next);
+    var all = GettingStarted.Rows(new GettingStartedFacts(true, true, true, true, true, true), null);
+    Check("with every step done nothing is next, and it says so", GettingStarted.NextRow(all) == null && GettingStarted.Headline(all) == "Every step is done" && GettingStarted.Hint(all).Contains("Nothing is left"));
+    var allBefore = GettingStarted.Rows(GettingStartedFacts.Nothing, gsSteps.Select(s => s.Id));
+    Check("every step done before but none now says that, and is not 'next' either", GettingStarted.NextRow(allBefore) == null && GettingStarted.Headline(allBefore) == "Every step is done, some of them earlier");
+    Check("the headline names the step to do now, with its number", GettingStarted.Headline(some) == "Next, step 3: Design the layout in the web app");
+
+    // the words
+    var text = GettingStarted.Checklist(before);
+    var lines = text.Split(Environment.NewLine);
+    Check("the list has a line for each step: [x] done, [x] with (before) when it was earlier, [>] for the next, [ ] for the rest", lines.Length == 6 && lines[0].StartsWith("[x]") && lines[0].EndsWith("(before)") && lines[2].StartsWith("[x]") && !lines[2].Contains("(before)") && lines[3].StartsWith("[>]") && lines[4].StartsWith("[  ]"), text.Replace(Environment.NewLine, " | "));
+
+    // what is remembered, in a settings file of its own
+    var gsDir = Path.Combine(Path.GetTempPath(), "sportify-gs-" + Guid.NewGuid().ToString("N")[..8]);
+    Directory.CreateDirectory(gsDir);
+    var gsSettings = Path.Combine(gsDir, "settings.json");
+    SportifyWorkspace.UseSettingsFile(gsSettings);
+    SportifyWorkspace.UseFolder(Path.Combine(gsDir, "My Sportify"));
+    try
+    {
+        Check("with no settings file nothing is remembered", GettingStarted.Remembered().Count == 0);
+        File.WriteAllText(gsSettings, "{ \"workspace_folder\": \"D:\\\\Elsewhere\", \"profile\": { \"view\": \"simple\" } }");
+        GettingStarted.Remember(new[] { "roof" });
+        GettingStarted.Remember(new[] { "web_app", "roof", "made up" });
+        var stored = JsonNode.Parse(File.ReadAllText(gsSettings))!.AsObject();
+        Check("what holds is remembered, in the order of the steps, each once, and only real steps", GettingStarted.Remembered().SequenceEqual(new[] { "web_app", "roof" })
+              && stored["getting_started"]!["done"]!.AsArray().Select(n => n!.GetValue<string>()).SequenceEqual(new[] { "web_app", "roof" }) && stored["getting_started"]!["updated"]!.GetValue<string>().EndsWith("Z"), "remembered: " + string.Join(",", GettingStarted.Remembered()) + " file: " + File.ReadAllText(gsSettings).Replace("\n", " "));
+        Check("...and every other setting stays where it was (the Sportify folder, the profile)", stored["workspace_folder"]!.GetValue<string>() == @"D:\Elsewhere" && stored["profile"]!["view"]!.GetValue<string>() == "simple");
+        GettingStarted.Remember(Array.Empty<string>());
+        Check("remembering nothing forgets nothing", GettingStarted.Remembered().SequenceEqual(new[] { "web_app", "roof" }));
+        GettingStarted.Forget();
+        stored = JsonNode.Parse(File.ReadAllText(gsSettings))!.AsObject();
+        Check("starting again forgets the steps and keeps the other settings", GettingStarted.Remembered().Count == 0 && stored["getting_started"] == null && stored["profile"] != null && stored["workspace_folder"] != null);
+        File.WriteAllText(gsSettings, "{ \"getting_started\": { \"done\": [\"roof\", \"evil\", 5, null, \"roof\", \"<script>\"] } }");
+        Check("a settings file that holds anything else than step ids gives only the steps", GettingStarted.Remembered().SequenceEqual(new[] { "roof" }));
+        File.WriteAllText(gsSettings, "{ not json");
+        Check("an unreadable settings file remembers nothing and does not stop the checklist; the next save starts a valid file", GettingStarted.Remembered().Count == 0
+              && new Func<bool>(() => { GettingStarted.Remember(new[] { "web_app" }); return GettingStarted.Remembered().SequenceEqual(new[] { "web_app" }); })());
+        GettingStarted.Forget();
+
+        // the documents: only a report, a schedule or a diagram counts
+        SportifyWorkspace.EnsureCreated();
+        var folder = SportifyWorkspace.Folder;
+        Check("an empty Sportify folder holds no documents", !GettingStarted.DocumentsMade());
+        File.WriteAllText(Path.Combine(folder, "Layouts", "sportify_combined_revit.json"), "{}");
+        File.WriteAllText(Path.Combine(folder, "Profile", "Sportify-PROFILE.json"), "{}");
+        Check("a layout or a profile is not a document", !GettingStarted.DocumentsMade());
+        File.WriteAllText(Path.Combine(folder, "Schedules", "schedule.csv"), "a;b");
+        Check("a schedule is", GettingStarted.DocumentsMade());
+        File.Delete(Path.Combine(folder, "Schedules", "schedule.csv"));
+        File.WriteAllText(Path.Combine(folder, "Analysis reports", "report.pdf"), "%PDF");
+        Check("so is an analysis report", GettingStarted.DocumentsMade());
+        File.Delete(Path.Combine(folder, "Analysis reports", "report.pdf"));
+        File.WriteAllText(Path.Combine(folder, "Diagrams", "plan.png"), "png");
+        Check("and a diagram", GettingStarted.DocumentsMade());
+    }
+    finally
+    {
+        SportifyWorkspace.UseFolder(null);
+        SportifyWorkspace.UseSettingsFile(null);
+        try { Directory.Delete(gsDir, true); } catch (IOException) { /* a temp folder: leave it */ }
+    }
+
+    // the web app arriving: a session handshake from a page of the app, and nothing else
+    var gsGuard = new LocalRequestGuard(5679, new[] { "http://localhost:8123" }, "tok");
+    LocalRequestGuard.Verdict Ask(string method, string? origin, string path, string? token = null) => gsGuard.Judge(method, "localhost:5679", origin, path, token, null);
+    RoofBoundaryServer.ForgetWebAppSeen();
+    Check("the web app has not been seen until a page of it asks for its session", !RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://evil.example", "/session"));
+    RoofBoundaryServer.NoteRequest(Ask("GET", null, "/session"));
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://localhost:8123", "/workspace", "tok"));
+    Check("a request from another origin, one with no origin, and an ordinary request of the app do not count", !RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://localhost:8123", "/session"));
+    Check("the session handshake of a page of the app does", RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.ForgetWebAppSeen();
+    string? gsSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && gsSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) gsSrc = candidate;
+    }
+    string GsSrc(string file) => gsSrc == null ? "" : File.ReadAllText(Path.Combine(gsSrc, file));
+    var listener = GsSrc("RoofBoundaryServer.cs");
+    Check("the listener tells the server what the guard made of every request, right after it judged it", listener.IndexOf("NoteRequest(verdict);", StringComparison.Ordinal) is var at && at > listener.IndexOf("Guard.Judge(", StringComparison.Ordinal) && at > 0);
+
+    // the button and the command
+    var first = RibbonLayout.Panels[0];
+    var gsButton = first.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.InternalName == "GettingStarted");
+    Check("the Getting started button is the first in the App & Data Import panel, runs GettingStartedCommand and has an icon of the table", first.Name == "App & Data Import" && first.Entries[0] == gsButton && gsButton != null && gsButton.CommandClass == "GettingStartedCommand"
+          && RibbonIconData.Icons.ContainsKey(gsButton.Icon) && gsButton.Tooltip.Length > 60);
+    var gsFound = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var gsAll = new Capabilities(gsFound, true, gsFound, gsFound);
+    var gsNothing = Capabilities.None;
+    Check("it is part of the Simple view's main path and visible in every view, with every tool and with none", RibbonVisibility.SimpleButtons.Contains("GettingStarted")
+          && new string?[] { "simple", "advanced", null }.All(v => new[] { gsAll, gsNothing }.All(c => RibbonVisibility.Plan(v, c)["GettingStarted"].Visible)));
+    var cmd = GsSrc("GettingStartedCommand.cs");
+    Check("the command is public, read-only and a task dialog: it shows the list, remembers what holds, and offers the next step's action first", cmd.Contains("public class GettingStartedCommand : IExternalCommand") && cmd.Contains("TransactionMode.ReadOnly") && cmd.Contains("new TaskDialog(Title)")
+          && cmd.Contains("GettingStarted.Remember(") && cmd.Contains("GettingStarted.Rows(Gather(doc), GettingStarted.Remembered())"));
+    Check("its links are numbered from 1 without a gap (a dialog with only a second link is not relied on)", cmd.Contains("hasAction ? TaskDialogCommandLinkId.CommandLink2 : TaskDialogCommandLinkId.CommandLink1") && cmd.Contains("TaskDialogCommandLinkId.CommandLink1, next!.Step.ActionText"));
+    Check("the project's import ledger is what says the layout was built here, read inside a try so a project without one is just 'not yet'", cmd.Contains("ImportLedger.ReadElements(doc).Count > 0") && cmd.IndexOf("try { built", StringComparison.Ordinal) > 0);
+    Check("another button's command is only posted when Revit can take it, else the person is told which button to click", cmd.Contains("uiApp.CanPostCommand(id)") && cmd.Contains("SportfyRevitApp.CommandIdFor(internalName)") && cmd.Contains("Click \\\"\" + text + \"\\\" on the Sportify tab"));
+    Check("nothing opens the checklist by itself: only the ribbon button names it (the app's start-up never does)", !GsSrc("SportfyRevitApp.cs").Contains("GettingStartedCommand") && !GsSrc("SportfyRevitApp.cs").Contains("GettingStarted."));
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");

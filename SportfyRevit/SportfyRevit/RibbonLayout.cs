@@ -28,6 +28,7 @@ namespace SportfyRevit
         {
             new RibbonPanelSpec("App & Data Import", new RibbonEntry[]
             {
+                new RibbonButtonSpec("GettingStarted", "Getting\nStarted", "GettingStartedCommand", "A short checklist for your first roof: open the web app, give it your roof, design the layout, send it to Revit, run the analyses, take the documents. It shows which steps are done and offers the next one.", "checklist"),
                 new RibbonButtonSpec("OpenSportifyApp", "Open\nSportify App", "OpenSportifyAppCommand", "Opens the Sportify web app in a docked pane inside Revit ({APP_URL}).", "app"),
                 new RibbonPushMenuSpec(),
                 new RibbonButtonSpec("ImportSportifyLayout", "Import\nConfiguration", "ImportSportifyLayoutCommand", "Pick a Combine tab JSON export and build families (or placeholder geometry), name labels and worksets for it.", "import"),
