@@ -303,6 +303,14 @@ step("the web app: what runs where (Revit's status and its wording, when an acti
   return r.code === 0 ? { status: "pass", detail: "the real where.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: the one store of analysis results (the catalogue against the add-in's sections, the words of every analysis, which result an analysis shows, the overview's tiles and Combine's per-piece strip on a real layout)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "results-store-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-store-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real resultsStoreCore.js, analysisController.js, analysisResults.js and resultsStore.js on a small layout" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "escape-audit-test.js");
