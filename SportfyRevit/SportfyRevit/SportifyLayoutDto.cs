@@ -345,6 +345,9 @@ namespace SportfyRevit
         /// <summary>Present when the placement is a football court (futsal, small-sided or a mini pitch).</summary>
         [JsonPropertyName("football")] public FootballDto? Football { get; set; }
 
+        /// <summary>Present when the placement is a table tennis table and the space round it.</summary>
+        [JsonPropertyName("ping_pong")] public PingPongDto? PingPong { get; set; }
+
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
@@ -503,6 +506,46 @@ namespace SportfyRevit
     /// variant, because a futsal court is 40 x 20 m by FIFA's Law 1 rather than
     /// because someone picked "standard".
     /// </summary>
+    /// <summary>
+    /// Table tennis. The table is not a variable: the ITTF fixes it at
+    /// 2.74 x 1.525 m, 0.76 m high. What the web app chooses is the PLAYING
+    /// SPACE around it, which is what decides whether a table fits on a roof —
+    /// 35 m2 for casual play against 98 m2 for the Olympic minimum.
+    /// </summary>
+    internal class PingPongDto
+    {
+        /// <summary>"recreational" | "national" | "international" | "world".</summary>
+        [JsonPropertyName("playing_space")] public string? PlayingSpace { get; set; }
+        /// <summary>"concrete" | "steel_composite" | "aluminium" — what the table is made of.</summary>
+        [JsonPropertyName("table")] public string? Table { get; set; }
+        [JsonPropertyName("net")] public string? Net { get; set; }
+        /// <summary>"existing" means the table stands on the roof finish and no surface is laid.</summary>
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("texture")] public string? Texture { get; set; }
+
+        /// <summary>The playing space — the whole footprint.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        [JsonPropertyName("table_length_m")] public double TableLengthM { get; set; }
+        [JsonPropertyName("table_width_m")] public double TableWidthM { get; set; }
+        [JsonPropertyName("table_height_m")] public double TableHeightM { get; set; }
+        [JsonPropertyName("table_top_thickness_m")] public double TableTopThicknessM { get; set; }
+        [JsonPropertyName("net_height_m")] public double NetHeightM { get; set; }
+        /// <summary>The net reaches past each side line, which is what stops a ball going round it.</summary>
+        [JsonPropertyName("net_overhang_m")] public double NetOverhangM { get; set; }
+        [JsonPropertyName("line_width_m")] public double LineWidthM { get; set; }
+        [JsonPropertyName("centre_line_width_m")] public double CentreLineWidthM { get; set; }
+
+        [JsonPropertyName("clearance_end_m")] public double ClearanceEndM { get; set; }
+        [JsonPropertyName("clearance_side_m")] public double ClearanceSideM { get; set; }
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
     internal class FootballDto
     {
         /// <summary>"futsal" | "small_sided" | "mini".</summary>

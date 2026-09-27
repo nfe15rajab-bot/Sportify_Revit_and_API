@@ -138,6 +138,56 @@ namespace Sportify.Api.Data
                 O("volleyball", "net_height", "junior", "Junior / mixed — 2.35 m",
                   "Between the two. Federations vary; confirm against the local rule.", 2, thicknessMm: 2350),
 
+                // ── Ping pong ─────────────────────────────────────────────
+                // The table is not a choice: the ITTF fixes it at 2.74 x 1.525 m,
+                // 0.76 m high, and no roof changes that. What IS a choice is the
+                // space around it, which is what decides whether a table fits at
+                // all — so that is what the panel offers.
+                O("ping_pong", "playing_space", "recreational", "Recreational — 7.6 x 4.6 m",
+                  "Casual play. Below any ITTF minimum, and the realistic one on a roof.", 0),
+                O("ping_pong", "playing_space", "national", "National — 10 x 5 m",
+                  "The ITTF playing space for national competition.", 1),
+                O("ping_pong", "playing_space", "international", "International — 12 x 6 m",
+                  "ITTF, for international events.", 2),
+                O("ping_pong", "playing_space", "world", "World / Olympic — 14 x 7 m",
+                  "The ITTF maximum. A lot of roof for one table.", 3),
+
+                // The table's construction is where the weight is, and outdoors
+                // it is also what survives. Concrete is four times the steel one.
+                O("ping_pong", "table", "concrete", "Concrete table",
+                  "Cast concrete on a steel frame. Vandal-proof, and immovable once placed.", 0,
+                  kgEach: 400, price: 2400, unit: "EUR/each", kg276: "560"),
+                O("ping_pong", "table", "steel_composite", "Steel with composite top",
+                  "Weatherproof laminate on a galvanised frame. The usual outdoor table.", 1,
+                  kgEach: 150, price: 1450, unit: "EUR/each", kg276: "560"),
+                O("ping_pong", "table", "aluminium", "Aluminium table",
+                  "Lighter, and it can be moved. Least load on the deck.", 2,
+                  kgEach: 95, price: 1250, unit: "EUR/each", kg276: "560"),
+
+                // A permanent net is part of an outdoor table; a clip-on one is
+                // taken in, which on a public roof means it is taken away.
+                O("ping_pong", "net", "permanent", "Permanent steel net",
+                  "Bolted to the table. Nothing to lose or store.", 0,
+                  kgEach: 6, price: 180, unit: "EUR/each", kg276: "560"),
+                O("ping_pong", "net", "clip", "Clip-on net",
+                  "Removable, and so removable by anyone.", 1,
+                  kgEach: 2, price: 45, unit: "EUR/each", kg276: "560"),
+
+                // A table can simply stand on the roof finish that is already
+                // there, which is the cheapest answer and often the right one.
+                O("ping_pong", "surface", "existing", "The roof finish as it is",
+                  "No surface of its own. The table stands on whatever the roof already has.", 0,
+                  kgM2: 0, texture: "flat", price: 0, unit: "EUR/m2", kg276: "530"),
+                O("ping_pong", "surface", "acrylic", "Acrylic hard court",
+                  "Painted acrylic over a bound base. Marks the space as a court.", 1,
+                  kgM2: 6, texture: "flat", price: 52, unit: "EUR/m2", kg276: "530"),
+                O("ping_pong", "surface", "polyurethane", "Poured polyurethane",
+                  "Seamless and more forgiving underfoot.", 2,
+                  kgM2: 8, texture: "sheen", price: 70, unit: "EUR/m2", kg276: "530"),
+                O("ping_pong", "surface", "tiles", "Modular tiles",
+                  "Clipped polypropylene. Drains, and lifts for access.", 3,
+                  kgM2: 5, texture: "tiles", price: 44, unit: "EUR/m2", kg276: "530"),
+
                 // ── Football ──────────────────────────────────────────────
                 // The court type carries the size: a futsal court is 40 x 20 m
                 // because FIFA says so, not because someone picked "standard".
