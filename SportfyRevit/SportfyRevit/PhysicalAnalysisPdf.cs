@@ -516,61 +516,71 @@ namespace SportfyRevit
                     doc.Page(page =>
                     {
                         Frame(page, projectName);
-                        page.Content().Column(col =>
-                        {
-                            col.Spacing(8);
-                            col.Item().Text(s.Title).FontSize(20).Bold().FontColor(ink);
-                            if (s.CaseStudy.Length > 0) col.Item().Text(s.CaseStudy).FontSize(9).FontColor(muted);
-                            col.Item().Text(s.Headline).FontSize(11).SemiBold();
-                            if (s.Preliminary)
-                                col.Item().Background("#fff4d6").Padding(6).Text("PRELIMINARY — " + s.PreliminaryNote.Replace("PRELIMINARY: ", "")).FontSize(8.5f).FontColor("#7a4b00");
-
-                            col.Item().Table(table =>
-                            {
-                                table.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(4); });
-                                foreach (var f in s.Facts)
-                                {
-                                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Label).FontSize(8.5f).FontColor(muted);
-                                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Value).FontSize(8.5f);
-                                }
-                            });
-
-                            foreach (var c in s.Charts)
-                                col.Item().ShowEntire().Column(cc =>
-                                {
-                                    cc.Item().AspectRatio(c.Aspect).Svg(c.Svg);
-                                    if (c.Caption.Length > 0) cc.Item().PaddingTop(2).Text(c.Caption).FontSize(8).FontColor(muted);
-                                });
-
-                            if (s.Findings.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("What to change").FontSize(12).Bold();
-                                foreach (var f in s.Findings) col.Item().Row(r => { r.ConstantItem(10).Text("•"); r.RelativeItem().Text(f).FontSize(8.5f); });
-                            }
-
-                            if (s.Inputs.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("What it rests on").FontSize(12).Bold();
-                                col.Item().Table(table =>
-                                {
-                                    table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2.5f); c.RelativeColumn(1.6f); });
-                                    foreach (var i in s.Inputs)
-                                    {
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Label).FontSize(8.5f);
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Value).FontSize(8.5f);
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.State == "unconfirmed" ? "not confirmed" : i.State).FontSize(8.5f).FontColor(i.State == "unconfirmed" ? "#b26a00" : muted);
-                                    }
-                                });
-                            }
-
-                            if (s.Assumptions.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("Assumptions and method").FontSize(12).Bold();
-                                foreach (var a in s.Assumptions.Where(x => !x.StartsWith("Input - "))) col.Item().Row(r => { r.ConstantItem(10).Text("•").FontSize(7.5f); r.RelativeItem().Text(a).FontSize(7.5f).FontColor(muted); });
-                            }
-                        });
+                        page.Content().Column(col => RenderSectionContent(col, s));
                     });
             });
+        }
+
+        /// <summary>
+        /// One analysis section's content (title, headline, facts table, charts, findings, inputs, assumptions) —
+        /// factored out of Render so AnalysisReportPdfBuilder's combined report can embed the exact same charts
+        /// "Send All to Web App" → "Also save the charts as a PDF" produces, instead of its own compact summary
+        /// of the DTOs sent to the web app (which carry only aggregate numbers, not the per-bay/per-zone detail
+        /// these charts need).
+        /// </summary>
+        internal static void RenderSectionContent(ColumnDescriptor col, PdfSection s)
+        {
+            const string ink = "#222633", muted = "#5b6274";
+            col.Spacing(8);
+            col.Item().Text(s.Title).FontSize(20).Bold().FontColor(ink);
+            if (s.CaseStudy.Length > 0) col.Item().Text(s.CaseStudy).FontSize(9).FontColor(muted);
+            col.Item().Text(s.Headline).FontSize(11).SemiBold();
+            if (s.Preliminary)
+                col.Item().Background("#fff4d6").Padding(6).Text("PRELIMINARY — " + s.PreliminaryNote.Replace("PRELIMINARY: ", "")).FontSize(8.5f).FontColor("#7a4b00");
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(4); });
+                foreach (var f in s.Facts)
+                {
+                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Label).FontSize(8.5f).FontColor(muted);
+                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Value).FontSize(8.5f);
+                }
+            });
+
+            foreach (var c in s.Charts)
+                col.Item().ShowEntire().Column(cc =>
+                {
+                    cc.Item().AspectRatio(c.Aspect).Svg(c.Svg);
+                    if (c.Caption.Length > 0) cc.Item().PaddingTop(2).Text(c.Caption).FontSize(8).FontColor(muted);
+                });
+
+            if (s.Findings.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("What to change").FontSize(12).Bold();
+                foreach (var f in s.Findings) col.Item().Row(r => { r.ConstantItem(10).Text("•"); r.RelativeItem().Text(f).FontSize(8.5f); });
+            }
+
+            if (s.Inputs.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("What it rests on").FontSize(12).Bold();
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2.5f); c.RelativeColumn(1.6f); });
+                    foreach (var i in s.Inputs)
+                    {
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Label).FontSize(8.5f);
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Value).FontSize(8.5f);
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.State == "unconfirmed" ? "not confirmed" : i.State).FontSize(8.5f).FontColor(i.State == "unconfirmed" ? "#b26a00" : muted);
+                    }
+                });
+            }
+
+            if (s.Assumptions.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("Assumptions and method").FontSize(12).Bold();
+                foreach (var a in s.Assumptions.Where(x => !x.StartsWith("Input - "))) col.Item().Row(r => { r.ConstantItem(10).Text("•").FontSize(7.5f); r.RelativeItem().Text(a).FontSize(7.5f).FontColor(muted); });
+            }
         }
 
         static void Frame(PageDescriptor page, string projectName)

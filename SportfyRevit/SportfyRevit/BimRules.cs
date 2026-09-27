@@ -13,10 +13,15 @@ namespace SportfyRevit
 
         public const string SportifyTypePrefix = "Sportify - ";
 
-        /// <summary>Lines subcategories SportifyLayoutBuilder tags circulation-path and entry-marker model lines with, so the functional-diagram view can style them distinctly from the (untagged) roof outline and setback — see GenerateFunctionalDiagramsCommand.StyleCirculationDiagram.</summary>
+        /// <summary>Lines subcategories SportifyLayoutBuilder tags circulation-path and entry-marker model lines with, so the functional-diagram view can style them distinctly from the (untagged) roof outline — see GenerateFunctionalDiagramsCommand.StyleCirculationDiagram.</summary>
         public const string CirculationLineStyle = "Sportify Circulation";
         public const string EntryLineStyle = "Sportify Entry";
         public const string CirculationNodeLineStyle = "Sportify Circulation Node";
+        /// <summary>The setback boundary (SportifyLayoutBuilder.CreateSetbackBoundary) used to be left with no line style at all — Revit's own
+        /// default "Lines" category appearance for an unstyled model line (a stray-looking colour in most templates, and no way to find or hide it
+        /// afterward). Its own named style now, hidden by default in Sportify's own views (StyleCirculationDiagram) the same way circulation/entry
+        /// lines are found and styled there — it is a design-rule reference, not something a reader needs to see by default.</summary>
+        public const string SetbackLineStyle = "Sportify Setback";
 
         public enum ElementKind { Floor, FamilyInstance, Other }
 

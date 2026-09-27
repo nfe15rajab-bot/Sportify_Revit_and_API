@@ -179,13 +179,15 @@ namespace SportfyRevit
             }
 
             // Tagged so GenerateFunctionalDiagramsCommand's circulation-diagram view can style circulation paths and entry
-            // markers distinctly (bold red) from the untagged roof outline/setback — see BimRules.CirculationLineStyle.
+            // markers distinctly (bold red) from the untagged roof outline, and hide the setback boundary entirely by
+            // default — see BimRules.CirculationLineStyle/SetbackLineStyle.
             var circulationStyle = GetOrCreateLineStyle(doc, BimRules.CirculationLineStyle);
             var entryStyle = GetOrCreateLineStyle(doc, BimRules.EntryLineStyle);
             var nodeStyle = GetOrCreateLineStyle(doc, BimRules.CirculationNodeLineStyle);
+            var setbackStyle = GetOrCreateLineStyle(doc, BimRules.SetbackLineStyle);
 
             CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
+            CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds, setbackStyle);
             int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], circulationStyle, nodeStyle, createdIds);
             int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], entryStyle, createdIds);
 
@@ -581,7 +583,7 @@ namespace SportfyRevit
         /// setbackGuideSvg() uses for arbitrary roof polygons, kept
         /// consistent rather than implementing true polygon offsetting here.
         /// </summary>
-        private static void CreateSetbackBoundary(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds)
+        private static void CreateSetbackBoundary(Document doc, SportifyLayout layout, double originXFt, double originYFt, WorksetId worksetId, List<ElementId> createdIds, GraphicsStyle? lineStyle = null)
         {
             double setbackFt = FeetFromMeters(layout.DesignRules?.BoundarySetbackM ?? 0);
             if (setbackFt <= 0) return;
@@ -598,7 +600,7 @@ namespace SportfyRevit
                 LocalUpPointFt(minX, minY), LocalUpPointFt(maxX, minY), LocalUpPointFt(maxX, maxY), LocalUpPointFt(minX, maxY),
             };
             for (int i = 0; i < pts.Count; i++)
-                CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds);
+                CreateModelLine(doc, pts[i], pts[(i + 1) % pts.Count], worksetId, createdIds, lineStyle);
         }
 
         /// <summary>

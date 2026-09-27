@@ -30,6 +30,7 @@ namespace SportfyRevit
             var doc = commandData.Application.ActiveUIDocument.Document;
 
             var layout = AnalysisLayoutSource.GetLayout("Generate Analysis Report");
+            RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
 
             AnalysisResultPayload? results = null;
             if (RoofBoundaryServer.TryGetLatestAnalysisResults(out var resultsJson) && resultsJson != null)
@@ -46,7 +47,7 @@ namespace SportfyRevit
                 var reportsDir = SportifyWorkspace.PathFor("reports", DeliverableNaming.FolderFor("reports"));      // in the iteration's own folder when the session has one
                 outputPath = Path.Combine(reportsDir, DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
                 var (session, iteration) = DeliverableNaming.Current();
-                AnalysisReportPdfBuilder.Generate(outputPath, layout, results, circulationImagePath, axoImagePath, session, iteration);
+                AnalysisReportPdfBuilder.Generate(outputPath, layout, results, circulationImagePath, axoImagePath, session, iteration, layoutJson);
             }
             catch (Exception ex)
             {

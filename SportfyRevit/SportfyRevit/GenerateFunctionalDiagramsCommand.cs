@@ -147,6 +147,19 @@ namespace SportfyRevit
         /// existed has no tagged lines yet — the category lookups below come back null and are simply skipped; the next
         /// re-import (or re-push from the web app) tags them.
         /// </summary>
+        /// <summary>The setback boundary (BimRules.SetbackLineStyle) is a design-rule reference, not something a reader
+        /// needs to see — Revit's own default line colour for it otherwise reads as a stray, unexplained diagonal in any
+        /// view that shows the Combine workset. Hidden here rather than recoloured, in every Sportify-generated view
+        /// (circulation diagram and the massing axonometric alike); a project imported before this style existed has no
+        /// tagged setback line yet, so the category lookup comes back null and this is simply skipped.</summary>
+        private static void HideSetbackLine(Document doc, View view)
+        {
+            var linesCategory = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            var setbackCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.SetbackLineStyle);
+            if (setbackCategory == null || !view.CanCategoryBeHidden(setbackCategory.Id)) return;
+            try { view.SetCategoryHidden(setbackCategory.Id, true); } catch (Exception) { /* a template-locked view — not fatal */ }
+        }
+
         private static void StyleCirculationDiagram(Document doc, View view)
         {
             var found = SportifyElementScan.Find(doc);
@@ -162,6 +175,7 @@ namespace SportfyRevit
             var circCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.CirculationLineStyle);
             var entryCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.EntryLineStyle);
             var nodeCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.CirculationNodeLineStyle);
+            HideSetbackLine(doc, view);
 
             // A solid bold line (not dashed) with a round dot at each path's ends, the way a hand-drawn circulation diagram marks a route.
             if (circCategory != null)
@@ -280,6 +294,7 @@ namespace SportfyRevit
 
             view.DetailLevel = ViewDetailLevel.Fine;
             view.DisplayStyle = DisplayStyle.ShadingWithEdges;
+            HideSetbackLine(doc, view);
 
             if (doc.IsWorkshared)
             {
