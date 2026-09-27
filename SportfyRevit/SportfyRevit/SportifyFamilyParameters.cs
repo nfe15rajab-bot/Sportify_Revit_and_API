@@ -128,6 +128,12 @@ namespace SportfyRevit
             TrySetText(instance, "PlacementId", p.Id);
             TrySetText(instance, "Label", p.Label);
 
+            // A design team family arrives configured: the values set in the web
+            // app are written onto its own parameters, so what was drawn in the
+            // browser is what stands in the model.
+            if (p.Parameters?.DesignFamily is { } designFamily)
+                SportifyPlanterFamilyBuilder.ApplyParameters(instance, designFamily);
+
             double maxTravelM = AnalysisReferenceData.GetParam("Fire Safety", "max_travel_distance_m");
             TrySetLengthM(instance, "FireSafety_DistanceToEntryM", fireSafetyDistanceM);
             TrySetYesNo(instance, "FireSafety_WithinLimit", fireSafetyDistanceM.HasValue && fireSafetyDistanceM.Value <= maxTravelM);

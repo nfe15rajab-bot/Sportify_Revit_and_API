@@ -50,8 +50,9 @@ namespace SportfyRevit
             var assemblyKeys = new HashSet<string>((layout.Assemblies ?? new List<AssemblyDto>()).Where(a => a.Key != null).Select(a => a.Key!), StringComparer.OrdinalIgnoreCase);
 
             // The template first, once, outside any transaction (it may open a file, and asks a person only for a manual import).
-            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null
-                                                                                  || p.Parameters?.Vegetation != null || p.Parameters?.Furniture != null || SportifyFamilyGenerator.FamilyNameFor(p) != null));
+            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null
+                                                                                  || p.Parameters?.Vegetation != null || p.Parameters?.Furniture != null || p.Parameters?.DesignFamily != null
+                                                                                  || SportifyFamilyGenerator.FamilyNameFor(p) != null));
             if (needsBuilder) GenericFamilyTemplateLocator.Prepare(doc.Application, allowTemplateDialog);
 
             var byKey = new Dictionary<string, FamilyResolution>(StringComparer.OrdinalIgnoreCase);
@@ -101,9 +102,11 @@ namespace SportfyRevit
         private static string? KeyOf(PlacementDto p)
         {
             // one product placed many times is one family: shared by the product's key and size
+            if (p.Parameters?.DesignFamily is { } df && !string.IsNullOrWhiteSpace(df.Type))
+                return "designfamily::" + df.Type;
             if (p.Parameters?.Furniture is { } furniture && !string.IsNullOrWhiteSpace(furniture.Key))
                 return "furniture::" + FurnitureShape.FamilyName(furniture.RevitFamilyName, furniture.Label ?? furniture.Product, furniture.Key, furniture.LengthM, furniture.WidthM, furniture.HeightM);
-            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
+            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
                 return null;   // their builders cache by themselves; a shared key would have to repeat their naming
             return SportifyFamilyGenerator.FamilyNameFor(p);
         }
@@ -143,6 +146,15 @@ namespace SportfyRevit
                 ImportDiagnostics.BasketballCourtBuilt(basket.Variant ?? "standard", basket.Hoops, basket.Mounting ?? "", basket.Surface ?? "", basket.WeightKg);
                 return Found(s, ImportDiagnostics.HowSpecified);
             }
+            if (p.Parameters?.Football is { } football)
+            {
+                var s = SportifyFootballCourtBuilder.GetOrCreateSymbol(doc, football);
+                if (s == null) return FamilyResolution.None("the football court builder returned no family");
+                ImportDiagnostics.FootballCourtBuilt(football.CourtType ?? "futsal", football.Surface ?? "",
+                    football.Boards ?? "none", football.PlayLengthM, football.PlayWidthM, football.WeightKg);
+                return Found(s, ImportDiagnostics.HowGenerated);
+            }
+
             if (p.Parameters?.Volleyball is { } volley)
             {
                 var s = SportifyVolleyballCourtBuilder.GetOrCreateSymbol(doc, volley);
@@ -156,6 +168,17 @@ namespace SportfyRevit
             {
                 var s = SportifyPlantFamilyBuilder.GetOrCreateSymbol(doc, plant);
                 return s == null ? FamilyResolution.None("the species family builder returned no family") : Found(s, ImportDiagnostics.HowPlant);
+            }
+
+            // 4a-ii. A design team family is not built, it is found: theirs, loaded
+            //        from the library that ships with the add-in. The instance is
+            //        configured afterwards (SportifyFamilyParameters.SetInstanceValues).
+            if (p.Parameters?.DesignFamily is { } block)
+            {
+                var s = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, block);
+                return s == null
+                    ? FamilyResolution.None($"the family for \"{block.Label ?? block.Type}\" is not loaded and is not in the add-in's library")
+                    : Found(s, ImportDiagnostics.HowReference);
             }
 
             // 4b. Furniture is its product's family: the firm's own of that product when the project has one, else one built from the catalogue size (FurnitureShape).

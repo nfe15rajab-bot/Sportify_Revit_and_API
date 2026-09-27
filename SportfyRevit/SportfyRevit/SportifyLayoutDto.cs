@@ -342,6 +342,9 @@ namespace SportfyRevit
         /// <summary>Present when the placement is a volleyball court.</summary>
         [JsonPropertyName("volleyball")] public VolleyballDto? Volleyball { get; set; }
 
+        /// <summary>Present when the placement is a football court (futsal, small-sided or a mini pitch).</summary>
+        [JsonPropertyName("football")] public FootballDto? Football { get; set; }
+
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
@@ -350,6 +353,27 @@ namespace SportfyRevit
 
         /// <summary>Present for placed furniture (a bench, a table, a bin, a bollard, a light): the catalogue product, its size and weight. See SportifyFurnitureFamilyBuilder.</summary>
         [JsonPropertyName("furniture")] public FurnitureDto? Furniture { get; set; }
+
+        /// <summary>
+        /// Present for a design team family placed from the Components tab — a
+        /// planter, and whatever the kit grows. Unlike everything above it, the
+        /// geometry is NOT ours to build: the family is authored in Revit and
+        /// shipped in the library, and this carries the parameter values the
+        /// person set in the web app so the instance arrives configured.
+        /// See SportifyPlanterFamilyBuilder.
+        /// </summary>
+        [JsonPropertyName("gardenBlock")] public DesignFamilyDto? GardenBlock { get; set; }
+
+        /// <summary>
+        /// The same thing from the Sport tab: a design team family placed as an
+        /// activity (the Climbing Tower). Kept as its own property because the
+        /// two tabs build their payloads separately, but it resolves and
+        /// configures through exactly the same code.
+        /// </summary>
+        [JsonPropertyName("familyInstance")] public DesignFamilyDto? FamilyInstance { get; set; }
+
+        /// <summary>Whichever of the two a placement carries.</summary>
+        [JsonIgnore] public DesignFamilyDto? DesignFamily => GardenBlock ?? FamilyInstance;
 
         /// <summary>
         /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
@@ -474,6 +498,51 @@ namespace SportfyRevit
     /// figures travel with the placement so a court rebuilds as the court it
     /// was — the importer holds no opinion about what FIBA currently says.
     /// </summary>
+    /// <summary>
+    /// A football court. Its COURT TYPE carries the size — there is no size
+    /// variant, because a futsal court is 40 x 20 m by FIFA's Law 1 rather than
+    /// because someone picked "standard".
+    /// </summary>
+    internal class FootballDto
+    {
+        /// <summary>"futsal" | "small_sided" | "mini".</summary>
+        [JsonPropertyName("court_type")] public string? CourtType { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        /// <summary>"none" | "low" — rebound boards along both touchlines.</summary>
+        [JsonPropertyName("boards")] public string? Boards { get; set; }
+        [JsonPropertyName("goals")] public string? Goals { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("texture")] public string? Texture { get; set; }
+
+        /// <summary>The whole footprint, pitch plus run-off.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        /// <summary>The pitch the markings are drawn to.</summary>
+        [JsonPropertyName("play_length_m")] public double PlayLengthM { get; set; }
+        [JsonPropertyName("play_width_m")] public double PlayWidthM { get; set; }
+        [JsonPropertyName("runoff_m")] public double RunoffM { get; set; }
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+
+        [JsonPropertyName("goal_width_m")] public double GoalWidthM { get; set; }
+        [JsonPropertyName("goal_height_m")] public double GoalHeightM { get; set; }
+
+        /// <summary>"futsal" (the full set of markings) or "simple" (a mini pitch: halfway line and centre circle).</summary>
+        [JsonPropertyName("markings")] public string? Markings { get; set; }
+        [JsonPropertyName("line_width_m")] public double LineWidthM { get; set; }
+        [JsonPropertyName("centre_circle_radius_m")] public double CentreCircleRadiusM { get; set; }
+        /// <summary>Futsal's penalty area is a quarter circle of this radius from each post, not a rectangle.</summary>
+        [JsonPropertyName("penalty_arc_radius_m")] public double PenaltyArcRadiusM { get; set; }
+        [JsonPropertyName("penalty_mark_m")] public double PenaltyMarkM { get; set; }
+        [JsonPropertyName("second_penalty_mark_m")] public double SecondPenaltyMarkM { get; set; }
+        [JsonPropertyName("corner_arc_radius_m")] public double CornerArcRadiusM { get; set; }
+
+        [JsonPropertyName("board_length_m")] public double BoardLengthM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
     internal class BasketballDto
     {
         [JsonPropertyName("variant")] public string? Variant { get; set; }
@@ -560,6 +629,38 @@ namespace SportfyRevit
     }
 
     /// <summary>A catalogue product of site furniture, as the web app exports it (parameters.furniture).</summary>
+    /// <summary>
+    /// A family the design team authored, with the values the web app set on it.
+    ///
+    /// `Params` is deliberately open: the web app mirrors whatever parameters the
+    /// family exposes, so a parameter added in Revit flows through without this
+    /// class changing. The keys are the family's own parameter names in camel
+    /// case ("substrateDepth" is Revit's "Substrate Depth"); lengths are in
+    /// MILLIMETRES, as the family states them.
+    /// </summary>
+    internal class DesignFamilyDto
+    {
+        /// <summary>"planter_s" | "planter_t" | "park_bench_table" — which of the kit this is.</summary>
+        [JsonPropertyName("type")] public string? Type { get; set; }
+
+        [JsonPropertyName("label")] public string? Label { get; set; }
+
+        /// <summary>The family the web app believes this is, e.g. "Planter". Null while a family is still to come.</summary>
+        [JsonPropertyName("family")] public string? Family { get; set; }
+
+        /// <summary>
+        /// Parameter name → value. Yes/No parameters arrive as true/false.
+        /// Lengths are in whatever unit the family states itself in, which
+        /// `Units` names: the planter family is authored in millimetres, the
+        /// Climbing Tower in metres. Mirroring each family in its own unit
+        /// keeps the numbers the same on both sides of the pipe.
+        /// </summary>
+        [JsonPropertyName("params")] public Dictionary<string, JsonElement>? Params { get; set; }
+
+        /// <summary>"mm" (the default, as the planters are) or "m".</summary>
+        [JsonPropertyName("units")] public string? Units { get; set; }
+    }
+
     internal class FurnitureDto
     {
         [JsonPropertyName("key")] public string? Key { get; set; }

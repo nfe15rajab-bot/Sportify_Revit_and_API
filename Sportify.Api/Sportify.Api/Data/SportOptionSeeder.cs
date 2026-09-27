@@ -138,6 +138,52 @@ namespace Sportify.Api.Data
                 O("volleyball", "net_height", "junior", "Junior / mixed — 2.35 m",
                   "Between the two. Federations vary; confirm against the local rule.", 2, thicknessMm: 2350),
 
+                // ── Football ──────────────────────────────────────────────
+                // The court type carries the size: a futsal court is 40 x 20 m
+                // because FIFA says so, not because someone picked "standard".
+                // That is why football has no size variant — the type IS the
+                // size, and two controls saying the same thing can disagree.
+                O("football", "court_type", "futsal", "Futsal — 40 x 20 m",
+                  "FIFA Futsal, international size. Goals 3 x 2 m.", 0),
+                O("football", "court_type", "small_sided", "Small-sided — 30 x 20 m",
+                  "Five-a-side. Inside FIFA Futsal's non-international range (25-42 x 16-25 m).", 1),
+                O("football", "court_type", "mini", "Mini pitch — 22 x 14 m",
+                  "A Bolzplatz with rebound boards and 2 x 1 m goals. The smallest that still plays.", 2),
+
+                // Turf is the one that matters on a roof. A 3G carpet is light;
+                // the sand and rubber INFILL that makes it play is not, and it
+                // is the infill that the deck carries. Said as one figure here
+                // because that is what gets built, but it is why turf weighs
+                // three times what a poured surface does.
+                O("football", "surface", "artificial_turf", "Artificial turf, 3G",
+                  "Carpet with sand and rubber infill. Plays like grass; the infill is most of the weight.", 0,
+                  kgM2: 22, texture: "pile", price: 48, unit: "EUR/m2", kg276: "530"),
+                O("football", "surface", "needle_punch", "Needle-punch turf",
+                  "Unfilled carpet. A third of the weight, harder underfoot.", 1,
+                  kgM2: 4, texture: "pile", price: 34, unit: "EUR/m2", kg276: "530"),
+                O("football", "surface", "polyurethane", "Poured polyurethane",
+                  "Seamless and fast. Reads as a hard court rather than a pitch.", 2,
+                  kgM2: 8, texture: "sheen", price: 70, unit: "EUR/m2", kg276: "530"),
+                O("football", "surface", "tiles", "Modular tiles",
+                  "Clipped polypropylene. Drains, and lifts for access.", 3,
+                  kgM2: 5, texture: "tiles", price: 44, unit: "EUR/m2", kg276: "530"),
+
+                O("football", "court_colour", "green", "Green", "The one people expect of a pitch.", 0, hex: "#3f7d3a"),
+                O("football", "court_colour", "blue", "Blue", "Reads as a court rather than a lawn.", 1, hex: "#2f6fb5"),
+                O("football", "court_colour", "terracotta", "Terracotta", "Warmer, and it hides wear.", 2, hex: "#a8553a"),
+
+                // Same reasoning as the basketball basket: on a roof the
+                // ballast IS the fixing, because there is nothing to bolt into
+                // that does not go through the waterproofing.
+                O("football", "goals", "ballasted", "Ballasted, freestanding",
+                  "No fixing to the deck. Counted as a pair.", 0,
+                  kgEach: 320, price: 1900, unit: "EUR/each", kg276: "560"),
+
+                O("football", "boards", "none", "No rebound boards", "Ball out of play at the touchline.", 0),
+                O("football", "boards", "low", "Low rebound boards, 1 m",
+                  "Keeps the ball in. Standard on a mini pitch, optional on the rest.", 1,
+                  kgEach: 45, price: 190, unit: "EUR/each", kg276: "560"),
+
                 O("volleyball", "surface", "polyurethane", "Poured polyurethane",
                   "Seamless and forgiving — the indoor default outdoors too.", 0,
                   kgM2: 8, texture: "sheen", price: 70, unit: "EUR/m2", kg276: "530"),

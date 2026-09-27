@@ -171,6 +171,17 @@
        WebView2Loader.dll — %(RecursiveDir) preserves that subfolder
        structure at the destination, which is where the native loader
        actually gets probed for. -->
+  <!-- The design team's own families travel with the add-in: their geometry is
+       authored in Revit, not generated here, so the .rfa IS the content. They go
+       to Library\Families beside the assembly, which is where
+       SportifyPlanterFamilyBuilder looks, and the deploy target below carries
+       that subfolder across to Revit's add-in folder. -->
+  <ItemGroup>
+    <None Include="..\Library\Families\*.rfa"
+          Link="Library\Families\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="DeployToRevitAddins" AfterTargets="Build">
     <ItemGroup>
       <RevitAddinFiles Include="$(OutDir)**\*" />
