@@ -6,7 +6,7 @@ namespace Sportify.Api.Models
     /// width, Water Management's retention formula coefficients, Wind
     /// Exposure's edge-zone distance) — pulled by the frontend instead of
     /// living as a bare JS constant, so it's visible, cited, and editable
-    /// from the Data tab rather than buried in analysisController.js.
+    /// from the Catalogue tab rather than buried in analysisController.js.
     /// </summary>
     public class AnalysisParameter
     {

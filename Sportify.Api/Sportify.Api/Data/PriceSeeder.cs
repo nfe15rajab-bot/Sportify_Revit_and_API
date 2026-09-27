@@ -10,7 +10,7 @@ namespace Sportify.Api.Data
     /// because ReferenceDataSeeder bails out the moment the catalog exists and
     /// these columns were added after there was already data in it. Anything
     /// that already carries a price is left alone — including a price someone
-    /// typed in through the Data tab, which must never be overwritten by a
+    /// typed in through the Catalogue tab, which must never be overwritten by a
     /// figure we guessed.
     ///
     /// ── What these numbers are ──
@@ -41,7 +41,7 @@ namespace Sportify.Api.Data
         /// <summary>
         /// True when this row still carries a figure THIS class wrote. Our own
         /// estimates get refreshed as they are corrected; a supplier quote, or
-        /// anything a user typed in the Data tab, is left exactly alone.
+        /// anything a user typed in the Catalogue tab, is left exactly alone.
         /// </summary>
         private static bool IsOurEstimate(double? value, string? source, bool quoted)
             => value == null || (!quoted && (source ?? "").StartsWith("Estimated German market rate"));
@@ -142,7 +142,7 @@ namespace Sportify.Api.Data
         /// simply absent, and every query against it throws.
         ///
         /// Deleting the file would fix it and would also throw away anything a
-        /// user has added through the Data tab, so instead each column is added
+        /// user has added through the Catalogue tab, so instead each column is added
         /// in place. SQLite has no "ADD COLUMN IF NOT EXISTS", and re-running is
         /// normal here, so a duplicate-column error is the expected outcome on
         /// every start after the first and is swallowed deliberately.

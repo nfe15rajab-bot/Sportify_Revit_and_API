@@ -11,6 +11,11 @@ namespace SportfyRevit
     /// Selection first: when the designer has selected grid lines, columns, beams or walls in Revit, only the selected ones of that kind are read (and a
     /// selected beam or wall needs no height rule: they picked it); with none selected of a kind, the model is searched as before.
     ///
+    /// An IFC model (the Goldbeck model) arrives as DirectShapes: a column or a beam has no location, no family and no section. Those are read from the IFC class Revit's import wrote on them
+    /// ("Export to IFC As", IfcWorksetRules.ClassOf) and from their bounding box: a column is where its box is, a beam runs along the longer side of its box (its width the shorter side, its
+    /// depth the box's height), and only what belongs to THIS roof is taken (a column that reaches it, a beam under it: the IFC holds the whole building). A brace or a strut (IfcMember) is not a
+    /// beam. The boxes of a beam that is not parallel to the axes are too big: the note says these came from shapes so that they are checked in the app.
+    ///
     /// What is decided by a rule of thumb and not by a Revit class: a beam is "under the roof" when its top is within 2.5 m below the roof's top
     /// face (up to 0.5 m above it: an upstand beam); a wall "holds up the roof" when its top reaches the roof's top face (within 1 m below it,
     /// up to 0.15 m above) and its base is at least 1 m lower, so a parapet standing ON the roof is not one; whether it is load-bearing is
@@ -30,6 +35,9 @@ namespace SportfyRevit
 
         /// <summary>Beams whose top is this far below the roof's top face (or less) are taken as holding the slab.</summary>
         const double BeamBelowM = 2.5, BeamAboveM = 0.5;
+
+        /// <summary>A column of an IFC shape belongs to the roof when it reaches up to within this far below the roof's top (or above it), starts at least ColumnMinBelowM below it, and stands within ColumnBesideRoofM of the roof's box in plan.</summary>
+        const double ColumnReachesM = 3.0, ColumnMinBelowM = 1.0, ShapeSameSpotM = 0.05, ColumnBesideRoofM = 1.0;
 
         /// <summary>A wall reaches the roof when its top is within this far below its top face (or up to WallAboveM above it).</summary>
         const double WallBelowM = 1.0, WallAboveM = 0.15, WallMinHeightM = 1.0;
@@ -56,7 +64,7 @@ namespace SportfyRevit
             if (!scope.HasFlag(RoofPushScope.Structure)) return c;
 
             Try(c, "grid lines", () => ReadGrids(c, doc, Picked(doc, selection, BuiltInCategory.OST_Grids)));
-            Try(c, "columns", () => ReadColumns(c, doc, Picked(doc, selection, BuiltInCategory.OST_StructuralColumns)));
+            Try(c, "columns", () => ReadColumns(c, doc, M(roofTopFt), roofBox, Picked(doc, selection, BuiltInCategory.OST_StructuralColumns)));
 
             var box = new Outline(
                 new XYZ(roofBox.Min.X - Ft(1.0), roofBox.Min.Y - Ft(1.0), roofTopFt - Ft(BeamBelowM + 2.0)),
@@ -89,8 +97,24 @@ namespace SportfyRevit
             c.MultiSegmentGrids = new FilteredElementCollector(doc).OfClass(typeof(MultiSegmentGrid)).GetElementCount();
         }
 
-        static void ReadColumns(Collected c, Document doc, HashSet<long>? picked)
+        static string? ParameterText(Element? el, string name)
         {
+            var p = el?.LookupParameter(name);
+            return p == null || !p.HasValue ? null : p.StorageType == StorageType.String ? p.AsString() : p.AsValueString();
+        }
+
+        /// <summary>The IFC class of a shape (IfcColumn, IfcBeam, IfcMember ...), from what the IFC import wrote on it and on its type; null when it says none.</summary>
+        internal static string? IfcClassOf(Document doc, Element el)
+        {
+            var type = doc.GetElement(el.GetTypeId());
+            return IfcWorksetRules.ClassOf(n => ParameterText(el, n), n => ParameterText(type, n), null);
+        }
+
+        static string ShapeName(Element el) => ParameterText(el, "IfcName") is { Length: > 0 } n ? n : el.Name;
+
+        static void ReadColumns(Collected c, Document doc, double roofTopM, BoundingBoxXYZ roofBox, HashSet<long>? picked)
+        {
+            ReadColumnShapes(c, doc, roofTopM, roofBox, picked);
             foreach (var fi in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralColumns).WhereElementIsNotElementType().OfType<FamilyInstance>())
             {
                 if (picked != null && !picked.Contains(fi.Id.Value)) continue;
@@ -103,6 +127,28 @@ namespace SportfyRevit
                 if (p == null) continue;
                 c.Columns.Add(new StructureGeometry.ColumnPoint(fi.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? "", M(p.X), M(p.Y)));
             }
+        }
+
+        /// <summary>The columns of an IFC import: DirectShapes in Structural Columns, each at the middle of its box, when it reaches this roof (or the person selected it); two on one spot count once.</summary>
+        static void ReadColumnShapes(Collected c, Document doc, double roofTopM, BoundingBoxXYZ roofBox, HashSet<long>? picked)
+        {
+            double rx0 = M(roofBox.Min.X) - ColumnBesideRoofM, rx1 = M(roofBox.Max.X) + ColumnBesideRoofM, ry0 = M(roofBox.Min.Y) - ColumnBesideRoofM, ry1 = M(roofBox.Max.Y) + ColumnBesideRoofM;
+            int read = 0;
+            foreach (var ds in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralColumns).WhereElementIsNotElementType().OfType<DirectShape>())
+            {
+                if (picked != null && !picked.Contains(ds.Id.Value)) continue;
+                var cls = IfcClassOf(doc, ds);
+                if (cls != null && !cls.Equals("IfcColumn", StringComparison.OrdinalIgnoreCase)) continue;
+                var bb = ds.get_BoundingBox(null);
+                if (bb == null) continue;
+                if (picked == null && (M(bb.Max.Z) < roofTopM - ColumnReachesM || M(bb.Min.Z) > roofTopM - ColumnMinBelowM)) continue;
+                double x = M((bb.Min.X + bb.Max.X) / 2), y = M((bb.Min.Y + bb.Max.Y) / 2);
+                if (picked == null && (x < rx0 || x > rx1 || y < ry0 || y > ry1)) continue;      // another wing of the building: an IFC holds all of it
+                if (c.Columns.Any(k => Math.Abs(k.X - x) < ShapeSameSpotM && Math.Abs(k.Y - y) < ShapeSameSpotM)) continue;
+                c.Columns.Add(new StructureGeometry.ColumnPoint(ParameterText(ds, "IfcTag") ?? ShapeName(ds), x, y));
+                read++;
+            }
+            if (read > 0) c.Notes.Add(read + " column" + (read == 1 ? "" : "s") + " read from IFC shapes (DirectShapes) by the middle of their box: check them in the app.");
         }
 
         static double? SectionValue(FamilyInstance fi, string[] names)
@@ -119,8 +165,34 @@ namespace SportfyRevit
             return null;
         }
 
+        /// <summary>The beams of an IFC import: DirectShapes in Structural Framing that are IfcBeams (or say no class), under this roof by the same rule as a beam family. The run is the longer side of the box.</summary>
+        static void ReadBeamShapes(Collected c, Document doc, ElementFilter near, double roofTopM, HashSet<long>? picked)
+        {
+            int read = 0;
+            foreach (var ds in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralFraming).WhereElementIsNotElementType().WherePasses(near).OfType<DirectShape>())
+            {
+                if (picked != null && !picked.Contains(ds.Id.Value)) continue;
+                var cls = IfcClassOf(doc, ds);
+                if (cls != null && !cls.Equals("IfcBeam", StringComparison.OrdinalIgnoreCase)) continue;      // a brace or a strut (IfcMember) is not a beam
+                var bb = ds.get_BoundingBox(null);
+                if (bb == null) continue;
+                var top = M(bb.Max.Z);
+                if (picked == null && (top < roofTopM - BeamBelowM || top > roofTopM + BeamAboveM)) continue;
+                double x0 = M(bb.Min.X), x1 = M(bb.Max.X), y0 = M(bb.Min.Y), y1 = M(bb.Max.Y);
+                double dx = x1 - x0, dy = y1 - y0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+                var depth = Math.Max(0.0, top - M(bb.Min.Z));
+                var width = Math.Min(dx, dy);
+                var name = ShapeName(ds);
+                if (dx >= dy) c.Beams.Add(new StructureGeometry.BeamRecord(name, x0, cy, x1, cy, width, depth, top));
+                else c.Beams.Add(new StructureGeometry.BeamRecord(name, cx, y0, cx, y1, width, depth, top));
+                read++;
+            }
+            if (read > 0) c.Notes.Add(read + " beam" + (read == 1 ? "" : "s") + " read from IFC shapes (DirectShapes): each runs along the longer side of its box, so one that is not parallel to the axes is drawn too long: check them in the app.");
+        }
+
         static void ReadBeams(Collected c, Document doc, ElementFilter near, double roofTopM, HashSet<long>? picked)
         {
+            ReadBeamShapes(c, doc, near, roofTopM, picked);
             foreach (var fi in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_StructuralFraming).WhereElementIsNotElementType().WherePasses(near).OfType<FamilyInstance>())
             {
                 if (picked != null && !picked.Contains(fi.Id.Value)) continue;

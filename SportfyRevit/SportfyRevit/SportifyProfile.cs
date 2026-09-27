@@ -32,6 +32,10 @@ namespace SportfyRevit
         static readonly string[] Views = { "simple", "advanced" };
         static readonly string[] Roles = { "planner", "client" };
         static readonly string[] Themes = { "dark", "light" };
+        /// <summary>What a person can add to the Simple view (the web app's PROFILE_EXTRAS; Tools/ReleaseCheck compares the two lists, and RibbonVisibility.ExtraButtons has the same keys).</summary>
+        public static readonly string[] Extras = { "structure", "conditions", "compare", "postAnalysis", "safety", "carbon" };
+        /// <summary>The workspaces a person can start in (the web app's PROFILE_LANDINGS).</summary>
+        public static readonly string[] Landings = { "guide", "site", "sport", "combine", "analysis", "deliverables" };
         static readonly object Gate = new();
         static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -51,10 +55,26 @@ namespace SportfyRevit
                 ["role"] = OneOf(o["role"], Roles) ?? "planner",
                 ["theme"] = OneOf(o["theme"], Themes),
                 ["quiz"] = Quiz(o["quiz"]),
+                ["extras"] = ExtrasOf(o["extras"]),
+                ["landing"] = OneOf(o["landing"], Landings),
+                ["onboarded"] = o["onboarded"] is JsonValue ob && ob.TryGetValue<bool>(out var done) && done,
                 ["person"] = Person(o["person"]),
             };
             return profile;
         }
+
+        /// <summary>The extras, cleaned: only the ones that exist, each once, in the order of <see cref="Extras"/>.</summary>
+        static JsonArray ExtrasOf(JsonNode? n)
+        {
+            var wanted = n is JsonArray a ? a.Select(Str).Where(s => s != null).ToHashSet() : new HashSet<string?>();
+            var list = new JsonArray();
+            foreach (var e in Extras.Where(wanted.Contains)) list.Add(e);
+            return list;
+        }
+
+        /// <summary>The extras a profile holds (as Sanitize kept them), for the ribbon.</summary>
+        public static IReadOnlyList<string> ExtrasIn(JsonObject? profile) =>
+            profile?["extras"] is JsonArray a ? a.Select(Str).Where(s => s != null && Extras.Contains(s)).Select(s => s!).ToList() : new List<string>();
 
         static string? Str(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
 
@@ -142,6 +162,35 @@ namespace SportfyRevit
                 try { root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject() : new JsonObject(); }
                 catch (Exception) { root = new JsonObject(); }      // an unreadable settings file: start afresh, as the installer's own write does
                 root["profile"] = profile.DeepClone();
+                WriteAtomically(path, root.ToJsonString(Indented));
+            }
+        }
+
+        /// <summary>The "All Buttons" toggle on the ribbon, kept in the settings file beside the profile (a top-level "ribbon_show_all"; false when absent or unreadable).</summary>
+        public static bool ShowAllButtons()
+        {
+            try
+            {
+                lock (Gate)
+                {
+                    if (!File.Exists(SportifyWorkspace.SettingsPath)) return false;
+                    var node = (JsonNode.Parse(File.ReadAllText(SportifyWorkspace.SettingsPath)) as JsonObject)?["ribbon_show_all"];
+                    return node is JsonValue v && v.TryGetValue<bool>(out var on) && on;
+                }
+            }
+            catch (Exception) { return false; }
+        }
+
+        /// <summary>Records the toggle, keeping every other setting (the profile too).</summary>
+        public static void SetShowAllButtons(bool on)
+        {
+            lock (Gate)
+            {
+                var path = SportifyWorkspace.SettingsPath;
+                JsonObject root;
+                try { root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? new JsonObject() : new JsonObject(); }
+                catch (Exception) { root = new JsonObject(); }
+                if (on) root["ribbon_show_all"] = true; else root.Remove("ribbon_show_all");
                 WriteAtomically(path, root.ToJsonString(Indented));
             }
         }

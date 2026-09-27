@@ -86,7 +86,7 @@ namespace SportfyRevit
             var recordedVideo = !string.IsNullOrEmpty(results.Video?.FilePath) && File.Exists(results.Video!.FilePath)
                 ? results.Video.FilePath
                 : null;
-            if (recordedVideo != null) recordedVideo = SportifyWorkspace.Adopt("videos", recordedVideo);     // the workspace holds the video, not just Unity's Recordings folder
+            if (recordedVideo != null) recordedVideo = SportifyWorkspace.Adopt("videos", recordedVideo, DeliverableNaming.FolderFor("videos"));     // the workspace holds the video, not just Unity's Recordings folder
 
             // Merged into the session's analysis payload (like every other Analyze*
             // command) rather than replacing it, so the Fire Safety / Water / ...

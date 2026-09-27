@@ -24,21 +24,10 @@ namespace SportfyRevit
             const string title = "Sportify — Import DXF";
             var doc = commandData.Application.ActiveUIDocument.Document;
 
-            var fod = new FileOpenDialog("DXF file (*.dxf)|*.dxf");
-            fod.Title = "Pick a DXF export from the Sportify web app (Sport tab -> Export DXF)";
-            if (fod.Show() != ItemSelectionDialogResult.Confirmed)
+            var path = LayoutFilePicker.PickFile(commandData.Application.MainWindowHandle, "Import DXF", "Pick a DXF export from the Sportify web app (Sport tab -> Export DXF)",
+                "DXF file (*.dxf)|*.dxf", LayoutFilePicker.SportFolder());
+            if (path == null)
                 return Result.Cancelled;
-
-            string path;
-            try
-            {
-                path = ModelPathUtils.ConvertModelPathToUserVisiblePath(fod.GetSelectedModelPath());
-            }
-            catch (Exception ex)
-            {
-                TaskDialog.Show(title, "Couldn't resolve the selected file: " + ex.Message);
-                return Result.Failed;
-            }
 
             var options = new DWGImportOptions
             {

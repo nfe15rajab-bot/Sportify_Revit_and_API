@@ -27,6 +27,11 @@ namespace SportfyRevit
         private static long _lastRoofId;
         private static string? _lastDocumentTitle;
 
+        // told once per Revit session: clicking a roof to push works from any view, but a model with several roofs
+        // or slabs stacked at different heights (like Goldbeck's ten) can make a Plan or Section click land on the
+        // wrong one without it being obvious — a 3D view lets the designer see which one they are actually clicking.
+        private static bool _told3DHint;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements) =>
             Run(commandData, Scope, ref message);
 
@@ -56,6 +61,21 @@ namespace SportfyRevit
             }
             if (element == null)
             {
+                if (!_told3DHint && uidoc.ActiveView is not View3D)
+                {
+                    _told3DHint = true;
+                    var hint = new TaskDialog("Sportify")
+                    {
+                        MainInstruction = "Pick the roof in a 3D view",
+                        MainContent = "You are about to click a roof or floor to push to Sportify, but you are not in a 3D view. " +
+                            "When several roofs or slabs sit at different heights but line up in plan (this model has ten stacked slabs), " +
+                            "a click in a Plan or Section view can land on the wrong one without that being obvious.\n\n" +
+                            "Open a 3D view, orbit until you can see the one you mean, and click it there. Click OK to pick anyway (in the current view), or Cancel to stop and switch views yourself.",
+                        CommonButtons = TaskDialogCommonButtons.Ok | TaskDialogCommonButtons.Cancel,
+                        DefaultButton = TaskDialogResult.Ok,
+                    };
+                    if (hint.Show() == TaskDialogResult.Cancel) return Result.Cancelled;
+                }
                 try
                 {
                     var reference = uidoc.Selection.PickObject(ObjectType.Element, new RoofOrFloorSelectionFilter(), "Select a roof (or floor) to push to Sportify");
@@ -67,11 +87,57 @@ namespace SportfyRevit
                 }
             }
 
+            var built = Build(doc, element, scope, _selection, out var failure);
+            if (built == null)
+            {
+                message = failure;
+                return Result.Failed;
+            }
+            var frame = built.Frame;
+            var heightAboveGround = built.Height;
+
+            // A push of only part of the data is laid onto the roof pushed before it (same roof), so the app always gets the roof whole.
+            var merged = RoofPushMerge.Merge(RoofBoundaryServer.CurrentPayload, built.Json, scope, out var keptEarlier);
+            RoofBoundaryServer.SetPayload(merged);
+            _lastRoofId = element.Id.Value;
+            _lastDocumentTitle = doc.Title;
+
+            TaskDialog.Show("Sportify",
+                $"Pushed \"{element.Name}\" ({built.LengthM} m x {built.WidthM} m): {RoofPushScopes.Describe(scope)}." +
+                (reusedLast ? "\nThe roof pushed before was used again; select another roof first to change it." : "") +
+                (RoofPushScopes.IsEverything(scope) ? "" : keptEarlier
+                    ? "\nWhat earlier pushes of this roof brought is kept."
+                    : "\nThis is a different roof from the one pushed before (or the first): only what was pushed now is on it. Push the rest from the same drop-down.") +
+                "\nSwitch to the Sportify Combine tab to see it." +
+                (frame.IsTurned
+                    ? $"\n\nThe roof is turned {frame.AngleDeg:0.#}° against the model's axes, so the plan was turned with it: pieces you place are square to the roof, and the import turns them back."
+                    : "") +
+                (heightAboveGround != null
+                    ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
+                      "Check it: the wind analysis uses it, and the Site tab lets you override it."
+                    : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
+                built.StructureText + built.FeaturesText);
+
+            return Result.Succeeded;
+        }
+
+        /// <summary>What a push builds for one roof: the payload as JSON (before it is merged with an earlier push of the same roof) and what the dialog and the live self-test say about it.</summary>
+        internal sealed record RoofPushBuild(string Json, RoofFrame Frame, RoofHeightAboveGround.Result? Height, double LengthM, double WidthM, string StructureText, string FeaturesText);
+
+        /// <summary>
+        /// Reads the roof and what the scope asks for and makes the payload the app is sent, without touching the model or asking anything: the push command and the unattended live
+        /// self-test (IfcWorksetsSelfTest) both call it, so a roof that pushes in the test pushes from the ribbon. Null, with the reason in failure, when the element has no geometry.
+        /// </summary>
+        internal static RoofPushBuild? Build(Document doc, Element element, RoofPushScope scope, ICollection<ElementId>? selection, out string failure)
+        {
+            failure = "";
+            _selection = selection;
+
             var bbox = element.get_BoundingBox(null);
             if (bbox == null)
             {
-                message = "Selected element has no visible geometry.";
-                return Result.Failed;
+                failure = "Selected element has no visible geometry.";
+                return null;
             }
 
             var topFace = FindTopFace(element, out double? topFaceZFt);
@@ -149,29 +215,7 @@ namespace SportfyRevit
                 },
             };
 
-            // A push of only part of the data is laid onto the roof pushed before it (same roof), so the app always gets the roof whole.
-            var merged = RoofPushMerge.Merge(RoofBoundaryServer.CurrentPayload, JsonSerializer.Serialize(payload), scope, out var keptEarlier);
-            RoofBoundaryServer.SetPayload(merged);
-            _lastRoofId = element.Id.Value;
-            _lastDocumentTitle = doc.Title;
-
-            TaskDialog.Show("Sportify",
-                $"Pushed \"{element.Name}\" ({payload.roof.length_m} m x {payload.roof.width_m} m): {RoofPushScopes.Describe(scope)}." +
-                (reusedLast ? "\nThe roof pushed before was used again; select another roof first to change it." : "") +
-                (RoofPushScopes.IsEverything(scope) ? "" : keptEarlier
-                    ? "\nWhat earlier pushes of this roof brought is kept."
-                    : "\nThis is a different roof from the one pushed before (or the first): only what was pushed now is on it. Push the rest from the same drop-down.") +
-                "\nSwitch to the Sportify Combine tab to see it." +
-                (frame.IsTurned
-                    ? $"\n\nThe roof is turned {frame.AngleDeg:0.#}° against the model's axes, so the plan was turned with it: pieces you place are square to the roof, and the import turns them back."
-                    : "") +
-                (heightAboveGround != null
-                    ? $"\n\nRoof height above ground: {heightAboveGround.HeightM:0.#} m (from the {heightAboveGround.Source}). " +
-                      "Check it: the wind analysis uses it, and the Site tab lets you override it."
-                    : "\n\nCouldn't work out the roof's height above ground (no topography or ground-floor level found): enter it in the Site tab.") +
-                structureText + featuresText);
-
-            return Result.Succeeded;
+            return new RoofPushBuild(JsonSerializer.Serialize(payload), frame, heightAboveGround, payload.roof.length_m, payload.roof.width_m, structureText, featuresText);
         }
 
         // What the two collectors say for the dialog (kept beside the return values because their signatures carry the DTOs).

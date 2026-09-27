@@ -235,6 +235,7 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     // what the web app sees
     var ws = Reply(Call("GET", "/workspace"));
     Check("GET /workspace names the folder and every kind, with a count", ws.GetProperty("folder").GetString() == root && ws.GetProperty("kinds").GetArrayLength() == SportifyWorkspace.Kinds.Length && ws.GetProperty("kinds")[0].TryGetProperty("count", out _));
+    Check("GET /workspace says which Revit this is (empty when it is not known), for the web app's 'Revit 2025 connected'", ws.GetProperty("revit_version").GetString() == "" && new Func<bool>(() => { WorkspaceEndpoints.RevitVersion = "2025"; var v = Reply(Call("GET", "/workspace")).GetProperty("revit_version").GetString(); WorkspaceEndpoints.RevitVersion = ""; return v == "2025"; })());
 
     // the PROFILE: what the web app keeps with POST /profile and the ribbon reads. Its own folder and settings file, so nothing else here is disturbed.
     {
@@ -305,6 +306,24 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
         Check("only GET and POST are the profile's: another method is left to the server", Call("PUT", "/profile") == null && Call("DELETE", "/profile") == null);
         Check("the person's name goes through as text, markup and all", Reply(Call("POST", "/profile", null, Json(new { person = new { name = "<b>Ali</b> & co" } }))).GetProperty("profile").GetProperty("person").GetProperty("name").GetString() == "<b>Ali</b> & co");
 
+        // what the start-up quiz sets: the extras added to the Simple view, where Sportify opens, and that the quiz was taken
+        {
+            var quizPost = Reply(Call("POST", "/profile", null, Json(new { view = "simple", extras = new object?[] { "carbon", "structure", "nope", "structure", 5, null, "<script>" }, landing = "analysis", onboarded = true }))).GetProperty("profile");
+            Check("POST /profile keeps the extras the start-up quiz chose: only the ones that exist, each once, in the web app's order", string.Join(",", quizPost.GetProperty("extras").EnumerateArray().Select(e => e.GetString())) == "structure,carbon");
+            Check("...the workspace to start in (one of the six the web app allows) and that the quiz was taken", quizPost.GetProperty("landing").GetString() == "analysis" && quizPost.GetProperty("onboarded").GetBoolean());
+            var bad = Reply(Call("POST", "/profile", null, Json(new { extras = "structure", landing = "profile", onboarded = "yes" }))).GetProperty("profile");
+            Check("an extras that is not a list, a landing that is not allowed (the Profile tab itself, script) and an onboarded that is not true or false are dropped", bad.GetProperty("extras").GetArrayLength() == 0 && bad.GetProperty("landing").ValueKind == JsonValueKind.Null && bad.GetProperty("onboarded").GetBoolean() == false
+                  && Reply(Call("POST", "/profile", null, Json(new { landing = "<script>alert(1)</script>" }))).GetProperty("profile").GetProperty("landing").ValueKind == JsonValueKind.Null);
+            Check("every landing and extra the add-in allows is the web app's, and the ribbon has buttons for every extra (the lists are compared with profileCore.js by Tools/ReleaseCheck)", string.Join(",", SportifyProfile.Extras) == "structure,conditions,compare,postAnalysis,safety,carbon" && SportifyProfile.Landings.Length == 6
+                  && SportifyProfile.Extras.OrderBy(x => x).SequenceEqual(RibbonVisibility.ExtraButtons.Keys.OrderBy(x => x)));
+            Call("POST", "/profile", null, Json(new { view = "simple", extras = new[] { "structure" }, updated = "2026-09-26T09:00:00Z" }));
+            SportifyCapabilities.UseProbe(() => new Capabilities(new ToolStatus(true, "u", "ok"), true, new ToolStatus(true, "s", "ok"), new ToolStatus(true, "c", "ok")));
+            var withExtra = Reply(Call("GET", "/capabilities"));
+            var hiddenNames = withExtra.GetProperty("ribbon_hidden").EnumerateArray().Select(h => h.GetProperty("name").GetString()).ToList();
+            Check("GET /capabilities follows the extras: with structure added the Structural analyses are not in the hidden list, the Environmental ones still are", !hiddenNames.Contains("AnalyzeStructuralLoads") && !hiddenNames.Contains("AnalyzeDynamicLoads") && hiddenNames.Contains("AnalyzeSunShade") && hiddenNames.Contains("PullEnvironmental") && !hiddenNames.Contains("PullStructural"));
+            SportifyCapabilities.UseProbe(() => Capabilities.None);
+        }
+
         // a settings file that cannot be read, and a folder that cannot be written
         File.WriteAllText(pSettings, "{ not json");
         var afterCorrupt = Call("POST", "/profile", null, Json(new { view = "simple" }));
@@ -318,6 +337,33 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
         // several saves at once (two browsers, the ribbon): the settings file is never left broken
         Parallel.For(0, 24, i => Call("POST", "/profile", null, Json(new { view = i % 2 == 0 ? "simple" : "advanced", updated = $"2026-09-25T20:00:{i:00}Z", person = new { name = "n" + i } })));
         Check("24 saves at once leave a valid settings file with one of them, and the other settings", JsonDocument.Parse(File.ReadAllText(pSettings)).RootElement.GetProperty("profile").GetProperty("person").GetProperty("name").GetString()!.StartsWith("n") && !File.Exists(pSettings + ".tmp") && Directory.GetFiles(profileDir).Length == 1);
+
+        // what this computer has (GET /capabilities), and the ribbon following the view
+        {
+            var unityStatus = new ToolStatus(true, @"C:\Unity\Editor\Unity.exe", "Unity was found: the 3D videos can be rendered.");
+            SportifyCapabilities.UseProbe(() => new Capabilities(unityStatus, true, new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer."), new ToolStatus(true, @"C:\Chrome\chrome.exe", "Chrome was found.")));
+            var refreshes = 0;
+            WorkspaceEndpoints.RibbonRefreshRequested = () => refreshes++;
+            Call("POST", "/profile", null, Json(new { view = "advanced", updated = "2026-09-26T08:00:00Z" }));
+            refreshes = 0;
+            var caps = Reply(Call("GET", "/capabilities"));
+            Check("GET /capabilities says what this computer has: Unity, SOLIDWORKS and Chrome, each found or not, with where and a sentence", caps.GetProperty("unity").GetProperty("found").GetBoolean() && caps.GetProperty("unity").GetProperty("path").GetString() == @"C:\Unity\Editor\Unity.exe" &&
+                  !caps.GetProperty("solidworks").GetProperty("found").GetBoolean() && caps.GetProperty("solidworks").GetProperty("note").GetString() == "SOLIDWORKS is not installed on this computer." && caps.GetProperty("chrome").GetProperty("found").GetBoolean() && caps.GetProperty("unity_project_free").GetBoolean());
+            var hiddenNow = caps.GetProperty("ribbon_hidden").EnumerateArray().ToArray();
+            Check("...and which buttons of the Revit ribbon are hidden because of it, by name, words and reason (Advanced view: only Simulate (SOLIDWORKS))", caps.GetProperty("view").GetString() == "advanced" && hiddenNow.Length == 1 && hiddenNow[0].GetProperty("name").GetString() == "SimulateKinetics" &&
+                  hiddenNow[0].GetProperty("text").GetString() == "Simulate (SOLIDWORKS)" && hiddenNow[0].GetProperty("reason").GetString() == "SOLIDWORKS is not installed on this computer.");
+            Check("a plain GET leaves the ribbon alone; ?refresh=1 looks at the computer again and asks the ribbon to follow", refreshes == 0 && Call("GET", "/capabilities", Q("refresh", "1"))!.Status == 200 && refreshes == 1);
+            Call("POST", "/profile", null, Json(new { view = "simple", updated = "2026-09-26T08:01:00Z" }));
+            Check("saving the profile asks the ribbon to follow the view", refreshes == 2);
+            var simpleCaps = Reply(Call("GET", "/capabilities"));
+            Check("the Simple view is reported and hides the rest of the ribbon too (the drop-downs, three panels' buttons), each with the reason", simpleCaps.GetProperty("view").GetString() == "simple" && simpleCaps.GetProperty("ribbon_hidden").GetArrayLength() > 15 &&
+                  simpleCaps.GetProperty("ribbon_hidden").EnumerateArray().All(h => h.GetProperty("reason").GetString()!.Length > 0) && !simpleCaps.GetProperty("ribbon_hidden").EnumerateArray().Any(h => h.GetProperty("name").GetString() is "OpenSportifyApp" or "OpenSportifyFolder" or "SendPhysicalAnalysisToWeb"));
+            WorkspaceEndpoints.RibbonRefreshRequested = () => throw new InvalidOperationException("Revit is busy");
+            Check("a ribbon that cannot take the request does not fail the profile save or the answer", Call("POST", "/profile", null, Json(new { view = "advanced" }))!.Status == 200 && Call("GET", "/capabilities", Q("refresh", "1"))!.Status == 200);
+            Check("only GET is /capabilities's: a POST is left to the server", Call("POST", "/capabilities") == null);
+            WorkspaceEndpoints.RibbonRefreshRequested = null;
+            SportifyCapabilities.UseProbe(() => Capabilities.None);
+        }
 
         SportifyWorkspace.UseFolder(root);
         SportifyWorkspace.UseSettingsFile(settings);
@@ -357,10 +403,10 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
     var run = Call("POST", "/run-analysis");
     Check("POST /run-analysis runs the five analyses on it and says what each found", run!.Status == 200 && Reply(run).GetProperty("sent").GetInt32() == 5 && Reply(run).GetProperty("analyses")[2].GetProperty("headline").GetString()!.Length > 10, run.Status.ToString());
     RoofBoundaryServer.TryGetLatestAnalysisResults(out var pub);
-    Check("and their results are published for the Analysis tab", pub != null && JsonDocument.Parse(pub).RootElement.TryGetProperty("structural_loads", out _));
+    Check("and their results are published for the Results tab", pub != null && JsonDocument.Parse(pub).RootElement.TryGetProperty("structural_loads", out _));
 
     var charts = Reply(Call("GET", "/charts"));
-    Check("GET /charts gives every analysis's charts as SVG for the Analysis tab", charts.GetProperty("sections").GetArrayLength() == 5 && charts.GetProperty("sections").EnumerateArray().All(s => s.GetProperty("charts").GetArrayLength() >= 2 && s.GetProperty("charts")[0].GetProperty("svg").GetString()!.StartsWith("<svg")));
+    Check("GET /charts gives every analysis's charts as SVG for the Results tab", charts.GetProperty("sections").GetArrayLength() == 5 && charts.GetProperty("sections").EnumerateArray().All(s => s.GetProperty("charts").GetArrayLength() >= 2 && s.GetProperty("charts")[0].GetProperty("svg").GetString()!.StartsWith("<svg")));
 
     // what was decided in Revit's assumptions dialog comes to the app: only for the project on screen
     AssumptionsSession.Forget();
@@ -388,6 +434,45 @@ if (fixtures == null) { Console.WriteLine("Tools/fixtures not found above " + Ap
 
     var report = Call("POST", "/analysis-report");
     Check("POST /analysis-report writes the analysis report PDF to the Reports folder, with what has been run", report!.Status == 201 && Reply(report).GetProperty("has_results").GetBoolean() && File.Exists(Reply(report).GetProperty("path").GetString()!));
+
+    // the files carry the session's and the iteration's name when the layout has them (the web app's Documents tab), and nothing new when it has not
+    var namesBody = Encoding.UTF8.GetBytes("{\"name\":\"DIGITAL TOOLS AND METHODS 2 - Roof and Sports\",\"iteration\":\"Algorithmic\"}");
+    var setNames = Call("POST", "/session-names", null, namesBody);
+    Check("POST /session-names keeps the two names for the files made from now on, and says the prefix they give", setNames!.Status == 200 && Reply(setNames).GetProperty("prefix").GetString() == "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - " && Reply(Call("GET", "/session-names")).GetProperty("iteration").GetString() == "Algorithmic");
+    Check("a body that is not JSON, or not an object, is refused and changes nothing", Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("nonsense"))!.Status == 400 && Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("[1]"))!.Status == 400 && Reply(Call("GET", "/session-names")).GetProperty("name").GetString()!.StartsWith("DIGITAL"));
+    const string namedPrefix = "DIGITAL TOOLS AND METHODS 2 - Roof and Sports - Algorithmic - ";
+    var namedCsvReply = Reply(Call("POST", "/schedule"));
+    var namedReportReply = Reply(Call("POST", "/analysis-report"));
+    var namedPdfReply = Reply(Call("POST", "/analysis-pdf", Q("keys", "sun_and_shading")));
+    var namedCsv = namedCsvReply.GetProperty("name").GetString()!;
+    var namedReport = namedReportReply.GetProperty("name").GetString()!;
+    var namedPdf = namedPdfReply.GetProperty("name").GetString()!;
+    Check("a layout that names its session and iteration: the schedule, the report and the charts PDF start with them, and the files are in the iteration's own folder inside their kind's folder (Schedules\\Algorithmic ...)",
+          namedCsv.StartsWith(namedPrefix + "Sportify_Schedule_") && File.Exists(Path.Combine(root, "Schedules", "Algorithmic", namedCsv)) && namedReport.StartsWith(namedPrefix + "Sportify_Analysis_Report_") && File.Exists(Path.Combine(root, "Analysis reports", "Algorithmic", namedReport))
+          && namedPdf.StartsWith(namedPrefix + "Sportify_sun_and_shading") && File.Exists(Path.Combine(root, "Physical analysis", "Algorithmic", namedPdf)) && !File.Exists(Path.Combine(root, "Schedules", namedCsv)), namedCsv + " | " + namedReport + " | " + namedPdf);
+    Check("the answers say the iteration's folder, and the link to the file carries it",
+          namedCsvReply.GetProperty("folder").GetString() == "Algorithmic" && namedCsvReply.GetProperty("url").GetString()!.EndsWith("&folder=Algorithmic") && namedReportReply.GetProperty("folder").GetString() == "Algorithmic" && namedPdfReply.GetProperty("folder").GetString() == "Algorithmic"
+          && namedPdfReply.GetProperty("url").GetString()!.EndsWith("&folder=Algorithmic"));
+    Check("that link streams the file, and the same name without the folder is a 404 (it is not in the kind's folder itself)",
+          Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", "Algorithmic"))!.FilePath != null && Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv))!.Status == 404);
+    Check("a folder is only a name: one with a path or '..' in it, one that is not there, and one for a kind that has none (layouts, sport, garden, profile, SOLIDWORKS) are all 404",
+          new[] { "..", "..\\Layouts", "Algorithmic\\..", "C:\\Windows", "Algorithmic\\x" }.All(f => Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", f))!.Status == 404)
+          && Call("GET", "/deliverable", Q("kind", "schedules", "name", namedCsv, "folder", "Nothing"))!.Status == 404 && Call("GET", "/deliverable", Q("kind", "layouts", "name", "sportify_combined_revit.json", "folder", "Algorithmic"))!.Status == 404);
+    var listedFiles = Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().ToList();
+    Check("the file list shows them with their folder (empty for a file in the kind's folder itself), and a kind's count in /workspace includes them",
+          listedFiles.Any(f => f.GetProperty("name").GetString() == namedCsv && f.GetProperty("kind").GetString() == "schedules" && f.GetProperty("folder").GetString() == "Algorithmic" && f.GetProperty("url").GetString()!.Contains("folder=Algorithmic"))
+          && listedFiles.Where(f => f.GetProperty("kind").GetString() == "layouts").All(f => f.GetProperty("folder").GetString() == "")
+          && Reply(Call("GET", "/workspace")).GetProperty("kinds").EnumerateArray().First(k => k.GetProperty("key").GetString() == "schedules").GetProperty("count").GetInt32() == listedFiles.Count(f => f.GetProperty("kind").GetString() == "schedules"));
+    Check("a second iteration gets a folder of its own, next to the first one's",
+          DeliverableNaming.Set("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Manual") == ("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Manual") && Reply(Call("POST", "/schedule")).GetProperty("folder").GetString() == "Manual"
+          && Directory.Exists(Path.Combine(root, "Schedules", "Manual")) && Directory.Exists(Path.Combine(root, "Schedules", "Algorithmic")));
+    DeliverableNaming.Set("DIGITAL TOOLS AND METHODS 2 - Roof and Sports", "Algorithmic");
+    Check("the file list shows them (a name in front changes nothing for the Documents tab)", Reply(Call("GET", "/deliverables")).GetProperty("files").EnumerateArray().Select(f => f.GetProperty("name").GetString()).Contains(namedCsv));
+    Check("naming the session does not touch the layout: its identity is the same, so no result becomes 'about an earlier layout'", RoofBoundaryServer.TryGetLatestCombinedLayout(out var stillSample, out _) && stillSample == sample && LayoutIdentity.Of(stillSample!) == LayoutIdentity.Of(sample));
+    Call("POST", "/session-names", null, Encoding.UTF8.GetBytes("{\"name\":\"\",\"iteration\":\"\"}"));
+    var plainReply = Reply(Call("POST", "/schedule"));
+    var plainCsv = plainReply.GetProperty("name").GetString()!;
+    Check("and a layout that does not: the names are what they always were, and the file is in the kind's folder itself (no iteration, no subfolder)", plainCsv.StartsWith("Sportify_Schedule_") && !plainCsv.Contains(" - ") && plainReply.GetProperty("folder").GetString() == "" && File.Exists(Path.Combine(root, "Schedules", plainCsv)), plainCsv);
 
     // a Unity video is adopted, and the folder is opened on request
     var video = Path.Combine(Path.GetTempPath(), "sportify-adopt-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".mp4");
@@ -723,7 +808,7 @@ int FakeUnity(string[] a)
 
 int ServeBatch(string[] a)
 {
-    // The five analyses the ribbon's Send All button sends, on a layout, with the real RoofBoundaryServer up so the web app's Analysis tab can be tried against it.
+    // The five analyses the ribbon's Send All button sends, on a layout, with the real RoofBoundaryServer up so the web app's Results tab can be tried against it.
     RoofBoundaryServer.PublishAnalysisResults("{}");
     foreach (var s in PhysicalAnalysisBatch.Run(File.ReadAllText(a[1]))) Console.WriteLine((s.Sent ? "sent     " : "not sent ") + s.Title + ": " + (s.Problem ?? s.Headline));
     if (a.Length > 2 && a[2].EndsWith(".json"))     // a file instead of a server: for trying the web app while a real Revit holds :5679

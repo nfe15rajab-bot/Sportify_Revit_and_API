@@ -782,7 +782,7 @@ namespace Sportify.Simulation.Structure
                                 Num(worst.loadKn, "0") + " kN (" + Num(worst.ratioToMean, "0.0") + "x).");
             }
 
-            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure and Site conditions tabs, or the window Revit opens before the analysis).");
+            if (s.preliminary) CardText.Bullet(lines, Tint("PRELIMINARY", Amber) + "  Not confirmed: " + AnalysisAssumptions.PreliminaryNames(_report.assumptionUses) + ". Enter your own values or accept the built-in ones (the Structure inputs and Site conditions tabs, or the window Revit opens before the analysis).");
             else if (!string.IsNullOrEmpty(s.acceptedNote)) CardText.Bullet(lines, Tint("Inputs", Muted) + "  " + s.acceptedNote + ".");
             if (s.gridAssumed)
                 CardText.Bullet(lines, Tint("Grid", Muted) + "  No structural grid in the layout: a regular 8.4 m grid was assumed. Push the roof from Revit for the real one.");

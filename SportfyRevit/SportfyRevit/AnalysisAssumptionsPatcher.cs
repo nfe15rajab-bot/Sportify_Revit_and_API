@@ -29,7 +29,7 @@ namespace SportfyRevit
 
     /// <summary>
     /// Reads which of the structural analyses' assumptions a layout export has the designer's word on (a value entered in the web
-    /// app's Structure and Site conditions tabs, or a built-in value accepted there), and writes the designer's decisions from the Revit dialog back into the
+    /// app's Structure inputs and Site conditions tabs, or a built-in value accepted there), and writes the designer's decisions from the Revit dialog back into the
     /// export before it goes to the analysis and to Unity. Revit-free on purpose, and tested that way.
     ///
     /// The values live where the analyses already read them (structure.deck_capacity_kn_m2, structure.natural_frequency_hz,

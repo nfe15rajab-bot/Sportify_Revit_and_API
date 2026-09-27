@@ -36,6 +36,12 @@ namespace SportfyRevit
         /// <summary>Set by the add-in to ask Revit to run a command that needs its API ("diagrams"); returns null when started, else why not. Null = not wired.</summary>
         public static Func<string, string?>? RevitCommandRequested;
 
+        /// <summary>The version of the Revit this add-in runs in ("2025"), set at start-up; "" when not known. The web app's status pill says "Revit 2025 connected".</summary>
+        public static string RevitVersion = "";
+
+        /// <summary>Set by the add-in to have the ribbon re-follow the view and this computer (RibbonRefreshBridge: on Revit's own thread). Null = not wired (tests).</summary>
+        public static Action? RibbonRefreshRequested;
+
         /// <summary>Opens a folder in Explorer. Replaced in tests.</summary>
         public static Action<string> OpenFolder = folder => Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
 
@@ -47,7 +53,7 @@ namespace SportfyRevit
 
         public static string ContentTypeOf(string path) => ContentTypes.TryGetValue(Path.GetExtension(path), out var t) ? t : "application/octet-stream";
 
-        static string Url(string kind, string name) => $"/deliverable?kind={Uri.EscapeDataString(kind)}&name={Uri.EscapeDataString(name)}";
+        static string Url(string kind, string name, string? folder = null) => $"/deliverable?kind={Uri.EscapeDataString(kind)}&name={Uri.EscapeDataString(name)}" + (string.IsNullOrEmpty(folder) ? "" : "&folder=" + Uri.EscapeDataString(folder));
 
         /// <summary>The answer for one of these paths, or null when the path is not one of theirs.</summary>
         public static EndpointResponse? Handle(string method, string? path, NameValueCollection query, Func<byte[]> readBody)
@@ -57,8 +63,11 @@ namespace SportfyRevit
                 case "/workspace" when method == "GET": return Workspace();
                 case "/profile" when method == "GET": return GetProfile();
                 case "/profile" when method == "POST": return SaveProfile(readBody);
+                case "/capabilities" when method == "GET": return GetCapabilities(query["refresh"] == "1");
+                case "/session-names" when method == "GET": return SessionNames();
+                case "/session-names" when method == "POST": return SaveSessionNames(readBody);
                 case "/deliverables" when method == "GET": return Deliverables();
-                case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"]);
+                case "/deliverable" when method == "GET" || method == "HEAD": return GetDeliverable(query["kind"], query["name"], query["folder"]);
                 case "/deliverable" when method == "POST": return SaveDeliverable(query["kind"], query["name"], readBody);
                 case "/run-analysis" when method == "POST": return RunAnalysis();
                 case "/analysis-pdf" when method == "POST": return AnalysisPdf(query["keys"]);
@@ -83,8 +92,27 @@ namespace SportfyRevit
                 folder = root,
                 default_folder = SportifyWorkspace.DefaultFolder,
                 settings_file = SportifyWorkspace.SettingsPath,
+                revit_version = RevitVersion,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ the session's and the iteration's name
+
+        static EndpointResponse SessionNames()
+        {
+            var (session, iteration) = DeliverableNaming.Current();
+            return EndpointResponse.Json(new { name = session, iteration, prefix = DeliverableNaming.Prefix(session, iteration) });
+        }
+
+        /// <summary>The names the Documents tab holds, kept for the files made from now on (DeliverableNaming): the reports, schedules, diagrams, charts and films start with them.</summary>
+        static EndpointResponse SaveSessionNames(Func<byte[]> readBody)
+        {
+            var parsed = DeliverableNaming.ParseRequest(System.Text.Encoding.UTF8.GetString(readBody()));
+            if (parsed == null) return EndpointResponse.Error(400, "Send { \"name\": ..., \"iteration\": ... } as JSON.");
+            var (session, iteration) = DeliverableNaming.Set(parsed.Value.Session, parsed.Value.Iteration);
+            SportifyLog.Info("names", "session \"" + session + "\", iteration \"" + iteration + "\"");
+            return EndpointResponse.Json(new { name = session, iteration, prefix = DeliverableNaming.Prefix(session, iteration) });
         }
 
         // ------------------------------------------------------------------------------------------------------------ the profile
@@ -112,7 +140,35 @@ namespace SportfyRevit
             try { SportifyProfile.SaveToSettings(clean); }
             catch (Exception ex) { return EndpointResponse.Error(500, "The settings file could not be written: " + ex.Message); }
             var (file, photo, error) = SportifyProfile.WriteToFolder(clean);
+            RequestRibbonRefresh();      // the view may have changed: the Sportify tab in Revit follows it
             return EndpointResponse.Json(new { profile = clean, file, photo_file = photo, folder_error = error });
+        }
+
+        static void RequestRibbonRefresh()
+        {
+            try { RibbonRefreshRequested?.Invoke(); }
+            catch (Exception) { /* Revit could not take the request just now: the ribbon follows at the next change */ }
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ what this computer has
+
+        /// <summary>
+        /// What this computer can do (Unity for the 3D videos, SOLIDWORKS for the mechanical assemblies, Chrome for the web app), and what the Sportify tab in Revit therefore hides
+        /// besides what the person's Simple view hides. The add-in knows, so nobody is asked. ?refresh=1 looks at the computer again (the Profile tab does when it opens: Unity may
+        /// have been installed since Revit started) and has the ribbon follow.
+        /// </summary>
+        static EndpointResponse GetCapabilities(bool refresh)
+        {
+            var caps = SportifyCapabilities.Current(refresh);
+            var profile = SportifyProfile.Read();
+            var view = RibbonVisibility.NormalizeView(profile?["view"]?.GetValue<string>());
+            var plan = RibbonVisibility.Plan(view, caps, RibbonVisibility.ShowAllRequested(), SportifyProfile.ExtrasIn(profile));
+            var body = caps.ToJson();
+            body["view"] = view;
+            body["ribbon_hidden"] = new System.Text.Json.Nodes.JsonArray(RibbonVisibility.Hidden(plan)
+                .Select(name => (System.Text.Json.Nodes.JsonNode?)new System.Text.Json.Nodes.JsonObject { ["name"] = name, ["text"] = RibbonVisibility.TextOf(name), ["reason"] = plan[name].Reason }).ToArray());
+            if (refresh) RequestRibbonRefresh();
+            return EndpointResponse.Json(body);
         }
 
         static EndpointResponse Deliverables()
@@ -121,13 +177,13 @@ namespace SportfyRevit
             return EndpointResponse.Json(new
             {
                 folder = root,
-                files = SportifyWorkspace.List().Select(f => new { kind = f.Kind, name = f.Name, size = f.Size, modified_utc = f.ModifiedUtc.ToString("o"), url = Url(f.Kind, f.Name) }),
+                files = SportifyWorkspace.List().Select(f => new { kind = f.Kind, folder = f.Folder, name = f.Name, size = f.Size, modified_utc = f.ModifiedUtc.ToString("o"), url = Url(f.Kind, f.Name, f.Folder) }),
             });
         }
 
-        static EndpointResponse GetDeliverable(string? kind, string? name)
+        static EndpointResponse GetDeliverable(string? kind, string? name, string? folder = null)
         {
-            if (!SportifyWorkspace.TryResolve(kind, name, out var path)) return EndpointResponse.Error(404, "No such file in the workspace.");
+            if (!SportifyWorkspace.TryResolve(kind, name, out var path, folder)) return EndpointResponse.Error(404, "No such file in the workspace.");
             return new EndpointResponse { ContentType = ContentTypeOf(path), FilePath = path };
         }
 
@@ -210,12 +266,13 @@ namespace SportfyRevit
         {
             if (!TryLayout(out var json, out var failure)) return failure!;
             var wanted = string.IsNullOrWhiteSpace(keys) ? null : keys.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-            var pdf = PhysicalAnalysisPdf.Export(json, SportifyWorkspace.PathFor("analysis"), "", wanted);
+            var folder = DeliverableNaming.FolderFor("analysis", json);      // the iteration's own folder, when it has a name
+            var pdf = PhysicalAnalysisPdf.Export(json, SportifyWorkspace.PathFor("analysis", folder), "", wanted);
             if (!pdf.Ok) return EndpointResponse.Error(409, pdf.Error ?? "The PDF could not be made.");
             var name = Path.GetFileName(pdf.Path!);
             return EndpointResponse.Json(new
             {
-                kind = "analysis", name, path = pdf.Path, url = Url("analysis", name),
+                kind = "analysis", folder = folder ?? "", name, path = pdf.Path, url = Url("analysis", name, folder),
                 drawn = pdf.Sections.Select(s => s.Title), skipped = pdf.Skipped.Select(k => new { title = k.Title, reason = k.Reason }),
             }, 201);
         }
@@ -227,9 +284,10 @@ namespace SportfyRevit
             try { layout = JsonSerializer.Deserialize<SportifyLayout>(json); }
             catch (Exception ex) { return EndpointResponse.Error(400, "The layout could not be read: " + ex.Message); }
             if (layout?.Placements == null || layout.Placements.Count == 0) return EndpointResponse.Error(409, "The layout has no pieces yet: place a sport, an activity or a garden piece in Combine.");
-            var name = $"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-            var path = SportifyWorkspace.Save("schedules", name, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());   // BOM: Excel reads the umlauts
-            return EndpointResponse.Json(new { kind = "schedules", name = Path.GetFileName(path), path, url = Url("schedules", Path.GetFileName(path)), rows = layout.Placements.Count }, 201);
+            var name = DeliverableNaming.Named($"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");      // with the session's and the iteration's name in front of it, when the layout has them
+            var folder = DeliverableNaming.FolderFor("schedules");      // from the same names as the file's name (Named)
+            var path = SportifyWorkspace.Save("schedules", name, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray(), folder);   // BOM: Excel reads the umlauts
+            return EndpointResponse.Json(new { kind = "schedules", folder = folder ?? "", name = Path.GetFileName(path), path, url = Url("schedules", Path.GetFileName(path), folder), rows = layout.Placements.Count }, 201);
         }
 
         static EndpointResponse AnalysisReport()
@@ -244,22 +302,42 @@ namespace SportfyRevit
             {
                 try { results = JsonSerializer.Deserialize<AnalysisResultPayload>(resultsJson); } catch (Exception) { /* malformed: without it */ }
             }
-            var path = Path.Combine(SportifyWorkspace.PathFor("reports"), $"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+            var folder = DeliverableNaming.FolderFor("reports");
+            var path = Path.Combine(SportifyWorkspace.PathFor("reports", folder), DeliverableNaming.Named($"Sportify_Analysis_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"));
             try
             {
                 // the diagram images Revit exported to the workspace, when it has (the newest of each)
-                AnalysisReportPdfBuilder.Generate(path, layout, results, NewestDiagram("circulation"), NewestDiagram("axonometric"));
+                var (session, iteration) = DeliverableNaming.Current();
+                AnalysisReportPdfBuilder.Generate(path, layout, results, NewestDiagram("circulation"), NewestDiagram("axonometric"), session, iteration);
             }
             catch (Exception ex) { return EndpointResponse.Error(500, "The report could not be made: " + ex.Message); }
             var name = Path.GetFileName(path);
-            return EndpointResponse.Json(new { kind = "reports", name, path, url = Url("reports", name), has_results = results != null, has_diagrams = NewestDiagram("circulation") != null }, 201);
+            return EndpointResponse.Json(new { kind = "reports", folder = folder ?? "", name, path, url = Url("reports", name, folder), has_results = results != null, has_diagrams = NewestDiagram("circulation") != null }, 201);
         }
 
-        static string? NewestDiagram(string prefix)
+        /// <summary>The newest diagram of this kind: the current iteration's own folder first, and in it the current session's and iteration's own files (their name is in front of the stem); else the newest of any, in the Diagrams folder or any iteration's folder in it.</summary>
+        static string? NewestDiagram(string stem)
         {
             try
             {
-                return new DirectoryInfo(SportifyWorkspace.PathFor("diagrams")).EnumerateFiles(prefix + "*.png").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault()?.FullName;
+                var dir = new DirectoryInfo(SportifyWorkspace.PathFor("diagrams"));
+                var patterns = DeliverableNaming.PatternsFor(stem + "_", "png");
+                var own = DeliverableNaming.FolderFor("diagrams");
+                if (own != null)
+                {
+                    var mine = new DirectoryInfo(SportifyWorkspace.PathFor("diagrams", own));
+                    foreach (var pattern in patterns)
+                    {
+                        var found = mine.EnumerateFiles(pattern).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                        if (found != null) return found.FullName;
+                    }
+                }
+                foreach (var pattern in patterns)
+                {
+                    var found = dir.EnumerateFiles(pattern, SearchOption.AllDirectories).OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+                    if (found != null) return found.FullName;
+                }
+                return null;
             }
             catch (Exception) { return null; }
         }

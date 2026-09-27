@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using SportfyRevit;
 using Sportify.Simulation.Dynamics;
 using Sportify.Simulation.Structure;
@@ -9,6 +10,52 @@ using Sportify.Simulation.Sun;
 //   - the assumptions dialog's logic (AnalysisAssumptionsPatcher: read, apply, validate, session) against the add-in's own reader of the layout and the analyses,
 //   - the roof features (RoofFeaturesGeometry: openings, entries, edge, drains, slab, levels in the roof's canvas coordinates).
 // What needs Revit itself (the collectors, the WPF window) is not here; the sources compiled are the ones the add-in builds.
+//
+// AddinCheck --ribbon-matrix     reads [{ "id", "view", "extras": [...] }] on stdin and prints, as JSON, what the ribbon shows for each of those profiles on a computer with every tool
+//                                and on one with none (RibbonVisibility.Plan, the rules the add-in applies). Tools/ProfileMatrix compares it with what the web app shows for the same profile.
+if (args.Length >= 1 && args[0] == "--ribbon-matrix")
+{
+    var found0 = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var withTools = new Capabilities(found0, true, found0, found0);
+    var withoutTools = withTools with
+    {
+        Unity = new ToolStatus(false, null, "Unity was not found on this computer."), UnityProjectFree = false,
+        SolidWorks = new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer."), Chrome = new ToolStatus(false, null, "no Chrome"),
+    };
+    var panelsOfLayout = RibbonLayout.Panels;
+    var buttons = panelsOfLayout.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).Append(RibbonVisibility.PushMenuName).ToList();
+    var requests = JsonSerializer.Deserialize<List<MatrixRequest>>(Console.In.ReadToEnd(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<MatrixRequest>();
+    object Shown(string? view, string[] extras, Capabilities caps)
+    {
+        var plan = RibbonVisibility.Plan(view, caps, false, extras);
+        return new
+        {
+            panels = panelsOfLayout.Where(p => plan[RibbonVisibility.PanelKey(p.Name)].Visible).Select(p => p.Name).ToArray(),
+            buttons = buttons.Where(n => plan[n].Visible).ToArray(),
+        };
+    }
+    var matrix = new
+    {
+        panels = panelsOfLayout.Select(p => p.Name).ToArray(),
+        buttons = buttons.ToArray(),
+        simple_buttons = RibbonVisibility.SimpleButtons.ToArray(),
+        always_visible = RibbonVisibility.AlwaysVisible.ToArray(),
+        extra_buttons = RibbonVisibility.ExtraButtons.ToDictionary(kv => kv.Key, kv => kv.Value),
+        profiles = requests.Select(r => new
+        {
+            id = r.Id, view = r.View, extras = r.Extras ?? Array.Empty<string>(),
+            with_every_tool = Shown(r.View, r.Extras ?? Array.Empty<string>(), withTools),
+            with_no_tool = Shown(r.View, r.Extras ?? Array.Empty<string>(), withoutTools),
+        }).ToArray(),
+    };
+    Console.Out.Write(JsonSerializer.Serialize(matrix));
+    return 0;
+}
 if (args.Length == 0)
 {
     // no arguments: run from anywhere, on the sample layout the Unity project bundles
@@ -819,10 +866,10 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
           && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
     Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
-    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, Import Iterations as Design Options, Show Iteration",
+    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, IFC Worksets by Class, Import Iterations as Design Options, Show Iteration",
           phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
           {
-              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"),
+              ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"), ("IFC Worksets by Class", "AssignIfcWorksetsCommand"),
               ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
           }));
 
@@ -916,7 +963,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
                 if (RibbonIconData.Icons.TryGetValue(icon, out var spec) && spec.Group != panelGroup[pn.Name]) offColour.Add(pn.Name + ": " + icon + " is " + spec.Group);
         }
     Check("every icon on a panel is in that panel's colour (setup slate, algorithmic blue, physical teal, BIM amber, export violet)", offColour.Count == 0, string.Join("; ", offColour));
-    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First().Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
+    Check("the Sportify mark (Open Sportify App) is the one badge icon", panels.First().Entries.OfType<RibbonButtonSpec>().First(b => b.InternalName == "OpenSportifyApp").Icon == "app" && RibbonIconData.Icons["app"].Badge && RibbonIconData.Icons.Count(kv => kv.Value.Badge) == 1);
 
     // Push to Sportify: the drop-down and each of its nine items have an icon that exists
     var pushMap = System.Text.RegularExpressions.Regex.Matches(appSource, @"\[""(?<item>Push\w+)""\]\s*=\s*""(?<icon>\w+)""").Select(m => (Item: m.Groups["item"].Value, Icon: m.Groups["icon"].Value)).ToList();
@@ -946,5 +993,506 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
 }
 
+// ---------------------------------------------------------------------------------------------------------------- the ribbon follows the view and this computer
+{
+    Console.WriteLine("\n===== the ribbon follows the view and this computer (RibbonVisibility, SportifyCapabilities) =====");
+    var found = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var all = new Capabilities(found, true, found, found);
+    var noUnity = all with { Unity = new ToolStatus(false, null, "Unity was not found on this computer."), UnityProjectFree = false };
+    var noSw = all with { SolidWorks = new ToolStatus(false, null, "SOLIDWORKS is not installed on this computer.") };
+    var nothing = noUnity with { SolidWorks = noSw.SolidWorks, Chrome = new ToolStatus(false, null, "no Chrome") };
+
+    var layoutPanels = RibbonLayout.Panels;
+    var buttonNames = layoutPanels.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).Append(RibbonVisibility.PushMenuName).ToList();
+    var pulldownNames = layoutPanels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().Select(pd => pd.InternalName).ToList();
+    string[] Shown(string? view, Capabilities c, bool showAll = false) => buttonNames.Where(n => RibbonVisibility.Plan(view, c, showAll)[n].Visible).ToArray();
+    bool PanelShown(string? view, Capabilities c, string name) => RibbonVisibility.Plan(view, c)[RibbonVisibility.PanelKey(name)].Visible;
+
+    Check("every name the rules mention is a real button of the layout (or the Push menu): a renamed button cannot silently stop being ruled",
+          RibbonVisibility.Needs.Keys.Concat(RibbonVisibility.SimpleButtons).Concat(RibbonVisibility.AlwaysVisible).All(buttonNames.Contains),
+          string.Join(", ", RibbonVisibility.Needs.Keys.Concat(RibbonVisibility.SimpleButtons).Concat(RibbonVisibility.AlwaysVisible).Where(n => !buttonNames.Contains(n))));
+    Check("the plan has an entry for every button, drop-down item, drop-down and panel of the layout", buttonNames.Concat(pulldownNames).Concat(layoutPanels.Select(p => RibbonVisibility.PanelKey(p.Name))).All(n => RibbonVisibility.Plan("advanced", all).ContainsKey(n)));
+    Check("the words on every button are found by its internal name (what the web app tells the person is hidden)", buttonNames.All(n => RibbonVisibility.TextOf(n) != n) && RibbonVisibility.TextOf("SimulateKinetics") == "Simulate (SOLIDWORKS)" && RibbonVisibility.TextOf("PushToSportify") == "Push to Sportify" && RibbonVisibility.TextOf("nope") == "nope");
+
+    // the computer
+    Check("Advanced view and every tool found: everything is shown, every panel too", Shown("advanced", all).Length == buttonNames.Count && layoutPanels.All(p => PanelShown("advanced", all, p.Name)) && RibbonVisibility.Hidden(RibbonVisibility.Plan("advanced", all)).Count == 0);
+    var hiddenNoTools = buttonNames.Except(Shown("advanced", nothing)).OrderBy(n => n).ToArray();
+    Check("with no Unity and no SOLIDWORKS exactly the buttons that cannot work are hidden: Ball Trajectory, Record Isolated Video and Simulate (SOLIDWORKS)", string.Join(",", hiddenNoTools) == "RecordKineticsVideo,SimulateBallTrajectories,SimulateKinetics", string.Join(",", hiddenNoTools));
+    Check("the five physical analyses stay without Unity (they give a PDF), and so do their drop-downs and panels", new[] { "AnalyzeStructuralLoads", "AnalyzeDynamicLoads", "AnalyzeSunShade", "AnalyzeWindErosionRisk", "SimulateSoilPercolation" }.All(n => Shown("advanced", nothing).Contains(n))
+          && pulldownNames.All(n => RibbonVisibility.Plan("advanced", nothing)[n].Visible) && layoutPanels.All(p => PanelShown("advanced", nothing, p.Name)));
+    Check("Unity alone: only Simulate (SOLIDWORKS) is hidden; SOLIDWORKS alone: the two Unity buttons are", string.Join(",", buttonNames.Except(Shown("advanced", noSw))) == "SimulateKinetics" && string.Join(",", buttonNames.Except(Shown("advanced", noUnity)).OrderBy(n => n)) == "RecordKineticsVideo,SimulateBallTrajectories");
+    Check("a hidden button's reason is the tool's own sentence (what to do about it)", RibbonVisibility.Plan("advanced", nothing)["SimulateKinetics"].Reason == "SOLIDWORKS is not installed on this computer." && RibbonVisibility.Plan("advanced", nothing)["RecordKineticsVideo"].Reason == "Unity was not found on this computer.");
+    Check("Unity found but its Editor holding the project does not hide the buttons (that is asked at click time, with a way out)", Shown("advanced", all with { UnityProjectFree = false }).Length == buttonNames.Count);
+
+    // the view
+    var simple = Shown("simple", all);
+    Check("the Simple view shows exactly the main path (" + RibbonVisibility.SimpleButtons.Count + " buttons) and the All Buttons toggle, in every drop-down none", simple.OrderBy(n => n).SequenceEqual(RibbonVisibility.SimpleButtons.Append(RibbonVisibility.ShowAllName).OrderBy(n => n)) &&RibbonVisibility.SimpleButtons.Count <= 9 && pulldownNames.All(n => !RibbonVisibility.Plan("simple", all)[n].Visible), string.Join(",", simple));
+    Check("the Simple view shows the panels that keep a button and hides the ones that keep none", PanelShown("simple", all, "App & Data Import") && PanelShown("simple", all, "Simulation & Analytics") && PanelShown("simple", all, "Data Export / Deliverables")
+          && !PanelShown("simple", all, "Algorithmic Analysis") && !PanelShown("simple", all, "Kinetics") && !PanelShown("simple", all, "BIM & Documentation"));
+    Check("Simple with no tools shows the same main path (nothing it keeps needs a tool)", Shown("simple", nothing).OrderBy(n => n).SequenceEqual(simple.OrderBy(n => n)));
+    Check("an unknown or missing view is the Advanced view", new string?[] { null, "", "expert", "SIMPLEX" }.All(v => Shown(v, all).Length == buttonNames.Count) && RibbonVisibility.NormalizeView("Simple") == "simple" && RibbonVisibility.NormalizeView(null) == "advanced");
+
+    // what the person added to the Simple view (the start-up quiz)
+    string[] ShownWith(string? view, Capabilities c, params string[] extras) => buttonNames.Where(n => RibbonVisibility.Plan(view, c, false, extras)[n].Visible).ToArray();
+    Check("every button an extra brings back is a real button of the layout, and every extra has some", RibbonVisibility.ExtraButtons.Values.All(b => b.Length > 0 && b.All(buttonNames.Contains)) && RibbonVisibility.ExtraButtons.Count == 6,
+          string.Join(", ", RibbonVisibility.ExtraButtons.Values.SelectMany(b => b).Where(n => !buttonNames.Contains(n))));
+    Check("each extra adds exactly its buttons to the Simple view (all tools found), and nothing else", RibbonVisibility.ExtraButtons.All(kv => ShownWith("simple", all, kv.Key).OrderBy(n => n).SequenceEqual(simple.Union(kv.Value).OrderBy(n => n))));
+    Check("structure brings back the Structural drop-down (both items) and not the Environmental one", ShownWith("simple", all, "structure").Contains("AnalyzeDynamicLoads") && RibbonVisibility.Plan("simple", all, false, new[] { "structure" })["PullStructural"].Visible && !RibbonVisibility.Plan("simple", all, false, new[] { "structure" })["PullEnvironmental"].Visible);
+    Check("the panels follow: post analysis shows the Kinetics panel, safety the Algorithmic Analysis panel, nothing else changes", PanelShown2("simple", "postAnalysis", "Kinetics") && !PanelShown2("simple", "structure", "Kinetics") && PanelShown2("simple", "safety", "Algorithmic Analysis") && !PanelShown2("simple", "structure", "Algorithmic Analysis") && !PanelShown2("simple", "carbon", "BIM & Documentation"));
+    bool PanelShown2(string view, string extra, string panel) => RibbonVisibility.Plan(view, all, false, new[] { extra })[RibbonVisibility.PanelKey(panel)].Visible;
+    Check("an extra whose tool is missing still does not show the button that cannot work: post analysis without Unity or SOLIDWORKS keeps Choose, Generate and Import, not Record or Simulate", string.Join(",", ShownWith("simple", nothing, "postAnalysis").Except(simple).OrderBy(n => n)) == "ChooseKineticFamily,GenerateKineticFamily,ImportKineticAdaptation");
+    Check("safety without Unity keeps Fire Safety and Accessibility but not Ball Trajectory (which needs Unity)", string.Join(",", ShownWith("simple", noUnity, "safety").Except(simple).OrderBy(n => n)) == "AnalyzeAccessibility,AnalyzeFireSafety");
+    Check("several extras add up, in any order, and the same extra twice is once", ShownWith("simple", all, "structure", "carbon").SequenceEqual(ShownWith("simple", all, "carbon", "structure", "structure")) && ShownWith("simple", all, "structure", "carbon").Except(simple).Count() == 4);
+    Check("an extra that does not exist brings nothing, and none or null changes nothing", ShownWith("simple", all, "nope", "").OrderBy(n => n).SequenceEqual(simple.OrderBy(n => n)) && RibbonVisibility.Plan("simple", all, false, null)["AnalyzeSunShade"].Visible == false);
+    Check("extras change nothing in the Advanced view (everything the computer can do is there)", RibbonVisibility.ExtraButtons.Keys.All(k => ShownWith("advanced", all, k).Length == buttonNames.Count) && ShownWith("advanced", nothing, "postAnalysis").SequenceEqual(Shown("advanced", nothing)));
+    Check("a button an extra brought back is told apart from one nothing brought back: only the second says it is hidden in the Simple view", RibbonVisibility.Plan("simple", all, false, new[] { "conditions" })["AnalyzeSunShade"].Visible && RibbonVisibility.Plan("simple", all, false, new[] { "conditions" })["AnalyzeFireSafety"].Reason.Contains("Simple view") && RibbonVisibility.Plan("simple", all, false, new[] { "conditions" })["AnalyzeFireSafety"].Reason.Contains("quiz"));
+    Check("the guard holds with extras too: the way into the web app and into the files is visible for every extra, in both views", RibbonVisibility.ExtraButtons.Keys.All(k => new[] { "simple", "advanced", null }.All(v => RibbonVisibility.AlwaysVisible.All(n => RibbonVisibility.Plan(v, nothing, false, new[] { k })[n].Visible))));
+
+    // the guard
+    var views = new string?[] { "simple", "advanced", null, "garbage" };
+    Check("the way into the web app and into the person's files is visible in every view and on every computer", views.All(v => new[] { all, nothing, noUnity, noSw }.All(c => RibbonVisibility.AlwaysVisible.All(n => RibbonVisibility.Plan(v, c)[n].Visible))));
+    Check("SPORTIFY_SHOW_ALL_BUTTONS turns both rules off: Simple with no tools still shows everything", Shown("simple", nothing, showAll: true).Length == buttonNames.Count && layoutPanels.All(p => RibbonVisibility.Plan("simple", nothing, true)[RibbonVisibility.PanelKey(p.Name)].Visible));
+
+    // the All Buttons toggle on the ribbon: the same switch, put in the person's hands
+    var appPanel = layoutPanels.First(p => p.Name == "App & Data Import").Entries.OfType<RibbonButtonSpec>().ToList();
+    var showAllButton = appPanel.FirstOrDefault(b => b.InternalName == RibbonVisibility.ShowAllName);
+    Check("the All Buttons toggle is a button of the App & Data Import panel, next to Auto Import, with its own command and icon", showAllButton != null && showAllButton.CommandClass == "ToggleShowAllCommand" && RibbonIconData.Icons.ContainsKey(showAllButton.Icon)
+          && appPanel.FindIndex(b => b.InternalName == "ToggleAutoImport") + 1 == appPanel.FindIndex(b => b.InternalName == RibbonVisibility.ShowAllName) && showAllButton.Text == RibbonVisibility.ShowAllText(false));
+    Check("it is never hidden, in either view and on any computer: it is the way to the full ribbon from the Simple one", views.All(v => new[] { all, nothing, noUnity, noSw }.All(c => RibbonVisibility.Plan(v, c)[RibbonVisibility.ShowAllName].Visible)) && RibbonVisibility.AlwaysVisible.Contains(RibbonVisibility.ShowAllName));
+    Check("its words say the state, and the tooltip says what it does in each state", RibbonVisibility.ShowAllText(false).EndsWith("OFF") && RibbonVisibility.ShowAllText(true).EndsWith("ON") && RibbonVisibility.ShowAllTooltip(true) != RibbonVisibility.ShowAllTooltip(false)
+          && RibbonVisibility.ShowAllTooltip(false).Contains("Simple") && RibbonVisibility.ShowAllTooltip(true).Contains("Click to go back"));
+    var saDir = Path.Combine(Path.GetTempPath(), "sportify-showall-" + Guid.NewGuid().ToString("N")[..8]);
+    Directory.CreateDirectory(saDir);
+    var saSettings = Path.Combine(saDir, "settings.json");
+    SportifyWorkspace.UseSettingsFile(saSettings);
+    var envWas = Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS");
+    Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", null);
+    try
+    {
+        Check("with no settings file the toggle is off, and the ribbon follows the view", !SportifyProfile.ShowAllButtons() && !RibbonVisibility.ShowAllRequested());
+        var saProfile = SportifyProfile.Sanitize(System.Text.Json.Nodes.JsonNode.Parse("{\"view\":\"simple\",\"role\":\"planner\"}"))!;
+        SportifyProfile.SaveToSettings(saProfile);
+        SportifyProfile.SetShowAllButtons(true);
+        Check("turning it on is remembered in the settings file and keeps the profile (view: simple)", SportifyProfile.ShowAllButtons() && RibbonVisibility.ShowAllRequested() && SportifyProfile.Read()?["view"]?.GetValue<string>() == "simple");
+        SportifyProfile.SaveToSettings(saProfile);
+        Check("saving the profile afterwards (the web app does) does not turn it off", SportifyProfile.ShowAllButtons());
+        Check("with it on, a Simple view on a computer with no tools shows the whole ribbon", Shown("simple", nothing, showAll: RibbonVisibility.ShowAllRequested()).Length == buttonNames.Count);
+        SportifyProfile.SetShowAllButtons(false);
+        Check("turning it off puts the ribbon back to the view, and leaves the profile alone", !SportifyProfile.ShowAllButtons() && !RibbonVisibility.ShowAllRequested() && SportifyProfile.Read()?["view"]?.GetValue<string>() == "simple"
+              && !File.ReadAllText(saSettings).Contains("ribbon_show_all") && Shown("simple", all, showAll: RibbonVisibility.ShowAllRequested()).Length == simple.Length);
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", "1");
+        Check("the environment variable still turns it on, whatever the file says", RibbonVisibility.ShowAllRequested() && !SportifyProfile.ShowAllButtons());
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", null);
+        File.WriteAllText(saSettings, "{ this is not json");
+        var unreadableIsOff = !SportifyProfile.ShowAllButtons();
+        SportifyProfile.SetShowAllButtons(true);
+        Check("an unreadable settings file is off (the ribbon follows the view), and turning it on writes a readable file again", unreadableIsOff && SportifyProfile.ShowAllButtons());
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS", envWas);
+        SportifyWorkspace.UseSettingsFile(null);
+        try { Directory.Delete(saDir, true); } catch (Exception) { }
+    }
+    Check("a drop-down is shown exactly when one of its items is, a panel exactly when one of its entries is", views.All(v => new[] { all, nothing }.All(c =>
+    {
+        var plan = RibbonVisibility.Plan(v, c);
+        return layoutPanels.All(p => plan[RibbonVisibility.PanelKey(p.Name)].Visible == p.Entries.Any(e => e switch
+        {
+            RibbonButtonSpec b => plan[b.InternalName].Visible,
+            RibbonPulldownSpec pd => plan[pd.InternalName].Visible && pd.Items.Any(i => plan[i.InternalName].Visible),
+            RibbonPushMenuSpec => plan[RibbonVisibility.PushMenuName].Visible,
+            _ => false,
+        })) && layoutPanels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().All(pd => plan[pd.InternalName].Visible == pd.Items.Any(i => plan[i.InternalName].Visible));
+    })));
+    Check("the ribbon is never left with nothing: there is always something visible", views.All(v => new[] { all, nothing }.All(c => Shown(v, c).Length >= 2)));
+
+    // what this computer has: one answer, kept for a while, safe when the look fails
+    var looks = 0;
+    SportifyCapabilities.UseProbe(() => { looks++; return all; });
+    var first = SportifyCapabilities.Current();
+    SportifyCapabilities.Current();
+    Check("the computer is looked at once and the answer is reused; refresh looks again", looks == 1 && first.Unity.Found && SportifyCapabilities.Current(refresh: true) != null && looks == 2);
+    SportifyCapabilities.UseProbe(() => throw new InvalidOperationException("registry unreadable"));
+    var failed = SportifyCapabilities.Current();
+    Check("a look that fails counts as 'nothing found' with the reason, and never throws", !failed.Unity.Found && failed.Unity.Note.Contains("registry unreadable") && !failed.SolidWorks.Found);
+    SportifyCapabilities.UseProbe(() => Capabilities.None);
+    Check("with no probe installed nothing is found (the safe answer: no button that can only fail is offered)", !SportifyCapabilities.Current(true).Unity.Found);
+    var json = all.ToJson();
+    Check("the answer as JSON has each tool's found/path/note and whether Unity's project is free", json["unity"]!["found"]!.GetValue<bool>() && json["solidworks"]!["path"]!.GetValue<string>() == @"C:\Tools\x.exe" && json["chrome"]!["note"]!.GetValue<string>() == "found" && json["unity_project_free"]!.GetValue<bool>());
+
+    // the wiring in the add-in's sources
+    string? src = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && src == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) src = candidate;
+    }
+    string Src(string file) => src == null ? "" : File.ReadAllText(Path.Combine(src, file));
+    var app = Src("SportfyRevitApp.cs");
+    Check("OnStartup installs the probe before the server starts, and the refresh bridge", app.IndexOf("SportifyCapabilities.UseProbe(CapabilityProbes.Detect)", StringComparison.Ordinal) is var at && at > 0 && at < app.IndexOf("RoofBoundaryServer.Start()", StringComparison.Ordinal) && app.Contains("RibbonRefreshBridge.Install()"));
+    Check("BuildRibbon registers every panel, button, drop-down and drop-down item, and applies the plan after the last panel", app.Contains("RibbonApplier.RegisterPanel(spec.Name, panel)") && (app.Split("RibbonApplier.Register(").Length - 1) >= 4 && app.Contains("RibbonApplier.Apply()")
+          && app.IndexOf("RibbonApplier.Apply()", StringComparison.Ordinal) > app.IndexOf("RibbonApplier.RegisterPanel", StringComparison.Ordinal));
+    Check("a ribbon that cannot follow is logged and left as it was: Apply is inside its own try/catch, and each item's Visible is set inside one", app.Contains("the ribbon could not be made to follow the view and this computer: every button stays visible") && Src("RibbonApplier.cs").Contains("the visibility of \" + key + \" could not be set"));
+    Check("the applier runs on Revit's own thread only (start-up, or the external event RibbonRefreshBridge), and the All Buttons toggle (or SPORTIFY_SHOW_ALL_BUTTONS) is honoured, in the ribbon and in what the web app is told", Src("RibbonApplier.cs").Contains("IExternalEventHandler") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllRequested()") && Src("RibbonApplier.cs").Contains("ExternalEvent.Create(this)")
+          && Src("WorkspaceEndpoints.cs").Contains("RibbonVisibility.ShowAllRequested()"));
+    Check("the toggle's command saves the choice, applies it on Revit's thread and says how it ended; the applier rewrites the button's words", Src("ToggleShowAllCommand.cs").Contains("SportifyProfile.SetShowAllButtons(turningOn)") && Src("ToggleShowAllCommand.cs").Contains("RibbonApplier.Apply()")
+          && Src("ToggleShowAllCommand.cs").Contains("Result.Failed") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllText(on)") && Src("RibbonApplier.cs").Contains("RibbonVisibility.ShowAllTooltip(on)"));
+    var picker = Src("LayoutFilePicker.cs");
+    Check("no command opens Revit's own FileOpenDialog any more: layout and DXF files come from LayoutFilePicker (newest export first, then a Windows file dialog owned by Revit's window)",
+          new[] { "ImportSportifyLayoutCommand.cs", "SetSunAndLocationCommand.cs", "AnalysisLayoutSource.cs", "ImportDxfCommand.cs" }.All(f => !Src(f).Contains("new FileOpenDialog") && Src(f).Contains("LayoutFilePicker."))
+          && picker.Contains("OpenFileDialog") && picker.Contains("dialog.ShowDialog(new Owner(revitWindow))") && picker.Contains("TaskDialogCommandLinkId.CommandLink1") && picker.Contains("NewestExport("));
+    Check("Import Configuration logs where it is (start, the choice, the dialog opening and closing), so a stall shows in the add-in log", Src("ImportSportifyLayoutCommand.cs").Contains("Import Configuration started") && picker.Contains("file dialog opening") && picker.Contains("file dialog closed"));
+    var media = Src("AnalysisMedia.cs");
+    Check("the analysis dialogs no longer ask 'do you have Unity?': the video link is offered only where Unity is, the PDF always", !media.Contains("I have Unity") && !media.Contains("I don't have Unity") && media.Contains("if (!haveUnity)") && media.Contains("dialog.AddCommandLink(VideoLink, \"Render the 3D video with Unity\""));
+    Check("SOLIDWORKS has one detector: the probe asks MechanicalTool, which the Simulate command uses too", Src("CapabilityProbes.cs").Contains("MechanicalTool.SolidWorksInstalled()") && Src("CapabilityProbes.cs").Contains("MechanicalTool.Locate(") && Src("CapabilityProbes.cs").Contains("UnityHeadlessRunner.TryLocate("));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- the Getting started checklist
+{
+    Console.WriteLine("\n===== the Getting started checklist (GettingStarted, GettingStartedCommand) =====");
+    var gsSteps = GettingStarted.Steps;
+    var gsButtons = RibbonLayout.Panels.SelectMany(p => p.Entries).SelectMany(e => e switch
+    {
+        RibbonButtonSpec b => new[] { b.InternalName },
+        RibbonPulldownSpec pd => pd.Items.Select(i => i.InternalName),
+        _ => Array.Empty<string>(),
+    }).ToList();
+
+    Check("six steps in the order of the user guide's walk-through, each with a title and a hint of a sentence or two", gsSteps.Select(s => s.Id).SequenceEqual(new[] { "web_app", "roof", "layout", "built", "analyses", "documents" })
+          && gsSteps.All(s => s.Title.Length > 3 && s.Hint.Length > 30 && s.Hint.Length < 330) && gsSteps.Select(s => s.Id).Distinct().Count() == gsSteps.Count);
+    Check("a step's action is a real ribbon button with its own words; the two steps only the person can do (giving the roof, designing the layout) have none",
+          gsSteps.All(s => (s.Action == null) == (s.ActionText == null) && (s.Action == null || gsButtons.Contains(s.Action))) && gsSteps.Where(s => s.Action == null).Select(s => s.Id).SequenceEqual(new[] { "roof", "layout" }),
+          string.Join(", ", gsSteps.Where(s => s.Action != null && !gsButtons.Contains(s.Action!)).Select(s => s.Action)));
+
+    // what each step is judged by
+    var only = (string id) => new GettingStartedFacts(id == "web_app", id == "roof", id == "layout", id == "built", id == "analyses", id == "documents");
+    Check("every step holds on its own fact and on no other (an unknown step never holds)", gsSteps.All(s => gsSteps.All(t => only(s.Id).Holds(t.Id) == (s.Id == t.Id))) && !GettingStartedFacts.Nothing.Holds("nope") && !only("web_app").Holds("nope"));
+
+    // the rows
+    var none = GettingStarted.Rows(GettingStartedFacts.Nothing, null);
+    Check("with nothing true and nothing remembered the first step is next and the rest later", none[0].State == StepState.Next && none.Skip(1).All(r => r.State == StepState.Later) && GettingStarted.NextRow(none)!.Step.Id == "web_app");
+    var some = GettingStarted.Rows(new GettingStartedFacts(true, true, false, false, false, false), null);
+    Check("what holds is done, and the first step that does not is next", some.Take(2).All(r => r.State == StepState.Done) && some[2].State == StepState.Next && some.Skip(3).All(r => r.State == StepState.Later));
+    var skipped = GettingStarted.Rows(only("layout"), null);
+    Check("a later step that holds does not hide the step before it: the first one missing is still next, and there is only one next", skipped[0].State == StepState.Next && skipped[2].State == StepState.Done && skipped.Count(r => r.State == StepState.Next) == 1);
+    var before = GettingStarted.Rows(new GettingStartedFacts(false, false, true, false, false, false), new[] { "web_app", "roof", "layout", "not a step" });
+    Check("a step seen to hold before but not now is done before, one that holds now is done (not 'before'), and an unknown remembered id is ignored", before[0].State == StepState.DoneBefore && before[1].State == StepState.DoneBefore && before[2].State == StepState.Done && before[3].State == StepState.Next);
+    var all = GettingStarted.Rows(new GettingStartedFacts(true, true, true, true, true, true), null);
+    Check("with every step done nothing is next, and it says so", GettingStarted.NextRow(all) == null && GettingStarted.Headline(all) == "Every step is done" && GettingStarted.Hint(all).Contains("Nothing is left"));
+    var allBefore = GettingStarted.Rows(GettingStartedFacts.Nothing, gsSteps.Select(s => s.Id));
+    Check("every step done before but none now says that, and is not 'next' either", GettingStarted.NextRow(allBefore) == null && GettingStarted.Headline(allBefore) == "Every step is done, some of them earlier");
+    Check("the headline names the step to do now, with its number", GettingStarted.Headline(some) == "Next, step 3: Design the layout in the web app");
+
+    // the words
+    var text = GettingStarted.Checklist(before);
+    var lines = text.Split(Environment.NewLine);
+    Check("the list has a line for each step: [x] done, [x] with (before) when it was earlier, [>] for the next, [ ] for the rest", lines.Length == 6 && lines[0].StartsWith("[x]") && lines[0].EndsWith("(before)") && lines[2].StartsWith("[x]") && !lines[2].Contains("(before)") && lines[3].StartsWith("[>]") && lines[4].StartsWith("[  ]"), text.Replace(Environment.NewLine, " | "));
+
+    // what is remembered, in a settings file of its own
+    var gsDir = Path.Combine(Path.GetTempPath(), "sportify-gs-" + Guid.NewGuid().ToString("N")[..8]);
+    Directory.CreateDirectory(gsDir);
+    var gsSettings = Path.Combine(gsDir, "settings.json");
+    SportifyWorkspace.UseSettingsFile(gsSettings);
+    SportifyWorkspace.UseFolder(Path.Combine(gsDir, "My Sportify"));
+    try
+    {
+        Check("with no settings file nothing is remembered", GettingStarted.Remembered().Count == 0);
+        File.WriteAllText(gsSettings, "{ \"workspace_folder\": \"D:\\\\Elsewhere\", \"profile\": { \"view\": \"simple\" } }");
+        GettingStarted.Remember(new[] { "roof" });
+        GettingStarted.Remember(new[] { "web_app", "roof", "made up" });
+        var stored = JsonNode.Parse(File.ReadAllText(gsSettings))!.AsObject();
+        Check("what holds is remembered, in the order of the steps, each once, and only real steps", GettingStarted.Remembered().SequenceEqual(new[] { "web_app", "roof" })
+              && stored["getting_started"]!["done"]!.AsArray().Select(n => n!.GetValue<string>()).SequenceEqual(new[] { "web_app", "roof" }) && stored["getting_started"]!["updated"]!.GetValue<string>().EndsWith("Z"), "remembered: " + string.Join(",", GettingStarted.Remembered()) + " file: " + File.ReadAllText(gsSettings).Replace("\n", " "));
+        Check("...and every other setting stays where it was (the Sportify folder, the profile)", stored["workspace_folder"]!.GetValue<string>() == @"D:\Elsewhere" && stored["profile"]!["view"]!.GetValue<string>() == "simple");
+        GettingStarted.Remember(Array.Empty<string>());
+        Check("remembering nothing forgets nothing", GettingStarted.Remembered().SequenceEqual(new[] { "web_app", "roof" }));
+        GettingStarted.Forget();
+        stored = JsonNode.Parse(File.ReadAllText(gsSettings))!.AsObject();
+        Check("starting again forgets the steps and keeps the other settings", GettingStarted.Remembered().Count == 0 && stored["getting_started"] == null && stored["profile"] != null && stored["workspace_folder"] != null);
+        File.WriteAllText(gsSettings, "{ \"getting_started\": { \"done\": [\"roof\", \"evil\", 5, null, \"roof\", \"<script>\"] } }");
+        Check("a settings file that holds anything else than step ids gives only the steps", GettingStarted.Remembered().SequenceEqual(new[] { "roof" }));
+        File.WriteAllText(gsSettings, "{ not json");
+        Check("an unreadable settings file remembers nothing and does not stop the checklist; the next save starts a valid file", GettingStarted.Remembered().Count == 0
+              && new Func<bool>(() => { GettingStarted.Remember(new[] { "web_app" }); return GettingStarted.Remembered().SequenceEqual(new[] { "web_app" }); })());
+        GettingStarted.Forget();
+
+        // the documents: only a report, a schedule or a diagram counts
+        SportifyWorkspace.EnsureCreated();
+        var folder = SportifyWorkspace.Folder;
+        Check("an empty Sportify folder holds no documents", !GettingStarted.DocumentsMade());
+        File.WriteAllText(Path.Combine(folder, "Layouts", "sportify_combined_revit.json"), "{}");
+        File.WriteAllText(Path.Combine(folder, "Profile", "Sportify-PROFILE.json"), "{}");
+        Check("a layout or a profile is not a document", !GettingStarted.DocumentsMade());
+        File.WriteAllText(Path.Combine(folder, "Schedules", "schedule.csv"), "a;b");
+        Check("a schedule is", GettingStarted.DocumentsMade());
+        File.Delete(Path.Combine(folder, "Schedules", "schedule.csv"));
+        File.WriteAllText(Path.Combine(folder, "Analysis reports", "report.pdf"), "%PDF");
+        Check("so is an analysis report", GettingStarted.DocumentsMade());
+        File.Delete(Path.Combine(folder, "Analysis reports", "report.pdf"));
+        File.WriteAllText(Path.Combine(folder, "Diagrams", "plan.png"), "png");
+        Check("and a diagram", GettingStarted.DocumentsMade());
+    }
+    finally
+    {
+        SportifyWorkspace.UseFolder(null);
+        SportifyWorkspace.UseSettingsFile(null);
+        try { Directory.Delete(gsDir, true); } catch (IOException) { /* a temp folder: leave it */ }
+    }
+
+    // the web app arriving: a session handshake from a page of the app, and nothing else
+    var gsGuard = new LocalRequestGuard(5679, new[] { "http://localhost:8123" }, "tok");
+    LocalRequestGuard.Verdict Ask(string method, string? origin, string path, string? token = null) => gsGuard.Judge(method, "localhost:5679", origin, path, token, null);
+    RoofBoundaryServer.ForgetWebAppSeen();
+    Check("the web app has not been seen until a page of it asks for its session", !RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://evil.example", "/session"));
+    RoofBoundaryServer.NoteRequest(Ask("GET", null, "/session"));
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://localhost:8123", "/workspace", "tok"));
+    Check("a request from another origin, one with no origin, and an ordinary request of the app do not count", !RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.NoteRequest(Ask("GET", "http://localhost:8123", "/session"));
+    Check("the session handshake of a page of the app does", RoofBoundaryServer.WebAppSeen);
+    RoofBoundaryServer.ForgetWebAppSeen();
+    string? gsSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && gsSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) gsSrc = candidate;
+    }
+    string GsSrc(string file) => gsSrc == null ? "" : File.ReadAllText(Path.Combine(gsSrc, file));
+    var listener = GsSrc("RoofBoundaryServer.cs");
+    Check("the listener tells the server what the guard made of every request, right after it judged it", listener.IndexOf("NoteRequest(verdict);", StringComparison.Ordinal) is var at && at > listener.IndexOf("Guard.Judge(", StringComparison.Ordinal) && at > 0);
+
+    // the button and the command
+    var first = RibbonLayout.Panels[0];
+    var gsButton = first.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.InternalName == "GettingStarted");
+    Check("the Getting started button is the first in the App & Data Import panel, runs GettingStartedCommand and has an icon of the table", first.Name == "App & Data Import" && first.Entries[0] == gsButton && gsButton != null && gsButton.CommandClass == "GettingStartedCommand"
+          && RibbonIconData.Icons.ContainsKey(gsButton.Icon) && gsButton.Tooltip.Length > 60);
+    var gsFound = new ToolStatus(true, @"C:\Tools\x.exe", "found");
+    var gsAll = new Capabilities(gsFound, true, gsFound, gsFound);
+    var gsNothing = Capabilities.None;
+    Check("it is part of the Simple view's main path and visible in every view, with every tool and with none", RibbonVisibility.SimpleButtons.Contains("GettingStarted")
+          && new string?[] { "simple", "advanced", null }.All(v => new[] { gsAll, gsNothing }.All(c => RibbonVisibility.Plan(v, c)["GettingStarted"].Visible)));
+    var cmd = GsSrc("GettingStartedCommand.cs");
+    Check("the command is public, read-only and a task dialog: it shows the list, remembers what holds, and offers the next step's action first", cmd.Contains("public class GettingStartedCommand : IExternalCommand") && cmd.Contains("TransactionMode.ReadOnly") && cmd.Contains("new TaskDialog(Title)")
+          && cmd.Contains("GettingStarted.Remember(") && cmd.Contains("GettingStarted.Rows(Gather(doc), GettingStarted.Remembered())"));
+    Check("its links are numbered from 1 without a gap (a dialog with only a second link is not relied on)", cmd.Contains("hasAction ? TaskDialogCommandLinkId.CommandLink2 : TaskDialogCommandLinkId.CommandLink1") && cmd.Contains("TaskDialogCommandLinkId.CommandLink1, next!.Step.ActionText"));
+    Check("the project's import ledger is what says the layout was built here, read inside a try so a project without one is just 'not yet'", cmd.Contains("ImportLedger.ReadElements(doc).Count > 0") && cmd.IndexOf("try { built", StringComparison.Ordinal) > 0);
+    Check("another button's command is only posted when Revit can take it, else the person is told which button to click", cmd.Contains("uiApp.CanPostCommand(id)") && cmd.Contains("SportfyRevitApp.CommandIdFor(internalName)") && cmd.Contains("Click \\\"\" + text + \"\\\" on the Sportify tab"));
+    Check("nothing opens the checklist by itself: only the ribbon button names it (the app's start-up never does)", !GsSrc("SportfyRevitApp.cs").Contains("GettingStartedCommand") && !GsSrc("SportfyRevitApp.cs").Contains("GettingStarted."));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- IFC Worksets by Class
+{
+    Console.WriteLine("\n===== IFC worksets by class (IfcWorksetRules, IfcWorksetService, AssignIfcWorksetsCommand) =====");
+    string? ifSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && ifSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) ifSrc = candidate;
+    }
+    string IfSrc(string file) => ifSrc == null ? "" : File.ReadAllText(Path.Combine(ifSrc, file));
+    var D = IfcWorksetRules.Defaults;
+    string? N(string? s) => IfcWorksetRules.NormalizeClass(s);
+
+    Check("the IFC import writes the class of the TYPE, and the element is an instance of it: IfcColumnType is an IfcColumn, IfcRampFlightType an IfcRampFlight, IfcWallStandardCase an IfcWall",
+          N("IfcColumnType") == "IfcColumn" && N("IfcRampFlightType") == "IfcRampFlight" && N("IfcWallStandardCase") == "IfcWall" && N("IfcWallStandardCaseType") == "IfcWall" && N("  IfcBeamType ") == "IfcBeam" && N("IfcSlab") == "IfcSlab");
+    Check("'By Type', 'Default', 'Not Exported', Yes, No, empty, null and text that is no IFC class say nothing", new string?[] { null, "", "  ", "By Type", "default", "<Default>", "Not Exported", "Yes", "No", "Column", "Type" }.All(v => N(v) == null));
+    Check("a predefined type refines nothing when it is NOTDEFINED, USERDEFINED, empty or 'By Type'; otherwise it is upper case",
+          IfcWorksetRules.NormalizePredefined("beam") == "BEAM" && IfcWorksetRules.NormalizePredefined("NOTDEFINED") == null && IfcWorksetRules.NormalizePredefined("USERDEFINED") == null && IfcWorksetRules.NormalizePredefined(" ") == null && IfcWorksetRules.NormalizePredefined("By Type") == null && IfcWorksetRules.NormalizePredefined(null) == null);
+
+    // what the inspection of the Goldbeck model found (2026-09-26): every class it holds has a workset of its own kind, none falls to the fallback
+    var goldbeck = new[] { "IfcFurnitureType", "IfcColumnType", "IfcBeamType", "IfcMemberType", "IfcWallType", "IfcRailingType", "IfcRampFlightType", "IfcRampType", "IfcSlabType", "IfcPipeSegmentType" };
+    Check("every class the Goldbeck model holds (furniture, columns, beams, members, walls, railings, ramps and their flights, slabs, pipes) has a workset in the defaults, and none goes to the fallback",
+          goldbeck.All(c => IfcWorksetRules.WorksetFor(D, N(c), null, false) != D.Fallback && D.Map.ContainsKey(N(c)!)), string.Join(",", goldbeck.Where(c => IfcWorksetRules.WorksetFor(D, N(c), null, false) == D.Fallback)));
+    Check("columns, beams and members share IFC Structure; walls, railings, furniture and slabs each have their own; ramps and their flights share one",
+          IfcWorksetRules.WorksetFor(D, "IfcColumn", null, false) == "IFC Structure" && IfcWorksetRules.WorksetFor(D, "IfcBeam", null, false) == "IFC Structure" && IfcWorksetRules.WorksetFor(D, "IfcMember", null, false) == "IFC Structure"
+          && new[] { "IfcWall", "IfcRailing", "IfcFurniture", "IfcSlab" }.Select(c => IfcWorksetRules.WorksetFor(D, c, null, false)).Distinct().Count() == 4 && IfcWorksetRules.WorksetFor(D, "IfcRamp", null, false) == IfcWorksetRules.WorksetFor(D, "IfcRampFlight", null, false));
+    Check("the default names never meet Sportify's own worksets (Sports, Gardens, Combine, 'Sportify ...') except the roof, which is Sportify's Existing Roof Base on purpose",
+          IfcWorksetRules.WorksetNames(D).Where(n => n != D.Roof).All(n => n.StartsWith("IFC ") && !BimRules.WorksetNames.Contains(n)) && D.Roof == "Sportify Existing Roof Base" && D.Fallback == "IFC Other");
+    Check("the roof workset is the name SportifyWorksetSet gives the existing roof base (one name, two files)", IfSrc("SportifyWorksetSet.cs").Contains("ExistingRoofBase = \"" + IfcWorksetRules.RoofWorkset + "\""));
+
+    // what is read from an element: its own class first, then its type's, then its category's
+    string? Inst(string n) => n == "Export to IFC As" ? "IfcColumnType" : n == "IFC Predefined Type" ? "COLUMN" : null;
+    string? Typ(string n) => n == "Export Type to IFC As" ? "IfcBeamType" : n == "Type IFC Predefined Type" ? "BEAM" : null;
+    string? None(string n) => null;
+    Check("the class is the instance's if it has one, else the type's, else the one the Revit category stands for, else none",
+          IfcWorksetRules.ClassOf(Inst, Typ, "OST_Walls") == "IfcColumn" && IfcWorksetRules.ClassOf(None, Typ, "OST_Walls") == "IfcBeam" && IfcWorksetRules.ClassOf(None, None, "OST_Walls") == "IfcWall"
+          && IfcWorksetRules.ClassOf(None, None, "OST_Furniture") == "IfcFurniture" && IfcWorksetRules.ClassOf(None, None, "OST_StructuralColumns") == "IfcColumn" && IfcWorksetRules.ClassOf(None, None, "OST_Cameras") == null && IfcWorksetRules.ClassOf(None, None, null) == null);
+    Check("...and 'By Type' on the instance does not hide the type's class", IfcWorksetRules.ClassOf(n => n == "Export to IFC As" ? "By Type" : null, Typ, null) == "IfcBeam");
+    Check("the predefined type is the instance's, else the type's", IfcWorksetRules.PredefinedOf(Inst, Typ) == "COLUMN" && IfcWorksetRules.PredefinedOf(None, Typ) == "BEAM" && IfcWorksetRules.PredefinedOf(None, None) == null);
+
+    // the table
+    var refined = new IfcWorksetTable("Other", "Roof base", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["IfcMember"] = "Members", ["IfcMember:BRACE"] = "Bracing", ["IfcWall"] = "Walls" });
+    Check("the roof the person named goes on the roof workset whatever its class; 'class:PREDEFINED' beats the class; a class the table does not name goes to the fallback; an element with no class at all gets no workset (it stays where it is); classes are matched without regard to case",
+          IfcWorksetRules.WorksetFor(refined, "IfcWall", null, true) == "Roof base" && IfcWorksetRules.WorksetFor(refined, "IfcMember", "BRACE", false) == "Bracing" && IfcWorksetRules.WorksetFor(refined, "IfcMember", "STRUT", false) == "Members"
+          && IfcWorksetRules.WorksetFor(refined, "IfcMember", null, false) == "Members" && IfcWorksetRules.WorksetFor(refined, "IfcDuct", null, false) == "Other" && IfcWorksetRules.WorksetFor(refined, null, null, false) == null && IfcWorksetRules.WorksetFor(refined, null, "BRACE", false) == null && IfcWorksetRules.WorksetFor(refined, "ifcwall", null, false) == "Walls");
+    var round = IfcWorksetRules.Parse(IfcWorksetRules.ToJson(D));
+    Check("the table written to the file reads back the same (fallback, roof, every class)", round.Fallback == D.Fallback && round.Roof == D.Roof && round.Map.Count == D.Map.Count && D.Map.All(kv => round.Map.TryGetValue(kv.Key, out var w) && w == kv.Value));
+    Check("the file's note says how to edit it and which command reads it", IfcWorksetRules.ToJson(D).Contains("_about") && IfcWorksetRules.ToJson(D).Contains("IFC Worksets by Class") && IfcWorksetRules.ToJson(D).Contains("IfcMember:BRACE"));
+    var edited = IfcWorksetRules.Parse("{ \"fallback\": \"Rest\", \"map\": { \"IfcColumn\": \"Stützen\", \"IfcWall\": \"  \", \"\": \"x\", \"IfcSlab\": 5 } }");
+    Check("an edited file: its own map replaces the default map (blank names, blank keys and non-text values are dropped), its fallback is used, a missing roof is the default one",
+          edited.Fallback == "Rest" && edited.Roof == D.Roof && edited.Map.Count == 1 && edited.Map["IfcColumn"] == "Stützen" && IfcWorksetRules.WorksetFor(edited, "IfcWall", null, false) == "Rest");
+    Check("a file that is broken, empty, not an object, or missing gives the defaults and never throws", new string?[] { null, "", "not json", "[1,2]", "{ \"map\": 3 }", "{" }.All(t => IfcWorksetRules.Parse(t).Map.Count == D.Map.Count || t == "{ \"map\": 3 }") && IfcWorksetRules.Parse("{ \"map\": 3 }").Map.Count == D.Map.Count);
+    var ifDir = Path.Combine(Path.GetTempPath(), "sportify-ifcws-" + Guid.NewGuid().ToString("N")[..8]);
+    try
+    {
+        var file = Path.Combine(ifDir, "sub", "ifc-worksets.json");
+        var first = IfcWorksetRules.EnsureFile(file);
+        File.WriteAllText(file, "{ \"fallback\": \"Mine\" }");
+        var second = IfcWorksetRules.EnsureFile(file);
+        Check("the default table is written once, where a person can find it (folders made), and an edited file is never overwritten", first && !second && IfcWorksetRules.Load(file).Fallback == "Mine" && IfcWorksetRules.Load(Path.Combine(ifDir, "nothing.json")).Fallback == D.Fallback);
+        File.WriteAllBytes(file, new byte[] { 0xff, 0xfe, 0x00 });
+        Check("an unreadable file is the defaults", IfcWorksetRules.Load(file).Map.Count == D.Map.Count);
+    }
+    finally { try { Directory.Delete(ifDir, true); } catch (Exception) { } }
+    Check("the workset names a table can use are its map's, its fallback and its roof, each once", IfcWorksetRules.WorksetNames(D).Count == D.Map.Values.Append(D.Fallback).Append(D.Roof).Distinct(StringComparer.OrdinalIgnoreCase).Count() && IfcWorksetRules.WorksetNames(D).Contains("IFC Other"));
+    Check("the summary lines list the largest first and leave out what is zero", IfcWorksetRules.Lines(new Dictionary<string, int> { ["B"] = 3, ["A"] = 10, ["Z"] = 0 }) == "  A: 10\n  B: 3");
+
+    // the parts that need Revit, as far as they can be read
+    var svc = IfSrc("IfcWorksetService.cs"); var cmd = IfSrc("AssignIfcWorksetsCommand.cs"); var self = IfSrc("IfcWorksetsSelfTest.cs");
+    Check("an IFC element is a DirectShape or one with IfcSpatialContainer; what Sportify made (its ledger, its worksets) is left alone, and only the roof workset of Sportify's is one an IFC element may be on",
+          svc.Contains("el is DirectShape || el.LookupParameter(\"IfcSpatialContainer\") != null") && svc.Contains("SportifyElementScan.Find(doc)") && svc.Contains("IsSportifyWorkset(current, table)") && svc.Contains("!name.Equals(table.Roof, StringComparison.OrdinalIgnoreCase)"));
+    Check("an element with no IFC class (the IFC's grid axes are plain model lines) is counted by its category and left where it is, never moved to the fallback",
+          svc.Contains("if (workset == null)") && svc.Contains("plan.Unclassified[kind]") && svc.Contains("WithoutClass => Unclassified.Values.Sum()") && cmd.Contains("stay where they are") && self.Contains("must stay where they are"));
+    Check("the roof is never guessed: only the ids the caller names are the roof", svc.Contains("roofIds != null && roofIds.Contains(el.Id)") && cmd.Contains("uidoc!.Selection.GetElementIds()") && !svc.Contains("BoundingBox"));
+    Check("Apply is one transaction that is rolled back if anything throws, makes the missing worksets, counts what was already there, and asks who owns an element only in a project that has a central model",
+          svc.Contains("new Transaction(doc, \"Sportify: IFC worksets by class\")") && svc.Contains("t.RollBack()") && svc.Contains("Workset.Create(doc, item.Workset)") && svc.Contains("item.AlreadyThere") && svc.Contains("doc.GetWorksharingCentralModelPath() != null"));
+    Check("the command shows what it would do (the worksets and counts, no-class, phases, the table's path) before it does it, offers to open the table, and only the first link changes anything",
+          cmd.Contains("IfcWorksetService.Plan(doc, table, roof)") && cmd.IndexOf("ask.Show()", StringComparison.Ordinal) < cmd.IndexOf("IfcWorksetService.Apply(doc, plan)", StringComparison.Ordinal) && cmd.Contains("Open the table to edit it") && cmd.Contains("answer != TaskDialogResult.CommandLink1) return Result.Cancelled")
+          && cmd.Contains("Phase Created of these elements"));
+    Check("it asks before turning worksharing on, and a document that cannot have worksharing is told why; every failure is caught and reported by BimCommandErrors", cmd.Contains("doc.CanEnableWorksharing()") && cmd.Contains("Cannot be undone.") && cmd.Contains("BimCommandErrors.Failed(Title"));
+    var pull = RibbonLayout.Panels.SelectMany(p => p.Entries).OfType<RibbonPulldownSpec>().First(p => p.InternalName == "PullPhasingWorksets");
+    var ifcBtn = pull.Items.FirstOrDefault(i => i.InternalName == "AssignIfcWorksets");
+    Check("the button is in the Phasing & Worksets drop-down next to Organize Multi-Worksets, runs AssignIfcWorksetsCommand, has an icon of the table and a tooltip that names the table and the roof selection",
+          ifcBtn != null && ifcBtn.CommandClass == "AssignIfcWorksetsCommand" && RibbonIconData.Icons.ContainsKey(ifcBtn.Icon) && ifcBtn.Tooltip.Contains("ifc-worksets.json") && ifcBtn.Tooltip.Contains("Select the roof")
+          && pull.Items.ToList().FindIndex(i => i.InternalName == "AssignIfcWorksets") == pull.Items.ToList().FindIndex(i => i.InternalName == "AssignWorksets") + 1);
+    Check("it is an Advanced-view button: the Simple view does not show it, Advanced does", !RibbonVisibility.SimpleButtons.Contains("AssignIfcWorksets") && RibbonVisibility.Plan("advanced", Capabilities.None)["AssignIfcWorksets"].Visible && !RibbonVisibility.Plan("simple", Capabilities.None)["AssignIfcWorksets"].Visible);
+    Check("the unattended self-test copies the project (the original is never opened), opens the copy detached, closes it without saving, and is installed only when its two variables are set",
+          self.Contains("File.Copy(file, copy, true)") && self.Contains("DetachAndPreserveWorksets") && self.Contains("doc.Close(false)") && self.Contains("SPORTIFY_IFC_WORKSETS_SELFTEST") && self.Contains("SPORTIFY_IFC_WORKSETS_FILE")
+          && self.Contains("string.IsNullOrWhiteSpace(dir) || string.IsNullOrWhiteSpace(file)") && IfSrc("SportfyRevitApp.cs").Contains("IfcWorksetsSelfTest.Install(application)"));
+    Check("the self-test checks what matters: every element on its planned workset, nothing of Sportify's moved, a second run with nothing left to move, the element count unchanged",
+          self.Contains("are not on the workset the plan gave them") && self.Contains("Sportify element(s) changed workset") && self.Contains("a second run would still move") && self.Contains("the number of elements changed"));
+    var coll = IfSrc("StructureCollector.cs");
+    Check("the push reads an IFC model's structure: columns and beams that are DirectShapes, by their IFC class and their box, and only the ones that belong to this roof (a column that reaches it and stands within a metre of its box, a beam under it)",
+          coll.Contains("static void ReadColumnShapes(") && coll.Contains("static void ReadBeamShapes(") && coll.Contains("OfType<DirectShape>()") && coll.Contains("cls.Equals(\"IfcColumn\"") && coll.Contains("cls.Equals(\"IfcBeam\"")
+          && coll.Contains("M(bb.Max.Z) < roofTopM - ColumnReachesM") && coll.Contains("x < rx0 || x > rx1 || y < ry0 || y > ry1") && coll.Contains("top < roofTopM - BeamBelowM || top > roofTopM + BeamAboveM"));
+    Check("a brace or a strut (IfcMember) is not a beam, two columns on one spot count once, and the person is told these came from shapes",
+          coll.Contains("a brace or a strut (IfcMember) is not a beam") && coll.Contains("ShapeSameSpotM") && coll.Contains("read from IFC shapes (DirectShapes)") && coll.Contains("check them in the app"));
+    Check("what the model's families gave is unchanged: the FamilyInstance columns and beams are read as before, the shapes are simply read in front of them", coll.Contains("OfType<FamilyInstance>()") && coll.Contains("ReadColumnShapes(c, doc, roofTopM, roofBox, picked);") && coll.Contains("ReadBeamShapes(c, doc, near, roofTopM, picked);"));
+    Check("the push builds its payload in one place (PushRoofCommandBase.Build: no selection, no dialog, the model untouched) that the ribbon command and the live self-test both call, and the self-test fails when the outline is not read, the size is not positive or a column falls outside the roof's plan",
+          IfSrc("PushRoofBoundaryCommand.cs").Contains("internal static RoofPushBuild? Build(Document doc, Element element, RoofPushScope scope") && IfSrc("PushRoofBoundaryCommand.cs").Contains("var built = Build(doc, element, scope, _selection, out var failure);")
+          && self.Contains("static void PushStep(") && self.Contains("PushRoofCommandBase.Build(doc, el, RoofPushScope.All") && self.Contains("the roof's outline was not read") && self.Contains("fall outside the roof's own plan"));
+    Check("the live self-test also reads the structure under the named roof (grids, columns, beams, walls, where the columns are against the roof's box) and fails when none is found or the whole building is read",
+          self.Contains("static void StructureStep(") && self.Contains("StructureCollector.Collect(doc, RoofPushScope.Structure") && self.Contains("no column was found under the roof") && self.Contains("the IFC's whole building is being read"));
+    Check("picking a roof to push is told, once per session, to be a 3D view when it is not one already (a model can have several roofs or slabs stacked at different heights, like Goldbeck's ten), with a way to continue anyway",
+          IfSrc("PushRoofBoundaryCommand.cs").Contains("uidoc.ActiveView is not View3D") && IfSrc("PushRoofBoundaryCommand.cs").Contains("_told3DHint") && IfSrc("PushRoofBoundaryCommand.cs").Contains("TaskDialogCommonButtons.Ok | TaskDialogCommonButtons.Cancel"));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- Deliverable names (session + iteration)
+{
+    Console.WriteLine("\n===== deliverable names carry the session and the iteration (DeliverableNaming) =====");
+    string? dnSrc = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && dnSrc == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) dnSrc = candidate;
+    }
+    string DnSrc(string file) => dnSrc == null ? "" : File.ReadAllText(Path.Combine(dnSrc, file));
+    var session = "DIGITAL TOOLS AND METHODS 2 - Roof and Sports";
+    Check("a name as a part of a file name: characters Windows refuses and control characters become spaces, spaces collapse, dots and spaces at the ends go, umlauts stay",
+          DeliverableNaming.Clean("  Dach: Sport / Garten?* ") == "Dach Sport Garten" && DeliverableNaming.Clean("Süd\tTeil\n2...") == "Süd Teil 2" && DeliverableNaming.Clean("a<b>c|d\"e") == "a b c d e" && DeliverableNaming.Clean(null) == "" && DeliverableNaming.Clean("  ...  ") == "" && DeliverableNaming.Clean("Über größe") == "Über größe");
+    Check("it is cut to the limit without leaving a space at the cut", DeliverableNaming.Clean(new string('x', 200)).Length == DeliverableNaming.MaxSession && DeliverableNaming.Clean(string.Join(" ", Enumerable.Repeat("word", 40)), 20) == "word word word word" && DeliverableNaming.Clean(string.Join(" ", Enumerable.Repeat("word", 40)), 25) == "word word word word word");
+    Check("the prefix is 'Session - Iteration - ', one of them alone with its ' - ', and nothing when neither is given (the file names stay as they were)",
+          DeliverableNaming.Prefix(session, "Algorithmic") == session + " - Algorithmic - " && DeliverableNaming.Prefix(session, null) == session + " - " && DeliverableNaming.Prefix("", "Manual") == "Manual - " && DeliverableNaming.Prefix(null, null) == "" && DeliverableNaming.Prefix("  ", "?*") == "");
+    Check("a file name gets the prefix in front, or stays", DeliverableNaming.Named("Sportify_Schedule_20260926_140000.csv", session, "Manual") == session + " - Manual - Sportify_Schedule_20260926_140000.csv" && DeliverableNaming.Named("x.pdf", null, null) == "x.pdf");
+    Check("the result is a file name Windows accepts, whatever was typed", new[] { "a/b\\c:d", "CON.", "<>|", "x\u0000y", "name?", new string('ü', 300) }.All(n => DeliverableNaming.Named("f.pdf", n, n).IndexOfAny(Path.GetInvalidFileNameChars()) < 0) && DeliverableNaming.Named("f.pdf", new string('ü', 300), new string('ü', 300)).Length < 130);
+    Check("the names in a layout: session.name and session.iteration, cleaned; nothing for a layout without them, one that is not an object, or JSON that is broken",
+          DeliverableNaming.FromLayoutJson("{\"session\":{\"name\":\" Dach: Süd \",\"iteration\":\"A/B\"},\"placements\":[]}") == ("Dach Süd", "A B") && DeliverableNaming.FromLayoutJson("{\"session\":{\"name\":\"Only\"}}") == ("Only", "") && DeliverableNaming.FromLayoutJson("{\"placements\":[]}") == ("", "")
+          && new[] { null, "", "not json", "[1]", "{\"session\":5}", "{\"session\":{\"name\":5,\"iteration\":null}}", "{\"session\":[]}" }.All(j => DeliverableNaming.FromLayoutJson(j) == ("", "")));
+    bool WithLayout(string layoutJson, Func<bool> then) { RoofBoundaryServer.SetDraftLayoutPayload(layoutJson); return then(); }
+    Check("the add-in reads them from the latest layout it holds (a draft from the web app counts), and has none for a layout that has none",
+          WithLayout("{\"session\":{\"name\":\"S\",\"iteration\":\"I\"}}", () => DeliverableNaming.Current() == ("S", "I") && DeliverableNaming.Named("a.pdf") == "S - I - a.pdf") && WithLayout("{\"placements\":[]}", () => DeliverableNaming.Current() == ("", "") && DeliverableNaming.Named("a.pdf") == "a.pdf"));
+    Check("the names the web app sent come first, cleaned (both empty clears them), then the ones a layout carries, and Resolve prefers the names of the very file it is given",
+          DeliverableNaming.Set("  Dach: Süd ", "A/B") == ("Dach Süd", "A B") && DeliverableNaming.Stored() == ("Dach Süd", "A B")
+          && WithLayout("{\"session\":{\"name\":\"Other\",\"iteration\":\"X\"}}", () => DeliverableNaming.Current() == ("Dach Süd", "A B") && DeliverableNaming.Named("a.pdf") == "Dach Süd - A B - a.pdf")
+          && DeliverableNaming.Resolve("{\"session\":{\"name\":\"Own\",\"iteration\":\"\"}}") == ("Own", "") && DeliverableNaming.Resolve("{\"placements\":[]}") == ("Dach Süd", "A B") && DeliverableNaming.Resolve(null) == ("Dach Süd", "A B")
+          && DeliverableNaming.Set("", "") == ("", "") && WithLayout("{\"session\":{\"name\":\"Other\",\"iteration\":\"X\"}}", () => DeliverableNaming.Current() == ("Other", "X")));
+    DeliverableNaming.Set("", "");
+    RoofBoundaryServer.SetDraftLayoutPayload("{}");
+    Check("the request body of POST /session-names is { name, iteration }: one of them alone is fine, anything else (not JSON, not an object, empty) is nothing",
+          DeliverableNaming.ParseRequest("{\"name\":\"S\",\"iteration\":\"I\"}") == ("S", "I") && DeliverableNaming.ParseRequest("{\"iteration\":\"I\"}") == ("", "I") && DeliverableNaming.ParseRequest("{\"name\":5}") == ("", "")
+          && new[] { null, "", " ", "nonsense", "[1]", "\"s\"" }.All(b => DeliverableNaming.ParseRequest(b) == null));
+    Check("the newest file of a kind is looked for under the current names first, then under any name (its stem is what counts)",
+          WithLayout("{\"session\":{\"name\":\"S\",\"iteration\":\"I\"}}", () => DeliverableNaming.PatternsFor("circulation_", "png").SequenceEqual(new[] { "S - I - circulation_*.png", "*circulation_*.png" })) && WithLayout("{}", () => DeliverableNaming.PatternsFor("circulation_", "png").SequenceEqual(new[] { "*circulation_*.png" })));
+    RoofBoundaryServer.SetDraftLayoutPayload("{}");
+
+    var namedSites = new (string File, int Count)[] { ("WorkspaceEndpoints.cs", 2), ("GenerateAnalysisReportCommand.cs", 3), ("GenerateSchedulesCommand.cs", 1), ("PhysicalAnalysisPdf.cs", 1), ("UnityHeadlessRunner.cs", 1) };
+    Check("the charts PDF and the film take the names of the layout they are made of when it has them, else the ones the web app sent (Resolve)", DnSrc("PhysicalAnalysisPdf.cs").Contains("DeliverableNaming.Resolve(layoutJson)") && DnSrc("UnityHeadlessRunner.cs").Contains("DeliverableNaming.Resolve(request.LayoutJson)"));
+    Check("the two routes exist and the names are kept apart from the layout (a layout's identity is a hash of its text)", DnSrc("WorkspaceEndpoints.cs").Contains("case \"/session-names\" when method == \"GET\"") && DnSrc("WorkspaceEndpoints.cs").Contains("case \"/session-names\" when method == \"POST\"") && DnSrc("DeliverableNaming.cs").Contains("LayoutIdentity"));
+    Check("every place that makes a file for the person names it through DeliverableNaming: the schedule (button and web action), the report (button and web action), the two diagrams, the charts PDF and the film",
+          namedSites.All(s => DnSrc(s.File).Split("DeliverableNaming.Named(").Length - 1 >= s.Count), string.Join(", ", namedSites.Where(s => DnSrc(s.File).Split("DeliverableNaming.Named(").Length - 1 < s.Count).Select(s => s.File)));
+    Check("the report says what it is for under its title, from the same names", DnSrc("AnalysisReportPdfBuilder.cs").Contains("string? sessionName = null") && DnSrc("AnalysisReportPdfBuilder.cs").Contains("if (forWhat.Length > 0)") && DnSrc("WorkspaceEndpoints.cs").Contains("var (session, iteration) = DeliverableNaming.Current();") && DnSrc("GenerateAnalysisReportCommand.cs").Contains("DeliverableNaming.Current()"));
+    Check("the newest diagram is found by its stem under the current names first, so a report embeds the diagrams of its own iteration", DnSrc("WorkspaceEndpoints.cs").Contains("DeliverableNaming.PatternsFor(stem + \"_\", \"png\")"));
+    Check("the layout files are not renamed: what looks for the newest export by 'sportify_combined_revit*.json' (Import Configuration, the walk-through) still finds it", DnSrc("LayoutFilePicker.cs").Contains("ExportPattern = \"sportify_combined_revit*.json\"") && !DnSrc("WorkspaceEndpoints.cs").Contains("Named(\"sportify_combined"));
+
+    // ------------------------------------------------------------------------------------------------ the iteration's folder
+    Console.WriteLine("\n===== deliverables of an iteration go into a folder of its name (SportifyWorkspace, DeliverableNaming.FolderFor) =====");
+    var iterRoot = Path.Combine(Path.GetTempPath(), "sportify-iter-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+    SportifyWorkspace.UseFolder(iterRoot);
+    try
+    {
+        DeliverableNaming.Set("Session", "Algorithmic");
+        Check("the folder of an iteration is its cleaned name, for the kinds that are kept apart by iteration (analysis, videos, reports, schedules, diagrams) and for no other",
+              new[] { "analysis", "videos", "reports", "schedules", "diagrams" }.All(k => DeliverableNaming.FolderFor(k) == "Algorithmic") && new[] { "layouts", "sport", "garden", "profile", "mechanical", "nonsense", "" }.All(k => DeliverableNaming.FolderFor(k) == null));
+        DeliverableNaming.Set("Session", "a/b\\c:d?");
+        Check("whatever was typed, the folder is a name Windows accepts, and no iteration name means no folder (the files stay in the kind's folder, as before)",
+              DeliverableNaming.FolderFor("reports") == "a b c d" && (DeliverableNaming.FolderFor("reports") ?? "").IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && DeliverableNaming.Set("Session", "") == ("Session", "") && DeliverableNaming.FolderFor("reports") == null);
+        Check("a layout that carries its own iteration decides its folder (as its names decide the file names)", DeliverableNaming.FolderFor("reports", "{\"session\":{\"name\":\"S\",\"iteration\":\"Manual\"}}") == "Manual" && DeliverableNaming.FolderFor("reports", "{\"placements\":[]}") == null);
+        DeliverableNaming.Set("", "");
+
+        var saved = SportifyWorkspace.Save("reports", "a.pdf", new byte[] { 1 }, "Algorithmic");
+        var kept = SportifyWorkspace.Save("layouts", "a.json", new byte[] { 1 }, "Algorithmic");
+        var flat = SportifyWorkspace.Save("reports", "b.pdf", new byte[] { 1 });
+        Check("a file with a folder goes into it, inside its kind's folder; a kind without iterations ignores the folder; no folder is the kind's folder itself",
+              saved == Path.Combine(iterRoot, "Analysis reports", "Algorithmic", "a.pdf") && File.Exists(saved) && kept == Path.Combine(iterRoot, "Layouts", "a.json") && flat == Path.Combine(iterRoot, "Analysis reports", "b.pdf"));
+        var hostile = new[] { "..", "..\\..", "x\\y", "C:\\Windows", "a/b" }.Select(sub => SportifyWorkspace.Save("reports", "h.pdf", new byte[] { 1 }, sub)).ToList();
+        Check("a folder that is not only a name (a path, '..', a drive) is not used: the file goes into the kind's folder itself, and nothing lands outside the workspace",
+              hostile.All(p => Path.GetDirectoryName(p) == Path.Combine(iterRoot, "Analysis reports")) && Directory.GetFiles(Path.GetTempPath(), "h*.pdf").Length == 0);
+        Directory.CreateDirectory(Path.Combine(iterRoot, "Layouts", "Sub")); File.WriteAllBytes(Path.Combine(iterRoot, "Layouts", "Sub", "z.json"), new byte[] { 1 });
+        var listed = SportifyWorkspace.List().Where(x => x.Kind == "reports").ToList();
+        Check("the list shows a file with its folder (empty for the kind's own), and a subfolder of a kind that has no iterations is not listed",
+              listed.Any(x => x.Name == "a.pdf" && x.Folder == "Algorithmic") && listed.Any(x => x.Name == "b.pdf" && x.Folder == "") && !SportifyWorkspace.List().Any(x => x.Name == "z.json"));
+        Check("a file is found by its folder and only there: the folder, the kind and the name all have to fit, and '..' or a path in any of them is refused",
+              SportifyWorkspace.TryResolve("reports", "a.pdf", out var found, "Algorithmic") && found == saved && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _) && !SportifyWorkspace.TryResolve("reports", "b.pdf", out _, "Algorithmic")
+              && !SportifyWorkspace.TryResolve("layouts", "a.json", out _, "Algorithmic") && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _, "..") && !SportifyWorkspace.TryResolve("reports", "..\\Algorithmic\\a.pdf", out _) && !SportifyWorkspace.TryResolve("reports", "a.pdf", out _, "Algorithmic\\.."));
+        var video = Path.Combine(Path.GetTempPath(), "iter-adopt-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".mp4");
+        File.WriteAllText(video, "x");
+        var adopted = SportifyWorkspace.Adopt("videos", video, "Algorithmic");
+        var adoptedAs = SportifyWorkspace.AdoptAs("diagrams", video, "circulation_1.png", "Algorithmic");
+        Check("a film and a diagram are copied into the iteration's folder too (Adopt, AdoptAs), and the original is left where it was",
+              adopted == Path.Combine(iterRoot, "Videos", "Algorithmic", Path.GetFileName(video)) && adoptedAs == Path.Combine(iterRoot, "Diagrams", "Algorithmic", "circulation_1.png") && File.Exists(video) && File.Exists(adopted) && File.Exists(adoptedAs));
+        File.Delete(video);
+    }
+    finally { SportifyWorkspace.UseFolder(null); DeliverableNaming.Set("", ""); try { Directory.Delete(iterRoot, true); } catch (Exception) { } }
+
+    var allSrc = dnSrc == null ? "" : string.Concat(Directory.GetFiles(dnSrc, "*.cs").Select(File.ReadAllText));
+    Check("every producer puts its file in the iteration's folder: the schedule (button and web action), the report (button and web action), the two diagrams, the charts PDF (button and web action), and every film Unity or Kinetics makes",
+          DnSrc("WorkspaceEndpoints.cs").Split("DeliverableNaming.FolderFor(").Length - 1 >= 4 && DnSrc("GenerateAnalysisReportCommand.cs").Split("DeliverableNaming.FolderFor(").Length - 1 >= 2 && DnSrc("GenerateSchedulesCommand.cs").Contains("DeliverableNaming.FolderFor(\"schedules\")")
+          && DnSrc("PhysicalAnalysisPdf.cs").Contains("DeliverableNaming.FolderFor(\"analysis\", layoutJson)") && DnSrc("AnalysisMedia.cs").Contains("DefaultFolder(layoutJson)") && DnSrc("GenerateFunctionalDiagramsCommand.cs").Contains("FolderFor(\"diagrams\")")
+          && System.Text.RegularExpressions.Regex.Matches(allSrc, "SportifyWorkspace\\.Adopt\\(\"videos\", [\\w.]+, DeliverableNaming\\.FolderFor\\(\"videos\"\\)\\)").Count >= 8
+          && !System.Text.RegularExpressions.Regex.IsMatch(allSrc, "SportifyWorkspace\\.Adopt\\(\"videos\", [\\w.]+\\)"));
+    Check("the answers and the list carry the folder, and the link to a file has it (&folder=), so the Documents tab opens the right file",
+          DnSrc("WorkspaceEndpoints.cs").Contains("static string Url(string kind, string name, string? folder = null)") && DnSrc("WorkspaceEndpoints.cs").Contains("GetDeliverable(query[\"kind\"], query[\"name\"], query[\"folder\"])") && DnSrc("WorkspaceEndpoints.cs").Contains("folder = f.Folder"));
+    Check("the report looks for the diagrams of the current iteration's own folder first, then anywhere under Diagrams", DnSrc("WorkspaceEndpoints.cs").Contains("SearchOption.AllDirectories") && DnSrc("WorkspaceEndpoints.cs").Contains("var own = DeliverableNaming.FolderFor(\"diagrams\")"));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
+
+// the request of --ribbon-matrix: one profile (the web app's view and the extras a person added to the Simple view)
+record MatrixRequest(string Id, string? View, string[]? Extras);

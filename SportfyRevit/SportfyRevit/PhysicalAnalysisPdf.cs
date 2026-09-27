@@ -54,8 +54,8 @@ namespace SportfyRevit
 
         public static readonly string[] AllKeys = { "structural_loads", "dynamic_analysis", "wind_erosion", "soil_percolation", "sun_and_shading" };
 
-        /// <summary>Where the PDFs go: the "Physical analysis" folder of the workspace (by default Documents\Sportify Workspace\Physical analysis).</summary>
-        public static string DefaultFolder() => SportifyWorkspace.PathFor("analysis");
+        /// <summary>Where the PDFs go: the "Physical analysis" folder of the workspace (by default Documents\Sportify Workspace\Physical analysis), or the iteration's own folder in it when the session has an iteration name (of this layout's, when it is given).</summary>
+        public static string DefaultFolder(string? layoutJson = null) => SportifyWorkspace.PathFor("analysis", DeliverableNaming.FolderFor("analysis", layoutJson));
 
         /// <summary>Builds the sections and writes the PDF. <paramref name="only"/> limits it to some analyses (by key); null = all five.</summary>
         public static PdfExport Export(string layoutJson, string outputFolder, string projectName, IEnumerable<string>? only = null)
@@ -71,7 +71,9 @@ namespace SportfyRevit
                 Directory.CreateDirectory(outputFolder);
                 var stem = only != null && only.Count() == 1 ? result.Sections[0].Key : "physical_analysis";
                 var safeName = string.Concat((projectName ?? "").Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_')).Trim();
-                var file = Path.Combine(outputFolder, $"Sportify_{stem}{(safeName.Length > 0 ? "_" + safeName : "")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf");
+                // the session's and the iteration's name in front of the file name (DeliverableNaming), from the layout this PDF is made of
+                var (session, iteration) = DeliverableNaming.Resolve(layoutJson);
+                var file = Path.Combine(outputFolder, DeliverableNaming.Named($"Sportify_{stem}{(safeName.Length > 0 ? "_" + safeName : "")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf", session, iteration));
                 Render(result, projectName ?? "").GeneratePdf(file);
                 result.Path = file;
             }
@@ -503,7 +505,7 @@ namespace SportfyRevit
                             col.Item().Text(t => { t.Span(k.Title + ": ").Bold().FontColor(muted); t.Span("not drawn, " + k.Reason).FontColor(muted); });
 
                         if (export.Sections.Any(s => s.Preliminary))
-                            col.Item().PaddingTop(6).Background("#fff4d6").Padding(8).Text("PRELIMINARY: some values these results rest on (deck capacity, snow zone, orientation ...) are built-in values nobody has confirmed. Enter or accept them in the web app's Structure and Site conditions tabs or in Revit, and run the report again.").FontColor("#7a4b00");
+                            col.Item().PaddingTop(6).Background("#fff4d6").Padding(8).Text("PRELIMINARY: some values these results rest on (deck capacity, snow zone, orientation ...) are built-in values nobody has confirmed. Enter or accept them in the web app's Structure inputs and Site conditions tabs or in Revit, and run the report again.").FontColor("#7a4b00");
 
                         col.Item().PaddingTop(10).Text("These are the same numbers the 3D videos and the web app show, drawn as static charts so that no Unity is needed. They are screening models, not a structural, wind-engineering or hydrological verification; the assumptions behind each are listed with it. Ball trajectories are not included: they are simulated in Unity.")
                             .FontSize(9).FontColor(muted);

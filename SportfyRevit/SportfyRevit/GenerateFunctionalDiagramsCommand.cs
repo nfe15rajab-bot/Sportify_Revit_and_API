@@ -79,7 +79,7 @@ namespace SportfyRevit
                 var (circulationImage, axoImage) = GenerateAnalysisReportCommand.KeepDiagrams(
                     GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation")),
                     GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric")));
-                saved = circulationImage != null || axoImage != null ? $"\n\nImages saved to {SportifyWorkspace.PathFor("diagrams")}." : "";
+                saved = circulationImage != null || axoImage != null ? $"\n\nImages saved to {SportifyWorkspace.PathFor("diagrams", DeliverableNaming.FolderFor("diagrams"))}." : "";
             }
             catch (Exception ex) { saved = "\n\nThe views could not be exported as images: " + ex.Message; }
 

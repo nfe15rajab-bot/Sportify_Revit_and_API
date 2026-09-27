@@ -7,8 +7,8 @@ namespace SportfyRevit
 {
     /// <summary>
     /// One button that sends the physical analyses to the web app: wind and erosion, rain and soil percolation, static loads, dynamic analysis, sun and shade,
-    /// run on the layout the web app pushed (Combine tab) and published to its Analysis tab in one go. No window asks anything first: what the designer already
-    /// decided in this Revit session (or in the app's Structure and Site conditions tabs) is used, and whatever is still unconfirmed shows up as PRELIMINARY in the results, as it does when the
+    /// run on the layout the web app pushed (Combine tab) and published to its Results tab in one go. No window asks anything first: what the designer already
+    /// decided in this Revit session (or in the app's Structure inputs and Site conditions tabs) is used, and whatever is still unconfirmed shows up as PRELIMINARY in the results, as it does when the
     /// commands are run one by one. A summary says what was sent and offers to review the inputs (then it sends again).
     ///
     /// The ball trajectories and the videos are Unity's, and stay with their own commands in this panel (a recording made for exactly the numbers sent again stays
@@ -74,7 +74,7 @@ namespace SportfyRevit
             body.AppendLine();
             body.AppendLine("Not included: the ball trajectories and the 3D videos need Unity; they have their own buttons in this panel. Without Unity, the charts of these results can be saved as a PDF.");
             if (ok.Count > 0)
-                body.AppendLine("In the web app they are under the Analysis tab (Garden, Structure, Sun).");
+                body.AppendLine("In the web app they are under the Results tab (Garden, Structure, Sun).");
             if (unconfirmed)
                 body.AppendLine().AppendLine("Some of the values behind them are still unconfirmed (deck capacity, snow zone, orientation ...). They are marked PRELIMINARY in the web app until they are entered or accepted.");
 
