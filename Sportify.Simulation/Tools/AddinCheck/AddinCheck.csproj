@@ -25,6 +25,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DynamicLayoutAdapter.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFrame.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofPushScope.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PushWorksets.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\StructureGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
@@ -45,6 +46,12 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyCapabilities.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RibbonIconData.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BimRules.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyTemplateSpec.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\GermanNorms.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInGermanTemplate.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInSet.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\BuiltInEnglishTemplate.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\UnitRules.cs" />
     <Compile Include="WorkspaceStub.cs" />
     <Compile Include="..\..\Assets\Scripts\Simulation\Sun\SunShadeCore.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SunLayoutAdapter.cs" />

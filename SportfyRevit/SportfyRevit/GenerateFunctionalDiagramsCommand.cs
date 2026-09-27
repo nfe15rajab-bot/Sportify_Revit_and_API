@@ -94,18 +94,23 @@ namespace SportfyRevit
         }
 
         /// <summary>internal, not private: GenerateAnalysisReportCommand reuses this so the PDF report's diagram images always have a source view, creating one if needed rather than requiring this command to be run first. Call inside a transaction.</summary>
-        internal static ViewPlan CreateOrReuseCirculationView(Document doc)
+        internal static ViewPlan CreateOrReuseCirculationView(Document doc, string? name = null, bool configure = true, ElementId? levelId = null)
         {
+            name ??= CirculationViewName;
             var existing = new FilteredElementCollector(doc).OfClass(typeof(ViewPlan)).Cast<ViewPlan>()
-                .FirstOrDefault(v => !v.IsTemplate && v.Name == CirculationViewName);
+                .FirstOrDefault(v => !v.IsTemplate && v.Name == name);
 
-            ViewPlan view = existing ?? CreateFloorPlanView(doc);
-            if (existing == null) view.Name = CirculationViewName;
+            ViewPlan view = existing ?? CreateFloorPlanView(doc, levelId);
+            if (existing == null) view.Name = name;
+            if (configure) ConfigureCirculationView(doc, view);
+            return view;
+        }
 
+        /// <summary>What makes the circulation view the circulation view: only Combine visible (by workset, or element by element without worksets). Separate so that a view template can be applied first and this after.</summary>
+        internal static void ConfigureCirculationView(Document doc, ViewPlan view)
+        {
             ApplyCombineVisibility(doc, view);
             StyleCirculationDiagram(doc, view);
-
-            return view;
         }
 
         /// <summary>
@@ -247,10 +252,11 @@ namespace SportfyRevit
         }
 
         /// <summary>internal, not private: see CreateOrReuseCirculationView's note.</summary>
-        internal static View3D CreateOrReuseAxonometricView(Document doc)
+        internal static View3D CreateOrReuseAxonometricView(Document doc, string? name = null)
         {
+            name ??= AxonometricViewName;
             var existing = new FilteredElementCollector(doc).OfClass(typeof(View3D)).Cast<View3D>()
-                .FirstOrDefault(v => !v.IsTemplate && v.Name == AxonometricViewName);
+                .FirstOrDefault(v => !v.IsTemplate && v.Name == name);
 
             View3D view;
             if (existing != null)
@@ -262,7 +268,8 @@ namespace SportfyRevit
                 var vft = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType)).Cast<ViewFamilyType>()
                     .First(v => v.ViewFamily == ViewFamily.ThreeDimensional);
                 view = View3D.CreateIsometric(doc, vft.Id);
-                view.Name = AxonometricViewName;
+                view.Name = name;
+                ViewDefaults.DisableCrop(view);
             }
 
             view.DetailLevel = ViewDetailLevel.Fine;
@@ -285,13 +292,15 @@ namespace SportfyRevit
             return view;
         }
 
-        private static ViewPlan CreateFloorPlanView(Document doc)
+        private static ViewPlan CreateFloorPlanView(Document doc, ElementId? levelId = null)
         {
             var vft = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType)).Cast<ViewFamilyType>()
                 .First(v => v.ViewFamily == ViewFamily.FloorPlan);
-            var level = new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
-                .OrderBy(l => l.Elevation).First();
-            return ViewPlan.Create(doc, vft.Id, level.Id);
+            var level = levelId ?? new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>()
+                .OrderBy(l => l.Elevation).First().Id;
+            var view = ViewPlan.Create(doc, vft.Id, level);
+            ViewDefaults.DisableCrop(view);
+            return view;
         }
 
         /// <summary>

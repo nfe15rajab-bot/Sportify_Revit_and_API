@@ -1,0 +1,2253 @@
+{
+  "title": "BIM_Architektur_und_Ingenieurbau",
+  "path": "C:\\ProgramData\\Autodesk\\RVT 2025\\Templates\\German\\BIM_Architektur_und_Ingenieurbau.rte",
+  "revit": "Autodesk Revit 2025 25.4.50.35",
+  "counts": {
+    "viewTemplates": 59,
+    "views": 118,
+    "sheets": 10,
+    "schedules": 31,
+    "filters": 22,
+    "families": 207,
+    "materials": 195,
+    "fillPatterns": 222,
+    "linePatterns": 60,
+    "levels": 18,
+    "grids": 0
+  },
+  "viewTemplates": [
+    {
+      "name": "0-Modelliersichten_Deckenplan Tragwerk-OK RFB",
+      "type": "CeilingPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 3
+    },
+    {
+      "name": "0-Modelliersichten_Deckenplan-OK RFB",
+      "type": "CeilingPlan",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 3
+    },
+    {
+      "name": "0-Modelliersichten_Grundriss-OK RFB",
+      "type": "FloorPlan",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten- 3D - ARCH",
+      "type": "ThreeD",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "ShadingWithEdges",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten- 3D - BER",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten- 3D - CFD",
+      "type": "ThreeD",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Coarse",
+      "display": "ShadingWithEdges",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten- 3D - ING",
+      "type": "ThreeD",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "0-Modelliersichten-Ansichten",
+      "type": "Elevation",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten-Grundriss-OK FFB",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten-Lageplan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "0-Modelliersichten-Schnitt",
+      "type": "Section",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 0
+    },
+    {
+      "name": "1-Vorplanung-Ansicht",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "1-Vorplanung-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "1-Vorplanung-Lageplan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 500,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "1-Vorplanung-Schnitt",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 200,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "2-Entwurf-Ansicht",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "2-Entwurf-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "2-Entwurf-Lageplan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 500,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "2-Entwurf-Schnitt",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "3-Behörde-Ansichten",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "3-Behörde-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 0
+    },
+    {
+      "name": "3-Behörde-Lageplan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 500,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "3-Behörde-Schnitt",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "4-Ausführung-Ansichten",
+      "type": "Elevation",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "4-Ausführung-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "4-Ausführung-Lageplan",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 250,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "4-Ausführung-Schnitt",
+      "type": "Section",
+      "discipline": "Architectural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "5-Positionsplan-3D",
+      "type": "ThreeD",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "5-Positionsplan-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Coarse",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 3
+    },
+    {
+      "name": "5-Positionsplan-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 0
+    },
+    {
+      "name": "5-Positionsplan-Schnitt",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 2
+    },
+    {
+      "name": "6-Schalplan-3D",
+      "type": "ThreeD",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "6-Schalplan-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 3
+    },
+    {
+      "name": "6-Schalplan-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 0
+    },
+    {
+      "name": "6-Schalplan-Schnitt",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 2,
+      "notControlled": 2
+    },
+    {
+      "name": "7-Bewehrung-3D",
+      "type": "ThreeD",
+      "discipline": "Coordination",
+      "scale": 25,
+      "detail": "Fine",
+      "display": "Wireframe",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "7-Bewehrung-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Coordination",
+      "scale": 25,
+      "detail": "Medium",
+      "display": "Wireframe",
+      "filters": 3,
+      "notControlled": 3
+    },
+    {
+      "name": "7-Bewehrung-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 25,
+      "detail": "Medium",
+      "display": "Wireframe",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "7-Bewehrung-Schnitt",
+      "type": "Section",
+      "discipline": "Coordination",
+      "scale": 25,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 4,
+      "notControlled": 2
+    },
+    {
+      "name": "7.1-Bewehrung Fertigteil-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Structural",
+      "scale": 25,
+      "detail": "Medium",
+      "display": "Wireframe",
+      "filters": 3,
+      "notControlled": 3
+    },
+    {
+      "name": "7.1-Bewehrung Fertigteile-3D",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 25,
+      "detail": "Fine",
+      "display": "RealisticWithEdges",
+      "filters": 2,
+      "notControlled": 3
+    },
+    {
+      "name": "7.1-Bewehrung Fertigteile-Schnitt",
+      "type": "Section",
+      "discipline": "Coordination",
+      "scale": 10,
+      "detail": "Fine",
+      "display": "Wireframe",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "8-Berechnungsmodell-3D",
+      "type": "ThreeD",
+      "discipline": "Coordination",
+      "scale": 100,
+      "detail": "Medium",
+      "display": "FlatColors",
+      "filters": 2,
+      "notControlled": 4
+    },
+    {
+      "name": "8-Berechnungsmodell-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 3
+    },
+    {
+      "name": "8-Berechnungsmodell-Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 0
+    },
+    {
+      "name": "8-Berechnungsmodell-Schnitt",
+      "type": "Section",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "HLR",
+      "filters": 3,
+      "notControlled": 2
+    },
+    {
+      "name": "9-Stahlbau - 1-100 - 3D",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "9-Stahlbau - Ansicht 1-100",
+      "type": "Elevation",
+      "discipline": "Structural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "9-Stahlbau - Detail 1-10",
+      "type": "Detail",
+      "discipline": "Structural",
+      "scale": 10,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "9-Stahlbau - Detail 1-10 - 3D",
+      "type": "ThreeD",
+      "discipline": "Structural",
+      "scale": 10,
+      "detail": "Fine",
+      "display": "ShadingWithEdges",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "9-Stahlbau - Grundriss",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "9-Stahlbau - Schnitt 1-50",
+      "type": "Section",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "FlatColors",
+      "filters": 1,
+      "notControlled": 0
+    },
+    {
+      "name": "Bauteilliste - Standard",
+      "type": "Schedule",
+      "discipline": null,
+      "scale": 1,
+      "detail": "Undefined",
+      "display": "Wireframe",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "Framing List",
+      "type": "Schedule",
+      "discipline": null,
+      "scale": 1,
+      "detail": "Undefined",
+      "display": "Wireframe",
+      "filters": 0,
+      "notControlled": 0
+    },
+    {
+      "name": "Phasen - Bestand",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "Phasen - Bestand, Abbruch",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "Phasen - Bestand, Neu",
+      "type": "FloorPlan",
+      "discipline": "Architectural",
+      "scale": 100,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 0,
+      "notControlled": 4
+    },
+    {
+      "name": "Tragende Bauteile",
+      "type": "FloorPlan",
+      "discipline": "Structural",
+      "scale": 50,
+      "detail": "Fine",
+      "display": "HLR",
+      "filters": 1,
+      "notControlled": 4
+    },
+    {
+      "name": "X-aufgehende Bauteile-Deckenplan",
+      "type": "CeilingPlan",
+      "discipline": "Coordination",
+      "scale": 50,
+      "detail": "Medium",
+      "display": "Wireframe",
+      "filters": 2,
+      "notControlled": 3
+    }
+  ],
+  "viewsByType": {
+    "CeilingPlan": 37,
+    "Elevation": 24,
+    "EngineeringPlan": 4,
+    "FloorPlan": 40,
+    "Legend": 3,
+    "Section": 1,
+    "ThreeD": 9
+  },
+  "views": [
+    {
+      "name": "Decke über EG",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über EG- Berechnungsmodell",
+      "type": "CeilingPlan",
+      "template": "8-Berechnungsmodell-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über EG- Bewehrung",
+      "type": "CeilingPlan",
+      "template": "7-Bewehrung-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "Decke über EG- Positionsplan",
+      "type": "CeilingPlan",
+      "template": "5-Positionsplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Decke über EG- Schalplan",
+      "type": "CeilingPlan",
+      "template": "6-Schalplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 1",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 1- Berechnungsmodell",
+      "type": "CeilingPlan",
+      "template": "8-Berechnungsmodell-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 1- Bewehrung",
+      "type": "CeilingPlan",
+      "template": "7-Bewehrung-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "Decke über OG 1- Positionsplan",
+      "type": "CeilingPlan",
+      "template": "5-Positionsplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Decke über OG 1- Schalplan",
+      "type": "CeilingPlan",
+      "template": "6-Schalplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 2",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 2- Berechnungsmodell",
+      "type": "CeilingPlan",
+      "template": "8-Berechnungsmodell-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 2- Bewehrung",
+      "type": "CeilingPlan",
+      "template": "7-Bewehrung-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "Decke über OG 2- Positionsplan",
+      "type": "CeilingPlan",
+      "template": "5-Positionsplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Decke über OG 2- Schalplan",
+      "type": "CeilingPlan",
+      "template": "6-Schalplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 3",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 3- Berechnungsmodell",
+      "type": "CeilingPlan",
+      "template": "8-Berechnungsmodell-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über OG 3- Bewehrung",
+      "type": "CeilingPlan",
+      "template": "7-Bewehrung-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "Decke über OG 3- Positionsplan",
+      "type": "CeilingPlan",
+      "template": "5-Positionsplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Decke über OG 3- Schalplan",
+      "type": "CeilingPlan",
+      "template": "6-Schalplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Decke über UG 1",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über UG 1- Berechnungsmodell",
+      "type": "CeilingPlan",
+      "template": "8-Berechnungsmodell-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Decke über UG 1- Bewehrung",
+      "type": "CeilingPlan",
+      "template": "7-Bewehrung-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "Decke über UG 1- Positionsplan",
+      "type": "CeilingPlan",
+      "template": "5-Positionsplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Decke über UG 1- Schalplan",
+      "type": "CeilingPlan",
+      "template": "6-Schalplan-Deckenplan",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "EG- aufgehende Bauteile",
+      "type": "CeilingPlan",
+      "template": "X-aufgehende Bauteile-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "EG- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "Fundmanentplatte",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 1- aufgehende Bauteile",
+      "type": "CeilingPlan",
+      "template": "X-aufgehende Bauteile-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 1- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "OG 2- aufgehende Bauteile",
+      "type": "CeilingPlan",
+      "template": "X-aufgehende Bauteile-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 2- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "OG 3- aufgehende Bauteile",
+      "type": "CeilingPlan",
+      "template": "X-aufgehende Bauteile-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 3- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "OG 4- aufgehende Bauteile",
+      "type": "CeilingPlan",
+      "template": "X-aufgehende Bauteile-Deckenplan",
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 4- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "UG 1- OK FFB",
+      "type": "CeilingPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "EP-Nord",
+      "type": "Elevation",
+      "template": "2-Entwurf-Ansicht",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "EP-Ost",
+      "type": "Elevation",
+      "template": "2-Entwurf-Ansicht",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "EP-Süd",
+      "type": "Elevation",
+      "template": "2-Entwurf-Ansicht",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "EP-West",
+      "type": "Elevation",
+      "template": "2-Entwurf-Ansicht",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "GP-Nord",
+      "type": "Elevation",
+      "template": "3-Behörde-Ansichten",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "GP-Ost",
+      "type": "Elevation",
+      "template": "3-Behörde-Ansichten",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "GP-Süd",
+      "type": "Elevation",
+      "template": "3-Behörde-Ansichten",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "GP-West",
+      "type": "Elevation",
+      "template": "3-Behörde-Ansichten",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "Nord",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Ost",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "PP- Nord",
+      "type": "Elevation",
+      "template": "5-Positionsplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "PP- Ost",
+      "type": "Elevation",
+      "template": "5-Positionsplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "PP- Süd",
+      "type": "Elevation",
+      "template": "5-Positionsplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "PP- West",
+      "type": "Elevation",
+      "template": "5-Positionsplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "SP- Nord",
+      "type": "Elevation",
+      "template": "6-Schalplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "SP- Ost",
+      "type": "Elevation",
+      "template": "6-Schalplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "SP- Süd",
+      "type": "Elevation",
+      "template": "6-Schalplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "SP- West",
+      "type": "Elevation",
+      "template": "6-Schalplan-Schnitt",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Süd",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "VP-Nord",
+      "type": "Elevation",
+      "template": "1-Vorplanung-Ansicht",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "VP-Ost",
+      "type": "Elevation",
+      "template": "1-Vorplanung-Ansicht",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "VP-Süd",
+      "type": "Elevation",
+      "template": "1-Vorplanung-Ansicht",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "VP-West",
+      "type": "Elevation",
+      "template": "1-Vorplanung-Ansicht",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "West",
+      "type": "Elevation",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "Fundamentplatte- Positionsplan",
+      "type": "EngineeringPlan",
+      "template": "5-Positionsplan-Grundriss",
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "Fundmanentplatte- Berechnungsmodell",
+      "type": "EngineeringPlan",
+      "template": "8-Berechnungsmodell-Grundriss",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "Fundmanentplatte- Bewehrung",
+      "type": "EngineeringPlan",
+      "template": "7-Bewehrung-Grundriss",
+      "discipline": "Structural",
+      "scale": 25
+    },
+    {
+      "name": "Fundmanentplatte- Schalplan",
+      "type": "EngineeringPlan",
+      "template": "6-Schalplan-Grundriss",
+      "discipline": "Structural",
+      "scale": 50
+    },
+    {
+      "name": "EG- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "EG- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "EG- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "EG- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "EG- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "EG- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "LAGEPLAN",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "Lageplan- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Lageplan",
+      "discipline": "Architectural",
+      "scale": 500
+    },
+    {
+      "name": "Lageplan- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Lageplan",
+      "discipline": "Architectural",
+      "scale": 500
+    },
+    {
+      "name": "Lageplan- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Lageplan",
+      "discipline": "Architectural",
+      "scale": 500
+    },
+    {
+      "name": "OG 1- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 1- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 1- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 1- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 1- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 1- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "OG 2- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 2- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 2- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 2- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 2- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 2- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "OG 3- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 3- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 3- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 3- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 3- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 3- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "OG 4- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 4- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 4- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "OG 4- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "OG 4- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "OG 4- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "UG 1- Ausführung",
+      "type": "FloorPlan",
+      "template": "4-Ausführung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "UG 1- Behörde",
+      "type": "FloorPlan",
+      "template": "3-Behörde-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "UG 1- Entwurf",
+      "type": "FloorPlan",
+      "template": "2-Entwurf-Grundriss",
+      "discipline": "Architectural",
+      "scale": 100
+    },
+    {
+      "name": "UG 1- OK FFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "UG 1- OK RFB",
+      "type": "FloorPlan",
+      "template": null,
+      "discipline": "Coordination",
+      "scale": 50
+    },
+    {
+      "name": "UG 1- Vorplanung",
+      "type": "FloorPlan",
+      "template": "1-Vorplanung-Grundriss",
+      "discipline": "Architectural",
+      "scale": 200
+    },
+    {
+      "name": "Bauphasen Farbkennzeichnung",
+      "type": "Legend",
+      "template": null,
+      "discipline": null,
+      "scale": 100
+    },
+    {
+      "name": "Wände",
+      "type": "Legend",
+      "template": null,
+      "discipline": null,
+      "scale": 50
+    },
+    {
+      "name": "Wände Entwurf (grob)",
+      "type": "Legend",
+      "template": null,
+      "discipline": null,
+      "scale": 50
+    },
+    {
+      "name": "EBENEN IM PROJEKT",
+      "type": "Section",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "{3D}",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "3D - ARCH",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "3D - ING",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "3D- BERECHNUNG",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Structural",
+      "scale": 100
+    },
+    {
+      "name": "3D- Berechnungsmodell",
+      "type": "ThreeD",
+      "template": "8-Berechnungsmodell-3D",
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "3D- Bewehrung",
+      "type": "ThreeD",
+      "template": "7-Bewehrung-3D",
+      "discipline": "Coordination",
+      "scale": 25
+    },
+    {
+      "name": "3D- CFD",
+      "type": "ThreeD",
+      "template": null,
+      "discipline": "Architectural",
+      "scale": 50
+    },
+    {
+      "name": "3D- Positionsplan",
+      "type": "ThreeD",
+      "template": "5-Positionsplan-3D",
+      "discipline": "Coordination",
+      "scale": 100
+    },
+    {
+      "name": "3D- Schalplan",
+      "type": "ThreeD",
+      "template": "6-Schalplan-3D",
+      "discipline": "Coordination",
+      "scale": 100
+    }
+  ],
+  "filters": [
+    {
+      "name": "Alle Ebenen",
+      "categories": [
+        "Levels"
+      ]
+    },
+    {
+      "name": "alle Matten",
+      "categories": [
+        "Structural Fabric Reinforcement"
+      ]
+    },
+    {
+      "name": "alle Modellkategorien",
+      "categories": [
+        "Structural Connections",
+        "Structural Path Reinforcement",
+        "Structural Area Reinforcement",
+        "Structural Rebar",
+        "Pipe Placeholders",
+        "Duct Placeholders",
+        "Conduits",
+        "Cable Trays",
+        "Conduit Fittings",
+        "Cable Tray Fittings",
+        "Duct Linings",
+        "Duct Insulations",
+        "Pipe Insulations",
+        "HVAC Zones",
+        "Switch System",
+        "Sprinklers",
+        "Lighting Devices",
+        "Fire Alarm Devices",
+        "Data Devices",
+        "Communication Devices",
+        "Security Devices",
+        "Nurse Call Devices",
+        "Telephone Devices",
+        "Pipe Accessories",
+        "Flex Pipes",
+        "Pipe Fittings",
+        "Pipes",
+        "Piping Systems",
+        "Wires",
+        "Flex Ducts",
+        "Duct Accessories",
+        "Duct Systems",
+        "Air Terminals",
+        "Duct Fittings",
+        "Ducts",
+        "Spaces",
+        "Mass Floor",
+        "Mass",
+        "Areas",
+        "Detail Items",
+        "Slab Edges",
+        "Gutters",
+        "Fascias",
+        "Planting",
+        "Structural Stiffeners",
+        "Specialty Equipment",
+        "Topography",
+        "Structural Trusses",
+        "Structural Columns",
+        "Structural Beam Systems",
+        "Structural Framing",
+        "Structural Foundations",
+        "Property Lines",
+        "Pads",
+        "Site",
+        "Roads",
+        "Parking",
+        "Plumbing Fixtures",
+        "Mechanical Equipment",
+        "Lighting Fixtures",
+        "Furniture Systems",
+        "Electrical Fixtures",
+        "Electrical Equipment",
+        "Casework",
+        "Shaft Openings",
+        "Callouts",
+        "Elevations",
+        "Curtain Systems",
+        "Parts",
+        "Levels",
+        "Grids",
+        "Sections",
+        "Ramps",
+        "Curtain Wall Mullions",
+        "Curtain Panels",
+        "Rooms",
+        "Generic Models",
+        "Balusters",
+        "Railings",
+        "Stairs",
+        "Columns",
+        "Furniture",
+        "Ceilings",
+        "Roofs",
+        "Floors",
+        "Doors",
+        "Windows",
+        "Walls"
+      ]
+    },
+    {
+      "name": "hsbPanel",
+      "categories": [
+        "Structural Framing",
+        "Parts",
+        "Generic Models"
+      ]
+    },
+    {
+      "name": "hsbSheet",
+      "categories": [
+        "Structural Framing",
+        "Parts",
+        "Generic Models"
+      ]
+    },
+    {
+      "name": "JA_FB Geschossdecken",
+      "categories": [
+        "Floors"
+      ]
+    },
+    {
+      "name": "JA_Ortbeton Bauteile (Typname)",
+      "categories": [
+        "Structural Columns",
+        "Structural Foundations",
+        "Stairs",
+        "Roofs",
+        "Floors",
+        "Walls"
+      ]
+    },
+    {
+      "name": "JA_Rohbau Oberkante Ebenen",
+      "categories": [
+        "Levels"
+      ]
+    },
+    {
+      "name": "JA_Wärmedämmbauteile (Typname)",
+      "categories": [
+        "Roofs",
+        "Floors",
+        "Walls"
+      ]
+    },
+    {
+      "name": "NEIN_1-VORPLANUNG",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_2-ENTWURF",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_3-BEHÖRDE",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_4-AUSFÜHRUNG",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_5-POSITIONSPLAN",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_6-SCHALPLAN",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_7-BEWEHRUNG",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_8-BERECHNUNGSMODELL",
+      "categories": [
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_MODELLIERSICHTEN",
+      "categories": [
+        "Callouts",
+        "Elevations",
+        "Sections"
+      ]
+    },
+    {
+      "name": "NEIN_OK FFB-  Ebenen",
+      "categories": [
+        "Levels"
+      ]
+    },
+    {
+      "name": "NEIN_tragende Bauteile",
+      "categories": [
+        "Structural Columns",
+        "Structural Beam Systems",
+        "Structural Framing",
+        "Floors",
+        "Walls"
+      ]
+    },
+    {
+      "name": "Precast_Gitterträger",
+      "categories": [
+        "Generic Models"
+      ]
+    },
+    {
+      "name": "Tragwerksverbindungen Platten",
+      "categories": [
+        "Plates",
+        "Structural Connections"
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "name": "00_ANSICHTSLISTE",
+      "category": "Views",
+      "fields": 7,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "00_EBENENLISTE",
+      "category": "Levels",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "00_PLANLISTE",
+      "category": "Sheets",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - DACHLISTE",
+      "category": "Roofs",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - DECKENLISTE",
+      "category": "Ceilings",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - FENSTERLISTE",
+      "category": "Windows",
+      "fields": 9,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - GELÄNDERLISTE",
+      "category": "Railings",
+      "fields": 5,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - GESCHOSSDECKENLISTE",
+      "category": "Floors",
+      "fields": 7,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - SKELETTBAULISTE",
+      "category": "Structural Framing",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - TRAGWERKSSTÜTZEN",
+      "category": "Structural Columns",
+      "fields": 9,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - TREPPENLISTE",
+      "category": "Stairs",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - TÜRLISTE",
+      "category": "Doors",
+      "fields": 10,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "AVA - WANDLISTE",
+      "category": "Walls",
+      "fields": 7,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "BEWEGUNGSPFADE / FLUCHTWEGE",
+      "category": "<Path of Travel Lines>",
+      "fields": 3,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - BEWEHRUNGSLISTE",
+      "category": "Structural Rebar",
+      "fields": 15,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - EINFÜGEPUNKTSLISTE",
+      "category": "Generic Models",
+      "fields": 12,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - FUNDAMENTLISTE",
+      "category": "Structural Foundations",
+      "fields": 12,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - GESCHOSSDECKENLISTE",
+      "category": "Floors",
+      "fields": 10,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - STÜTZENLISTE",
+      "category": "Structural Columns",
+      "fields": 9,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - TRÄGERLISTE",
+      "category": "Structural Framing",
+      "fields": 10,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "ING - WANDLISTE",
+      "category": "Walls",
+      "fields": 11,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "Körperauswertung",
+      "category": "Mass",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "Körperauswertung Geschossweise",
+      "category": "Mass Floor",
+      "fields": 6,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "RÄUME - nach Ebene mit Fläche & Umfang",
+      "category": "Rooms",
+      "fields": 5,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "RÄUME - nach Nutzungsgruppen",
+      "category": "Rooms",
+      "fields": 5,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "RÄUME - nach Tops und Flächenzuordnung",
+      "category": "Rooms",
+      "fields": 5,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "SCHLÜSSEL Putzabzug",
+      "category": "Rooms",
+      "fields": 2,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "SCHLÜSSEL Räume",
+      "category": "Rooms",
+      "fields": 2,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "SCHLÜSSEL Räume Anrechenbarkeit",
+      "category": "Rooms",
+      "fields": 2,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "SCHLÜSSEL Räume Oberflächen",
+      "category": "Rooms",
+      "fields": 4,
+      "materialTakeoff": false,
+      "template": null
+    },
+    {
+      "name": "SCHLÜSSEL Raumnamen",
+      "category": "Rooms",
+      "fields": 2,
+      "materialTakeoff": false,
+      "template": null
+    }
+  ],
+  "sheets": [
+    {
+      "number": "A-01",
+      "name": "Ebenen im Modell",
+      "views": 1,
+      "titleBlock": "Plankopf mit Schriftfeld : A2"
+    },
+    {
+      "number": "AP-01",
+      "name": "Ausführungsplan",
+      "views": 1,
+      "titleBlock": "Plankopf Ausführung : A0"
+    },
+    {
+      "number": "BP-01",
+      "name": "Bewehrungsplan",
+      "views": 0,
+      "titleBlock": "Plankopf Ausführung : A0"
+    },
+    {
+      "number": "DP-01",
+      "name": "Detailplanung",
+      "views": 0,
+      "titleBlock": "Plankopf mit Schriftfeld : A4"
+    },
+    {
+      "number": "EP-01",
+      "name": "Entwurfsplan",
+      "views": 1,
+      "titleBlock": "Plankopf Ausführung : A1"
+    },
+    {
+      "number": "GE-01",
+      "name": "Grundlagenermittlungsplan",
+      "views": 0,
+      "titleBlock": "Plankopf mit Schriftfeld : A3"
+    },
+    {
+      "number": "GP-01",
+      "name": "Genehmigungsplan",
+      "views": 1,
+      "titleBlock": "Plankopf Genehmigung : A1"
+    },
+    {
+      "number": "PO-01",
+      "name": "Positionsplan",
+      "views": 0,
+      "titleBlock": "Plankopf Ausführung : A0"
+    },
+    {
+      "number": "SP-01",
+      "name": "Schalplan",
+      "views": 0,
+      "titleBlock": "Plankopf Ausführung : A0"
+    },
+    {
+      "number": "VE-01",
+      "name": "Vorplanung",
+      "views": 0,
+      "titleBlock": "Plankopf mit Schriftfeld : A3"
+    }
+  ],
+  "titleBlockTypes": [
+    "Plankopf Ausführung : A0",
+    "Plankopf Ausführung : A0x2",
+    "Plankopf Ausführung : A1",
+    "Plankopf Ausführung : A2",
+    "Plankopf Ausführung : A3",
+    "Plankopf Ausführung : A4",
+    "Plankopf Genehmigung : A0",
+    "Plankopf Genehmigung : A0x2",
+    "Plankopf Genehmigung : A1",
+    "Plankopf Genehmigung : A2",
+    "Plankopf Genehmigung : A3",
+    "Plankopf Genehmigung : A4",
+    "Plankopf mit Schriftfeld : A0",
+    "Plankopf mit Schriftfeld : A1",
+    "Plankopf mit Schriftfeld : A2",
+    "Plankopf mit Schriftfeld : A3",
+    "Plankopf mit Schriftfeld : A4"
+  ],
+  "browserOrganizations": [
+    "alle",
+    "alle",
+    "Alle",
+    "alle 1",
+    "Alle 1",
+    "Gliederung",
+    "Gliederung",
+    "Gliederung 1 + 2",
+    "nach Ebenen",
+    "nach Namen",
+    "nicht auf Plänen sichtbar"
+  ],
+  "currentBrowserForViews": "Gliederung 1 + 2",
+  "currentBrowserForSheets": "Gliederung",
+  "phases": [
+    "Phase 01"
+  ],
+  "levels": [
+    "FUNDAMENTPLATTE- RUK",
+    "UG 1- OK RFB",
+    "UG 1- OK FFB",
+    "UG 1- UK RD",
+    "EG- OK RFB",
+    "EG- OK FFB",
+    "EG- UK RD",
+    "OG 1- OK RFB",
+    "OG 1- OK FFB",
+    "OG 1- UK RD",
+    "OG 2- OK RFB",
+    "OG 2- OK FFB",
+    "OG 2- UK RD",
+    "OG 3- OK RFB",
+    "OG 3- OK FFB",
+    "OG 3- UK RD",
+    "OG 4- OK RFB",
+    "OG 4- OK FFB"
+  ],
+  "textTypes": [
+    "Bauteilliste Kopfzeilentext",
+    "Bauteilliste Text",
+    "Bauteilliste Titeltext",
+    "Ebenen Orange",
+    "Schedule Default",
+    "Text groß",
+    "Text klein",
+    "Text klein Beschriftung Pkt.",
+    "Text mittelgroß",
+    "Überschrift 1",
+    "Überschrift 2",
+    "Überschrift 3"
+  ],
+  "dimensionTypes": [
+    "Diagonalstrich mit Höhe",
+    "Diagonalstrich ohne Höhe",
+    "Diameter Dimension Style",
+    "Geneigt %",
+    "Geneigt % und °",
+    "Geneigt °",
+    "Grundriss - gefüllt",
+    "Grundriss - leer",
+    "Grundriss - Seehöhe AUT - üA",
+    "Grundriss - Seehöhe DEU - NN",
+    "Horizontal",
+    "Koordinaten (gem. genutzt)",
+    "Koordinaten (Projekt)",
+    "Koordinaten mit Höhe (Projekt)",
+    "Koordinaten mit Höhe AUT (gem. genutzt)",
+    "Koordinaten mit Höhe DEU (gem. genutzt)",
+    "Linear Dimension Style",
+    "Linear Dimension Style",
+    "Linear Dimension Style",
+    "Pfeil",
+    "Pfeil",
+    "Pfeil Basislinie",
+    "Pfeil mit Höhe",
+    "Pfeil ohne Bogenmittelpunkt",
+    "Pfeil ohne Bogenmittelpunkt",
+    "Pfeil ohne Höhe",
+    "Pfeil_4 Dezimalstellen",
+    "Raster",
+    "Schnitt - gefüllt",
+    "Schnitt - halb gefüllt",
+    "Schnitt - leer",
+    "Schnitt - Seehöhe AUT - üA",
+    "Schnitt - Seehöhe DEU - NN",
+    "ZZ Harfe für Bewehrung",
+    "ZZ Pfeil für Bewehrung"
+  ],
+  "lineStyles": [
+    "(Achse Bemassung)",
+    "(Grundgrenze)",
+    "<Area Based Load Boundary>",
+    "<Area Boundary>",
+    "<Axis of Rotation>",
+    "<Beyond>",
+    "<Centerline>",
+    "<Demolished>",
+    "<Fabric Envelope>",
+    "<Fabric Sheets>",
+    "<Hidden Lines>",
+    "<Hidden>",
+    "<Insulation Batting Lines>",
+    "<Lines>",
+    "<Medium Lines>",
+    "<Overhead>",
+    "<Path of Travel Lines>",
+    "<Room Separation>",
+    "<Sketch>",
+    "<Space Separation>",
+    "<Thin Lines>",
+    "<Wide Lines>",
+    "2 Ausgezogen Blau",
+    "2 Ausgezogen Grau",
+    "2 Ausgezogen Rot",
+    "2 Ausgezogen Schwarz",
+    "2_Gedacht",
+    "2_Verdeckt",
+    "3 Ausgezogen Blau",
+    "3 Ausgezogen Grau",
+    "3 Ausgezogen Rot",
+    "3 Ausgezogen Schwarz",
+    "3_Gedacht",
+    "3_Verdeckt",
+    "4 Ausgezogen Blau",
+    "4 Ausgezogen Grau",
+    "4 Ausgezogen Rot",
+    "4 Ausgezogen Schwarz",
+    "4_Gedacht",
+    "4_Verdeckt",
+    "5 Ausgezogen Blau",
+    "5 Ausgezogen Grau",
+    "5 Ausgezogen Rot",
+    "5 Ausgezogen Schwarz"
+  ],
+  "projectParameters": [
+    "Alternativer Masstabstext",
+    "Bauherr",
+    "Baustellenort",
+    "Baustellenstraße",
+    "Document GUID",
+    "Einlagezahl",
+    "Faktor Anrechenbarkeit",
+    "Filter Tragend / Nichttragend",
+    "Flächenzuordnung",
+    "FM Geschoss",
+    "FM Kostenstelle",
+    "FM Nutzungsart",
+    "FM Reinigungsgruppe",
+    "FM Reinigungszyklus",
+    "FM Standort",
+    "Gerichtsbezirk",
+    "Grundstücksnummer",
+    "Katastralgemeinde",
+    "Kundenadresse",
+    "Kundenort",
+    "Kundentelefon",
+    "Kundenzusatz",
+    "Nenngewicht",
+    "OK FFB",
+    "OK RFB",
+    "Plangröße",
+    "Precast Element Type",
+    "PrintManagerSettings",
+    "Projektbrowser Gliederung 1",
+    "Projektbrowser Gliederung 2",
+    "Projektbrowser Leistungsphase",
+    "Projektbrowser Plangliederung",
+    "Putzabzug",
+    "SR Document GUID",
+    "SR View Calculation Settings",
+    "Top",
+    "Treppenbeschriftung",
+    "Typname",
+    "Verfasser eMail",
+    "Verfasser Firma 1",
+    "Verfasser PLZ Ort",
+    "Verfasser Strasse",
+    "Verfasser Telefon",
+    "Verfasser URL",
+    "View Calculation Settings"
+  ],
+  "familiesByCategory": {
+    "Rebar Shape": 22,
+    "Profiles": 15,
+    "Doors": 14,
+    "Windows": 12,
+    "Generic Models": 11,
+    "Curtain Panels": 7,
+    "Structural Columns": 7,
+    "Furniture": 7,
+    "Curtain Wall Mullions": 6,
+    "Detail Items": 6,
+    "Plumbing Fixtures": 6,
+    "Structural Framing": 6,
+    "Window Tags": 4,
+    "Structural Foundations": 4,
+    "Planting": 4,
+    "Balusters": 3,
+    "Door Tags": 3,
+    "Structural Rebar Couplers": 3,
+    "Title Blocks": 3,
+    "Level Heads": 2,
+    "Boundary Conditions": 2,
+    "Spot Elevation Symbols": 2,
+    "Structural Framing Tags": 2,
+    "Structural Column Tags": 2,
+    "Floor Tags": 2,
+    "Room Tags": 2,
+    "Elevation Marks": 2,
+    "Wall Tags": 1,
+    "Span Direction Symbol": 1,
+    "Structural Beam System Tags": 1,
+    "Structural Foundation Tags": 1,
+    "Generic Model Tags": 1,
+    "Grid Heads": 1,
+    "Keynote Tags": 1,
+    "Structural Path Reinforcement Tags": 1,
+    "Structural Area Reinforcement Tags": 1,
+    "Structural Area Reinforcement Symbols": 1,
+    "Structural Path Reinforcement Symbols": 1,
+    "Structural Fabric Reinforcement Symbols": 1,
+    "Structural Rebar Tags": 1,
+    "Structural Fabric Reinforcement Tags": 1,
+    "Flex Pipe Tags": 1,
+    "Callout Heads": 1,
+    "Roof Tags": 1,
+    "Flex Duct Tags": 1,
+    "Curtain Panel Tags": 1,
+    "Area Tags": 1,
+    "Railing Tags": 1,
+    "Cable Tray Tags": 1,
+    "Mass Tags": 1,
+    "Mass Floor Tags": 1,
+    "Conduit Tags": 1,
+    "Duct Tags": 1,
+    "Multi-Category Tags": 1,
+    "Furniture Tags": 1,
+    "Pipe Tags": 1,
+    "Plumbing Fixture Tags": 1,
+    "Section Marks": 1,
+    "Casework Tags": 1,
+    "Stair Run Tags": 1,
+    "Stair Tags": 1,
+    "Revision Cloud Tags": 1,
+    "Property Tags": 1,
+    "Property Line Segment Tags": 1,
+    "Planting Tags": 1,
+    "Material Tags": 1,
+    "View Titles": 1,
+    "Specialty Equipment Tags": 1,
+    "Anchor Tags": 1,
+    "Plate Tags": 1,
+    "Bolt Tags": 1,
+    "Path of Travel Tags": 1,
+    "Generic Annotations": 1,
+    "Toposolid Tags": 1,
+    "View Reference": 1
+  }
+}
