@@ -58,13 +58,22 @@ namespace SportfyRevit
             return payload.Sections.TryGetValue("sun_and_shading", out var info) && info.LayoutId == layoutId;
         }
 
-        /// <summary>The roof's plan frame and elevation from the layout the web app last pushed, so every unit stands where the analysis put it, also in a Revit session that never imported it.</summary>
-        static void AdoptLayoutFrame()
+        /// <summary>
+        /// The roof's plan frame and elevation from the layout the web app last pushed, so every unit stands where the analysis put it, also in a Revit
+        /// session that never imported it. Returns the deserialized layout itself (null if there is none, or it could not be read) so the caller can
+        /// also read any kinetic elements the designer placed by hand in it (KineticsHosts.FromPlacements) — one read serves both.
+        /// </summary>
+        static SportifyLayout? AdoptLayoutFrame()
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
-            if (baseJson == null) return;
-            try { var layout = JsonSerializer.Deserialize<SportifyLayout>(baseJson); if (layout != null) SportifyLayoutBuilder.AdoptRoofFrame(layout); }
-            catch (Exception ex) { SportifyLog.Warn("kinetics", "the roof frame of the last layout could not be read: " + ex.Message); }
+            if (baseJson == null) return null;
+            try
+            {
+                var layout = JsonSerializer.Deserialize<SportifyLayout>(baseJson);
+                if (layout != null) SportifyLayoutBuilder.AdoptRoofFrame(layout);
+                return layout;
+            }
+            catch (Exception ex) { SportifyLog.Warn("kinetics", "the roof frame of the last layout could not be read: " + ex.Message); return null; }
         }
 
         /// <summary>
@@ -104,7 +113,7 @@ namespace SportfyRevit
             }
         }
 
-        /// <summary>The priority dropdown alone: the chosen key, or null when cancelled or when the priority has no dynamic family behind it yet (a dialog then says so).</summary>
+        /// <summary>The priority dropdown alone: the chosen key, or null when cancelled.</summary>
         internal static string? AskPriority(IntPtr owner)
         {
             var choice = Ask(owner, askKind: false);
@@ -118,11 +127,14 @@ namespace SportfyRevit
             _lastPriority = choice.Priority;
             if (askKind) _lastKind = choice.Kind;
 
-            var option = Array.Find(KineticsPriorityDialog.Options, o => o.Key == choice.Priority);
-            if (option != null && !option.Built)
+            if (askKind)
             {
-                TaskDialog.Show(Title, option.Label + " has no dynamic units behind it yet — only Sun is built (louvres, screens, sails, and the roller fence from the ball analysis). Pick Sun, or come back once wind & erosion / structural have one.");
-                return null;
+                var kindInfo = KineticKinds.Get(choice.Kind);
+                if (!kindInfo.Built)
+                {
+                    TaskDialog.Show(Title, kindInfo.Label + " has no dynamic mechanism built yet — it can be placed in the web app's Kinetics tab for spatial planning, but Import Analysis Adaptation has nothing to actuate it with. Pick a built kind (overhead louvre, slat/fin screen, sail, roller fence), or come back once this one has one.");
+                    return null;
+                }
             }
             return choice;
         }
@@ -162,7 +174,7 @@ namespace SportfyRevit
             if (choice == null) return null;
             var ctx = new Context { Priority = choice.Priority, Kind = choice.Kind, SailShape = choice.SailShape };
 
-            AdoptLayoutFrame();
+            var layout = AdoptLayoutFrame();
             var payload = ReadPayload();
 
             // ---- the sun and shade result: the pieces of an overhead louvre or a sail, and the place and the sun of every kind but the fence
@@ -185,6 +197,20 @@ namespace SportfyRevit
 
                 if (ctx.Kind == KineticKind.Overhead || ctx.Kind == KineticKind.Sail)
                 {
+                    // A designer who placed this kind by hand in the web app's Kinetics tab decided where and how many already —
+                    // that stands in for the whole "which piece does the analysis recommend" derivation below, which stays exactly
+                    // as it was for a project that never uses the web app's tab (ctx.Sun is still resolved above, so SetEnvironment
+                    // below sizes the mechanism from real sun/wind numbers either way).
+                    var placed = KineticsHosts.FromPlacements(layout, ctx.Kind);
+                    if (placed.Count > 0)
+                    {
+                        SetEnvironment(ctx, payload);
+                        ctx.Hosts = placed;
+                        ctx.Notes.Add(placed.Count + " placed in the web app's Kinetics tab: position and count follow the layout, not the Sun & Shade recommendation.");
+                        foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
+                        return ctx;
+                    }
+
                     var pieces = Pieces(ctx.Sun, ctx.Kind);
                     var wanted = ctx.Kind == KineticKind.Sail ? "a sail" : "a pergola or a canopy";
                     // A result made with the default choice picks other equipment: offer to run it again for the kind wanted, which replaces it.
@@ -197,10 +223,10 @@ namespace SportfyRevit
                                 ? "Kinetics can put movable pillars under a shade sail; the analysis chose something else for this layout."
                                 : "By default the analysis prefers the lightest piece on the deck, which is a sail. Kinetics adapts the fixed, roof-like types (louvre pergola, solid canopy) here.",
                             CommonButtons = TaskDialogCommonButtons.Cancel,
-                            DefaultButton = TaskDialogResult.CommandLink1,
                         };
                         ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Run it again, allowing only " + (ctx.Kind == KineticKind.Sail ? "sails and parasols" : "fixed structures"),
                             "Replaces the published sun and shade result with one that shades with " + (ctx.Kind == KineticKind.Sail ? "sails" : "pergolas or canopies") + ".");
+                        ask.DefaultButton = TaskDialogResult.CommandLink1;       // after the link exists: Revit throws otherwise
                         if (ask.Show() != TaskDialogResult.CommandLink1) return null;
                         if (!RunSunAnalysis(ctx.SunAnalysisMode, out var problem)) { TaskDialog.Show(Title, problem); return null; }
                         ctx.RanSunAnalysis = true;
@@ -243,20 +269,32 @@ namespace SportfyRevit
             }
             else
             {
-                var fences = payload?.BallTrajectory?.Fences;
-                if (fences == null || fences.Count == 0)
+                // Same "the designer already decided" precedence as Overhead/Sail above: a fence placed by hand in the
+                // web app's Kinetics tab does not need the Ball Trajectory analysis to have proposed that edge.
+                var placed = KineticsHosts.FromPlacements(layout, KineticKind.Fence);
+                if (placed.Count > 0)
                 {
-                    TaskDialog.Show(Title, "There is no fence to make roller: run the Ball Trajectory analysis (Simulation & Analytics) first — its roof-exit sweep proposes the fences: which edge, how far along it and how high.");
-                    return null;
+                    ctx.Sun = payload?.SunAndShading;
+                    ctx.Hosts = placed;
+                    ctx.Notes.Add(placed.Count + " placed in the web app's Kinetics tab: edge and length follow the layout, not the Ball Trajectory recommendation.");
                 }
-                var (roofL, roofW) = SportifyLayoutBuilder.CurrentRoofSizeM;
-                if (roofL <= 0 || roofW <= 0)
+                else
                 {
-                    TaskDialog.Show(Title, "The roof's size is not known here: push or import the layout from the web app first, so the fences can be put on its edges.");
-                    return null;
+                    var fences = payload?.BallTrajectory?.Fences;
+                    if (fences == null || fences.Count == 0)
+                    {
+                        TaskDialog.Show(Title, "There is no fence to make roller: run the Ball Trajectory analysis (Simulation & Analytics) first — its roof-exit sweep proposes the fences: which edge, how far along it and how high. Or place one by hand in the web app's Kinetics tab.");
+                        return null;
+                    }
+                    var (roofL, roofW) = SportifyLayoutBuilder.CurrentRoofSizeM;
+                    if (roofL <= 0 || roofW <= 0)
+                    {
+                        TaskDialog.Show(Title, "The roof's size is not known here: push or import the layout from the web app first, so the fences can be put on its edges.");
+                        return null;
+                    }
+                    ctx.Sun = payload!.SunAndShading;
+                    ctx.Hosts = KineticsHosts.FromFences(fences, roofL, roofW);
                 }
-                ctx.Sun = payload!.SunAndShading;
-                ctx.Hosts = KineticsHosts.FromFences(fences, roofL, roofW);
             }
 
             SetEnvironment(ctx, payload);
@@ -378,7 +416,9 @@ namespace SportfyRevit
             var doc = uidoc?.Document;
             if (uidoc == null || doc == null) { TaskDialog.Show(KineticsShared.Title, "Open a Revit project first."); return Result.Cancelled; }
 
-            var ctx = KineticsShared.Prepare(commandData);
+            KineticsShared.Context? ctx;
+            try { ctx = KineticsShared.Prepare(commandData); }
+            catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
             if (ctx == null) return Result.Cancelled;
 
             // The adaptive template is found before the transaction: the search opens family documents.
@@ -482,7 +522,9 @@ namespace SportfyRevit
             var tool = MechanicalTool.Locate(out var problem);
             if (tool == null) { TaskDialog.Show(KineticsShared.Title, problem); return Result.Cancelled; }
 
-            var ctx = KineticsShared.Prepare(commandData);
+            KineticsShared.Context? ctx;
+            try { ctx = KineticsShared.Prepare(commandData); }
+            catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
             if (ctx == null) return Result.Cancelled;
 
             var design = KineticsInputsFile.LoadDesign();
@@ -559,7 +601,9 @@ namespace SportfyRevit
             var doc = commandData.Application.ActiveUIDocument?.Document;
             if (doc == null) { TaskDialog.Show(KineticsShared.Title, "Open a Revit project first."); return Result.Cancelled; }
 
-            var ctx = KineticsShared.Prepare(commandData);
+            KineticsShared.Context? ctx;
+            try { ctx = KineticsShared.Prepare(commandData); }
+            catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
             if (ctx == null) return Result.Cancelled;
 
             if (!UnityHeadlessRunner.TryLocate(out var unity, out var problem) || UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir))

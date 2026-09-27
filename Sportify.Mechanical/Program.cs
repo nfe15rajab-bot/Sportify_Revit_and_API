@@ -103,6 +103,14 @@ if (command == "probe-extrude")
 }
 if (command == "watchdog-test") return Smoke.WatchdogTest();
 if (command == "smoke") return Smoke.Run(opt.TryGetValue("out", out var smokeOut) ? smokeOut : Path.Combine(Path.GetTempPath(), "sportify-smoke"));
+if (command == "demo")
+{
+    // Sportify.Mechanical demo [--out DIR] [--name NAME]: a full production-scale overhead louvre pergola (6.0 m, 23 blades,
+    // 261 mm pitch) through three sun-tracking states, saved to the designated Sportify Workspace\Mechanical folder by default.
+    var demoOut = opt.TryGetValue("out", out var dOut) ? dOut : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Sportify Workspace", "Mechanical");
+    var demoName = opt.TryGetValue("name", out var dName) ? dName : "louvre_pergola_demo";
+    return Demo.Run(demoOut, demoName);
+}
 if (command == "probe")
 {
     using var probeSession = SolidWorksSession.Open(opt.ContainsKey("visible"), opt.ContainsKey("keep-open"));
