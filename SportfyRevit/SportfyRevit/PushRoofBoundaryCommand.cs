@@ -27,6 +27,11 @@ namespace SportfyRevit
         private static long _lastRoofId;
         private static string? _lastDocumentTitle;
 
+        // told once per Revit session: clicking a roof to push works from any view, but a model with several roofs
+        // or slabs stacked at different heights (like Goldbeck's ten) can make a Plan or Section click land on the
+        // wrong one without it being obvious — a 3D view lets the designer see which one they are actually clicking.
+        private static bool _told3DHint;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements) =>
             Run(commandData, Scope, ref message);
 
@@ -56,6 +61,21 @@ namespace SportfyRevit
             }
             if (element == null)
             {
+                if (!_told3DHint && uidoc.ActiveView is not View3D)
+                {
+                    _told3DHint = true;
+                    var hint = new TaskDialog("Sportify")
+                    {
+                        MainInstruction = "Pick the roof in a 3D view",
+                        MainContent = "You are about to click a roof or floor to push to Sportify, but you are not in a 3D view. " +
+                            "When several roofs or slabs sit at different heights but line up in plan (this model has ten stacked slabs), " +
+                            "a click in a Plan or Section view can land on the wrong one without that being obvious.\n\n" +
+                            "Open a 3D view, orbit until you can see the one you mean, and click it there. Click OK to pick anyway (in the current view), or Cancel to stop and switch views yourself.",
+                        CommonButtons = TaskDialogCommonButtons.Ok | TaskDialogCommonButtons.Cancel,
+                        DefaultButton = TaskDialogResult.Ok,
+                    };
+                    if (hint.Show() == TaskDialogResult.Cancel) return Result.Cancelled;
+                }
                 try
                 {
                     var reference = uidoc.Selection.PickObject(ObjectType.Element, new RoofOrFloorSelectionFilter(), "Select a roof (or floor) to push to Sportify");

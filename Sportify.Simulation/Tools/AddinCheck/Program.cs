@@ -1389,6 +1389,8 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           && self.Contains("static void PushStep(") && self.Contains("PushRoofCommandBase.Build(doc, el, RoofPushScope.All") && self.Contains("the roof's outline was not read") && self.Contains("fall outside the roof's own plan"));
     Check("the live self-test also reads the structure under the named roof (grids, columns, beams, walls, where the columns are against the roof's box) and fails when none is found or the whole building is read",
           self.Contains("static void StructureStep(") && self.Contains("StructureCollector.Collect(doc, RoofPushScope.Structure") && self.Contains("no column was found under the roof") && self.Contains("the IFC's whole building is being read"));
+    Check("picking a roof to push is told, once per session, to be a 3D view when it is not one already (a model can have several roofs or slabs stacked at different heights, like Goldbeck's ten), with a way to continue anyway",
+          IfSrc("PushRoofBoundaryCommand.cs").Contains("uidoc.ActiveView is not View3D") && IfSrc("PushRoofBoundaryCommand.cs").Contains("_told3DHint") && IfSrc("PushRoofBoundaryCommand.cs").Contains("TaskDialogCommonButtons.Ok | TaskDialogCommonButtons.Cancel"));
 }
 
 // ---------------------------------------------------------------------------------------------------------------- Deliverable names (session + iteration)

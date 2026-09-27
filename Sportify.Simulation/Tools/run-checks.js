@@ -315,6 +315,24 @@ step("the web app: the 3D view of the roof (triangulation, camera, sun and shado
   return r.code === 0 ? { status: "pass", detail: "previewCore.js and preview.js" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+// the Site tab's solar-time fix and its sun path (an optional part of the web app, run when the checkout has it)
+step("the web app: the Site tab reads its date/time as solar time at the site, not this computer's own clock (sunrise before sunset, always)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "sun-time-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real sunPosition.js, against SunCalc directly" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+// the Site conditions tab's annual weather overview (an optional part of the web app, run when the checkout has it)
+step("the web app: the Site conditions tab's annual weather overview (the monthly bucketing, the chart, the debounce and the offline fallback)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "site-weather-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real siteWeather.js and siteController.js against a stand-in page and a stubbed fetch" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 // the session's and the iteration's name for the files (an optional part of the web app, run when the checkout has it)
 step("the web app: the session's and the iteration's name for the files (the cleaning the add-in shares, typing, what is kept and sent, and that the layout's identity does not change)", async () => {
   if (!web) return noWeb();
