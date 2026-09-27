@@ -28,9 +28,12 @@ namespace SportfyRevit
             "Sportify_Category", "Sportify_TypeId", "Sportify_Variant", "Sportify_QualityLevel",
             "Sportify_Norm", "Sportify_LengthM", "Sportify_WidthM",
             "Sportify_ReferenceMaterial", "Sportify_ReferenceProvider", "Sportify_QualityKey",
+            // the two the German templates schedule by (GermanNorms): the DIN 277 class of the area and the DIN 276 Kostengruppe
+            "Sportify_DIN277", "Sportify_KG",
         };
 
-        private static bool _attempted;
+        // one attempt per document (a project opened later in the same session gets its own): the parameters are bound in a document, not in the session
+        private static readonly HashSet<Document> Attempted = new();
         private static bool _ready;
 
         /// <summary>
@@ -47,8 +50,7 @@ namespace SportfyRevit
         /// </summary>
         public static bool EnsureBound(Document doc)
         {
-            if (_attempted) return _ready;
-            _attempted = true;
+            if (!Attempted.Add(doc)) return _ready;
 
             try
             {
@@ -69,6 +71,8 @@ namespace SportfyRevit
                 var categorySet = app.Create.NewCategorySet();
                 categorySet.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_GenericModel));
                 categorySet.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_Planting));
+                categorySet.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_Floors));      // the zones' and the roof finish's floors carry the norm classes
+                categorySet.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_StructuralFoundation));    // ...and so do zones an earlier import made as foundation slabs
                 var binding = app.Create.NewInstanceBinding(categorySet);
 
                 foreach (var name in ParamNames)
@@ -82,6 +86,8 @@ namespace SportfyRevit
 
                     if (!doc.ParameterBindings.Contains(definition))
                         doc.ParameterBindings.Insert(definition, binding, GroupTypeId.Data);
+                    else
+                        WidenBinding(doc, definition, categorySet);
                 }
 
                 _ready = true;
@@ -91,6 +97,69 @@ namespace SportfyRevit
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Makes sure every Sportify parameter is bound to all the categories that carry them (floors included), in a document where EnsureBound may have run long ago (an import in an earlier
+        /// session, or an older add-in that bound fewer categories). Inside a transaction. Returns how many parameters were widened.
+        /// </summary>
+        public static int EnsureCategories(Document doc)
+        {
+            int widened = 0;
+            try
+            {
+                var app = doc.Application;
+                var wanted = app.Create.NewCategorySet();
+                wanted.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_GenericModel));
+                wanted.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_Planting));
+                wanted.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_Floors));
+                wanted.Insert(doc.Settings.Categories.get_Item(BuiltInCategory.OST_StructuralFoundation));
+                var it = doc.ParameterBindings.ForwardIterator();
+                var definitions = new List<Definition>();
+                while (it.MoveNext()) if (it.Key is Definition d && ParamNames.Contains(d.Name)) definitions.Add(d);
+                foreach (var d in definitions) if (WidenBinding(doc, d, wanted)) widened++;
+            }
+            catch (System.Exception ex) { SportifyLog.Warn("templates", "the Sportify parameters' categories could not be checked: " + ex.Message); }
+            return widened;
+        }
+
+        /// <summary>The categories one Sportify parameter is bound to, as text, for the log ("Generic Models, Planting"), or null when it is not bound.</summary>
+        public static string? BoundCategories(Document doc, string parameterName)
+        {
+            try
+            {
+                var it = doc.ParameterBindings.ForwardIterator();
+                while (it.MoveNext())
+                    if (it.Key is Definition d && d.Name == parameterName && it.Current is ElementBinding b)
+                        return string.Join(", ", b.Categories.Cast<Category>().Select(c => c.Name));
+            }
+            catch (System.Exception) { /* nothing to report */ }
+            return null;
+        }
+
+        /// <summary>
+        /// A parameter bound by an older import sits on fewer categories (before the norm classes, Generic Model and Planting only): add the missing ones, keeping what is bound, so a project
+        /// imported earlier gets its floors classed too.
+        /// </summary>
+        private static bool WidenBinding(Document doc, Definition definition, CategorySet wanted)
+        {
+            try
+            {
+                if (doc.ParameterBindings.get_Item(definition) is not InstanceBinding existing) return false;
+                var have = new HashSet<long>();
+                foreach (Category c in existing.Categories) have.Add(c.Id.Value);
+                var missing = new List<Category>();
+                foreach (Category c in wanted) if (!have.Contains(c.Id.Value)) missing.Add(c);
+                if (missing.Count == 0) return false;
+
+                var union = doc.Application.Create.NewCategorySet();
+                foreach (Category c in existing.Categories) union.Insert(c);
+                foreach (var c in missing) union.Insert(c);
+                doc.ParameterBindings.ReInsert(definition, doc.Application.Create.NewInstanceBinding(union), GroupTypeId.Data);
+                SportifyLog.Info("templates", $"{definition.Name}: bound to {missing.Count} more categor{(missing.Count == 1 ? "y" : "ies")} ({string.Join(", ", missing.Select(c => c.Name))})");
+                return true;
+            }
+            catch (System.Exception ex) { SportifyLog.Warn("templates", definition.Name + ": its categories could not be widened: " + ex.Message); return false; }
         }
 
         /// <summary>Best-effort: any single parameter that isn't found or is read-only is skipped rather than failing the whole set.</summary>
