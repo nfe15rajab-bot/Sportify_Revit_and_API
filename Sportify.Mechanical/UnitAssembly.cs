@@ -157,10 +157,19 @@ internal static class UnitAssembly
 
     static double[] Mix(double[] a, double[] b, double t) => new[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
 
-    /// <summary>SOLIDWORKS' transform array: the images of the part's x, y and z axes (three rows), then the translation, then the scale.</summary>
+    /// <summary>
+    /// SOLIDWORKS' transform array: the images of the part's own x, y and z axes (three rows), then the translation, then the scale.
+    /// MakePart() sketches its rectangle (SizeU x SizeV) on the first ref-plane it finds and extrudes along that plane's normal for
+    /// Length -- for every part built that way, that makes the part's own local axes (X = length, the extrusion direction; Y = SizeU,
+    /// the sketch's first in-plane axis; Z = SizeV, the sketch's second in-plane axis), not (chord, thickness, length) in that order.
+    /// So it is the bar's own axis (A) that is the part's local X image, U (the chord direction) is its local Y image, and V
+    /// (thickness) is its local Z image -- confirmed empirically (SPORTIFY_DEBUG_BOXES=1): before this fix a blade's own 1.05 m
+    /// length landed on the world axis its 0.15 m chord was supposed to occupy, which is exactly why differently-positioned blades
+    /// that should never touch (a clear 0.25 m gap between neighbours, on the plan) were overlapping in the built assembly.
+    /// </summary>
     static double[] Array16((V3 U, V3 V, V3 A, V3 P) pose)
     {
-        V3 u = Sw(pose.U), v = Sw(pose.V), a = Sw(pose.A), p = Sw(pose.P);
+        V3 u = Sw(pose.A), v = Sw(pose.U), a = Sw(pose.V), p = Sw(pose.P);
         return new[] { u.X, u.Y, u.Z, v.X, v.Y, v.Z, a.X, a.Y, a.Z, p.X, p.Y, p.Z, 1, 0, 0, 0 };
     }
 
@@ -409,6 +418,19 @@ internal static class UnitAssembly
             }
             Pose(0, 0, 0, true);
             asm.ForceRebuild3(false);
+
+            // Temporary diagnostic (SPORTIFY_DEBUG_BOXES=1): each blade's actual
+            // assembly-space bounding box, to check the plan's positions against
+            // what SolidWorks really built -- not left on by default.
+            if (System.Environment.GetEnvironmentVariable("SPORTIFY_DEBUG_BOXES") == "1")
+            {
+                foreach (var b in bodies.Where(x => x.Role == "blade" || x.Role == "post" || x.Role == "rail"))
+                {
+                    var box = b.Comp.GetBox(false, false) as double[];
+                    Console.WriteLine("DEBUG " + b.Role + " idx=" + b.Index + " box(m)=" +
+                        (box == null ? "null" : string.Join(",", box.Select(v => v.ToString("0.000", CultureInfo.InvariantCulture)))));
+                }
+            }
 
             // ---- what the assembly weighs, against what the add-in's mechanics says the blade weighs
             foreach (var body in bodies.Where(b => b.Counted)) report.MassByRoleKg[body.Role] = report.MassByRoleKg.GetValueOrDefault(body.Role) + body.Part.MassKg;
