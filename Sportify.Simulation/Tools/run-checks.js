@@ -315,6 +315,15 @@ step("the web app: the 3D view of the roof (triangulation, camera, sun and shado
   return r.code === 0 ? { status: "pass", detail: "previewCore.js and preview.js" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+// the landing page's own logic (an optional part of the web app, run when the checkout has it)
+step("the web app: the landing's three steps, its sample video and 'Link a Revit file'", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "session-gate-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real sessionGate.js against a stand-in page, video and add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 // the Site tab's solar-time fix and its sun path (an optional part of the web app, run when the checkout has it)
 step("the web app: the Site tab reads its date/time as solar time at the site, not this computer's own clock (sunrise before sunset, always)", async () => {
   if (!web) return noWeb();
