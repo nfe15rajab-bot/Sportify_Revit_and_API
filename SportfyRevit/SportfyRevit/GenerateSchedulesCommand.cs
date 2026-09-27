@@ -33,11 +33,11 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
-            // saved to the Schedules folder of the workspace: no file dialog (the web app's Deliverables tab makes the same file)
+            // saved to the Schedules folder of the workspace: no file dialog (the web app's Documents tab makes the same file)
             string path;
             try
             {
-                path = SportifyWorkspace.UniquePath("schedules", $"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+                path = SportifyWorkspace.UniquePath("schedules", DeliverableNaming.Named($"Sportify_Schedule_{DateTime.Now:yyyyMMdd_HHmmss}.csv"), DeliverableNaming.FolderFor("schedules"));
                 File.WriteAllBytes(path, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(ScheduleCsv.Build(layout))).ToArray());
             }
             catch (Exception ex)

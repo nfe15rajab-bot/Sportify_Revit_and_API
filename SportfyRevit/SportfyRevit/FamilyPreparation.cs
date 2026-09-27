@@ -165,7 +165,7 @@ namespace SportfyRevit
                 return s == null ? FamilyResolution.None("the furniture family builder returned no family") : Found(s, firmsOwn ? ImportDiagnostics.HowReference : ImportDiagnostics.HowFurniture);
             }
 
-            // 5. A family the designer referenced in the Families tab.
+            // 5. A family the designer referenced in the Revit families tab.
             if (p.Parameters?.RevitFamily is { } reference)
             {
                 var s = RevitFamilyResolver.Resolve(doc, reference);

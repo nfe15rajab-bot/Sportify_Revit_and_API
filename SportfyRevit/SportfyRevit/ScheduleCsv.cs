@@ -4,7 +4,7 @@ namespace SportfyRevit
 {
     /// <summary>
     /// The component schedule (CSV, opens in Excel), built from the layout JSON with no Revit call: placements don't carry structured Revit parameters, so this is built from
-    /// the layout itself. Shared by the ribbon's Schedules button and the web app's Deliverables tab (through the add-in's local server), so both give the same file.
+    /// the layout itself. Shared by the ribbon's Schedules button and the web app's Documents tab (through the add-in's local server), so both give the same file.
     /// </summary>
     internal static class ScheduleCsv
     {

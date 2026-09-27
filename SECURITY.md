@@ -15,7 +15,7 @@ Written for the black-box test (2026-09-21). Every rule below is pinned by a che
 | Setting | Where | Effect |
 |---|---|---|
 | `SPORTIFY_ALLOWED_ORIGINS` | environment of Revit | more origins for the add-in server (semicolon-separated); `*` and `null` are never accepted |
-| `Api:WriteKey` (`Api__WriteKey`) | API configuration | the write key. Not set: the API makes a random key per run and gives it, through `GET /api/session`, only to a request whose `Origin` is one of the app's. Set: it is never handed out, and the Data tab asks for it once per browser tab |
+| `Api:WriteKey` (`Api__WriteKey`) | API configuration | the write key. Not set: the API makes a random key per run and gives it, through `GET /api/session`, only to a request whose `Origin` is one of the app's. Set: it is never handed out, and the Catalogue tab asks for it once per browser tab |
 | `Api:AllowedOrigins` | API configuration | more origins for the API's CORS and session handshake |
 | `Admin:AllowSqlImport` | API configuration | `true` turns on `POST /api/Admin/import-sql` outside Development. It always needs the key and refuses `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, `load_extension` |
 | `Jwt:Key` | API configuration / user secrets | 32+ characters turns on the account endpoints. There is no key in the repository; the old placeholder is refused |
@@ -27,6 +27,7 @@ Written for the black-box test (2026-09-21). Every rule below is pinned by a che
 - `index.html` carries a Content-Security-Policy (`script-src 'self'`, no inline script, nothing from another site except map tiles and photographs as images and the address lookup as a `connect`). Leaflet, SunCalc, the icon font and Titillium Web are in `vendor/` (`tools/csp-test.js`).
 - `style-src` still allows inline styles: the app sets `style` attributes throughout. A style cannot run script; it can restyle a page.
 - The person's profile (name, photo, view, role, theme; `profileCore.js`, `SportifyProfile.cs`) is rebuilt from the fields it knows on both sides before it is kept: unknown fields are dropped, the name is one line of at most 60 characters and is only ever put on the page as text, and a photo is only a small JPEG, PNG or WebP data URL of at most 120,000 characters (an SVG can carry script, an address is a request to somewhere else, so neither is kept). `POST /profile` needs the add-in's session token like every other write and is limited to 1 MB by the guard. `tools/profile-test.js` and `Tools/ContractCheck` test the same hostile inputs.
+- `GET /capabilities` (what this computer has: Unity, SOLIDWORKS, Chrome, with their install paths, and which ribbon buttons are hidden) needs the session token like every other request and only ever answers the app's own origins; the web app shows only the add-in's sentences (which can name a folder that was looked in, such as Unity's default install folder), not the paths themselves, and puts every word of it on the page escaped.
 
 ## What this does not cover
 

@@ -3055,7 +3055,7 @@
                 "scenario": "resonance",
                 "kind": "frequency-input",
                 "target": "Natural frequency",
-                "text": "The deck's frequency is an ESTIMATE from the spans (4.5 to 9.2 Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Structure tab before relying on this."
+                "text": "The deck's frequency is an ESTIMATE from the spans (4.5 to 9.2 Hz, good to about 25%). Enter the structural engineer's first natural frequency in the Structure inputs tab before relying on this."
             },
             {
                 "scenario": "general",

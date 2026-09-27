@@ -95,7 +95,8 @@ namespace SportfyRevit
             var recordingsDir = Path.Combine(install.ProjectDir, "Recordings");
             Directory.CreateDirectory(recordingsDir);
             var resultsPath = Path.Combine(recordingsDir, request.ResultsFileName);
-            var videoPath = Path.Combine(recordingsDir, $"{request.VideoFileStem}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            var (session, iteration) = DeliverableNaming.Resolve(request.LayoutJson);      // the session's and the iteration's name in front of the film's name
+            var videoPath = Path.Combine(recordingsDir, DeliverableNaming.Named($"{request.VideoFileStem}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4", session, iteration));
             try { if (File.Exists(resultsPath)) File.Delete(resultsPath); } catch { /* best-effort */ }
 
             var psi = new ProcessStartInfo

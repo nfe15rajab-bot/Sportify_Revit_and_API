@@ -79,7 +79,7 @@ namespace SportfyRevit
             if (!RoofBoundaryServer.TryGetLatestIterations(out var json) || string.IsNullOrWhiteSpace(json))
             {
                 TaskDialog.Show(Title, "No iterations sent from the web app yet.\n\n" +
-                    "In Combine, use \"Save for Compare\" to save up to 3 layouts, then send them to Revit from the Analysis tab's Iterations panel.");
+                    "In Combine, use \"Save for Compare\" to save up to 3 layouts, then send them to Revit from the Results tab's Iterations panel.");
                 return Result.Succeeded;
             }
 

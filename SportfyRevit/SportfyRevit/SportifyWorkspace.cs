@@ -11,6 +11,8 @@ namespace SportfyRevit
     {
         public string Kind = "";
         public string Name = "";
+        /// <summary>The iteration's subfolder of the kind's folder the file is in ("Algorithmic" for Analysis reports\Algorithmic\...); empty for a file in the kind's folder itself.</summary>
+        public string Folder = "";
         public long Size;
         public DateTime ModifiedUtc;
     }
@@ -37,6 +39,14 @@ namespace SportfyRevit
             new("mechanical", "Mechanical", "SOLIDWORKS assemblies", "The SOLIDWORKS assemblies (SLDASM), STEP files and films of the dynamic units Kinetics builds, for the mechanical engineer."),
             new("profile", "Profile", "Profile", "Your PROFILE: name, photo, view (Simple or Advanced), role and theme, as Sportify-PROFILE.json and your photo. Kept up to date whenever you change it in the app."),
         };
+
+        /// <summary>The kinds Sportify makes for the current layout, which are kept apart by iteration: with an iteration name set, their files go into a subfolder of that name (Analysis reports\Algorithmic). The others (layouts, sport, garden, profile, the SOLIDWORKS files) are inputs or belong to no iteration and stay where they are.</summary>
+        public static readonly string[] PerIterationKinds = { "analysis", "videos", "reports", "schedules", "diagrams" };
+
+        public static bool IsPerIteration(string? key) => KindOf(key) is { } k && PerIterationKinds.Contains(k.Key);
+
+        /// <summary>The subfolder to use for this kind: the one asked for when it is only a name and the kind is kept apart by iteration, else none.</summary>
+        static string SubOf(string key, string? subfolder) => IsPerIteration(key) && !string.IsNullOrEmpty(subfolder) && SafeName(subfolder) == subfolder ? subfolder! : "";
 
         static string? _override;
         static string? _settingsOverride;
@@ -98,11 +108,13 @@ namespace SportfyRevit
 
         public static WorkspaceKind? KindOf(string? key) => Kinds.FirstOrDefault(k => string.Equals(k.Key, key, StringComparison.OrdinalIgnoreCase));
 
-        /// <summary>The subfolder of a kind, made if it is missing. Throws for a kind that does not exist.</summary>
-        public static string PathFor(string key)
+        /// <summary>The subfolder of a kind, made if it is missing; with an iteration's name, the folder of that iteration inside it (for the kinds kept apart by iteration). Throws for a kind that does not exist.</summary>
+        public static string PathFor(string key, string? subfolder = null)
         {
             var kind = KindOf(key) ?? throw new ArgumentException("There is no deliverable kind \"" + key + "\".");
             var dir = Path.Combine(Folder, kind.Folder);
+            var sub = SubOf(key, subfolder);
+            if (sub.Length > 0) dir = Path.Combine(dir, sub);
             Directory.CreateDirectory(dir);
             return dir;
         }
@@ -116,9 +128,9 @@ namespace SportfyRevit
         }
 
         /// <summary>The path a new file of this name would take in the kind's folder: the name itself, or with a number when it exists (nothing is overwritten).</summary>
-        public static string UniquePath(string key, string name)
+        public static string UniquePath(string key, string name, string? subfolder = null)
         {
-            var dir = PathFor(key);
+            var dir = PathFor(key, subfolder);
             var safe = SafeName(name);
             if (safe.Length == 0) throw new ArgumentException("The file has no usable name.");
             var stem = Path.GetFileNameWithoutExtension(safe);
@@ -129,9 +141,9 @@ namespace SportfyRevit
         }
 
         /// <summary>Writes a file into a kind's folder (under a free name); returns the path.</summary>
-        public static string Save(string key, string name, byte[] data)
+        public static string Save(string key, string name, byte[] data, string? subfolder = null)
         {
-            var path = UniquePath(key, name);
+            var path = UniquePath(key, name, subfolder);
             File.WriteAllBytes(path, data);
             return path;
         }
@@ -140,14 +152,14 @@ namespace SportfyRevit
         /// Copies a file that was made somewhere else (Unity's Recordings folder) into the workspace and returns the copy's path, so the workspace holds what was made.
         /// When it cannot be copied the original path comes back: the result then still points at a file that exists.
         /// </summary>
-        public static string Adopt(string key, string sourcePath)
+        public static string Adopt(string key, string sourcePath, string? subfolder = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return sourcePath;
-                var dir = PathFor(key);
+                var dir = PathFor(key, subfolder);
                 if (string.Equals(Path.GetDirectoryName(Path.GetFullPath(sourcePath)), Path.GetFullPath(dir), StringComparison.OrdinalIgnoreCase)) return sourcePath;
-                var target = UniquePath(key, Path.GetFileName(sourcePath));
+                var target = UniquePath(key, Path.GetFileName(sourcePath), subfolder);
                 File.Copy(sourcePath, target);
                 return target;
             }
@@ -155,31 +167,34 @@ namespace SportfyRevit
         }
 
         /// <summary>Copies a file into the workspace under a name of your choosing (a timestamped one, say); returns the copy, or the original when it cannot be copied.</summary>
-        public static string AdoptAs(string key, string sourcePath, string name)
+        public static string AdoptAs(string key, string sourcePath, string name, string? subfolder = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(sourcePath) || !File.Exists(sourcePath)) return sourcePath;
-                var target = UniquePath(key, name);
+                var target = UniquePath(key, name, subfolder);
                 File.Copy(sourcePath, target);
                 return target;
             }
             catch (Exception) { return sourcePath; }
         }
 
-        /// <summary>The file for a kind and name, when it is really in that kind's folder (a name with a folder or ".." in it is refused).</summary>
-        public static bool TryResolve(string? key, string? name, out string path)
+        /// <summary>The file for a kind and name, when it is really in that kind's folder, or in the iteration's folder inside it when one is given (a name or a folder with a separator or ".." in it is refused, and so is a folder for a kind that has none).</summary>
+        public static bool TryResolve(string? key, string? name, out string path, string? subfolder = null)
         {
             path = "";
             var kind = KindOf(key);
             if (kind == null || string.IsNullOrEmpty(name) || SafeName(name) != name) return false;
-            var full = Path.GetFullPath(Path.Combine(Folder, kind.Folder, name));
-            if (!string.Equals(Path.GetDirectoryName(full), Path.GetFullPath(Path.Combine(Folder, kind.Folder)), StringComparison.OrdinalIgnoreCase) || !File.Exists(full)) return false;
+            var sub = SubOf(kind.Key, subfolder);
+            if (!string.IsNullOrEmpty(subfolder) && sub.Length == 0) return false;
+            var dir = Path.GetFullPath(Path.Combine(Folder, kind.Folder, sub));
+            var full = Path.GetFullPath(Path.Combine(dir, name));
+            if (!string.Equals(Path.GetDirectoryName(full), dir, StringComparison.OrdinalIgnoreCase) || !File.Exists(full)) return false;
             path = full;
             return true;
         }
 
-        /// <summary>Every file in every subfolder, newest first.</summary>
+        /// <summary>Every file in every subfolder, newest first; for the kinds kept apart by iteration also the files of the iteration folders inside them (one level).</summary>
         public static List<DeliverableFile> List()
         {
             var files = new List<DeliverableFile>();
@@ -190,6 +205,10 @@ namespace SportfyRevit
                 if (!Directory.Exists(dir)) continue;
                 foreach (var f in new DirectoryInfo(dir).EnumerateFiles())
                     files.Add(new DeliverableFile { Kind = k.Key, Name = f.Name, Size = f.Length, ModifiedUtc = f.LastWriteTimeUtc });
+                if (!IsPerIteration(k.Key)) continue;
+                foreach (var d in new DirectoryInfo(dir).EnumerateDirectories().Where(d => SafeName(d.Name) == d.Name))
+                    foreach (var f in d.EnumerateFiles())
+                        files.Add(new DeliverableFile { Kind = k.Key, Folder = d.Name, Name = f.Name, Size = f.Length, ModifiedUtc = f.LastWriteTimeUtc });
             }
             return files.OrderByDescending(f => f.ModifiedUtc).ToList();
         }

@@ -5,7 +5,7 @@ namespace Sportify.Api.Models
     /// <summary>
     /// One size tier (mini/standard/competition) of a sport's playing field,
     /// with the real dimensions the frontend's own field renderer already
-    /// draws from (data.js's FIELDS table) — mirrored here so the Data tab
+    /// draws from (data.js's FIELDS table) — mirrored here so the Catalogue tab
     /// can show the same verified DIN 18032 / federation figures instead of
     /// just a bare norm code.
     /// </summary>

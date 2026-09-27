@@ -7,7 +7,7 @@ using Sportify.Api.Models;
 namespace Sportify.Api.Controllers
 {
     /// <summary>
-    /// Write access to the reference catalog — lets the Data tab grow the
+    /// Write access to the reference catalog — lets the Catalogue tab grow the
     /// database itself (manual entry or a .sql import) instead of only
     /// ever reading what ReferenceDataSeeder shipped with. Reading the
     /// catalogue is open; every write, here and in the other controllers, needs
@@ -35,7 +35,7 @@ namespace Sportify.Api.Controllers
         {
             "Sport", "Material", "Provider", "Norm", "Plant", "PlantPalette", "FacilityGuideline", "FieldVariant", "AnalysisParameter",
             // Court options — the surfaces, wall systems and baskets each sport
-            // offers. Without this the Data tab's form built a valid request
+            // offers. Without this the Catalogue tab's form built a valid request
             // and the endpoint refused it as an unknown type.
             "SportOption",
             // Site furniture. Same reason, and it is the only way to attach a
@@ -49,7 +49,7 @@ namespace Sportify.Api.Controllers
             _security = security;
         }
 
-        /// <summary>What this API allows, so that the Data tab can say so instead of offering what would be refused.</summary>
+        /// <summary>What this API allows, so that the Catalogue tab can say so instead of offering what would be refused.</summary>
         [HttpGet("capabilities")]
         public IActionResult Capabilities() => Ok(new { sqlImport = _security.SqlImportEnabled, writeKeyHeader = ApiSecurity.KeyHeader });
 

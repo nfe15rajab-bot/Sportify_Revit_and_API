@@ -36,6 +36,10 @@ namespace SportfyRevit
             ["dxf"] = new("setup", "M6 3h8l4 4v14h-12z M14 3v4h4 M9 14h6 M9 17h4", "M6 3h8l4 4v14h-12z"),
             ["location_sun"] = new("setup", "M12 21c-4 -4.5 -6 -7.5 -6 -10.5a6 6 0 0 1 12 0c0 3 -2 6 -6 10.5z M12 8.5a2.2 2.2 0 1 1 0 4.4a2.2 2.2 0 1 1 0 -4.4", "M12 21c-4 -4.5 -6 -7.5 -6 -10.5a6 6 0 0 1 12 0c0 3 -2 6 -6 10.5z"),
             ["sync"] = new("setup", "M20 11a8 8 0 0 0 -14.5 -3 M4 4v4h4 M4 13a8 8 0 0 0 14.5 3 M20 20v-4h-4", "M12 6a6 6 0 1 1 0 12a6 6 0 1 1 0 -12"),
+            // four tiles: every button of the ribbon, shown
+            ["allbuttons"] = new("setup", "M4 4h7v7h-7z M13 4h7v7h-7z M4 13h7v7h-7z M13 13h7v7h-7z", "M4 4h7v7h-7z M13 13h7v7h-7z"),
+            // a list with ticks: the Getting started checklist
+            ["checklist"] = new("setup", "M4 6.5l1.5 1.5l2.5 -2.5 M4 12.5l1.5 1.5l2.5 -2.5 M4 18.5l1.5 1.5l2.5 -2.5 M12 7h8 M12 13h8 M12 19h8", "M3 4h18v16h-18z"),
 
             // ---- push to Sportify (the drop-down and its items)
             ["push"] = new("setup", "M12 15v-12 M7 8l5 -5l5 5 M4 14v6h16v-6", "M4 14h16v6h-16z"),
@@ -75,6 +79,8 @@ namespace SportfyRevit
             ["phase_setup"] = new("bim", "M4 6h16v14h-16z M4 11h16 M8 3v4 M16 3v4 M12 13v5 M9.5 15.5h5", "M4 6h16v5h-16z"),
             ["worksets"] = new("bim", Layers + " M3 17l9 5l9 -5", "M12 3l9 5l-9 5l-9 -5z"),
             ["workset_assign"] = new("bim", "M12 3l9 5l-9 5l-9 -5z M3 13l9 5l9 -5 M9 8l2 2l4 -4", "M12 3l9 5l-9 5l-9 -5z"),
+            // three layers with a small "I": the worksets of an IFC, by class
+            ["workset_ifc"] = new("bim", "M12 3l9 4.5l-9 4.5l-9 -4.5z M3 12l9 4.5l9 -4.5 M3 16.5l9 4.5l9 -4.5 M12 6v3", "M12 3l9 4.5l-9 4.5l-9 -4.5z"),
             ["iteration_switch"] = new("bim", "M4 14h9v6h-9z M7.5 9h9v6h-9z M11 4h9v6h-9z", "M11 4h9v6h-9z"),
 
             // ---- export

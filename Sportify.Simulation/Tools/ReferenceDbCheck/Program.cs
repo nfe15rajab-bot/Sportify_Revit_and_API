@@ -6,7 +6,7 @@ using Sportify.Api.Data;
 // usage: ReferenceDbCheck                       the tests
 //        ReferenceDbCheck --dry-run <reference.db>   what the guard would do to that file (on a copy)
 // Runs ReferenceDbGuard (what Sportify.Api does at startup on reference.db) on throw-away database files: a fresh one, one made before the guard, one missing a column
-// (the "no such column: p.CrownM" case), one with rows added through the Data tab, one held open by another program, and the three policies. Each must end with the
+// (the "no such column: p.CrownM" case), one with rows added through the Catalogue tab, one held open by another program, and the three policies. Each must end with the
 // old file kept somewhere when it was replaced, and left alone when it was not. What the catalog seeders add is added IN PLACE (CatalogSeeding: tables, columns, rows by
 // key), so a file that only lacks that is brought up to date with everything entered kept, and a rebuild is only for what cannot be added that way.
 // --dry-run <path to reference.db>: what the guard WOULD do to that file, tried on a copy (the file itself is not touched)
@@ -73,7 +73,7 @@ string[] Backups(string dir) => Directory.GetFiles(dir, "reference.*.backup.db")
     Check("a file without RoofAssemblies is rebuilt", r.Action == "rebuilt" && r.Reason.Contains("RoofAssemblies") && Scalar(db, "SELECT count(*) FROM RoofAssemblies") > 0, r.Reason);
 }
 
-// ---- 4. rows added through the Data tab are the user's: no rebuild because of them, and none lost when a rebuild comes
+// ---- 4. rows added through the Catalogue tab are the user's: no rebuild because of them, and none lost when a rebuild comes
 {
     var dir = NewDir("userrows"); var db = Path.Combine(dir, "reference.db");
     ReferenceDbGuard.Prepare(db);

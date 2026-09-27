@@ -1,0 +1,151 @@
+namespace SportfyRevit
+{
+    /// <summary>What a ribbon button needs of the computer besides Revit.</summary>
+    internal enum RibbonNeed { Unity, SolidWorks }
+
+    /// <summary>Whether one ribbon entry is shown, and why not when it is not (a sentence a person can act on).</summary>
+    internal sealed record RibbonDecision(bool Visible, string Reason);
+
+    /// <summary>
+    /// Which buttons of the Sportify tab are shown: a pure function of the view the person chose (the PROFILE: Simple or Advanced) and of what this computer has
+    /// (SportifyCapabilities), over the layout in RibbonLayout. Nothing here touches Revit; SportfyRevitApp applies the plan to the real ribbon, and Tools/AddinCheck tests it.
+    ///
+    /// Two reasons hide a button, and neither is a lock:
+    ///  - the SIMPLE view keeps the main path (SimpleButtons) and hides the rest, which Advanced shows again;
+    ///  - a button that cannot work on this computer is hidden instead of failing when it is clicked: the Ball Trajectory Simulation and Record Isolated Video need Unity
+    ///    (their physics makes the numbers: there is no PDF alternative), Simulate needs SOLIDWORKS. The five physical analyses stay: without Unity they give a PDF.
+    ///
+    /// A drop-down is shown when any of its items is, a panel when any of its entries is. AlwaysVisible are never hidden by either rule, so the ribbon can never be left with
+    /// no way back; the "All Buttons" toggle on the ribbon (or SPORTIFY_SHOW_ALL_BUTTONS=1) turns both rules off.
+    /// </summary>
+    internal static class RibbonVisibility
+    {
+        /// <summary>The internal name of the "Push to Sportify" drop-down (RibbonPushMenuSpec, which SportfyRevitApp.AddPushMenu builds).</summary>
+        public const string PushMenuName = "PushToSportify";
+
+        /// <summary>The key of a panel in the plan.</summary>
+        public static string PanelKey(string panelName) => "panel:" + panelName;
+
+        public static readonly IReadOnlyDictionary<string, RibbonNeed> Needs = new Dictionary<string, RibbonNeed>
+        {
+            ["SimulateBallTrajectories"] = RibbonNeed.Unity,
+            ["RecordKineticsVideo"] = RibbonNeed.Unity,
+            ["SimulateKinetics"] = RibbonNeed.SolidWorks,
+        };
+
+        /// <summary>The main path, as it is in the web app's Simple view: the getting started checklist, open the app, push the roof, import the layout, send the analyses, and take the deliverables.</summary>
+        public static readonly IReadOnlyList<string> SimpleButtons = new[]
+        {
+            "GettingStarted", "OpenSportifyApp", PushMenuName, "ImportSportifyLayout", "SendPhysicalAnalysisToWeb",
+            "GenerateAnalysisReport", "GenerateFunctionalDiagrams", "GenerateSchedules", "OpenSportifyFolder",
+        };
+
+        /// <summary>
+        /// What each extra a person added to the Simple view (the start-up quiz: an analysis they chose) brings back to the ribbon. The keys are the web app's PROFILE_EXTRAS (SportifyProfile.Extras);
+        /// Tools/ReleaseCheck compares them. An extra changes nothing in the Advanced view, which shows everything the computer can do.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, string[]> ExtraButtons = new Dictionary<string, string[]>
+        {
+            ["structure"] = new[] { "AnalyzeStructuralLoads", "AnalyzeDynamicLoads" },
+            ["conditions"] = new[] { "AnalyzeSunShade", "AnalyzeWindErosionRisk", "SimulateSoilPercolation" },
+            ["compare"] = new[] { "ImportIterationsAsOptions", "SwitchIteration" },
+            ["postAnalysis"] = new[] { "ChooseKineticFamily", "GenerateKineticFamily", "ImportKineticAdaptation", "RecordKineticsVideo", "SimulateKinetics" },
+            ["safety"] = new[] { "AnalyzeFireSafety", "AnalyzeAccessibility", "SimulateBallTrajectories" },
+            ["carbon"] = new[] { "AnalyzeCarbonImpact", "AnalyzeLca" },
+        };
+
+        /// <summary>The "All Buttons" toggle: it shows every button whatever the view and the computer say, even in the Simple view (ToggleShowAllCommand; the choice is kept in the settings file).</summary>
+        public const string ShowAllName = "ToggleShowAll";
+
+        public static string ShowAllText(bool on) => on ? "All Buttons:\nON" : "All Buttons:\nOFF";
+
+        public static string ShowAllTooltip(bool on) => on
+            ? "Every Sportify button is shown now, whatever your Simple or Advanced view says, including buttons that need Unity or SOLIDWORKS when they were not found (they tell you what is missing when clicked). Click to go back to your view."
+            : "Shows the full Sportify ribbon, even with a Simple view: every button, and the ones that need Unity or SOLIDWORKS too. Your view in the web app's Profile tab is not changed. Click to turn on.";
+
+        /// <summary>Is the full ribbon asked for: by the person (the "All Buttons" toggle, kept in the settings file) or by the environment variable SPORTIFY_SHOW_ALL_BUTTONS=1?</summary>
+        public static bool ShowAllRequested() =>
+            Environment.GetEnvironmentVariable("SPORTIFY_SHOW_ALL_BUTTONS") == "1" || SportifyProfile.ShowAllButtons();
+
+        /// <summary>Never hidden: the way into the web app (where the view is changed), into the person's own files, and the toggle that shows everything (so the ribbon can never be left without a way back).</summary>
+        public static readonly IReadOnlyList<string> AlwaysVisible = new[] { "OpenSportifyApp", "OpenSportifyFolder", ShowAllName };
+
+        /// <summary>The view as the ribbon understands it: "simple", or anything else is "advanced" (the default).</summary>
+        public static string NormalizeView(string? view) => string.Equals(view, "simple", StringComparison.OrdinalIgnoreCase) ? "simple" : "advanced";
+
+        /// <summary>The decision for one button (or drop-down item, or the push menu) by its internal name.</summary>
+        public static RibbonDecision ForButton(string internalName, string? view, Capabilities caps, bool showAll = false, IEnumerable<string>? extras = null)
+        {
+            if (showAll) return new RibbonDecision(true, "");
+            if (AlwaysVisible.Contains(internalName)) return new RibbonDecision(true, "");
+            if (NormalizeView(view) == "simple" && !SimpleButtons.Contains(internalName) && !BroughtBackBy(internalName, extras))
+                return new RibbonDecision(false, "Hidden in the Simple view: choose Advanced in the web app's Profile tab (or add it there, or in the quiz) to show it.");
+            if (Needs.TryGetValue(internalName, out var need))
+            {
+                var tool = need == RibbonNeed.Unity ? caps.Unity : caps.SolidWorks;
+                if (!tool.Found) return new RibbonDecision(false, tool.Note);
+            }
+            return new RibbonDecision(true, "");
+        }
+
+        /// <summary>Does an extra the person added bring this button back to the Simple view?</summary>
+        static bool BroughtBackBy(string internalName, IEnumerable<string>? extras) =>
+            extras != null && extras.Any(e => ExtraButtons.TryGetValue(e, out var buttons) && buttons.Contains(internalName));
+
+        /// <summary>
+        /// The decision for every button, drop-down item, drop-down and panel of the layout, by internal name (panels as PanelKey(name)). A drop-down and a panel are visible when
+        /// anything in them is. <paramref name="extras"/> are what the person added to the Simple view.
+        /// </summary>
+        public static IReadOnlyDictionary<string, RibbonDecision> Plan(string? view, Capabilities caps, bool showAll = false, IEnumerable<string>? extras = null)
+        {
+            var plan = new Dictionary<string, RibbonDecision>();
+            foreach (var panel in RibbonLayout.Panels)
+            {
+                var anyVisible = false;
+                foreach (var entry in panel.Entries)
+                {
+                    switch (entry)
+                    {
+                        case RibbonButtonSpec button:
+                            plan[button.InternalName] = ForButton(button.InternalName, view, caps, showAll, extras);
+                            anyVisible |= plan[button.InternalName].Visible;
+                            break;
+                        case RibbonPulldownSpec pulldown:
+                            foreach (var item in pulldown.Items) plan[item.InternalName] = ForButton(item.InternalName, view, caps, showAll, extras);
+                            var shown = pulldown.Items.Any(i => plan[i.InternalName].Visible);
+                            plan[pulldown.InternalName] = new RibbonDecision(shown, shown ? "" : "Every item of this drop-down is hidden.");
+                            anyVisible |= shown;
+                            break;
+                        case RibbonPushMenuSpec:
+                            plan[PushMenuName] = ForButton(PushMenuName, view, caps, showAll, extras);
+                            anyVisible |= plan[PushMenuName].Visible;
+                            break;
+                    }
+                }
+                plan[PanelKey(panel.Name)] = new RibbonDecision(anyVisible, anyVisible ? "" : "Nothing in this panel is shown.");
+            }
+            return plan;
+        }
+
+        /// <summary>The words on a button (or drop-down) as the person reads them, on one line; the internal name when the layout has no such entry.</summary>
+        public static string TextOf(string internalName)
+        {
+            if (internalName == PushMenuName) return "Push to Sportify";
+            static string OneLine(string text) => text.Replace("\n", " ");
+            foreach (var panel in RibbonLayout.Panels)
+                foreach (var entry in panel.Entries)
+                {
+                    if (entry is RibbonButtonSpec b && b.InternalName == internalName) return OneLine(b.Text);
+                    if (entry is not RibbonPulldownSpec p) continue;
+                    if (p.InternalName == internalName) return OneLine(p.Text);
+                    var item = p.Items.FirstOrDefault(i => i.InternalName == internalName);
+                    if (item != null) return OneLine(item.Text);
+                }
+            return internalName;
+        }
+
+        /// <summary>The names of what a plan hides (buttons and drop-downs, not panels), in the order of the ribbon: what the web app tells the person is hidden.</summary>
+        public static IReadOnlyList<string> Hidden(IReadOnlyDictionary<string, RibbonDecision> plan) =>
+            plan.Where(p => !p.Value.Visible && !p.Key.StartsWith("panel:", StringComparison.Ordinal)).Select(p => p.Key).ToList();
+    }
+}

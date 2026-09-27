@@ -158,6 +158,12 @@ step("the release: the version, the license, the author, the Sportify folder, th
 step("roof shapes (RoofCheck)", () => runTool("RoofCheck"));
 step("the installer's record and uninstaller on scratch folders (InstallerCheck)", () => runTool("InstallerCheck"));
 step("the Revit-free add-in parts (AddinCheck)", () => runTool("AddinCheck"));
+step("profiles: what each profile shows, the web app's tabs and the ribbon's buttons side by side, against a reviewed list (ProfileMatrix)", async () => {
+  if (!web) return noWeb();
+  if (!fs.existsSync(path.join(web, "profileCore.js")) || !fs.existsSync(path.join(web, "quizCore.js"))) return { status: "skip", detail: "this web app has no profile and quiz yet (profileCore.js, quizCore.js)" };
+  const r = await node([path.join(tools, "ProfileMatrix", "check.js"), web]);
+  return r.code === 0 ? { status: "pass", detail: tail(r.out.trim(), 1).replace(/^PROFILE MATRIX OK: /, "") } : { status: "fail", output: tail(r.out + r.err, 30) };
+}, { needsWeb: true });
 step("the API's reference.db guard on throw-away databases (ReferenceDbCheck)", () => runTool("ReferenceDbCheck"));
 step("Unity results contract (ContractCheck)", () => runTool("ContractCheck"), { needsWindows: true });
 step("Unity's layout readers against the add-in's (ReaderParity)", () => runTool("ReaderParity"));
@@ -199,7 +205,7 @@ step("the web app: sport dimensions come from the database once the API answers 
   const test = path.join(web, "tools", "field-source-test.js");
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/field-source-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
-  return r.code === 0 ? { status: "pass", detail: "the Data tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
+  return r.code === 0 ? { status: "pass", detail: "the Catalogue tab's sizes reach the Sport tab" } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("assumptions register: the C# list against the web's assumptions.js", async () => {
@@ -255,7 +261,7 @@ step("algorithmic placement: how it meets the rest of Combine (zones, specified 
   return r.code === 0 ? { status: "pass", detail: tail(r.out, 1).replace(/^ALL ALGORITHMIC PLACEMENT UI CHECKS PASSED/, "the real scripts, the real packer, Apply") } : { status: "fail", output: tail(r.out + r.err, 30) };
 }, { needsWeb: true });
 
-step("results: the Analysis tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
+step("results: the Results tab badges what is about an earlier layout (the id rule, the comparison, the card)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "results-freshness-test.js");
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-freshness-test.js not found in the web app" };
@@ -277,6 +283,69 @@ step("the web app: the PROFILE (Simple/Advanced view against the real page, name
   if (!fs.existsSync(test)) return { status: "fail", output: "tools/profile-test.js not found in the web app" };
   const r = await node([test], { cwd: web });
   return r.code === 0 ? { status: "pass", detail: "the real profile.js against a stand-in page and a stand-in add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: the start-up quiz (questions, what the answers set, only for a new session, the address search and what goes to the Site tab, the Overview)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "quiz-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/quiz-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real quiz.js, siteField.js and siteController.js against a stand-in page, map and geocoder" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: the rundgang (which steps a profile sees, where the card goes, every target still in the page, a whole tour with the buttons and the keyboard)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "tour-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/tour-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  if (r.code !== 0) return { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+  // the tour beside the question "What is this roof?" (it once blocked the tour): run when the web app has it, so an older checkout of the web app is still checked
+  const beside = path.join(web, "tools", "tour-roofprompt-test.js");
+  if (!fs.existsSync(beside)) return { status: "pass", detail: "the real tour.js against a stand-in page" };
+  const r2 = await node([beside], { cwd: web });
+  return r2.code === 0 ? { status: "pass", detail: "the real tour.js against a stand-in page, and beside the roof question" } : { status: "fail", output: tail(r2.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r2.out + r2.err, 30) };
+}, { needsWeb: true });
+
+// the 3D view of the Combine roof (an optional part of the web app: run when the checkout has it, like the tour beside the roof question)
+step("the web app: the 3D view of the roof (triangulation, camera, sun and shadows, picking; the real preview.js against a stand-in page with a recording WebGL context)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "preview-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "previewCore.js and preview.js" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+// the session's and the iteration's name for the files (an optional part of the web app, run when the checkout has it)
+step("the web app: the session's and the iteration's name for the files (the cleaning the add-in shares, typing, what is kept and sent, and that the layout's identity does not change)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "session-names-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real sessionNames.js against a stand-in page and add-in" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: what runs where (Revit's status and its wording, when an action that needs Revit, Unity or SOLIDWORKS is blocked, every claim of the Overview's card against the app)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "where-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/where-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real where.js against a stand-in page" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: the one store of analysis results (the catalogue against the add-in's sections, the words of every analysis, which result an analysis shows, the overview's tiles and Combine's per-piece strip on a real layout)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "results-store-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/results-store-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real resultsStoreCore.js, analysisController.js, analysisResults.js and resultsStore.js on a small layout" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
+step("the web app: what the tabs are called (the table against the page, the words of the quiz and the tour, no older name left, 'Revit not open' as the one wording)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "names-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/names-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "profileCore.js's PROFILE_MODES against index.html, and a lint over every script" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
 step("the web app: text goes into markup escaped (the lint over every script, the attack strings)", async () => {
@@ -354,6 +423,11 @@ step("the installer: a silent install into scratch folders registers the add-in,
   const dist = path.join(repo, "dist");
   const built = fs.existsSync(dist) ? fs.readdirSync(dist).filter(f => /^Sportify-Setup-.*\.exe$/.test(f)) : [];
   if (built.length === 0) return { status: "skip", detail: "no installer built here: run BuildDistribution.ps1 first" };
+  // An installer built before the script (or the folder list it makes) last changed is a stale artifact, not a regression: this test would fail on what it does not contain. CI always builds a fresh one.
+  const newestInstaller = Math.max(...built.map(f => fs.statSync(path.join(dist, f)).mtimeMs));
+  const sources = ["Sportify.Setup/Sportify.iss", "Sportify.Setup/Build-Installer.ps1", "SportfyRevit/SportfyRevit/SportifyWorkspace.cs"].map(f => path.join(repo, f)).filter(f => fs.existsSync(f));
+  const changed = sources.find(f => fs.statSync(f).mtimeMs > newestInstaller + 1000);
+  if (changed) return { status: "skip", detail: "the installer in dist was built before " + path.basename(changed) + " last changed: run BuildDistribution.ps1 to test the current one (the release workflow always builds a fresh installer)" };
   const busy = await new Promise(resolve => { require("http").get("http://localhost:5107/api/AnalysisParameters", () => resolve(true)).on("error", () => resolve(false)); });
   if (busy) return { status: "skip", detail: "port 5107 is in use (the API is running): stop it first" };
   const r = await run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(repo, "Sportify.Setup", "Test-Installer.ps1"), "-RunApi"]);

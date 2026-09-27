@@ -58,7 +58,7 @@ namespace SportfyRevit
         [JsonPropertyName("structure")] public StructureDto? Structure { get; set; }
 
         /// <summary>
-        /// What the designer decided about the structural analyses' built-in assumptions (the Structure and Site conditions tabs, or the
+        /// What the designer decided about the structural analyses' built-in assumptions (the Structure inputs and Site conditions tabs, or the
         /// Revit dialog before an analysis): which built-in values they accepted, and the comfort limits they set. Absent in older exports.
         /// </summary>
         [JsonPropertyName("analysis_assumptions")] public AnalysisAssumptionsDto? AnalysisAssumptions { get; set; }
@@ -272,7 +272,7 @@ namespace SportfyRevit
 
         /// <summary>
         /// buildAnalysisForItem() (combineController.js) — the same per-item
-        /// math the Analysis tab's component explorer shows, computed once
+        /// math an earlier web app showed per piece (its per-component explorer), computed once
         /// more at export time so this file is self-contained. A sibling of
         /// Parameters, not nested inside it, mirroring the export's own shape.
         /// </summary>
@@ -321,7 +321,7 @@ namespace SportfyRevit
         [JsonPropertyName("quality_key")] public string? QualityKey { get; set; }
 
         /// <summary>
-        /// Present only for pieces pushed from the web app's Revit Families
+        /// Present only for pieces pushed from the web app's Revit families
         /// tab — the user's OWN loaded content rather than one of the app's
         /// built-in catalog presets. When set it names the exact family and
         /// type to place, so there is nothing to match or guess: quality_key
@@ -388,7 +388,7 @@ namespace SportfyRevit
     /// <summary>
     /// A direct reference to a family already loaded in this document, as
     /// published by LoadFamiliesCommand and configured in the web app's
-    /// Families tab.
+    /// Revit families tab.
     ///
     /// Parameters is deliberately untyped (JsonElement): the names and value
     /// shapes come from whatever family the customer loaded, so there is no

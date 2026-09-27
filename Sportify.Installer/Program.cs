@@ -317,7 +317,7 @@ internal static class Program
 
         Console.WriteLine("WebView2 Runtime: NOT found.");
         Console.WriteLine("This is only needed for the \"Open Sportify App\" in-Revit browser pane —");
-        Console.WriteLine("everything else (Analysis, Deliverables, DXF import) works without it.");
+        Console.WriteLine("everything else (Results, Documents, DXF import) works without it.");
         Console.Write("Open the official Microsoft download page now? [y/N]: ");
         var answer = Console.ReadLine();
         if (string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase))

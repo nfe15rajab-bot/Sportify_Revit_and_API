@@ -24,7 +24,7 @@ namespace Sportify.Api.Data
         public string Action = "ok";
         public string Reason = "";
         public string? BackupPath;
-        /// <summary>A text file listing rows of the old database that are not in the new catalog (added through the Data tab, or changed in the seed), or null when there are none.</summary>
+        /// <summary>A text file listing rows of the old database that are not in the new catalog (added through the Catalogue tab, or changed in the seed), or null when there are none.</summary>
         public string? RowsReportPath;
         public int RowsNotInNewCatalog;
     }
@@ -39,7 +39,7 @@ namespace Sportify.Api.Data
     /// table, column and seed row of the new catalog, and otherwise treated as out of date.
     ///
     /// What it does about it (see <see cref="DriftPolicy"/>): the default rebuilds, but never silently and never without a way back: the old file is copied to
-    /// reference.&lt;time&gt;.backup.db beside it, and rows that were in it but are not in the new catalog (what the Data tab added) are listed in a text file, so nothing typed
+    /// reference.&lt;time&gt;.backup.db beside it, and rows that were in it but are not in the new catalog (what the Catalogue tab added) are listed in a text file, so nothing typed
     /// in is lost without a trace. Backups match the *.db rule of .gitignore.
     ///
     /// A rebuild is the last resort, not the first: the catalog seeders add what a newer build has IN PLACE (<see cref="CatalogSeeding"/>: tables, columns, rows by key), which
@@ -180,7 +180,7 @@ namespace Sportify.Api.Data
                     report.RowsReportPath = Path.Combine(dir, $"reference.{stamp}.backup.rows-not-in-new-catalog.txt");
                     File.WriteAllLines(report.RowsReportPath, new[]
                     {
-                        "Rows that were in reference.db before it was rebuilt and are not in the new catalog (rows added through the Data tab, or seed rows the code has changed).",
+                        "Rows that were in reference.db before it was rebuilt and are not in the new catalog (rows added through the Catalogue tab, or seed rows the code has changed).",
                         $"The whole old file is {Path.GetFileName(backup)}. Surrogate keys (Id, ...Id columns) are left out of the comparison and of these lines.",
                         "",
                     }.Concat(lines));
