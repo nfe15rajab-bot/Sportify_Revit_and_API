@@ -388,6 +388,39 @@ namespace SportfyRevit
 
         /// <summary>Only present for activity placements (buildActivityPayload() in sportController.js).</summary>
         [JsonPropertyName("activity")] public ActivityParametersDto? Activity { get; set; }
+
+        /// <summary>
+        /// Present for kinetic elements placed in the web app's Kinetics tab (kineticsCombine.js): a louvre pergola,
+        /// sail, roller fence, or one of the not-yet-modelled concept kinds. See KineticsParametersDto.
+        /// </summary>
+        [JsonPropertyName("kinetics")] public KineticsParametersDto? Kinetics { get; set; }
+    }
+
+    /// <summary>
+    /// A kinetic element the web app placed (kineticsCombine.js's pushKineticsToCombine, or the Algorithmic placement
+    /// panel's algoCatalogueSource — both send this same shape). KineticKind (KineticsHosts.cs) matches on
+    /// KineticKind against KineticKind, which is why kinetic_kind carries the stable key ("overhead", "sail", "fence",
+    /// ...) rather than the display label.
+    /// </summary>
+    internal class KineticsParametersDto
+    {
+        [JsonPropertyName("kinetic_kind")] public string? KineticKind { get; set; }
+        [JsonPropertyName("label")] public string? Label { get; set; }
+
+        /// <summary>
+        /// The standard build size chosen in the web app's catalog ("compact" | "standard" | "large", kineticsCatalog.js) —
+        /// informational for now (a fabrication note for the schedule/BOM), not read by KineticsHosts.FromPlacements: the
+        /// placed footprint's own bounding box already carries the real dimensions regardless of which size was chosen.
+        /// </summary>
+        [JsonPropertyName("build_size")] public string? BuildSize { get; set; }
+        [JsonPropertyName("build_size_note")] public string? BuildSizeNote { get; set; }
+
+        /// <summary>
+        /// True for the three kinds Revit already has real mechanics for (overhead louvre, sail, roller fence) — the
+        /// ones whose position this placement is meant to drive. False for the newer concept kinds the web app lets
+        /// a designer lay out for spatial planning, ahead of Revit having a parametric mechanism for them.
+        /// </summary>
+        [JsonPropertyName("built")] public bool Built { get; set; }
     }
 
     /// <summary>

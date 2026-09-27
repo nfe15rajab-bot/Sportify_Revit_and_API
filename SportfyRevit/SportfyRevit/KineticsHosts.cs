@@ -7,12 +7,14 @@ using Sportify.Simulation.Sun;
 namespace SportfyRevit
 {
     /// <summary>The kinds of dynamic unit Kinetics can make: all of them the same two adaptive families (a bar and a membrane), placed on different points.</summary>
-    internal enum KineticKind { Overhead, Slats, Fins, Sail, Fence }
+    internal enum KineticKind { Overhead, Slats, Fins, Sail, Fence, PvCanopy, AcousticScreen, DividerNet, MembraneRoof, GreenScreen, Windbreak }
 
     internal sealed class KineticKindInfo
     {
         public KineticKind Kind;
         public string Key = "", Label = "", Hint = "";
+        /// <summary>Which priority's kind picker offers this ("sun" | "wind_erosion") — the dialog filters by it, so choosing a priority only shows what actually answers it.</summary>
+        public string Priority = "sun";
         public bool Built = true;
         public override string ToString() => Label;
     }
@@ -21,15 +23,28 @@ namespace SportfyRevit
     {
         internal static readonly KineticKindInfo[] All =
         {
-            new KineticKindInfo { Kind = KineticKind.Overhead, Key = "overhead", Label = "Overhead louvre (pergola)", Hint = "on the pergola(s) the Sun & Shade analysis recommends" },
+            new KineticKindInfo { Kind = KineticKind.Overhead, Key = "overhead", Label = "Overhead louvre (pergola)", Hint = "at the spot placed in the web app's Kinetics tab, else on the pergola(s) the Sun & Shade analysis recommends" },
             new KineticKindInfo { Kind = KineticKind.Slats, Key = "slats", Label = "Vertical slat screen (railing or wall)", Hint = "on the railings or walls you select: horizontal slats, tipped together by one rod" },
             new KineticKindInfo { Kind = KineticKind.Fins, Key = "fins", Label = "Vertical fin screen (railing or wall)", Hint = "on the railings or walls you select: fins turning about vertical axes" },
-            new KineticKindInfo { Kind = KineticKind.Sail, Key = "sail", Label = "Tensile sail on movable pillars (ground rails)", Hint = "on the shade sail(s) the Sun & Shade analysis recommends: masts on carriages that slide on ground rails to grow or shrink the shade, a rectangle or a triangle, placed against the nearest garden and field" },
-            new KineticKindInfo { Kind = KineticKind.Fence, Key = "fence", Label = "Roller fence (roof edge)", Hint = "on the roof edges the Ball Trajectory analysis fences: a curtain on guide rails, deployed only when needed" },
+            new KineticKindInfo { Kind = KineticKind.Sail, Key = "sail", Label = "Tensile sail on movable pillars (ground rails)", Hint = "at the spot placed in the web app's Kinetics tab, else on the shade sail(s) the Sun & Shade analysis recommends: masts on carriages that slide on ground rails to grow or shrink the shade, a rectangle or a triangle, placed against the nearest garden and field" },
+            new KineticKindInfo { Kind = KineticKind.Fence, Key = "fence", Label = "Roller fence (roof edge)", Hint = "at the roof edge placed in the web app's Kinetics tab, else on the edges the Ball Trajectory analysis fences: a curtain on guide rails, deployed only when needed" },
+            // Placeable in the web app's Kinetics tab for spatial planning; no parametric mechanism built yet (Built = false) —
+            // picking one here says so plainly instead of guessing.
+            new KineticKindInfo { Kind = KineticKind.PvCanopy, Key = "pv_canopy", Label = "Solar-tracking PV canopy", Hint = "same overhead-louvre mechanism, tracking for energy yield instead of shade", Built = false },
+            new KineticKindInfo { Kind = KineticKind.AcousticScreen, Key = "acoustic_screen", Label = "Retractable acoustic screen", Hint = "a deployable baffle between a loud court and a quiet zone", Built = false },
+            new KineticKindInfo { Kind = KineticKind.DividerNet, Key = "divider_net", Label = "Retractable court divider net", Hint = "a net or mesh wall that raises and lowers between two courts", Built = false },
+            new KineticKindInfo { Kind = KineticKind.MembraneRoof, Key = "membrane_roof", Label = "Retractable membrane roof", Hint = "an ETFE/fabric roof over a single court that opens and closes", Built = false },
+            new KineticKindInfo { Kind = KineticKind.GreenScreen, Key = "green_screen", Label = "Kinetic green screen", Hint = "a vertically retractable planted trellis", Built = false },
+            // The one kind that answers Wind & Erosion rather than Sun: a windbreak is mechanically close to the roller
+            // fence above, just sized against sustained wind pressure and placed on an erosion-risk edge rather than a
+            // predicted ball-exit edge. Not parametrically modelled yet either, same as the concept kinds above.
+            new KineticKindInfo { Kind = KineticKind.Windbreak, Key = "windbreak", Label = "Wind-break screen", Hint = "a deployable screen on an edge the Wind & Erosion analysis flags", Priority = "wind_erosion", Built = false },
         };
 
         internal static KineticKindInfo Get(KineticKind kind) => Array.Find(All, k => k.Kind == kind) ?? All[0];
         internal static KineticKindInfo? ByKey(string? key) => Array.Find(All, k => k.Key == key);
+        /// <summary>The kinds a given priority's kind picker offers — what KineticsPriorityDialog filters its "What to make" combo to.</summary>
+        internal static KineticKindInfo[] For(string priority) => Array.FindAll(All, k => k.Priority == priority);
     }
 
     /// <summary>
@@ -234,6 +249,86 @@ namespace SportfyRevit
                 Key = type.Key, Name = (kind == KineticKind.Sail ? "Shade sail" : "Louvre pergola") + " (placed by hand)",
                 XM = Math.Round(cx - w / 2, 2), YM = Math.Round(cy - depth / 2, 2), WidthM = w, DepthM = depth, HeightM = type.HeightM,
             };
+        }
+
+        /// <summary>The default height a placed footprint gets, absent any other information (the web app's placement is a 2D footprint only): the same fallback each analysis-derived path already uses for its kind.</summary>
+        static double DefaultHeightM(KineticKind kind) => kind == KineticKind.Sail ? 3.5 : kind == KineticKind.Fence ? 3.0 : 2.6;
+
+        /// <summary>
+        /// The hosts a designer placed by hand in the web app's Kinetics tab (kineticsCombine.js) or its Algorithmic
+        /// placement panel — read straight from the pushed layout's placements, by position and footprint, not derived
+        /// from an analysis result. Empty when the layout carries none of this kind (no layout pushed yet, or the
+        /// designer placed none): Prepare() then falls back to the analysis-derived path (FromPieces / FromFences)
+        /// exactly as it did before this existed, so a project that never uses the web app's Kinetics tab is unaffected.
+        ///
+        /// Overhead and Sail keep the same simple, roof-aligned frame FromPieces gives an analysis-derived piece (no
+        /// per-piece rotation): the designer's placement says WHERE, the Sun &amp; Shade Analysis (via SetEnvironment,
+        /// called by the caller either way) still says how it is sized and actuated. A placed sail is treated as the
+        /// simpler rectangle-on-two-tracks case (FromPieces's own "Auto" default for a piece with no nearby garden) —
+        /// the triangle-against-a-garden refinement stays for the fully analysis-derived path, which alone knows the
+        /// garden layout's fine detail. Fence is edge-anchored, so its frame comes from whichever roof edge the
+        /// placement sits nearest to, the same per-edge outward normal FromFences already uses.
+        /// </summary>
+        internal static List<KineticHost> FromPlacements(SportifyLayout? layout, KineticKind kind)
+        {
+            var list = new List<KineticHost>();
+            var placements = layout?.Placements;
+            if (placements == null) return list;
+            var key = KineticKinds.Get(kind).Key;
+            var mine = placements.Where(p => string.Equals(p.Category, "kinetics", StringComparison.OrdinalIgnoreCase)
+                                              && string.Equals(p.Parameters?.Kinetics?.KineticKind, key, StringComparison.OrdinalIgnoreCase)
+                                              && p.BoundingBox != null && p.BoundingBox.WidthM > 0 && p.BoundingBox.HeightM > 0);
+
+            var (ex, _) = KineticsPlan.PlanAxes();
+            var (roofL, roofW) = kind == KineticKind.Fence ? SportifyLayoutBuilder.CurrentRoofSizeM : (0.0, 0.0);
+            var n = 0;
+            foreach (var p in mine)
+            {
+                var bb = p.BoundingBox!;
+                n++;
+                var name = (string.IsNullOrWhiteSpace(p.Label) ? KineticKinds.Get(kind).Label : p.Label) + " (placed in the web app)";
+                var from = "the web app's Kinetics tab, at " + bb.TopLeftXM.ToString("0.#") + ", " + bb.TopLeftYM.ToString("0.#") + " m of the roof plan";
+
+                if (kind == KineticKind.Fence)
+                {
+                    if (roofL <= 0 || roofW <= 0) continue;                    // the roof's size is not known here: same guard Prepare() already applies to the fence path
+                    var cx = bb.TopLeftXM + bb.WidthM / 2; var cy = bb.TopLeftYM + bb.HeightM / 2;
+                    var distances = new (string Edge, double Dist)[] { ("top", cy), ("bottom", roofW - cy), ("left", cx), ("right", roofL - cx) };
+                    var edge = distances.OrderBy(d => d.Dist).First().Edge;
+                    double x0, y0, x1, y1, nx, ny;
+                    switch (edge)
+                    {
+                        case "top": x0 = bb.TopLeftXM; x1 = bb.TopLeftXM + bb.WidthM; y0 = y1 = 0; nx = 0; ny = -1; break;
+                        case "bottom": x0 = bb.TopLeftXM; x1 = bb.TopLeftXM + bb.WidthM; y0 = y1 = roofW; nx = 0; ny = 1; break;
+                        case "left": y0 = bb.TopLeftYM; y1 = bb.TopLeftYM + bb.HeightM; x0 = x1 = 0; nx = -1; ny = 0; break;
+                        default: y0 = bb.TopLeftYM; y1 = bb.TopLeftYM + bb.HeightM; x0 = x1 = roofL; nx = 1; ny = 0; break;
+                    }
+                    var a = KineticsPlan.ToWorld(x0, y0);
+                    var b = KineticsPlan.ToWorld(x1, y1);
+                    var outward = KineticsPlan.DirFromPlan(nx, ny).Unit();
+                    var run = outward.Cross(V3.UnitZ).Unit();
+                    var origin = (b - a).Dot(run) >= 0 ? a : b;
+                    list.Add(new KineticHost
+                    {
+                        Kind = kind, Key = "fence_placed_" + n, Name = name, From = from + " (" + edge + " edge)",
+                        Frame = KineticsPlan.Upright(origin, run), LengthM = Math.Abs((b - a).Dot(run)), DepthM = 0.3, HeightM = DefaultHeightM(kind),
+                        NormalPlan = (nx, ny),
+                    });
+                    continue;
+                }
+
+                // Overhead, Sail: the same roof-aligned frame FromPieces builds — local y runs from the piece's lower edge up the plan.
+                var origin2 = KineticsPlan.ToWorld(bb.TopLeftXM, bb.TopLeftYM + bb.HeightM);
+                var frame = KineticsPlan.Upright(origin2, ex);
+                list.Add(new KineticHost
+                {
+                    Kind = kind, Key = key + "_placed_" + n, Name = name, From = from,
+                    Frame = frame, LengthM = bb.WidthM, DepthM = bb.HeightM, HeightM = DefaultHeightM(kind),
+                    PlanX = bb.TopLeftXM, PlanY = bb.TopLeftYM, AxisPlan = KineticsPlan.DirToPlan(frame.Y),
+                    SiteNote = kind == KineticKind.Sail ? "placed in the web app's Kinetics tab (rectangle on two parallel tracks; the triangle-against-a-garden shape is only offered by the analysis-derived path)" : "",
+                });
+            }
+            return list;
         }
 
         /// <summary>The roller fences the ball analysis proposes: a stretch of a roof edge, its outward normal, standing on the roof.</summary>

@@ -149,11 +149,15 @@
   <Target Name="BundleWebApp" AfterTargets="Build" Condition="Exists('$(SportifyWebAppDir)index.html')">
     <ItemGroup>
       <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
-      <!-- vendor\: Leaflet, SunCalc, the icon font and Titillium Web, served from the app's own folder (the page's Content-Security-Policy allows nothing from a CDN) -->
-      <SportifyVendorFiles Include="$(SportifyWebAppDir)vendor\**\*" />
+      <!-- vendor\ (Titillium Web, Tabler Icons, Leaflet, SunCalc) — added once
+           the app stopped pulling these from a CDN; without them the bundled
+           pane loads but with missing icons/fonts/map tiles. RecursiveDir
+           preserves the vendor\<lib>\... structure the app's own <link>/<script>
+           tags expect, same trick DeployToRevitAddins already uses below. -->
+      <SportifyWebVendorFiles Include="$(SportifyWebAppDir)vendor\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(SportifyVendorFiles)" DestinationFiles="@(SportifyVendorFiles->'$(OutDir)web\vendor\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SportifyWebVendorFiles)" DestinationFolder="$(OutDir)web\vendor\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- Kinetics' "Simulate" drives SOLIDWORKS through a separate program, Sportify.Mechanical, which the add-in finds in a "mechanical" folder next to itself

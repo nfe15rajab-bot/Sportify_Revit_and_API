@@ -10,19 +10,19 @@ namespace SportfyRevit
 {
     /// <summary>
     /// The small dialog every Kinetics command opens with: which analysis is driving the dynamic family this time, and (for the commands that place something)
-    /// which kind of dynamic unit to make: an overhead louvre, a vertical slat or fin screen, a tensile sail on movable pillars, or a roller fence.
-    /// Only "sun" has dynamic units behind it yet, and the roller fence answers the ball analysis rather than the sun (it is offered whatever the priority, since
-    /// it needs nothing but that analysis's fences); wind_erosion and structural are listed because the priority is meant to grow into them, but picking one
-    /// today just explains that plainly rather than silently doing nothing.
+    /// which kind of dynamic unit to make. The "What to make" combo is filtered to the kinds that priority actually offers (KineticKinds.For) — Sun offers the
+    /// overhead louvre, slat/fin screens, sail and roller fence; Wind & Erosion offers the wind-break screen. A kind not yet built (KineticKindInfo.Built) still
+    /// appears — a designer can place it in the web app's Kinetics tab for spatial planning either way — but says so plainly once picked here (KineticsCommands.Ask).
+    /// "Structural" was removed rather than kept as a third, empty option: unlike Wind & Erosion it names no concrete dynamic unit yet, so listing it invited a
+    /// pick that could only ever dead-end.
     /// </summary>
     internal sealed class KineticsPriorityDialog : Window
     {
         internal sealed class PriorityOption
         {
-            public string Key = "";       // "sun" | "wind_erosion" | "structural"
+            public string Key = "";       // "sun" | "wind_erosion"
             public string Label = "";
-            public bool Built;
-            public override string ToString() => Label + (Built ? "" : "  (not built yet)");
+            public override string ToString() => Label;
         }
 
         internal sealed class Choice
@@ -34,9 +34,8 @@ namespace SportfyRevit
 
         internal static readonly PriorityOption[] Options =
         {
-            new PriorityOption { Key = "sun", Label = "Sun — louvres, screens, sails, fences", Built = true },
-            new PriorityOption { Key = "wind_erosion", Label = "Wind & Erosion — fence / barrier", Built = false },
-            new PriorityOption { Key = "structural", Label = "Structural", Built = false },
+            new PriorityOption { Key = "sun", Label = "Sun — louvres, screens, sails, fences" },
+            new PriorityOption { Key = "wind_erosion", Label = "Wind & Erosion — wind-break screen" },
         };
 
         readonly ComboBox _combo;
@@ -85,13 +84,26 @@ namespace SportfyRevit
             if (askKind)
             {
                 stack.Children.Add(new TextBlock { Text = "What to make", Margin = new Thickness(0, 12, 0, 4), FontWeight = FontWeights.SemiBold });
-                var kind = new ComboBox { ItemsSource = KineticKinds.All };
-                kind.SelectedItem = KineticKinds.Get(lastKind);
+                var kind = new ComboBox();
                 stack.Children.Add(kind);
                 var hint = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0), Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x55, 0x55, 0x55)) };
                 void Refresh() => hint.Text = kind.SelectedItem is KineticKindInfo info ? "Goes " + info.Hint + "." : "";
+
+                // The kind picker is filtered to what the chosen priority actually offers (Sun: louvre, screens, sail,
+                // fence; Wind & Erosion: the wind-break screen) — repopulated whenever the priority combo changes, so
+                // picking Wind & Erosion never shows a Sun-only kind and vice versa.
+                void RepopulateKind()
+                {
+                    var priorityKey = (_combo.SelectedItem as PriorityOption)?.Key ?? Options[0].Key;
+                    var offered = KineticKinds.For(priorityKey);
+                    kind.ItemsSource = offered;
+                    var remembered = Array.Find(offered, k => k.Kind == lastKind);
+                    kind.SelectedItem = remembered ?? (offered.Length > 0 ? offered[0] : null);
+                    Refresh();
+                }
+                _combo.SelectionChanged += (_, _) => RepopulateKind();
+                RepopulateKind();
                 kind.SelectionChanged += (_, _) => Refresh();
-                Refresh();
                 stack.Children.Add(hint);
                 _kind = kind;
                 var shapeLabel = new TextBlock { Text = "Sail shape", Margin = new Thickness(0, 12, 0, 4), FontWeight = FontWeights.SemiBold };
