@@ -1225,7 +1225,8 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     var worksetsButton = bim.Entries.OfType<RibbonButtonSpec>().FirstOrDefault(b => b.CommandClass == "WorksetsCommand");
     Check("BIM & Documentation has a \"Worksets\" command of its own, public, with a toggle to turn worksharing on", worksetsButton != null && worksetsButton.Text == "Worksets"
           && commandClasses.GetValueOrDefault("WorksetsCommand") == "public" && bim.Entries.Contains(worksetsButton));
-    var worksetsSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("WorksetsCommand.cs")).Value ?? "";
+    // Path.GetFileName, not EndsWith("WorksetsCommand.cs"): AssignIfcWorksetsCommand.cs ends with that same suffix too, and would otherwise win as the first match.
+    var worksetsSource = allSources.FirstOrDefault(kv => Path.GetFileName(kv.Key) == "WorksetsCommand.cs").Value ?? "";
     Check("it is [Transaction(TransactionMode.Manual)], asks before turning worksharing on (a checkbox, unticked by default) instead of only refusing, offers moving the wrong elements as a second, separate choice, and catches its own errors",
           System.Text.RegularExpressions.Regex.Matches(worksetsSource, @"\[Transaction\(TransactionMode\.Manual\)\]").Count == 1 && worksetsSource.Contains("ExtraCheckBoxText")
           && worksetsSource.Contains("dialog.WasExtraCheckBoxChecked()") && worksetsSource.Contains("CommandLink2") && worksetsSource.Contains("catch (Exception ex)"));
@@ -1238,7 +1239,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
           assignerSource.Contains("GetCheckoutStatus(doc, el.Id) == CheckoutStatus.OwnedByOtherUser"));
     var pushSource = allSources.FirstOrDefault(kv => kv.Key.EndsWith("PushRoofBoundaryCommand.cs")).Value ?? "";
     Check("Push to Sportify offers the same two ways: \"Select manually\" (PickObjects, limited to the item's own kinds) and \"By workset\", only when the designer has not already selected something",
-          pushSource.Contains("_selection.Count == 0") && pushSource.Contains("PushWorksetAssigner.ElementsIn(doc, worksetNames)") && pushSource.Contains("PushWorksets.PickableKinds(Scope)")
+          pushSource.Contains("_selection.Count == 0") && pushSource.Contains("PushWorksetAssigner.ElementsIn(doc, worksetNames)") && pushSource.Contains("PushWorksets.PickableKinds(requestedScope)")
           && pushSource.Contains("new PushWorksetAssigner.KindSelectionFilter(pickableKinds)") && pushSource.Contains("usedWorksets = true"));
     Check("a push by workset says which elements there do not match their workset's kind (PushWorksetAssigner.Misplaced), so a wrongly assigned model is flagged, not silently pushed as if it were right",
           pushSource.Contains("PushWorksetAssigner.Misplaced(doc, scope)") && assignerSource.Contains("PushWorksets.ScopeOf(KindOf(e)) != s"));
