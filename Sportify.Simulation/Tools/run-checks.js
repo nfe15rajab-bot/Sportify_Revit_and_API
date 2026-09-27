@@ -324,6 +324,15 @@ step("the web app: the Site tab reads its date/time as solar time at the site, n
   return r.code === 0 ? { status: "pass", detail: "the real sunPosition.js, against SunCalc directly" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+// the "Next" step through the design workflow (an optional part of the web app, run when the checkout has it)
+step("the web app: the 'Next' step through the design workflow (Site through Revit families), skipping what the profile's view hides", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "workflow-next-test.js");
+  if (!fs.existsSync(test)) return { status: "pass", detail: "not in this checkout of the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real workflowNext.js against a stand-in page and profile" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 // the Site conditions tab's annual weather overview (an optional part of the web app, run when the checkout has it)
 step("the web app: the Site conditions tab's annual weather overview (the monthly bucketing, the chart, the debounce and the offline fallback)", async () => {
   if (!web) return noWeb();
