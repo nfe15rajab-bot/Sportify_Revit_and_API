@@ -214,6 +214,8 @@ namespace SportfyRevit
             KineticsWalkthrough.Install(application);
             // SPORTIFY_IFC_WORKSETS_SELFTEST=<folder> + SPORTIFY_IFC_WORKSETS_FILE=<project.rvt>: an unattended check of IFC Worksets by Class on a copy of a real model (see IfcWorksetsSelfTest). Nothing otherwise.
             IfcWorksetsSelfTest.Install(application);
+            // SPORTIFY_OPEN_AND_PUSH_FILE=<project.rvt> + SPORTIFY_OPEN_AND_PUSH_ROOF_IFCTAG=<IfcTag>: opens a detached copy as the active document and pushes the named roof for real (see LiveRoofSession). Nothing otherwise.
+            LiveRoofSession.Install(application);
 
             return Result.Succeeded;
         }
