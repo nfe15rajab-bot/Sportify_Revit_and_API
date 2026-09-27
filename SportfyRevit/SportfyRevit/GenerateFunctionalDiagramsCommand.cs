@@ -228,7 +228,13 @@ namespace SportfyRevit
                     if (bb != null)
                     {
                         var center = (bb.Min + bb.Max) / 2;
-                        CreateDiagramLabel(doc, view, el.Name, new XYZ(center.X, center.Y, bb.Max.Z), textTypeId, ElementWorksetId(el));
+                        // el.Name is the family/type's own Revit name — for a generated piece that is an internal
+                        // identifier (e.g. "ACTIVITY_PICKLEBALL_COURT"), not prose. Sportify_Label (SportifySharedParameters,
+                        // stamped from the web app's own placement label) is the human-readable one; fall back to el.Name
+                        // only for an older import made before that parameter existed, or a non-Sportify family.
+                        var niceLabel = el.LookupParameter("Sportify_Label")?.AsString();
+                        var displayLabel = !string.IsNullOrWhiteSpace(niceLabel) ? niceLabel : el.Name;
+                        CreateDiagramLabel(doc, view, displayLabel, new XYZ(center.X, center.Y, bb.Max.Z), textTypeId, ElementWorksetId(el));
                     }
                 }
             }

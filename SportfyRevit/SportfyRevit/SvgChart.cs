@@ -254,7 +254,14 @@ namespace SportfyRevit
                 if (s.Label.Length > 0)
                 {
                     var size = s.LabelSize > 0 ? s.LabelSize : Math.Max(5, Math.Min(10, fit / Math.Max(3, s.Label.Length) * 1.7));
-                    if (size >= 5 && fit > 12)
+                    // A dense grid (many small bays) can compute a "fits" size per the area-based estimate above (fit)
+                    // while the shape is actually a narrow strip: check the label's own estimated width/height against
+                    // the shape's real box, and skip it rather than let it spill into a neighbour — readable text in
+                    // most bays beats an unreadable smear of overlapping percentages in every bay.
+                    var boxW = s.Kind == "rect" ? s.W * scale : fit;
+                    var boxH = s.Kind == "rect" ? s.H * scale : fit;
+                    var textW = s.Label.Length * size * 0.62;
+                    if (size >= 5 && fit > 12 && textW <= boxW - 2 && size + 3 <= boxH)
                         labels.Append($"<text x='{N(margin + lx * scale)}' y='{N(head + ly * scale + size / 3)}' font-size='{N(size)}' font-weight='bold' text-anchor='middle' fill='{s.LabelColor}'>{Esc(s.Label)}</text>");
                 }
             }

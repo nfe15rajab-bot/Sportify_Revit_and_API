@@ -150,6 +150,7 @@ namespace Sportify.Simulation.Structure
         readonly Material _material;
         readonly string _subtitle;
         readonly float _cx, _cy, _footX, _footY;
+        readonly bool _labelFits;
         float _fullHeight;
         bool _over;
 
@@ -170,14 +171,21 @@ namespace Sportify.Simulation.Structure
 
             _material = SceneBuilder.LitMaterial(LoadColors.Status(bay.status) * 0.78f, 0.05f);
             _box = SceneBuilder.Box("Bay_" + bay.label, LayoutSpace.ToWorld(_cx, _cy, 0.05f), new Vector3(_footX, 0.1f, _footY), _material);
-            _label = hud.WorldLabel(Text(bay.utilisation), LayoutSpace.ToWorld(_cx, _cy, _fullHeight + LabelLift), _subtitle == "" ? 1.0f : 0.8f, Color.white);
+            // WorldLabel's size is the text's real height in the scene, in metres — fixed at 1.0/0.8 m regardless of the
+            // bay's own footprint used to swamp neighbouring bays on a fine grid (many bays under 1 m across): scaled to
+            // the bay's own narrower side instead, and skipped below a legible floor rather than shown overlapping.
+            var fit = Mathf.Min(_footX, _footY);
+            var maxSize = _subtitle == "" ? 1.0f : 0.8f;
+            var labelSize = Mathf.Clamp(fit * 0.5f, 0.18f, maxSize);
+            _labelFits = fit > 0.32f;
+            _label = hud.WorldLabel(Text(bay.utilisation), LayoutSpace.ToWorld(_cx, _cy, _fullHeight + LabelLift), labelSize, Color.white);
             SetGrow(0f);
         }
 
         public void SetActive(bool active)
         {
             _box.SetActive(active);
-            _label.gameObject.SetActive(active);
+            _label.gameObject.SetActive(active && _labelFits);
         }
 
         /// <summary>Retargets the block to another load against the capacity (a different case): its height, colour and percentage.</summary>
@@ -204,7 +212,7 @@ namespace Sportify.Simulation.Structure
             _box.transform.position = LayoutSpace.ToWorld(_cx, _cy, h * 0.5f);
             _box.transform.localScale = new Vector3(_footX * pulse, h, _footY * pulse);
             _label.transform.position = LayoutSpace.ToWorld(_cx, _cy, h + LabelLift);
-            _label.gameObject.SetActive(grow > 0.6f);
+            _label.gameObject.SetActive(grow > 0.6f && _labelFits);
         }
     }
 
