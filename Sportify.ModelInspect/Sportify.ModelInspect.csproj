@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A small Revit add-in of its own that READS a project and says what is in it: which categories and IFC classes, where the roof is, which worksets and phases, where the model
+       stands against the origin and true north. It never touches Sportify's add-in (nothing of it is installed or replaced): a manifest is written for one run and removed after it
+       (Run-Inspect.ps1). Kept out of Sportify.Simulation/Tools so run-checks and CI never build it: it needs Revit 2025's own RevitAPI.dll. See README.md. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Sportify.ModelInspect</RootNamespace>
+    <AssemblyName>Sportify.ModelInspect</AssemblyName>
+    <RevitDir Condition="'$(RevitDir)' == ''">C:\Program Files\Autodesk\Revit 2025\</RevitDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="RevitAPI"><HintPath>$(RevitDir)RevitAPI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="RevitAPIUI"><HintPath>$(RevitDir)RevitAPIUI.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>
