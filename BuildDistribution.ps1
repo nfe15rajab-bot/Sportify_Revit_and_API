@@ -52,7 +52,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+# Sign-Artifacts.ps1 has its own top-level param block (it is also directly runnable on its own), sharing four names
+# with this script's own: CertificateThumbprint, PfxFile, PfxPassword, TimestampUrl. Dot-sourcing it re-runs that
+# param block IN THIS SCOPE, and since no arguments are given in the dot-source call itself, PowerShell rebinds all
+# four straight back to empty/default here — silently clobbering whatever this script's own caller just passed in,
+# before $willSign is even computed. Confirmed live: -CertificateThumbprint reached this script but came out empty
+# a line later, so every signed build (local or CI, PFX or thumbprint) was silently signing nothing. Save the four
+# values first, dot-source, then put them back.
+$myCertificateThumbprint = $CertificateThumbprint
+$myPfxFile = $PfxFile
+$myPfxPassword = $PfxPassword
+$myTimestampUrl = $TimestampUrl
 . (Join-Path $root "Sign-Artifacts.ps1")
+$CertificateThumbprint = $myCertificateThumbprint
+$PfxFile = $myPfxFile
+$PfxPassword = $myPfxPassword
+$TimestampUrl = $myTimestampUrl
 $willSign = [bool]($CertificateThumbprint -or $PfxFile)
 if ($RequireSigning -and -not $willSign) { throw "-RequireSigning was given but there is no certificate (-CertificateThumbprint or -PfxFile)." }
 if ($PfxFile -and -not $PfxPassword) { $PfxPassword = Read-Host "Password for $PfxFile" -AsSecureString }
@@ -113,6 +128,11 @@ if ($willSign) {
     if (($signed | Where-Object { $_.Status -ne "Valid" }).Count -gt 0) {
         Write-Warning "Signed, but this machine does not trust the certificate (a self-signed or private-CA certificate): fine for trying, not for shipping."
     }
+    # Bundled into the payload (lands at {app}\Sportify-Trust-Certificate.cer) so the installer's finish page can offer
+    # to open it — Windows' own certificate viewer, the person's own "Install Certificate..." click. Nothing here
+    # writes to any certificate store; it only makes the file easy to find instead of the person hunting for it.
+    Export-SportifySigningCertificate -CertificateThumbprint $CertificateThumbprint -PfxFile $PfxFile -PfxPassword $PfxPassword `
+        -OutputPath (Join-Path $payloadDir "Sportify-Trust-Certificate.cer")
 }
 
 # ── 4. The installer: dist\Sportify-Setup-<version>-Revit2025.exe (Inno Setup, see Sportify.Setup\Build-Installer.ps1). ONE file, nothing else to copy: it carries the payload above, the

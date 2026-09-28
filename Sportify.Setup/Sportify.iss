@@ -100,6 +100,11 @@ Source: "{#PrereqDir}\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
 Source: "{#PrereqDir}\vc_redist.x64.exe"; Flags: dontcopy
 #define HaveVcRedist
 #endif
+; The certificate BuildDistribution.ps1 signed with, when it was given one (Export-SportifySigningCertificate) — bundled
+; already by the wildcard payload copy above, this just detects it so [Run] below can offer to open it.
+#if FileExists(PayloadDir + "\Sportify-Trust-Certificate.cer")
+#define HaveSigningCertificate
+#endif
 
 [Icons]
 Name: "{autoprograms}\Sportify\Sportify web app"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Comment: "Starts the local API if needed and opens the Sportify web app in Chrome"; Check: Shortcuts
@@ -115,6 +120,11 @@ Name: "{autoprograms}\Sportify\Uninstall Sportify"; Filename: "{uninstallexe}"; 
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Description: "Open the Sportify web app in Chrome"; Flags: postinstall nowait skipifsilent runhidden; Check: ChromeInstalled
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-WebApp.ps1"""; Description: "Open the Sportify web app in your browser (Chrome was not found)"; Flags: postinstall nowait skipifsilent runhidden; Check: not ChromeInstalled
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Open-Sportify-InRevit.ps1"""; Description: "Open Revit {#RevitYear} with the web app docked inside it instead"; Flags: postinstall nowait skipifsilent runhidden unchecked; Check: RevitInstalled
+#ifdef HaveSigningCertificate
+; Opens the certificate with Windows' own viewer (ShellExecute — the same as double-clicking the file): the person sees
+; the real "Install Certificate..." dialog and decides for themselves. Nothing here writes to a certificate store.
+Filename: "{app}\Sportify-Trust-Certificate.cer"; Description: "View the Sportify certificate, and trust it so Revit and Windows recognize this software without asking each time"; Flags: postinstall shellexec skipifsilent unchecked
+#endif
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\tools\Stop-Sportify.ps1"""; RunOnceId: "StopSportifyApi"; Flags: runhidden waituntilterminated
