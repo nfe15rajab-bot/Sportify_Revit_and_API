@@ -22,10 +22,10 @@ namespace SportfyRevit
         public const string Header = "Kind,Unit,BuildSize,PartRole,Count,LengthM,SectionMm,AreaM2,Material,BuySupplier,BuyLink,Notes";
 
         // BarPlan.Role's documented vocabulary (KineticUnitGeometry.cs): blade | fin | post | rail | rod | mast |
-        // housing | bottombar | crank | piston | motor | track | carriage | curtainslat. Only the non-Detail,
-        // non-CadOnly ones ever reach here (unit.Plan is already filtered) — in practice, for the three built kinds,
-        // that is blade, post, rail, mast, rod and housing (a fence's roller housing; an actuator's own housing is
-        // Detail and never appears here).
+        // housing | bottombar | crank | piston | motor | track | carriage | curtainslat. Only the non-Detail ones
+        // ever reach here (unit.Plan is already filtered) — for the nine built kinds, that is blade/fin, post, rail,
+        // mast, rod, housing, bottombar and, for the five fence-derived kinds, curtainslat (a fence's own roller
+        // housing; an actuator's own housing is Detail and never appears here).
         static readonly Dictionary<string, string> RoleMaterial = new(StringComparer.OrdinalIgnoreCase)
         {
             ["blade"] = "Aluminium extrusion, anodised — assumed",
@@ -38,13 +38,13 @@ namespace SportfyRevit
             ["track"] = "Aluminium ground track — assumed",
             ["carriage"] = "Steel carriage — assumed",
             ["bottombar"] = "Aluminium bottom bar — assumed",
+            ["curtainslat"] = "Aluminium slat, roller curtain — assumed",
         };
         static readonly Dictionary<string, string> SurfaceMaterial = new(StringComparer.OrdinalIgnoreCase)
         {
             ["sail"] = "PTFE-coated architectural fabric — assumed",
-            ["curtain"] = "HDPE mesh net fabric — assumed",
         };
-        static readonly HashSet<string> DetailRoles = new(StringComparer.OrdinalIgnoreCase) { "crank", "piston", "motor", "curtainslat" };
+        static readonly HashSet<string> DetailRoles = new(StringComparer.OrdinalIgnoreCase) { "crank", "piston", "motor" };
 
         static double QuadAreaM2(V3 a, V3 b, V3 c, V3 d) =>
             0.5 * (b - a).Cross(c - a).Length + 0.5 * (c - a).Cross(d - a).Length;
@@ -93,7 +93,7 @@ namespace SportfyRevit
         {
             "blade" => "Blade", "fin" => "Fin", "post" => "Post", "rail" => "Rail", "mast" => "Mast", "rod" => "Rod",
             "housing" => "Roller housing", "track" => "Ground track", "carriage" => "Carriage", "bottombar" => "Bottom bar",
-            "sail" => "Sail fabric", "curtain" => "Curtain fabric",
+            "sail" => "Sail fabric", "curtainslat" => "Curtain slat",
             _ => role.Length > 0 ? char.ToUpperInvariant(role[0]) + role[1..] : role,
         };
 

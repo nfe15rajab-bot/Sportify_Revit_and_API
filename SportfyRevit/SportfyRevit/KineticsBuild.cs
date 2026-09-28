@@ -38,8 +38,18 @@ namespace SportfyRevit
                 case KineticKind.PvCanopy: BuildPvCanopy(unit, design, env); break;
                 default: BuildLouvre(unit, design, env); break;
             }
-            // Revit places the structure and the moving parts; the mechanism's hardware (cranks, pistons, motors) and the CAD-only curtain slats stay in the videos and the CAD model (StatePlans)
-            unit.Plan = new UnitPlan { Kind = unit.Plan.Kind, Label = unit.Plan.Label, LengthM = unit.Plan.LengthM, DepthM = unit.Plan.DepthM, HeightM = unit.Plan.HeightM, Bars = unit.Plan.Bars.Where(b => !b.Detail && !b.CadOnly).ToList(), Surfaces = unit.Plan.Surfaces };
+            // Revit places the structure and the moving parts; the mechanism's hardware (cranks, pistons, motors) stays in the videos and the CAD model only (StatePlans).
+            // A fence's curtain is the one exception to "CAD-only stays out of Revit": Revit follows SolidWorks's own
+            // simplification for it (UnitAssembly.cs skips the flat "curtain" surface outright and builds it from
+            // "curtainslat" bars instead), not the video's flat membrane (KineticsRunner.cs keeps that, unchanged) -
+            // so the model shows real, individual slats here, the same way it already shows a pergola's real blades,
+            // rather than reading as a plain solid wall.
+            unit.Plan = new UnitPlan
+            {
+                Kind = unit.Plan.Kind, Label = unit.Plan.Label, LengthM = unit.Plan.LengthM, DepthM = unit.Plan.DepthM, HeightM = unit.Plan.HeightM,
+                Bars = unit.Plan.Bars.Where(b => !b.Detail && (!b.CadOnly || b.Role == "curtainslat")).ToList(),
+                Surfaces = unit.Plan.Surfaces.Where(s => s.Role != "curtain").ToList(),
+            };
             var info = KineticKinds.Get(host.Kind);
             unit.Dto.Kind = info.Key; unit.Dto.KindLabel = info.Label; unit.Dto.Host = host.From;
             unit.Dto.EquipmentKey = info.Key; unit.Dto.EquipmentName = host.Name;
