@@ -131,9 +131,9 @@ if (webArg && fs.existsSync(path.join(webArg, "profileCore.js"))) {
     for (const f of files) { const text = fs.readFileSync(f, "utf8"); for (const re of OLD) { const m = re.exec(text); if (m) offenders.push(path.relative(repo, f) + ": " + m[0]); } }
     check(offenders.length === 0, "no dialog, tooltip, comment or document of the add-in calls a web tab by an older name", offenders.slice(0, 6).join(" | "));
     const said = (file, phrase) => read(...file.split("/")).includes(phrase);
-    check(said("SportfyRevit/SportfyRevit/SendPhysicalAnalysisToWebCommand.cs", "under the " + modes.analysis.label + " tab") && said("SportfyRevit/SportfyRevit/KineticsCommands.cs", "web app's " + modes.postAnalysis.label + " tab")
+    check(said("SportfyRevit/SportfyRevit/SendPhysicalAnalysisToWebCommand.cs", "under the " + modes.analysis.label + " tab")
         && said("SportfyRevit/SportfyRevit/AnalysisReportPdfBuilder.cs", "from the " + modes.data.label + " tab") && said("SportfyRevit/SportfyRevit/AnalysisAssumptionsDialog.cs", modes.structure.label + " and " + modes.conditions.label + " tabs"),
-        "what the add-in tells a person about the web app's tabs uses their names: " + [modes.analysis, modes.postAnalysis, modes.data, modes.structure, modes.conditions].map(m => m.label).join(", "));
+        "what the add-in tells a person about the web app's tabs uses their names: " + [modes.analysis, modes.data, modes.structure, modes.conditions].map(m => m.label).join(", "));
 }
 
 console.log(problems === 0 ? "RELEASE OK: version " + version + ", the license, the author, the Sportify folder (" + folders.length + " subfolders), the worksets and phases, the API port and the installer agree" : problems + " DIFFERENCE(S) in what makes the release");

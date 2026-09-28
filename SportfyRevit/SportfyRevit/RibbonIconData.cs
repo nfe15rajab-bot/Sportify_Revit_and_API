@@ -70,6 +70,8 @@ namespace SportfyRevit
             ["ball"] = new("physical", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0 -18 M3.5 9c4 1.5 13 1.5 17 0 M3.5 15c4 -1.5 13 -1.5 17 0", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0 -18"),
             // Kinetics "Simulate": the mechanism in motion, two circling arrows round a play triangle
             ["simulate"] = new("physical", "M20 11a8 8 0 0 0 -14.5 -3 M4 4v4h4 M4 13a8 8 0 0 0 14.5 3 M20 20v-4h-4 M10 9l5 3l-5 3z", "M10 9l5 3l-5 3z"),
+            // Kinetics "Bill of Materials": a table, same glyph as the BIM schedule/export csv icons, but teal — it lives in the physical-analysis Kinetics panel, not BIM or export.
+            ["materials"] = new("physical", Table, "M4 5h16v5h-16z"),
 
             // ---- BIM & documentation
             ["schedule"] = new("bim", Table, "M4 5h16v5h-16z"),
