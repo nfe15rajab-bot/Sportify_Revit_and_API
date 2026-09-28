@@ -106,6 +106,27 @@ namespace SportfyRevit
             return root;
         }
 
+        /// <summary>
+        /// Renames the workspace folder itself (not a file in it) to `name`, in the same parent directory: the actual deliverable folder on the
+        /// user's machine, so "Sportify Workspace" can become the name of the session it holds ("Workspace Submission (Goldbeck)", a project
+        /// name, whatever the user or the loaded file's own name suggests) instead of staying generic forever. A plain move, same volume, so
+        /// everything already saved comes along; refuses onto an existing folder rather than merging into it silently. Updates the setting so
+        /// this is where the workspace is from now on, exactly like the installer's own folder choice does.
+        /// </summary>
+        public static string Rename(string name)
+        {
+            var safe = SafeName(name);
+            if (safe.Length == 0) throw new ArgumentException("The workspace needs a usable name.");
+            var current = EnsureCreated();
+            var parent = Path.GetDirectoryName(current) ?? throw new InvalidOperationException("The workspace folder has no parent to rename it within.");
+            var target = Path.Combine(parent, safe);
+            if (string.Equals(target, current, StringComparison.OrdinalIgnoreCase)) return current;
+            if (Directory.Exists(target) || File.Exists(target)) throw new IOException("\"" + safe + "\" already exists there.");
+            Directory.Move(current, target);
+            SaveSetting(target);
+            return target;
+        }
+
         public static WorkspaceKind? KindOf(string? key) => Kinds.FirstOrDefault(k => string.Equals(k.Key, key, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>The subfolder of a kind, made if it is missing; with an iteration's name, the folder of that iteration inside it (for the kinds kept apart by iteration). Throws for a kind that does not exist.</summary>

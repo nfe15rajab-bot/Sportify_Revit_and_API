@@ -61,6 +61,7 @@ namespace SportfyRevit
             switch (path)
             {
                 case "/workspace" when method == "GET": return Workspace();
+                case "/workspace/rename" when method == "POST": return RenameWorkspace(query["name"]);
                 case "/roofs" when method == "GET": return Roofs();
                 case "/roofs/active" when method == "POST": return SetActiveRoof(query["id"]);
                 case "/profile" when method == "GET": return GetProfile();
@@ -97,6 +98,18 @@ namespace SportfyRevit
                 revit_version = RevitVersion,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
+        }
+
+        /// <summary>Renames the workspace folder to the given name, in place (a real move on disk) — the Documents tab's "name the workspace" control. The name the user chooses, or, when they instead accept the suggestion, the current session's own name (sessionNames.js).</summary>
+        static EndpointResponse RenameWorkspace(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return EndpointResponse.Error(400, "Send ?name=<the folder's new name>.");
+            try
+            {
+                var folder = SportifyWorkspace.Rename(name);
+                return EndpointResponse.Json(new { folder });
+            }
+            catch (Exception ex) { return EndpointResponse.Error(409, ex.Message); }
         }
 
         // ------------------------------------------------------------------------------------------------------------ multiple roofs
