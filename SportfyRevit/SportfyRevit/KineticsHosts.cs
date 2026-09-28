@@ -35,10 +35,11 @@ namespace SportfyRevit
             new KineticKindInfo { Kind = KineticKind.DividerNet, Key = "divider_net", Label = "Retractable court divider net", Hint = "a net or mesh wall that raises and lowers between two courts", Built = false },
             new KineticKindInfo { Kind = KineticKind.MembraneRoof, Key = "membrane_roof", Label = "Retractable membrane roof", Hint = "an ETFE/fabric roof over a single court that opens and closes", Built = false },
             new KineticKindInfo { Kind = KineticKind.GreenScreen, Key = "green_screen", Label = "Kinetic green screen", Hint = "a vertically retractable planted trellis", Built = false },
-            // The one kind that answers Wind & Erosion rather than Sun: a windbreak is mechanically close to the roller
-            // fence above, just sized against sustained wind pressure and placed on an erosion-risk edge rather than a
-            // predicted ball-exit edge. Not parametrically modelled yet either, same as the concept kinds above.
-            new KineticKindInfo { Kind = KineticKind.Windbreak, Key = "windbreak", Label = "Wind-break screen", Hint = "a deployable screen on an edge the Wind & Erosion analysis flags", Priority = "wind_erosion", Built = false },
+            // The one kind that answers Wind & Erosion rather than Sun: mechanically the roller fence itself
+            // (KineticsBuild.BuildFence, unchanged) — RollerFenceMechanics already sizes the rails against wind
+            // moment on the net, not just a ball impact — placed on an edge the Wind & Erosion analysis flags,
+            // or wherever placed in the web app's Kinetics tab, rather than a predicted ball-exit edge.
+            new KineticKindInfo { Kind = KineticKind.Windbreak, Key = "windbreak", Label = "Wind-break screen", Hint = "at the roof edge placed in the web app's Kinetics tab: the roller fence's own mechanism, sized against sustained wind on the net rather than a ball's impact", Priority = "wind_erosion" },
         };
 
         internal static KineticKindInfo Get(KineticKind kind) => Array.Find(All, k => k.Kind == kind) ?? All[0];
@@ -252,7 +253,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The default height a placed footprint gets, absent any other information (the web app's placement is a 2D footprint only): the same fallback each analysis-derived path already uses for its kind.</summary>
-        static double DefaultHeightM(KineticKind kind) => kind == KineticKind.Sail ? 3.5 : kind == KineticKind.Fence ? 3.0 : 2.6;
+        static double DefaultHeightM(KineticKind kind) => kind == KineticKind.Sail ? 3.5 : (kind == KineticKind.Fence || kind == KineticKind.Windbreak) ? 3.0 : 2.6;
 
         /// <summary>
         /// The hosts a designer placed by hand in the web app's Kinetics tab (kineticsCombine.js) or its Algorithmic
@@ -289,7 +290,7 @@ namespace SportfyRevit
                 var name = (string.IsNullOrWhiteSpace(p.Label) ? KineticKinds.Get(kind).Label : p.Label) + " (placed in the web app)";
                 var from = "the web app's Kinetics tab, at " + bb.TopLeftXM.ToString("0.#") + ", " + bb.TopLeftYM.ToString("0.#") + " m of the roof plan";
 
-                if (kind == KineticKind.Fence)
+                if (kind == KineticKind.Fence || kind == KineticKind.Windbreak)
                 {
                     if (roofL <= 0 || roofW <= 0) continue;                    // the roof's size is not known here: same guard Prepare() already applies to the fence path
                     var cx = bb.TopLeftXM + bb.WidthM / 2; var cy = bb.TopLeftYM + bb.HeightM / 2;
@@ -310,17 +311,18 @@ namespace SportfyRevit
                     var origin = (b - a).Dot(run) >= 0 ? a : b;
                     var lengthM = Math.Abs((b - a).Dot(run));
                     var heightM = DefaultHeightM(kind);
+                    // BuildFence (also used for Windbreak — same mechanism, RollerFenceMechanics is already wind-aware) dereferences
+                    // host.Fence directly (host.Fence!.Edge) — FromFences always sets it from the Ball Trajectory result; a placed
+                    // one has no such result, so this stands in with what the placement itself gives. StopsPercentOfExits stays 0
+                    // (only meaningful for a real ball fence; RollerFenceMechanics.Analyse only uses it for a findings line, never sizing).
+                    var isWindbreak = kind == KineticKind.Windbreak;
                     list.Add(new KineticHost
                     {
-                        Kind = kind, Key = "fence_placed_" + n, Name = name, From = from + " (" + edge + " edge)",
+                        Kind = kind, Key = (isWindbreak ? "windbreak_placed_" : "fence_placed_") + n, Name = name, From = from + " (" + edge + " edge)",
                         Frame = KineticsPlan.Upright(origin, run), LengthM = lengthM, DepthM = 0.3, HeightM = heightM,
                         NormalPlan = (nx, ny),
-                        // BuildFence dereferences host.Fence directly (host.Fence!.Edge) — FromFences always sets it from the
-                        // Ball Trajectory result; a placed fence has no such result, so this stands in with what the placement
-                        // itself gives. StopsPercentOfExits stays 0 (not computed here, unlike the analysis-derived path) —
-                        // RollerFenceMechanics.Analyse only uses it for a findings line, never for sizing.
                         Fence = new RoofFenceDto { Edge = edge, FromM = 0, ToM = lengthM, HeightM = heightM, FullHeightM = heightM, StopsPercentOfExits = 0 },
-                        SiteNote = "how much of the roof's ball exits it stops is not known here (that comes from the Ball Trajectory analysis) — run it for that number",
+                        SiteNote = isWindbreak ? "" : "how much of the roof's ball exits it stops is not known here (that comes from the Ball Trajectory analysis) — run it for that number",
                     });
                     continue;
                 }

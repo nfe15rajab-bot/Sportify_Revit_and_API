@@ -34,7 +34,7 @@ namespace SportfyRevit
             switch (host.Kind)
             {
                 case KineticKind.Sail: BuildSail(unit, design, env); break;
-                case KineticKind.Fence: BuildFence(unit, design, env); break;
+                case KineticKind.Fence: case KineticKind.Windbreak: BuildFence(unit, design, env); break;
                 case KineticKind.PvCanopy: BuildPvCanopy(unit, design, env); break;
                 default: BuildLouvre(unit, design, env); break;
             }
@@ -238,6 +238,14 @@ namespace SportfyRevit
             var host = unit.Host;
             var f = host.Fence!;
             var rep = RollerFenceMechanics.Analyse(d, f.Edge ?? "", host.LengthM, host.HeightM, f.StopsPercentOfExits, env.PressurePa);
+            // A wind-break answers wind, not balls — RollerFenceMechanics still sizes the rails for a ball impact too (the
+            // rail is whichever moment is larger, so this can only make the rails MORE conservative, never unsafe), but its
+            // own findings text talks about "shots that leave the roof", which reads wrong for a kind that was never asked
+            // to stop one. Reworded rather than skipped, so the number (still a real, if untargeted, margin) is not lost.
+            if (host.Kind == KineticKind.Windbreak && rep.Findings.Count > 0)
+                rep.Findings[0] = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "{0} edge, {1:0.#} m of wind-break screen {2:0.0} m high: {3} guide rails {4:0.0} m apart, a {5:0} kg curtain and a {6:0} kg bottom bar. (Sized against wind on the net, {7:0.0} kN m; a ball-impact check runs too and only makes the rails more conservative, never less.)",
+                    rep.Edge, rep.LengthM, rep.HeightM, rep.Rails, rep.BaySpacingM, rep.CurtainMassKg, rep.BottomBarMassKg, rep.WindMomentKnM);
             var roller = d["fence_roller_diameter_m"];
             var rail = Math.Max(rep.RailSizeM, rep.RecommendedRailSizeM);
             UnitPlan PlanAt(double deployed) => KineticUnits.RollerFence(host.LengthM, host.HeightM + roller, deployed, rep.Bays, rail, roller);
