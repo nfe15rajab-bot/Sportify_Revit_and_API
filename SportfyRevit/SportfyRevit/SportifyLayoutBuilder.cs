@@ -330,14 +330,24 @@ namespace SportfyRevit
                     continue;
                 }
 
+                // A zone with a tray has its build-up INSIDE the tray, not under
+                // it. The tray stands on the roof — that is what the pedestal is
+                // for — so the build-up is what rises, and it rests on the tray's
+                // own floor exactly as it would on site.
+                //
+                // Revit's height offset positions the TOP of a floor, so the tray
+                // floor plus the build-up's own thickness puts its underside on
+                // the tray floor.
+                double floorElevFt = CurrentOriginZFt + TrayLiftFt(zone, floorType);
+
                 // Sketch the outline the designer actually drew. Only an export
                 // from before zones had movable corners falls back to the box,
                 // which for those is the same shape anyway.
                 var floor = (zone.Points != null && zone.Points.Count >= 3)
                     ? SportifyFloorTypeBuilder.CreateFloorFromPoints(
-                        doc, floorType, zone.Points, originXFt, originYFt, CurrentOriginZFt, out string failure)
+                        doc, floorType, zone.Points, originXFt, originYFt, floorElevFt, out string failure)
                     : SportifyFloorTypeBuilder.CreateFloor(
-                        doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out failure);
+                        doc, floorType, bb, originXFt, originYFt, floorElevFt, out failure);
 
                 // CreateRoofFinish reports a partial success through the same out
                 // parameter, so it can be null on the failure path too.
@@ -347,6 +357,10 @@ namespace SportfyRevit
                 createdIds.Add(floor.Id);
                 ImportDiagnostics.FloorCreated(label, floorType.Name, zone.AreaM2);
                 drawn++;
+
+                if (floorElevFt > CurrentOriginZFt)
+                    SportifyLog.Info("greenroof", $"{label}: build-up raised " +
+                        $"{UnitUtils.ConvertFromInternalUnits(floorElevFt - CurrentOriginZFt, UnitTypeId.Millimeters):0} mm to sit in its tray");
 
                 PlaceZoneTray(doc, zone, bb, originXFt, originYFt, worksetId, createdIds, prepared);
             }
@@ -447,6 +461,36 @@ namespace SportfyRevit
                 // a lost import, so it is reported and the zone stands.
                 ImportDiagnostics.FloorFailed(label, $"the build-up was drawn but its tray could not be placed ({ex.Message})");
             }
+        }
+
+        /// <summary>
+        /// How far a zone's build-up rises because it sits in a tray.
+        ///
+        /// Zero when there is no tray: a roof laid directly has its finish at
+        /// roof level, which is where it has always been drawn.
+        ///
+        /// With a tray it is the tray's own floor plus the build-up's thickness,
+        /// because Revit's height offset positions the top of a floor and we want
+        /// the BOTTOM to land on the tray floor. Taking the thickness from the
+        /// floor type rather than from the payload means the two can never
+        /// disagree — it is the same compound structure Revit is about to build.
+        ///
+        /// Vegetation standing proud of the rim is not an error to correct: a
+        /// planted roof does that, and the rim was sized for the growing medium,
+        /// not for the plants on top of it.
+        /// </summary>
+        private static double TrayLiftFt(ZoneDto zone, FloorType floorType)
+        {
+            if (zone.Family == null) return 0;
+
+            double trayFloorMm = ParamMm(zone.Family, "trayFloorTop");
+            if (trayFloorMm <= 0) return 0;
+
+            double thicknessFt = 0;
+            try { thicknessFt = floorType.GetCompoundStructure()?.GetWidth() ?? 0; }
+            catch (Exception) { /* a floor type that will not describe itself: rest on the tray floor alone */ }
+
+            return UnitUtils.ConvertToInternalUnits(trayFloorMm, UnitTypeId.Millimeters) + thicknessFt;
         }
 
         /// <summary>One of the tray's parameters, in millimetres; 0 when it is absent or not a number.</summary>
