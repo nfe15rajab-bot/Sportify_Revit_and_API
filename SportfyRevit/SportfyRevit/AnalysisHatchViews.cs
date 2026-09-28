@@ -41,25 +41,26 @@ namespace SportfyRevit
                 (layout.RoofContext?.RotationDeg ?? 0) * Math.PI / 180.0, layout.RoofContext?.LengthM ?? 0, layout.RoofContext?.WidthM ?? 0);
             var originZFt = SportifyLayoutBuilder.FeetFromMeters(layout.RoofContext?.WorldOriginZM ?? 0);
             var cache = new Dictionary<string, ElementId>();
+            var analysisWorksetId = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.Analysis })[SportifyWorksetSet.Analysis];
 
-            TryBuild(doc, frame, originZFt, cache, "structural_loads", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "structural_loads", () =>
             {
                 var inputs = StructureLayoutAdapter.ToInputs(layout);
                 return inputs.Items.Count == 0 ? null : PhysicalAnalysisPdf.StructuralShapes(StructureModel.Analyse(inputs));
             });
-            TryBuild(doc, frame, originZFt, cache, "wind_erosion", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "wind_erosion", () =>
             {
                 var inputs = WindLayoutAdapter.ToInputs(layout);
                 return inputs.Zones.Count == 0 && inputs.Plants.Count == 0 ? null : PhysicalAnalysisPdf.WindShapes(inputs, WindModel.Analyse(inputs));
             });
-            TryBuild(doc, frame, originZFt, cache, "sun_and_shading", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "sun_and_shading", () =>
             {
                 var inputs = SunLayoutAdapter.ToInputs(layout);
                 return inputs.Structure.Items.Count == 0 ? null : PhysicalAnalysisPdf.SunShapes(inputs, SunModel.Analyse(inputs));
             });
         }
 
-        private static void TryBuild(Document doc, RoofFrame frame, double originZFt, Dictionary<string, ElementId> cache, string key, Func<List<PlanShape>?> compute)
+        private static void TryBuild(Document doc, RoofFrame frame, double originZFt, Dictionary<string, ElementId> cache, WorksetId analysisWorksetId, string key, Func<List<PlanShape>?> compute)
         {
             try
             {
@@ -87,14 +88,31 @@ namespace SportfyRevit
                     {
                         var loop = LoopFor(shape, frame, originZFt);
                         if (loop == null) continue;
-                        var typeId = GetOrCreateFilledRegionType(doc, cache, shape.Fill, baseTypeId, solidPatternId);
-                        FilledRegion.Create(doc, typeId, view.Id, new List<CurveLoop> { loop });
-                        if (!string.IsNullOrWhiteSpace(shape.Label)) CreateDiagramLabel(doc, view, shape.Label, Centroid(shape, frame, originZFt), textTypeId);
+                        var hex = shape.Ratio.HasValue ? GradientColorFor(shape.Ratio.Value) : shape.Fill;
+                        var typeId = GetOrCreateFilledRegionType(doc, cache, hex, baseTypeId, solidPatternId);
+                        var region = FilledRegion.Create(doc, typeId, view.Id, new List<CurveLoop> { loop });
+                        SportifyLayoutBuilder.SetWorkset(region, analysisWorksetId);
+                        if (!string.IsNullOrWhiteSpace(shape.Label)) CreateDiagramLabel(doc, view, shape.Label, Centroid(shape, frame, originZFt), textTypeId, analysisWorksetId);
                     }
                     catch (Exception ex) { SportifyLog.Warn("hatches", $"one {key} shape could not be drawn: " + ex.Message); }
                 }
             }
             catch (Exception ex) { SportifyLog.Warn("hatches", $"the {key} hatch view could not be built: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// An 8-band green→yellow→orange→red gradient across a utilisation ratio (0 = plenty of margin, 1 = right at the limit, further
+        /// past 1 for over) — finer than PhysicalAnalysisPdf's own 3-band ok/marginal/over colouring (SvgChart.ForStatus), which stays
+        /// exactly as it is for the PDF chart; this is for Revit's own hatch fills only; see PlanShape.Ratio. The bands start and end
+        /// close to SvgChart's own Ok/Warn/Bad so a reader used to those still recognises "green means fine, red means over" at a glance.
+        /// Ratios beyond about 1.15 (well over) all land on the same deepest red rather than growing without bound.
+        /// </summary>
+        internal static string GradientColorFor(double ratio)
+        {
+            var bands = new[] { "#3f9d63", "#6fae53", "#9dbf3f", "#d0b93a", "#e0a030", "#e07a30", "#d9534f", "#b83030" };
+            var t = Math.Max(0.0, Math.Min(1.0, ratio / 1.15));
+            var idx = (int)Math.Round(t * (bands.Length - 1));
+            return bands[Math.Clamp(idx, 0, bands.Length - 1)];
         }
 
         /// <summary>The shape's own plan points (poly/circle/rect — PlanShape's three kinds), turned into a closed Revit CurveLoop in real world feet at the roof's own top elevation. A circle becomes a 16-sided polygon: close enough at this scale, and CurveLoop needs no Arc-continuity bookkeeping this way.</summary>
@@ -147,9 +165,9 @@ namespace SportfyRevit
             return new XYZ(SportifyLayoutBuilder.FeetFromMeters(mx), SportifyLayoutBuilder.FeetFromMeters(my), originZFt + 0.05);
         }
 
-        private static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId)
+        private static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId)
         {
-            GenerateFunctionalDiagramsCommand.CreateDiagramLabel(doc, view, text, origin, textTypeId, WorksetId.InvalidWorksetId);
+            GenerateFunctionalDiagramsCommand.CreateDiagramLabel(doc, view, text, origin, textTypeId, worksetId);
         }
 
         /// <summary>A named, coloured, solid-fill FilledRegionType for `hex` — reused across shapes and across runs (looked up by name first, so a rerun does not pile up duplicate types).</summary>

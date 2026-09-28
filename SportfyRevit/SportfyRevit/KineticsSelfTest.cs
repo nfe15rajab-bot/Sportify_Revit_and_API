@@ -239,11 +239,11 @@ namespace SportfyRevit
                     t.Start();
                     var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                     var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
-                    var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.DynamicFurniture, SportifyWorksetSet.Structure });
+                    var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.KineticFurniture });
                     var all = new List<ElementId>();
                     foreach (var u in units)
                     {
-                        var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.DynamicFurniture], ws[SportifyWorksetSet.Structure], u.Host.Key);
+                        var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key);
                         placedByUnit.Add((u, placed));
                         all.AddRange(placed.Ids);
                     }
@@ -375,7 +375,7 @@ namespace SportfyRevit
                     var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                     var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
                     ws = SportifyWorksetSet.Ensure(doc);
-                    placed = AdaptiveUnitPlacer.Place(doc, unit.Plan, unit.Host.Frame, bar, surface, ws[SportifyWorksetSet.DynamicFurniture], ws[SportifyWorksetSet.Structure], unit.Host.Key);
+                    placed = AdaptiveUnitPlacer.Place(doc, unit.Plan, unit.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], unit.Host.Key);
                     var moved = SportifyPhases.Assign(doc, placed.Ids, SportifyPhases.DesignAndAnalysis, null, out var note);
                     report.Steps.Add("phase assign to Design and analysis: " + moved + " element(s)" + (note.Length > 0 ? " (" + note + ")" : ""));
                     t.Commit();
@@ -385,13 +385,13 @@ namespace SportfyRevit
                 report.Steps.Add("worksets in the project: " + string.Join(", ", names));
                 if (missing.Count > 0) report.Failures.Add("these worksets were not made: " + string.Join(", ", missing));
 
+                // The frame used to get its own "Structure" workset, separate from the moving parts' "Dynamic Furniture" — both now
+                // share "Kinetic Furniture" (SportifyWorksetSet's own doc comment explains why: the frame is part of the kinetic
+                // assembly, not a distinct discipline), so this checks every placed part alike rather than two groups separately.
                 string WorksetOf(ElementId id) => doc.GetWorksetTable().GetWorkset(doc.GetElement(id).WorksetId).Name;
-                var dynamicIds = placed.Ids.Where((id, i) => i < unit.Plan.Bars.Count && unit.Plan.Bars[i].Dynamic).ToList();
-                var frameIds = placed.Ids.Where((id, i) => i < unit.Plan.Bars.Count && !unit.Plan.Bars[i].Dynamic).ToList();
-                var wrongDynamic = dynamicIds.Count(id => WorksetOf(id) != SportifyWorksetSet.DynamicFurniture);
-                var wrongFrame = frameIds.Count(id => WorksetOf(id) != SportifyWorksetSet.Structure);
-                report.Steps.Add("workset check: " + (dynamicIds.Count - wrongDynamic) + "/" + dynamicIds.Count + " moving parts on Dynamic Furniture, " + (frameIds.Count - wrongFrame) + "/" + frameIds.Count + " frame parts on Structure");
-                if (wrongDynamic > 0 || wrongFrame > 0) report.Failures.Add("parts are on the wrong workset: " + wrongDynamic + " moving, " + wrongFrame + " frame");
+                var wrong = placed.Ids.Count(id => WorksetOf(id) != SportifyWorksetSet.KineticFurniture);
+                report.Steps.Add("workset check: " + (placed.Ids.Count - wrong) + "/" + placed.Ids.Count + " parts on Kinetic Furniture");
+                if (wrong > 0) report.Failures.Add("parts are on the wrong workset: " + wrong);
 
                 var design1 = SportifyPhases.For(doc, SportifyPhases.DesignAndAnalysis);
                 var inPhase = placed.Ids.Count(id => doc.GetElement(id).get_Parameter(BuiltInParameter.PHASE_CREATED)?.AsElementId() == design1?.Id);

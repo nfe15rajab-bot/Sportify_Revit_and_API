@@ -238,13 +238,16 @@ namespace SportfyRevit
             }
         }
 
-        /// <summary>The three worksets by name, made when missing (inside the caller's transaction).</summary>
+        /// <summary>The worksets a real import would have used (BimRules.WorksetNames' short keys, mapped to their real Sportify names via SportifyLayoutBuilder.RealWorksetNameFor — not the bare short key itself), made when missing (inside the caller's transaction).</summary>
         private static Dictionary<string, WorksetId> EnsureWorksets(Document doc)
         {
             var existing = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).ToDictionary(w => w.Name, w => w.Id);
             var result = new Dictionary<string, WorksetId>();
             foreach (var name in BimRules.WorksetNames)
-                result[name] = existing.TryGetValue(name, out var id) ? id : Workset.Create(doc, name).Id;
+            {
+                var fullName = SportifyLayoutBuilder.RealWorksetNameFor[name];
+                result[name] = existing.TryGetValue(fullName, out var id) ? id : Workset.Create(doc, fullName).Id;
+            }
             return result;
         }
     }

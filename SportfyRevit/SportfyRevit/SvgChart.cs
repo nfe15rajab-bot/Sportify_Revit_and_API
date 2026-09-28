@@ -27,6 +27,11 @@ namespace SportfyRevit
         public string Label = "";               // in the middle of the shape
         public string LabelColor = "#ffffff";
         public double LabelSize = 0;            // 0 = fitted to the shape
+        /// <summary>The continuous utilisation ratio (0 = none of the limit used, 1 = right at it, can run past 1 when over) this shape's
+        /// Fill was chosen from, where the analysis actually has one (structural bay capacity, wind uplift) — null where it doesn't (a
+        /// column marker, a status known only as a word). Ignored by the PDF's own SvgChart output (that stays the existing 3-band
+        /// ok/marginal/over colouring); Revit's AnalysisHatchViews uses it, where present, for a finer gradient fill instead of Fill.</summary>
+        public double? Ratio;
     }
 
     /// <summary>

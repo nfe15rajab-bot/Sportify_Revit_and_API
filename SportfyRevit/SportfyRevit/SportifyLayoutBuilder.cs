@@ -111,10 +111,11 @@ namespace SportfyRevit
 
         /// <summary>
         /// `worksetNameOverride`: ImportIterationsAsOptionsCommand's way of keeping one iteration's geometry off the project's single shared
-        /// Sports/Gardens/Combine worksets (which would put two iterations' courts on the very same "Sports" workset, indistinguishable) —
-        /// given a category name ("Sports"/"Gardens"/"Combine") it returns the actual workset name to use, e.g. "Sportify Iteration 2 - Sports"
-        /// (detailed: every category keeps its own workset per iteration) or just "Sportify Iteration 2" for every category (simple: the whole
-        /// iteration collapses onto one workset). A plain single-layout import leaves this null and gets the original shared three.
+        /// Sports/Gardens/Annotations and tags/etc. worksets (which would put two iterations' courts on the very same "Sportify Sports"
+        /// workset, indistinguishable) — given a short category key ("Sports"/"Gardens"/"AnnotationsAndTags"/...) it returns the actual
+        /// workset name to use, e.g. "Sportify Iteration 2 - Sports" (detailed: every category keeps its own workset per iteration) or just
+        /// "Sportify Iteration 2" for every category (simple: the whole iteration collapses onto one workset). A plain single-layout import
+        /// leaves this null and gets the original shared, real (SportifyWorksetSet) names.
         /// </summary>
         public static ImportSummary BuildGeometry(Document doc, SportifyLayout layout, PreparedFamilies prepared, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
@@ -186,10 +187,10 @@ namespace SportfyRevit
             var nodeStyle = GetOrCreateLineStyle(doc, BimRules.CirculationNodeLineStyle);
             var setbackStyle = GetOrCreateLineStyle(doc, BimRules.SetbackLineStyle);
 
-            CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds);
-            CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["Combine"], createdIds, setbackStyle);
-            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["Combine"], circulationStyle, nodeStyle, createdIds);
-            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["Combine"], entryStyle, createdIds);
+            CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], createdIds);
+            CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], createdIds, setbackStyle);
+            int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], circulationStyle, nodeStyle, createdIds);
+            int entryCount = CreateEntryMarkers(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], entryStyle, createdIds);
 
             // What an import brings is the design being analysed: the "Design and analysis" phase when the project has one (the Sportify phase system is Existing /
             // Design and analysis / Post analysis; the dynamic furniture Kinetics places afterwards goes to Post analysis). A project without that phase keeps
@@ -370,14 +371,28 @@ namespace SportfyRevit
         /// transaction internally and throws if called while one is already open.
         /// </summary>
         /// <summary>
-        /// `worksetPrefix`: ImportIterationsAsOptionsCommand's way of keeping the normal Sports/Gardens/Combine auto-assignment WITHIN one
-        /// iteration, instead of every iteration landing on the project's single shared Sports/Gardens/Combine worksets (which would put two
-        /// iterations' courts on the very same "Sports" workset, indistinguishable) — e.g. "Sportify Iteration 2 - " gives "Sportify Iteration
-        /// 2 - Sports", "... - Gardens", "... - Combine". Plain single-layout imports leave this null and get the original shared three.
+        /// `worksetPrefix`: ImportIterationsAsOptionsCommand's way of keeping the normal Sports/Gardens/Annotations and tags/etc.
+        /// auto-assignment WITHIN one iteration, instead of every iteration landing on the project's single shared real worksets
+        /// (which would put two iterations' courts on the very same "Sportify Sports" workset, indistinguishable) — e.g. "Sportify
+        /// Iteration 2 - " gives "Sportify Iteration 2 - Sports", "... - Gardens", "... - AnnotationsAndTags". Plain single-layout
+        /// imports leave this null and get the original shared, real (SportifyWorksetSet) names.
         /// </summary>
+        // The short keys BimRules.WorksetFor returns, mapped to the real Revit workset names (SportifyWorksetSet) — only
+        // used for a normal (non-iteration) import; an iteration import builds its own full names from the short key
+        // instead (worksetNameOverride), since "Sportify Iteration 2 - Sportify Sports" would double up the prefix.
+        // internal, not private: Commands/BimCommands.cs's "Organize Multi-Worksets" needs the exact same mapping —
+        // it must put a piece back on the SAME real workset this import used, not a bare-named lookalike.
+        internal static readonly Dictionary<string, string> RealWorksetNameFor = new()
+        {
+            ["Sports"] = SportifyWorksetSet.Sports,
+            ["Gardens"] = SportifyWorksetSet.Gardens,
+            ["Furniture"] = SportifyWorksetSet.Furniture,
+            ["AnnotationsAndTags"] = SportifyWorksetSet.AnnotationsAndTags,
+        };
+
         private static Dictionary<string, WorksetId> EnsureWorksets(Document doc, bool useWorksets, Func<string, string>? worksetNameOverride = null)
         {
-            var names = new[] { "Sports", "Gardens", "Combine" };
+            var names = RealWorksetNameFor.Keys.ToArray();
             if (!useWorksets || !doc.IsWorkshared)
                 return names.ToDictionary(n => n, n => WorksetId.InvalidWorksetId);
 
@@ -389,13 +404,16 @@ namespace SportfyRevit
             var createdThisCall = new Dictionary<string, WorksetId>();     // full workset name -> id: so "simple" mode (every category maps to the same override name) shares one workset instead of trying to create it twice
             foreach (var name in names)
             {
-                var fullName = worksetNameOverride != null ? worksetNameOverride(name) : name;
+                var fullName = worksetNameOverride != null ? worksetNameOverride(name) : RealWorksetNameFor[name];
                 if (existing.TryGetValue(fullName, out var id)) { result[name] = id; continue; }
                 if (createdThisCall.TryGetValue(fullName, out var justCreated)) { result[name] = justCreated; continue; }
                 var created = Workset.Create(doc, fullName).Id;
                 createdThisCall[fullName] = created;
                 result[name] = created;
             }
+            // A plain (non-iteration) import: make sure all 6 canonical worksets exist, not just the 4 this path writes
+            // to itself — Analysis and Kinetic Furniture are populated by other commands, but should already be there.
+            if (worksetNameOverride == null) SportifyWorksetSet.Ensure(doc);
             return result;
         }
 
@@ -456,11 +474,13 @@ namespace SportfyRevit
             if (bb == null || bb.WidthM <= 0 || bb.HeightM <= 0)
                 return false;
 
-            // Planting goes to the Gardens workset alongside the ground it stands in,
-            // not to Sports with the courts.
+            // Planting goes to the Gardens workset alongside the ground it stands in, not to Sports with the courts;
+            // furniture gets its own workset too (BimRules.WorksetFor has the same three-way split, used by "Organize
+            // Multi-Worksets" to put a piece back where an import like this one put it — kept in sync with it here).
             bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase)
                             || string.Equals(p.Category, "vegetation", StringComparison.OrdinalIgnoreCase);
-            var worksetId = worksets[isGarden ? "Gardens" : "Sports"];
+            bool isFurniture = !isGarden && string.Equals(p.Category, "furniture", StringComparison.OrdinalIgnoreCase);
+            var worksetId = worksets[isGarden ? "Gardens" : isFurniture ? "Furniture" : "Sports"];
 
             double? fireSafetyDistanceM = (p.Id != null && fireSafetyDistancesM.TryGetValue(p.Id, out var dist)) ? dist : (double?)null;
 

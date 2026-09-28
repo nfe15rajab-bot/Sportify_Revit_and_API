@@ -437,12 +437,12 @@ namespace SportfyRevit
                 t.Start();
                 var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                 var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
-                var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.DynamicFurniture, SportifyWorksetSet.Structure });
+                var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.KineticFurniture });
                 AdaptiveUnitPlacer.ClearKind(doc, ctx.Kind);
                 var all = new List<ElementId>();
                 foreach (var u in units)
                 {
-                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.DynamicFurniture], ws[SportifyWorksetSet.Structure], u.Host.Key);
+                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key);
                     u.Dto.PartsPlaced = placed.Bars + placed.Surfaces;
                     u.Dto.Phase = SportifyPhases.PostAnalysis;
                     all.AddRange(placed.Ids);

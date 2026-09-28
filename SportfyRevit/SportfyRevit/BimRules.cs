@@ -6,10 +6,17 @@ namespace SportfyRevit
     /// </summary>
     internal static class BimRules
     {
+        // Short keys into SportifyLayoutBuilder.EnsureWorksets' dictionary — not the real Revit workset names (those are
+        // SportifyWorksetSet's "Sportify X" names; EnsureWorksets maps these short keys onto them, unless an iteration
+        // override is in play, in which case they become the category token an iteration's own name is built from).
+        // Only the 4 the main placement path itself writes to; Analysis and Kinetic Furniture are populated by other
+        // commands (AnalysisHatchViews.cs, KineticsCommands.cs) but EnsureWorksets still creates all 6 up front (via
+        // SportifyWorksetSet) so the full set exists consistently regardless of which command ran first.
         public const string SportsWorkset = "Sports";
         public const string GardensWorkset = "Gardens";
-        public const string CombineWorkset = "Combine";
-        public static readonly string[] WorksetNames = { SportsWorkset, GardensWorkset, CombineWorkset };
+        public const string FurnitureWorkset = "Furniture";
+        public const string AnnotationsAndTagsWorkset = "AnnotationsAndTags";
+        public static readonly string[] WorksetNames = { SportsWorkset, GardensWorkset, FurnitureWorkset, AnnotationsAndTagsWorkset };
 
         public const string SportifyTypePrefix = "Sportify - ";
 
@@ -26,8 +33,9 @@ namespace SportfyRevit
         public enum ElementKind { Floor, FamilyInstance, Other }
 
         /// <summary>
-        /// The workset the import itself puts an element on (SportifyLayoutBuilder): ground (floors) and planting on Gardens, courts, activities and furniture on Sports, the
-        /// roof outline, setback, circulation paths and entry markers (model lines, text) on Combine. So "Organize Multi-Worksets" puts an element back where the import put it.
+        /// The workset the import itself puts an element on (SportifyLayoutBuilder): ground (floors) and planting on Gardens, courts and activities on Sports, furniture
+        /// pieces on Furniture, the roof outline, setback, circulation paths and entry markers (model lines, text) on Annotations and tags. So "Organize Multi-Worksets"
+        /// puts an element back where the import put it.
         /// </summary>
         public static string WorksetFor(ElementKind kind, string? sportifyCategory, bool isPlanting)
         {
@@ -39,9 +47,10 @@ namespace SportfyRevit
                     var garden = isPlanting
                                  || string.Equals(sportifyCategory, "garden", StringComparison.OrdinalIgnoreCase)
                                  || string.Equals(sportifyCategory, "vegetation", StringComparison.OrdinalIgnoreCase);
-                    return garden ? GardensWorkset : SportsWorkset;
+                    if (garden) return GardensWorkset;
+                    return string.Equals(sportifyCategory, "furniture", StringComparison.OrdinalIgnoreCase) ? FurnitureWorkset : SportsWorkset;
                 default:
-                    return CombineWorkset;
+                    return AnnotationsAndTagsWorkset;
             }
         }
 

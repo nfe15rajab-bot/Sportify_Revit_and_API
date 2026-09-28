@@ -955,13 +955,13 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("the checker itself catches a bad path", Malformed("M1 2 L3") != null && Malformed("L1 2") != null && Malformed("M1 2 x") != null && Malformed("M1 2 l3 4 h5") == null);
 
     // the rules
-    Check("workset rules follow the import: floors and planting on Gardens, courts, activities and furniture on Sports, everything else (outline, paths, entries) on Combine",
+    Check("workset rules follow the import: floors and planting on Gardens, courts and activities on Sports, furniture-category pieces on Furniture, everything else (outline, paths, entries) on Annotations and tags",
           BimRules.WorksetFor(BimRules.ElementKind.Floor, null, false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "field", false) == "Sports"
-          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "furniture", false) == "Sports" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "activity", false) == "Sports"
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "furniture", false) == "Furniture" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "activity", false) == "Sports"
           && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "vegetation", false) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, "Garden", false) == "Gardens"
-          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, null, true) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.Other, null, false) == "Combine");
-    Check("the three workset names are the ones SportifyLayoutBuilder makes", BimRules.WorksetNames.SequenceEqual(new[] { "Sports", "Gardens", "Combine" })
-          && allSources.Any(kv => kv.Key.EndsWith("SportifyLayoutBuilder.cs") && kv.Value.Contains("new[] { \"Sports\", \"Gardens\", \"Combine\" }")));
+          && BimRules.WorksetFor(BimRules.ElementKind.FamilyInstance, null, true) == "Gardens" && BimRules.WorksetFor(BimRules.ElementKind.Other, null, false) == "AnnotationsAndTags");
+    Check("the four workset short keys are the ones SportifyLayoutBuilder.RealWorksetNameFor maps onto the real Sportify worksets", BimRules.WorksetNames.SequenceEqual(new[] { "Sports", "Gardens", "Furniture", "AnnotationsAndTags" })
+          && allSources.Any(kv => kv.Key.EndsWith("SportifyLayoutBuilder.cs") && kv.Value.Contains("[\"Sports\"] = SportifyWorksetSet.Sports") && kv.Value.Contains("[\"AnnotationsAndTags\"] = SportifyWorksetSet.AnnotationsAndTags")));
     Check("a Sportify floor type is one whose name starts with \"Sportify - \" (as SportifyFloorTypeBuilder names them), and only that",
           BimRules.IsSportifyTypeName("Sportify - Gravel") && !BimRules.IsSportifyTypeName("Generic 150mm") && !BimRules.IsSportifyTypeName("sportify - x") && !BimRules.IsSportifyTypeName(null)
           && allSources.Any(kv => kv.Key.EndsWith("SportifyFloorTypeBuilder.cs") && kv.Value.Contains("Sportify - {assembly.Provider}")));

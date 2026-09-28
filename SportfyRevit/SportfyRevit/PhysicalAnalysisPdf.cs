@@ -215,7 +215,7 @@ namespace SportfyRevit
             var shapes = new List<PlanShape>();
             foreach (var b in r.bays)
             {
-                var sh = new PlanShape { Fill = SvgChart.ForStatus(b.status), Label = Pct(b.utilisation) };
+                var sh = new PlanShape { Fill = SvgChart.ForStatus(b.status), Label = Pct(b.utilisation), Ratio = b.utilisation };
                 if (b.polygon != null && b.polygon.Length >= 6)
                 {
                     sh.Kind = "poly";
@@ -352,7 +352,7 @@ namespace SportfyRevit
             {
                 var g = inputs.Zones.FirstOrDefault(x => x.Id == z.id);
                 if (g == null) continue;
-                shapes.Add(new PlanShape { X = g.X, Y = g.Y, W = g.Width, H = g.Height, Fill = SvgChart.ForStatus(z.upliftStatus), Label = z.upliftStatus == "unknown" ? "?" : Pct(z.upliftUtilisationMax), FillOpacity = 0.75 });
+                shapes.Add(new PlanShape { X = g.X, Y = g.Y, W = g.Width, H = g.Height, Fill = SvgChart.ForStatus(z.upliftStatus), Label = z.upliftStatus == "unknown" ? "?" : Pct(z.upliftUtilisationMax), FillOpacity = 0.75, Ratio = z.upliftStatus == "unknown" ? (double?)null : z.upliftUtilisationMax });
             }
             foreach (var p in r.plants)
                 shapes.Add(new PlanShape { Kind = "circle", X = p.xM, Y = p.yM, W = Math.Max(0.8, p.crownM), Fill = SvgChart.ForStatus(p.status), Stroke = SvgChart.Ink, StrokeWidthM = 0.1, FillOpacity = 0.95 });
