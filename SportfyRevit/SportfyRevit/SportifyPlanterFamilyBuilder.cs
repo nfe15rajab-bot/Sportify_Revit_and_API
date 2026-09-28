@@ -46,6 +46,11 @@ namespace SportfyRevit
             ["planter_s_pedestal"] = ("Sportify_PlanterSPedestal", "PlanterS ( With Pedestal)"),
             ["planter_t_pedestal"] = ("Sportify_PlanterTPedestal", "PlanterT (With Pedestal)"),
             ["green_roof_module"]  = ("Sportify_GreenRoofModule",  "Green Roof Module"),
+            // Authored in millimetres, unlike the three above them — the payload
+            // carries the unit per family, so nothing here has to know that.
+            ["trampoline"]   = ("Sportify_TrampolineSandPit", "Trampoline-SandPit"),
+            ["urban_bocce"]  = ("Sportify_BocceCourt",        "Bocce Court"),
+            ["sprint_lane"]  = ("Sportify_SprintLane",        "Sprint Lane"),
             ["climbing_tower"] = ("Sportify_ClimbingTower", "Climbing Tower"),
             ["locker_module"]  = ("Sportify_LockerBank",    "Locker Bank"),
             ["dressing_cabin"] = ("Sportify_DressingCabin", "Dressing_Cabin"),

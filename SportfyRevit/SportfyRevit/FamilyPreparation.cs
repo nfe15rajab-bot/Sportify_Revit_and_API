@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Autodesk.Revit.DB;
 
 namespace SportfyRevit
@@ -199,6 +200,28 @@ namespace SportfyRevit
             SportifyLog.Info("greenroof", $"{zones.Count} zone(s) with a tray, {byKey.Count} distinct family/families");
         }
 
+        /// <summary>
+        /// What distinguishes one configuration of a design family from another.
+        ///
+        /// Short and readable rather than a hash, because it becomes part of a
+        /// Revit type name and someone has to recognise it in the project
+        /// browser: "Sprint Lane · Lane_Length 63000" says what it is.
+        ///
+        /// Only the numbers are taken. A material or a yes/no changes what the
+        /// family looks like, not what size it is, and folding those in would
+        /// multiply types for no gain.
+        /// </summary>
+        private static string DesignFamilySignature(DesignFamilyDto df)
+        {
+            if (df.Params == null || df.Params.Count == 0) return "default";
+            var parts = df.Params
+                .Where(kv => kv.Value.ValueKind == JsonValueKind.Number)
+                .OrderBy(kv => kv.Key, StringComparer.Ordinal)
+                .Select(kv => $"{kv.Key} {kv.Value.GetRawText()}");
+            var s = string.Join(", ", parts);
+            return string.IsNullOrEmpty(s) ? "default" : s;
+        }
+
         /// <summary>A parcel that names a build-up the layout carries becomes a Floor, not a family (SportifyLayoutBuilder.TryCreateAssemblyFloor).</summary>
         private static bool IsFloor(PlacementDto p, HashSet<string> assemblyKeys)
         {
@@ -209,9 +232,13 @@ namespace SportfyRevit
         /// <summary>What makes two placements the same family: the specified sports by their own name, the rest by generated name; null = do not share.</summary>
         private static string? KeyOf(PlacementDto p)
         {
-            // one product placed many times is one family: shared by the product's key and size
+            // One product placed many times is one family — but only when it is
+            // configured the SAME way. The key used to be the product alone, and
+            // the comment here claimed it carried the size when it did not: two
+            // sprint lanes of different lengths shared one resolution, hence one
+            // type, hence one length. The parameters are part of the identity.
             if (p.Parameters?.DesignFamily is { } df && !string.IsNullOrWhiteSpace(df.Type))
-                return "designfamily::" + df.Type;
+                return "designfamily::" + df.Type + "::" + DesignFamilySignature(df);
             if (p.Parameters?.Furniture is { } furniture && !string.IsNullOrWhiteSpace(furniture.Key))
                 return "furniture::" + FurnitureShape.FamilyName(furniture.RevitFamilyName, furniture.Label ?? furniture.Product, furniture.Key, furniture.LengthM, furniture.WidthM, furniture.HeightM);
             if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
@@ -293,9 +320,18 @@ namespace SportfyRevit
             if (p.Parameters?.DesignFamily is { } block)
             {
                 var s = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, block);
-                return s == null
-                    ? FamilyResolution.None($"the family for \"{block.Label ?? block.Type}\" is not loaded and is not in the add-in's library")
-                    : Found(s, ImportDiagnostics.HowReference);
+                if (s == null)
+                    return FamilyResolution.None($"the family for \"{block.Label ?? block.Type}\" is not loaded and is not in the add-in's library");
+
+                // These families hold their dimensions as TYPE parameters, so
+                // every instance of one type shares one set of numbers. Two of
+                // the same product configured differently therefore need two
+                // types, or the second silently rewrites the first.
+                s = SportifyGreenRoofModuleBuilder.SymbolForConfiguration(
+                        doc, s, block, DesignFamilySignature(block), out string typeNote);
+                if (!string.IsNullOrEmpty(typeNote)) SportifyLog.Info("families", $"{block.Label ?? block.Type}: {typeNote}");
+
+                return Found(s, ImportDiagnostics.HowReference);
             }
 
             // 4b. Furniture is its product's family: the firm's own of that product when the project has one, else one built from the catalogue size (FurnitureShape).

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Autodesk.Revit.DB;
 
 namespace SportfyRevit
@@ -209,6 +210,74 @@ namespace SportfyRevit
                 note = $"could not make a type for {lengthMm:0}x{widthMm:0} mm ({ex.Message}) — placed at the base type's size";
             }
             return baseSymbol;
+        }
+
+        /// <summary>
+        /// The type to place for one configuration of a design-team family.
+        ///
+        /// The same problem the trays had, generalised. These families hold
+        /// their dimensions as TYPE parameters, so every instance of a type
+        /// shares one set of numbers: place a 63 m sprint lane and a 40 m one
+        /// and the second rewrites the first, leaving two lanes of whatever was
+        /// written last. There is no per-instance value to set.
+        ///
+        /// So a configuration that differs gets a type that differs. The name
+        /// carries the signature so it is recognisable in the project browser
+        /// rather than being "Type 2", and two placements that really are
+        /// identical still share one type because their signatures match.
+        ///
+        /// A family whose dimensions ARE instance parameters is left alone — the
+        /// probe below asks the symbol, so this costs nothing where it is not
+        /// needed and needs no list of which families are which.
+        /// </summary>
+        public static FamilySymbol SymbolForConfiguration(Document doc, FamilySymbol baseSymbol,
+                                                          DesignFamilyDto block, string signature,
+                                                          out string note)
+        {
+            note = "";
+            if (block.Params == null || block.Params.Count == 0) return baseSymbol;
+
+            // Does this family hold its numbers on the type? Ask about the
+            // parameters we are actually going to set, under both spellings the
+            // payload may use.
+            bool onType = block.Params.Any(kv =>
+                kv.Value.ValueKind == JsonValueKind.Number &&
+                (baseSymbol.LookupParameter(kv.Key) != null
+                 || baseSymbol.LookupParameter(SportifyPlanterFamilyBuilder.RevitParameterName(kv.Key)) != null));
+            if (!onType) return baseSymbol;
+
+            var wanted = Shorten($"{baseSymbol.Name} · {signature}");
+            var familyName = baseSymbol.Family?.Name;
+
+            foreach (var e in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)))
+                if (e is FamilySymbol s
+                    && string.Equals(s.Family?.Name, familyName, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(s.Name, wanted, StringComparison.Ordinal))
+                {
+                    note = $"reused type \"{wanted}\"";
+                    return s;
+                }
+
+            try
+            {
+                if (baseSymbol.Duplicate(wanted) is FamilySymbol made)
+                {
+                    note = $"new type \"{wanted}\"";
+                    return made;
+                }
+            }
+            catch (Exception ex)
+            {
+                note = $"could not make a type for this configuration ({ex.Message}) — placed at the base type's size";
+            }
+            return baseSymbol;
+        }
+
+        /// <summary>Revit type names have a limit, and a long one is unreadable anyway.</summary>
+        private static string Shorten(string s)
+        {
+            const int Max = 120;
+            return s.Length <= Max ? s : s.Substring(0, Max - 1) + "…";
         }
 
         /// <summary>
