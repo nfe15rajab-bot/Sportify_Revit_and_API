@@ -66,14 +66,14 @@ namespace SportfyRevit
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null || doc.IsFamilyDocument) return;
-            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out _) || json == null) return;
+            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out _, out var roofId) || json == null) return;
 
             SportifyLayout? layout;
             try { layout = JsonSerializer.Deserialize<SportifyLayout>(json); }
             catch (Exception ex) { SportifyLog.Error("import-now", "the pushed layout could not be read", ex); return; }
             if (layout?.Placements == null) return;
 
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, AutoImportSync.ClearIterationsToo);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, AutoImportSync.ClearIterationsToo, roofId.ToString());
             if (outcome.Cancelled || outcome.Succeeded) return;
             TaskDialog.Show("Sportify — Sync with Revit",
                 "The layout sent from the web app could not be imported into \"" + doc.Title + "\":\n" + outcome.Error +

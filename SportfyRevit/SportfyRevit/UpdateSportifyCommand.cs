@@ -5,13 +5,13 @@ using Autodesk.Revit.UI;
 namespace SportfyRevit
 {
     /// <summary>
-    /// "Update": for switching to a different roof mid-session. A plain "Push to Sportify" push already replaces what an
-    /// earlier push of a DIFFERENT roof brought (RoofPushMerge) — but the elements an earlier IMPORT built in this
-    /// project stay on screen until the next import replaces them, which needs a fresh layout sent back from the web
-    /// app first. That gap is confusing: pieces from the old roof, still on screen, overlapping whatever gets configured
-    /// next. Update closes it in one click: clear this project's previous import and iterations right away, then push
-    /// everything about the roof now selected (the same as "Push to Sportify" → Everything) — the model is clean on the
-    /// new roof immediately, without waiting on the web app's own re-send.
+    /// "Update": an explicit, deliberate full reset, for when every roof Sportify has ever built in this project should be cleared and
+    /// started over — not the everyday way to switch roofs any more. Each roof pushed and imported now keeps its own import (RoofId on
+    /// ImportLedger's entries, see RoofBoundaryServer): importing or syncing one roof never deletes what an earlier import of a DIFFERENT
+    /// roof built, so simply picking another roof and pushing/importing it no longer needs this first. Update still clears the previous
+    /// import and iterations of EVERY roof at once, then pushes everything about the roof now selected (the same as "Push to Sportify" →
+    /// Everything) — useful when a roof's own import is in a state worth starting fresh from, or the model should hold only one roof's
+    /// worth of Sportify content again.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class UpdateSportifyCommand : IExternalCommand
@@ -28,7 +28,7 @@ namespace SportfyRevit
             {
                 using var t = new Transaction(doc, "Sportify: clear the previous import");
                 t.Start();
-                removedImport = ImportLedger.RemovePrevious(doc);
+                removedImport = ImportLedger.RemoveAll(doc);
                 removedIterations = IterationLedger.RemovePrevious(doc);
                 t.Commit();
             }

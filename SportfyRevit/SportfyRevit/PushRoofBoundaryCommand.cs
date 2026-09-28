@@ -144,9 +144,11 @@ namespace SportfyRevit
             var frame = built.Frame;
             var heightAboveGround = built.Height;
 
-            // A push of only part of the data is laid onto the roof pushed before it (same roof), so the app always gets the roof whole.
-            var merged = RoofPushMerge.Merge(RoofBoundaryServer.CurrentPayload, built.Json, scope, out var keptEarlier);
-            RoofBoundaryServer.SetPayload(merged);
+            // A push of only part of the data is laid onto THIS roof's own earlier push (not whatever roof happens to be active right
+            // now — a designer switching to look at Roof A in the web app and then pushing an entries-only update for Roof B must not
+            // merge B's entries onto A's data). Pushing also makes this roof the active one: see RoofBoundaryServer.SetPayload.
+            var merged = RoofPushMerge.Merge(RoofBoundaryServer.PayloadFor(element.Id.Value), built.Json, scope, out var keptEarlier);
+            RoofBoundaryServer.SetPayload(element.Id.Value, merged);
             _lastRoofId = element.Id.Value;
             _lastDocumentTitle = doc.Title;
 
@@ -238,6 +240,10 @@ namespace SportfyRevit
             {
                 roof = new
                 {
+                    // The Revit element this came from, so the same physical roof always maps back to the same entry (RoofBoundaryServer,
+                    // ImportLedger) even after a resize — a resize changes length_m/width_m but never this. Two different roofs (or a roof
+                    // and a floor) always get two different ids, which is exactly what lets them coexist without one import erasing the other.
+                    id = element.Id.Value,
                     // Already in the canvas convention (roof-local x right, y down): see StructureGeometry.
                     structure,
                     // Same convention: see RoofFeaturesGeometry and ROOF_FEATURES.md.

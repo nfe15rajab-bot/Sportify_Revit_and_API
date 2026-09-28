@@ -24,7 +24,10 @@ namespace SportfyRevit
         /// <summary>Set by ToggleAutoImportCommand when it turns Auto Import on, if the person chose to also clear a previous "Import Iterations as Design Options" run on every sync.</summary>
         public static bool ClearIterationsToo { get; set; }
 
-        private static int _lastAppliedVersion = -1;
+        // Keyed by roof id, not one number: this now watches whichever roof is active in the web app, and that can change between
+        // polls (RoofBoundaryServer.SetActiveRoof) — one shared "already applied" version would otherwise mean something different
+        // every time the designer switches roofs, importing a roof again (or missing a real change) for no reason.
+        private static readonly Dictionary<long, int> _lastAppliedVersionByRoof = new();
         private static DateTime _lastPollUtc = DateTime.MinValue;
 
         public static void SetEnabled(bool enabled)
@@ -58,8 +61,9 @@ namespace SportfyRevit
             if ((DateTime.UtcNow - _lastPollUtc).TotalMilliseconds < PollIntervalMs) return;
             _lastPollUtc = DateTime.UtcNow;
 
-            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out var version)) return;
-            if (version == _lastAppliedVersion || json == null) return;
+            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out var version, out var roofId)) return;
+            var lastApplied = _lastAppliedVersionByRoof.TryGetValue(roofId, out var v) ? v : -1;
+            if (version == lastApplied || json == null) return;
 
             var uiApp = sender as UIApplication;
             var doc = uiApp?.ActiveUIDocument?.Document;
@@ -73,20 +77,20 @@ namespace SportfyRevit
             catch (Exception ex)
             {
                 // A malformed push: wait for the next one rather than crash the idling loop — but say so.
-                _lastAppliedVersion = version;
+                _lastAppliedVersionByRoof[roofId] = version;
                 SportifyLog.Error("auto-import", "push " + version + " is not a readable layout", ex);
                 return;
             }
             if (layout?.Placements == null)
             {
-                _lastAppliedVersion = version;
+                _lastAppliedVersionByRoof[roofId] = version;
                 SportifyLog.Warn("auto-import", "push " + version + " has no placements array; ignored");
                 return;
             }
 
             // Whatever the outcome, this push is dealt with: a failing one must not be retried every two seconds.
-            _lastAppliedVersion = version;
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo);
+            _lastAppliedVersionByRoof[roofId] = version;
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo, roofId.ToString());
             if (outcome.Cancelled) return;
 
             if (!outcome.Succeeded)

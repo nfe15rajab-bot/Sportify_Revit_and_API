@@ -15,11 +15,16 @@ namespace SportfyRevit
     /// machine, and belongs to exactly one document), and it lists the UniqueIds (unique across documents, unlike ElementIds) of what the
     /// import created: floors, family instances, placeholder boxes, text notes, model lines and their sketch planes. Types, loaded families,
     /// materials and worksets are NOT in it: they are reused by the next import, not rebuilt. Only elements listed here are ever deleted, and only
-    /// by the next import of the same project. Manual and Auto Import both go through it (LayoutImporter).
+    /// by the next import of the SAME ROOF of the same project (RoofId) — a project can hold several roofs (a Revit level's roof and a lower
+    /// annex's, say), each pushed and imported on its own, and importing one must never delete what an earlier import of a DIFFERENT roof
+    /// built. Manual and Auto Import both go through it (LayoutImporter).
     /// </summary>
     internal static class ImportLedger
     {
         private static readonly Guid SchemaId = new("6b1f6c58-2a0e-4c3f-9a0d-51b0a1f0c2d7");
+
+        /// <summary>A ledger entry from before roofs each got their own (no RoofId field at all) belongs to this bucket — treated as one particular roof's entry, not "every roof's", so it is only ever replaced by another import that also has no roof identity (the ContractCheck tool, an old manually re-imported export).</summary>
+        internal const string UnknownRoofId = "";
 
         private static Schema GetSchema()
         {
@@ -28,12 +33,13 @@ namespace SportfyRevit
 
             var builder = new SchemaBuilder(SchemaId);
             builder.SetSchemaName("SportifyImportLedger");
-            builder.SetDocumentation("What the last Sportify import created in this project, so that the next import can replace it.");
+            builder.SetDocumentation("What the last Sportify import created in this project, so that the next import of the same roof can replace it.");
             builder.SetReadAccessLevel(AccessLevel.Public);
             builder.SetWriteAccessLevel(AccessLevel.Public);
             builder.AddSimpleField("ImportId", typeof(string));
             builder.AddSimpleField("ImportedAtUtc", typeof(string));
             builder.AddSimpleField("Source", typeof(string));
+            builder.AddSimpleField("RoofId", typeof(string));
             builder.AddArrayField("ElementUniqueIds", typeof(string));
             return builder.Finish();
         }
@@ -43,16 +49,36 @@ namespace SportfyRevit
                 .Where(ds => ds.GetEntity(schema).IsValid())
                 .ToList();
 
+        /// <summary>The RoofId an entry was written with — "" (UnknownRoofId) for one written before this field existed, read as a plain missing-field rather than an error so old projects keep working.</summary>
+        private static string RoofIdOf(DataStorage storage, Schema schema)
+        {
+            try { return storage.GetEntity(schema).Get<string>("RoofId") ?? UnknownRoofId; }
+            catch (Exception) { return UnknownRoofId; }
+        }
+
         /// <summary>
-        /// Deletes what the previous import of this project created (and the old ledger). Inside the import transaction, so that a failed import
-        /// puts it all back. Returns how many elements were removed; elements the user already deleted are simply not there any more.
+        /// Deletes what the previous import of THIS roof of this project created (and its old ledger entry) — entries belonging to a
+        /// different roof are left alone. Inside the import transaction, so that a failed import puts it all back. Returns how many
+        /// elements were removed; elements the user already deleted are simply not there any more.
         /// </summary>
-        public static int RemovePrevious(Document doc)
+        public static int RemovePrevious(Document doc, string roofId) =>
+            RemoveWhere(doc, storage => RoofIdOf(storage, GetSchema()) == roofId);
+
+        /// <summary>
+        /// Deletes every roof's previous import in this project, not just one — what "Update" (UpdateSportifyCommand) uses for an explicit,
+        /// deliberate full reset. A normal import (LayoutImporter.Run, always scoped to one roof via RemovePrevious above) never calls this:
+        /// several roofs pushed and imported independently must keep coexisting on their own.
+        /// </summary>
+        public static int RemoveAll(Document doc) => RemoveWhere(doc, _ => true);
+
+        private static int RemoveWhere(Document doc, Func<DataStorage, bool> matches)
         {
             var schema = GetSchema();
             int removed = 0;
             foreach (var storage in Find(doc, schema))
             {
+                if (!matches(storage)) continue;
+
                 IList<string> uniqueIds;
                 try { uniqueIds = storage.GetEntity(schema).Get<IList<string>>("ElementUniqueIds"); }
                 catch (Exception ex) { SportifyLog.Warn("ledger", "an old ledger could not be read: " + ex.Message); uniqueIds = new List<string>(); }
@@ -110,8 +136,8 @@ namespace SportfyRevit
             return found;
         }
 
-        /// <summary>Records what this import created. Inside the import transaction.</summary>
-        public static void Write(Document doc, IEnumerable<ElementId> created, string source)
+        /// <summary>Records what this import created, tagged with the roof it belongs to. Inside the import transaction.</summary>
+        public static void Write(Document doc, IEnumerable<ElementId> created, string source, string roofId)
         {
             var uniqueIds = new List<string>();
             foreach (var id in created.Distinct())
@@ -126,9 +152,10 @@ namespace SportfyRevit
             entity.Set("ImportId", Guid.NewGuid().ToString("N"));
             entity.Set("ImportedAtUtc", DateTime.UtcNow.ToString("o"));
             entity.Set("Source", source);
+            entity.Set("RoofId", roofId);
             entity.Set<IList<string>>("ElementUniqueIds", uniqueIds);
             storage.SetEntity(entity);
-            SportifyLog.Info("ledger", $"recorded {uniqueIds.Count} element(s) created by this import");
+            SportifyLog.Info("ledger", $"recorded {uniqueIds.Count} element(s) created by this import (roof {(string.IsNullOrEmpty(roofId) ? "unknown" : roofId)})");
         }
     }
 }

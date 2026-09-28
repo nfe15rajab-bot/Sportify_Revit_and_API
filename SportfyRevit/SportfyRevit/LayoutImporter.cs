@@ -32,8 +32,10 @@ namespace SportfyRevit
     {
         /// <summary>`clearIterations`: also remove what an earlier "Import Iterations as Design Options" run built (IterationLedger) — that command's own worksets/elements are
         /// otherwise untouched by a normal import, so left in place they sit alongside it, sports and gardens overlapping. Manual asks each time there is something to clear;
-        /// Auto Import asks once when it is turned on and remembers the answer for as long as it stays on (ToggleAutoImportCommand, AutoImportSync.ClearIterationsToo).</summary>
-        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations)
+        /// Auto Import asks once when it is turned on and remembers the answer for as long as it stays on (ToggleAutoImportCommand, AutoImportSync.ClearIterationsToo).
+        /// `roofId`: which roof this layout is for (RoofBoundaryServer's key, or ImportLedger.UnknownRoofId) — only THIS roof's previous import is replaced; a project with
+        /// several roofs pushed and imported independently never has importing one delete what an earlier import of another built.</summary>
+        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations, string roofId)
         {
             var outcome = new ImportOutcome();
             var sourceName = source.ToString().ToLowerInvariant();
@@ -66,10 +68,10 @@ namespace SportfyRevit
                 transaction.Start();
                 try
                 {
-                    outcome.Replaced = ImportLedger.RemovePrevious(doc);
+                    outcome.Replaced = ImportLedger.RemovePrevious(doc, roofId);
                     if (clearIterations) outcome.ReplacedIterations = IterationLedger.RemovePrevious(doc);
                     outcome.Summary = SportifyLayoutBuilder.BuildGeometry(doc, layout, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
-                    ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName);
+                    ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName, roofId);
                 }
                 catch (Exception ex)
                 {

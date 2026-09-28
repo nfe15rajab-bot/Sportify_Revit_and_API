@@ -62,11 +62,13 @@ namespace SportfyRevit
 
             // Makes this manually-imported layout visible to RoofBoundaryServer's TryGetLatestCombinedLayout the same way a live Combine-tab push
             // would be — so SimulateBallTrajectoriesCommand (and anything else that wants "the current layout") works right after a file-picker
-            // import too, not only after a live push from the web app.
+            // import too, not only after a live push from the web app. Filed under whichever roof is currently active (the same one this then
+            // imports against below), same as a live combined-layout push always is.
             RoofBoundaryServer.SetCombinedLayoutPayload(text);
+            var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
 
             var clearIterations = IterationLedger.HasAny(doc) && AskClearIterations(doc);
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations, roofId);
             if (outcome.Cancelled) return Result.Cancelled;
             if (!outcome.Succeeded || outcome.Summary == null)
             {

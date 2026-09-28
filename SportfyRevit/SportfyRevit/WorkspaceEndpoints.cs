@@ -61,6 +61,8 @@ namespace SportfyRevit
             switch (path)
             {
                 case "/workspace" when method == "GET": return Workspace();
+                case "/roofs" when method == "GET": return Roofs();
+                case "/roofs/active" when method == "POST": return SetActiveRoof(query["id"]);
                 case "/profile" when method == "GET": return GetProfile();
                 case "/profile" when method == "POST": return SaveProfile(readBody);
                 case "/capabilities" when method == "GET": return GetCapabilities(query["refresh"] == "1");
@@ -95,6 +97,27 @@ namespace SportfyRevit
                 revit_version = RevitVersion,
                 kinds = SportifyWorkspace.Kinds.Select(k => new { key = k.Key, folder = k.Folder, title = k.Title, hint = k.Hint, count = files.Count(f => f.Kind == k.Key) }),
             });
+        }
+
+        // ------------------------------------------------------------------------------------------------------------ multiple roofs
+
+        /// <summary>Every roof pushed this Revit session, for the web app's roof picker — shown whenever there's more than one, so pushing a second roof at a different height never quietly loses the first.</summary>
+        static EndpointResponse Roofs()
+        {
+            var roofs = RoofBoundaryServer.ListRoofs();
+            return EndpointResponse.Json(new
+            {
+                roofs = roofs.Select(r => new { id = r.Id.ToString(), name = r.Name, length_m = r.LengthM, width_m = r.WidthM, pushed_at = r.PushedAtUtc.ToString("o"), active = r.Active }),
+            });
+        }
+
+        /// <summary>Switches which pushed roof is active: what GET /roof-boundary answers, what Auto Import watches, what the analyses/charts/PDFs read. Never touches the model.</summary>
+        static EndpointResponse SetActiveRoof(string? idText)
+        {
+            if (!long.TryParse(idText, out var id)) return EndpointResponse.Error(400, "Send ?id=<roof id>, from GET /roofs.");
+            if (!RoofBoundaryServer.SetActiveRoof(id)) return EndpointResponse.Error(404, "No roof with that id has been pushed this session.");
+            RequestRibbonRefresh();      // the "Revit connected" status and anything else the ribbon shows about the current roof follow
+            return EndpointResponse.Json(new { active = id.ToString() });
         }
 
         // ------------------------------------------------------------------------------------------------------------ the session's and the iteration's name

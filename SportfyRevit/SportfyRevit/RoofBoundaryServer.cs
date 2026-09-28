@@ -5,6 +5,9 @@ using System.Text.Json;
 
 namespace SportfyRevit
 {
+    /// <summary>One entry of RoofBoundaryServer.ListRoofs() — the web app's roof picker.</summary>
+    public readonly record struct RoofSummary(long Id, string Name, double LengthM, double WidthM, DateTime PushedAtUtc, bool Active);
+
     /// <summary>
     /// Tiny loopback HTTP server handling both directions of the
     /// frontend/Revit round trip on one port:
@@ -53,16 +56,22 @@ namespace SportfyRevit
         /// <summary>For the checks: back to "the web app has not been seen".</summary>
         internal static void ForgetWebAppSeen() => Volatile.Write(ref _webAppSeen, 0);
 
+        // Keyed by the pushed roof's own Revit ElementId (Value), so two roofs of any height or size coexist rather than one push (or one
+        // import) erasing the other's — see SetPayload/SetActiveRoof/ListRoofs. Everything below that used to be "the one roof" is now
+        // "whichever roof is active right now" (_activeRoofId), which is what a bare GET/analysis/combined-layout still answers with no
+        // change needed at those call sites: only the few places that decide OR remember which roof that is had to change.
         private static readonly object PayloadLock = new();
-        private static string? _payloadJson;
+        private static readonly Dictionary<long, string> _payloadsByRoof = new();
+        private static readonly Dictionary<long, DateTime> _pushedAtByRoof = new();
+        private static long? _activeRoofId;
 
         private static readonly object CombinedLayoutLock = new();
-        private static string? _combinedLayoutJson;
-        private static int _combinedLayoutVersion;
-        private static string? _combinedLayoutId;
+        private static readonly Dictionary<long, string> _combinedLayoutJsonByRoof = new();
+        private static readonly Dictionary<long, int> _combinedLayoutVersionByRoof = new();
+        private static readonly Dictionary<long, string> _combinedLayoutIdByRoof = new();
 
-        /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent, draft or export; null when none has arrived.</summary>
-        public static string? CurrentLayoutId { get { lock (CombinedLayoutLock) return _combinedLayoutId; } }
+        /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent for the ACTIVE roof, draft or export; null when none has arrived for it.</summary>
+        public static string? CurrentLayoutId { get { lock (CombinedLayoutLock) return _activeRoofId.HasValue && _combinedLayoutIdByRoof.TryGetValue(_activeRoofId.Value, out var id) ? id : null; } }
 
         /// <summary>
         /// The identity of the layout THIS thread last read with TryGetLatestCombinedLayout, else the current one. An analysis reads the layout when it
@@ -112,16 +121,60 @@ namespace SportfyRevit
             _listener = null;
         }
 
-        /// <summary>The roof pushed last, as the app receives it (null before the first push): what a partial push is laid onto (RoofPushMerge).</summary>
+        /// <summary>The ACTIVE roof's payload, as the app receives it (null before the first push): what a partial push is laid onto (RoofPushMerge) and what GET /roof-boundary answers.</summary>
         internal static string? CurrentPayload
         {
-            get { lock (PayloadLock) { return _payloadJson; } }
+            get { lock (PayloadLock) { return _activeRoofId.HasValue && _payloadsByRoof.TryGetValue(_activeRoofId.Value, out var j) ? j : null; } }
         }
 
-        /// <summary>Called by the push commands (PushRoofCommandBase) every time the user pushes a roof.</summary>
-        public static void SetPayload(string json)
+        /// <summary>The id of the roof the web app is currently looking at — every bare GET /roof-boundary, /combined-layout and analysis answers for this one; null before any push.</summary>
+        public static long? ActiveRoofId { get { lock (PayloadLock) return _activeRoofId; } }
+
+        /// <summary>This roof's own last payload, regardless of which one is active — for RoofPushMerge to lay a partial push onto the SAME roof's earlier push, not onto whatever roof the web app happens to be looking at right now.</summary>
+        internal static string? PayloadFor(long roofId)
         {
-            lock (PayloadLock) { _payloadJson = json; }
+            lock (PayloadLock) { return _payloadsByRoof.TryGetValue(roofId, out var j) ? j : null; }
+        }
+
+        /// <summary>
+        /// Called by the push commands (PushRoofCommandBase) every time the user pushes a roof, keyed by the Revit element's own id (stable
+        /// across a resize, unlike a hash of the roof's frame) so two roofs of any height or size coexist rather than one push erasing the
+        /// other's. Pushing a roof also makes it the active one — the designer just pointed at it — see SetActiveRoof to switch back to an
+        /// already-pushed roof without pushing it again.
+        /// </summary>
+        public static void SetPayload(long roofId, string json)
+        {
+            lock (PayloadLock) { _payloadsByRoof[roofId] = json; _pushedAtByRoof[roofId] = DateTime.UtcNow; _activeRoofId = roofId; }
+        }
+
+        /// <summary>Back-compat for callers with no real roof identity (the ContractCheck tool, LiveRoofSession's test hook): a single roof under id 0, same as before this existed.</summary>
+        public static void SetPayload(string json) => SetPayload(0, json);
+
+        /// <summary>Switches which pushed roof the web app (and Auto Import) looks at. False when that id was never pushed.</summary>
+        public static bool SetActiveRoof(long roofId)
+        {
+            lock (PayloadLock) { if (!_payloadsByRoof.ContainsKey(roofId)) return false; _activeRoofId = roofId; return true; }
+        }
+
+        /// <summary>Every roof pushed this Revit session, newest first, for the web app's roof picker.</summary>
+        public static List<RoofSummary> ListRoofs()
+        {
+            lock (PayloadLock)
+            {
+                return _payloadsByRoof.Select(kv =>
+                {
+                    string name = "Roof " + kv.Key; double lengthM = 0, widthM = 0;
+                    try
+                    {
+                        var roof = System.Text.Json.Nodes.JsonNode.Parse(kv.Value)?["roof"];
+                        if (roof?["source_element_name"]?.ToString() is { Length: > 0 } n) name = n;
+                        lengthM = roof?["length_m"]?.GetValue<double>() ?? 0;
+                        widthM = roof?["width_m"]?.GetValue<double>() ?? 0;
+                    }
+                    catch (Exception) { /* an unreadable entry is still listed, just with a plain name and no size */ }
+                    return new RoofSummary(kv.Key, name, lengthM, widthM, _pushedAtByRoof.TryGetValue(kv.Key, out var t) ? t : DateTime.MinValue, kv.Key == _activeRoofId);
+                }).OrderByDescending(r => r.PushedAtUtc).ToList();
+            }
         }
 
         /// <summary>
@@ -129,15 +182,18 @@ namespace SportfyRevit
         /// and also by ImportSportifyLayoutCommand after a manual file-picker
         /// import, so a manually-imported layout is just as visible to
         /// TryGetLatestCombinedLayout's callers (e.g. SimulateBallTrajectoriesCommand)
-        /// as a live Combine push, with no separate cache needed.
+        /// as a live Combine push, with no separate cache needed. Filed under
+        /// whichever roof is currently active: the web app only ever has one
+        /// roof open at a time, and this is what it just posted for it.
         /// </summary>
         public static void SetCombinedLayoutPayload(string json)
         {
             lock (CombinedLayoutLock)
             {
-                _combinedLayoutJson = json;
-                _combinedLayoutId = LayoutIdentity.Of(json);
-                _combinedLayoutVersion++;
+                var id = _activeRoofId ?? 0;
+                _combinedLayoutJsonByRoof[id] = json;
+                _combinedLayoutIdByRoof[id] = LayoutIdentity.Of(json);
+                _combinedLayoutVersionByRoof[id] = _combinedLayoutVersionByRoof.TryGetValue(id, out var v) ? v + 1 : 1;
             }
         }
 
@@ -148,7 +204,12 @@ namespace SportfyRevit
         /// </summary>
         public static void SetDraftLayoutPayload(string json)
         {
-            lock (CombinedLayoutLock) { _combinedLayoutJson = json; _combinedLayoutId = LayoutIdentity.Of(json); }
+            lock (CombinedLayoutLock)
+            {
+                var id = _activeRoofId ?? 0;
+                _combinedLayoutJsonByRoof[id] = json;
+                _combinedLayoutIdByRoof[id] = LayoutIdentity.Of(json);
+            }
         }
 
         /// <summary>
@@ -156,17 +217,29 @@ namespace SportfyRevit
         /// process as this server, so no HTTP round trip needed) — returns
         /// the latest pushed payload and a version counter that only ever
         /// increases, so the caller can tell "new since last time I looked"
-        /// from a single int comparison.
+        /// from a single int comparison. Always about the ACTIVE roof.
         /// </summary>
         public static bool TryGetLatestCombinedLayout(out string? json, out int version)
         {
             lock (CombinedLayoutLock)
             {
-                json = _combinedLayoutJson;
-                version = _combinedLayoutVersion;
-                _idReadOnThisThread = _combinedLayoutId;
+                var id = _activeRoofId ?? 0;
+                json = _combinedLayoutJsonByRoof.TryGetValue(id, out var j) ? j : null;
+                version = _combinedLayoutVersionByRoof.TryGetValue(id, out var v) ? v : 0;
+                _idReadOnThisThread = _combinedLayoutIdByRoof.TryGetValue(id, out var lid) ? lid : null;
             }
             return json != null;
+        }
+
+        /// <summary>
+        /// Same as above, but also hands back WHICH roof that was — AutoImportSync needs this because it now watches whichever roof is
+        /// active, which can change between polls, so its own "already applied this version" memory has to be kept per roof, not as one
+        /// number that would otherwise mean something different every time the designer switches roofs.
+        /// </summary>
+        public static bool TryGetLatestCombinedLayout(out string? json, out int version, out long roofId)
+        {
+            lock (CombinedLayoutLock) { roofId = _activeRoofId ?? 0; }
+            return TryGetLatestCombinedLayout(out json, out version);
         }
 
         /// <summary>
@@ -590,8 +663,7 @@ namespace SportfyRevit
                         continue;
                     }
 
-                    string? json;
-                    lock (PayloadLock) { json = _payloadJson; }
+                    string? json = CurrentPayload;
 
                     if (json == null)
                     {
