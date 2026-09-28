@@ -347,6 +347,15 @@ namespace SportfyRevit
         /// <summary>Present when the placement is a volleyball court.</summary>
         [JsonPropertyName("volleyball")] public VolleyballDto? Volleyball { get; set; }
 
+        /// <summary>Present when the placement is a football court (futsal, small-sided or a mini pitch).</summary>
+        [JsonPropertyName("football")] public FootballDto? Football { get; set; }
+
+        /// <summary>Present when the placement is a table tennis table and the space round it.</summary>
+        [JsonPropertyName("ping_pong")] public PingPongDto? PingPong { get; set; }
+        [JsonPropertyName("calisthenics")] public CalisthenicsDto? Calisthenics { get; set; }
+        [JsonPropertyName("crossfit")] public CrossfitDto? Crossfit { get; set; }
+        [JsonPropertyName("trx")] public TrxDto? Trx { get; set; }
+
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
         /// is what a family gets generated from, one per species.
@@ -355,6 +364,27 @@ namespace SportfyRevit
 
         /// <summary>Present for placed furniture (a bench, a table, a bin, a bollard, a light): the catalogue product, its size and weight. See SportifyFurnitureFamilyBuilder.</summary>
         [JsonPropertyName("furniture")] public FurnitureDto? Furniture { get; set; }
+
+        /// <summary>
+        /// Present for a design team family placed from the Components tab — a
+        /// planter, and whatever the kit grows. Unlike everything above it, the
+        /// geometry is NOT ours to build: the family is authored in Revit and
+        /// shipped in the library, and this carries the parameter values the
+        /// person set in the web app so the instance arrives configured.
+        /// See SportifyPlanterFamilyBuilder.
+        /// </summary>
+        [JsonPropertyName("gardenBlock")] public DesignFamilyDto? GardenBlock { get; set; }
+
+        /// <summary>
+        /// The same thing from the Sport tab: a design team family placed as an
+        /// activity (the Climbing Tower). Kept as its own property because the
+        /// two tabs build their payloads separately, but it resolves and
+        /// configures through exactly the same code.
+        /// </summary>
+        [JsonPropertyName("familyInstance")] public DesignFamilyDto? FamilyInstance { get; set; }
+
+        /// <summary>Whichever of the two a placement carries.</summary>
+        [JsonIgnore] public DesignFamilyDto? DesignFamily => GardenBlock ?? FamilyInstance;
 
         /// <summary>
         /// Cross-category dimensions/area (buildSportPayload/buildActivityPayload/
@@ -512,6 +542,206 @@ namespace SportfyRevit
     /// figures travel with the placement so a court rebuilds as the court it
     /// was — the importer holds no opinion about what FIBA currently says.
     /// </summary>
+    /// <summary>
+    /// A football court. Its COURT TYPE carries the size — there is no size
+    /// variant, because a futsal court is 40 x 20 m by FIFA's Law 1 rather than
+    /// because someone picked "standard".
+    /// </summary>
+    /// <summary>
+    /// Table tennis. The table is not a variable: the ITTF fixes it at
+    /// 2.74 x 1.525 m, 0.76 m high. What the web app chooses is the PLAYING
+    /// SPACE around it, which is what decides whether a table fits on a roof —
+    /// 35 m2 for casual play against 98 m2 for the Olympic minimum.
+    /// </summary>
+    /// <summary>
+    /// A calisthenics rig: a portal frame of posts and rails with bars on it.
+    ///
+    /// Sized by BAYS rather than by an overall length, because a bay is the unit
+    /// the thing is built and priced in. `RigLengthM` is what that comes to and
+    /// is carried so the two sides cannot disagree, while `LengthM`/`WidthM` are
+    /// the footprint INCLUDING the safety area — which is what decides whether
+    /// the rig fits on the roof at all.
+    /// </summary>
+    internal class CalisthenicsDto
+    {
+        [JsonPropertyName("bays")] public int Bays { get; set; }
+        [JsonPropertyName("bay_width_m")] public double BayWidthM { get; set; }
+        [JsonPropertyName("rig_depth_m")] public double RigDepthM { get; set; }
+        [JsonPropertyName("frame_height_m")] public double FrameHeightM { get; set; }
+        [JsonPropertyName("pull_up_height_m")] public double PullUpHeightM { get; set; }
+        [JsonPropertyName("post_diameter_m")] public double PostDiameterM { get; set; }
+        [JsonPropertyName("bar_diameter_m")] public double BarDiameterM { get; set; }
+        [JsonPropertyName("rung_spacing_m")] public double RungSpacingM { get; set; }
+        [JsonPropertyName("dip_height_m")] public double DipHeightM { get; set; }
+        [JsonPropertyName("dip_spacing_m")] public double DipSpacingM { get; set; }
+        [JsonPropertyName("low_bar_height_m")] public double LowBarHeightM { get; set; }
+
+        [JsonPropertyName("monkey_bars")] public bool MonkeyBars { get; set; }
+        [JsonPropertyName("pull_up_bars")] public bool PullUpBars { get; set; }
+        [JsonPropertyName("dip_bars")] public bool DipBars { get; set; }
+        [JsonPropertyName("low_bar")] public bool LowBar { get; set; }
+        [JsonPropertyName("monkey_bays")] public int MonkeyBays { get; set; }
+        [JsonPropertyName("rung_count")] public int RungCount { get; set; }
+
+        [JsonPropertyName("rig_length_m")] public double RigLengthM { get; set; }
+        [JsonPropertyName("rig_width_m")] public double RigWidthM { get; set; }
+        /// <summary>The footprint including the safety area.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("safety_margin_m")] public double SafetyMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A CrossFit rig: square uprights you bolt things to, normally two rows
+    /// facing each other with a barbell racking between them.
+    ///
+    /// `LengthM`/`WidthM` include the working room in front of each face, which
+    /// is usually what decides whether a rig fits: the frame is under 4 m long
+    /// and the space it needs is nearly 8 m deep.
+    /// </summary>
+    internal class CrossfitDto
+    {
+        [JsonPropertyName("bays")] public int Bays { get; set; }
+        [JsonPropertyName("bay_width_m")] public double BayWidthM { get; set; }
+        [JsonPropertyName("rig_depth_m")] public double RigDepthM { get; set; }
+        [JsonPropertyName("upright_size_m")] public double UprightSizeM { get; set; }
+        [JsonPropertyName("upright_height_m")] public double UprightHeightM { get; set; }
+        [JsonPropertyName("pull_up_height_m")] public double PullUpHeightM { get; set; }
+        [JsonPropertyName("bar_diameter_m")] public double BarDiameterM { get; set; }
+        [JsonPropertyName("j_cup_height_m")] public double JCupHeightM { get; set; }
+        [JsonPropertyName("dip_height_m")] public double DipHeightM { get; set; }
+        [JsonPropertyName("peg_height_m")] public double PegHeightM { get; set; }
+        [JsonPropertyName("peg_projection_m")] public double PegProjectionM { get; set; }
+
+        [JsonPropertyName("double_sided")] public bool DoubleSided { get; set; }
+        [JsonPropertyName("squat_stations")] public bool SquatStations { get; set; }
+        [JsonPropertyName("pull_up_bars")] public bool PullUpBars { get; set; }
+        [JsonPropertyName("dip_bars")] public bool DipBars { get; set; }
+        [JsonPropertyName("plate_storage")] public bool PlateStorage { get; set; }
+        [JsonPropertyName("rows")] public int Rows { get; set; }
+        [JsonPropertyName("stations")] public int Stations { get; set; }
+
+        [JsonPropertyName("rig_length_m")] public double RigLengthM { get; set; }
+        [JsonPropertyName("rig_width_m")] public double RigWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("working_depth_m")] public double WorkingDepthM { get; set; }
+        [JsonPropertyName("end_margin_m")] public double EndMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A suspension training frame.
+    ///
+    /// Loaded at an angle rather than straight down, which is why it has a leg
+    /// spread and the rigs do not: the splay is the base that resists the
+    /// overturning. `AFrame` false means vertical posts, which only stand up if
+    /// `GroundAnchor` is true.
+    /// </summary>
+    internal class TrxDto
+    {
+        [JsonPropertyName("beam_length_m")] public double BeamLengthM { get; set; }
+        [JsonPropertyName("frame_height_m")] public double FrameHeightM { get; set; }
+        [JsonPropertyName("leg_spread_m")] public double LegSpreadM { get; set; }
+        [JsonPropertyName("anchor_spacing_m")] public double AnchorSpacingM { get; set; }
+        [JsonPropertyName("beam_diameter_m")] public double BeamDiameterM { get; set; }
+        [JsonPropertyName("leg_diameter_m")] public double LegDiameterM { get; set; }
+
+        [JsonPropertyName("a_frame")] public bool AFrame { get; set; }
+        [JsonPropertyName("mid_rail")] public bool MidRail { get; set; }
+        [JsonPropertyName("ground_anchor")] public bool GroundAnchor { get; set; }
+        [JsonPropertyName("anchor_count")] public int AnchorCount { get; set; }
+
+        [JsonPropertyName("frame_length_m")] public double FrameLengthM { get; set; }
+        [JsonPropertyName("frame_width_m")] public double FrameWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("reach_depth_m")] public double ReachDepthM { get; set; }
+        [JsonPropertyName("side_margin_m")] public double SideMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    internal class PingPongDto
+    {
+        /// <summary>"recreational" | "national" | "international" | "world".</summary>
+        [JsonPropertyName("playing_space")] public string? PlayingSpace { get; set; }
+        /// <summary>"concrete" | "steel_composite" | "aluminium" — what the table is made of.</summary>
+        [JsonPropertyName("table")] public string? Table { get; set; }
+        [JsonPropertyName("net")] public string? Net { get; set; }
+        /// <summary>"existing" means the table stands on the roof finish and no surface is laid.</summary>
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("texture")] public string? Texture { get; set; }
+
+        /// <summary>The playing space — the whole footprint.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+
+        [JsonPropertyName("table_length_m")] public double TableLengthM { get; set; }
+        [JsonPropertyName("table_width_m")] public double TableWidthM { get; set; }
+        [JsonPropertyName("table_height_m")] public double TableHeightM { get; set; }
+        [JsonPropertyName("table_top_thickness_m")] public double TableTopThicknessM { get; set; }
+        [JsonPropertyName("net_height_m")] public double NetHeightM { get; set; }
+        /// <summary>The net reaches past each side line, which is what stops a ball going round it.</summary>
+        [JsonPropertyName("net_overhang_m")] public double NetOverhangM { get; set; }
+        [JsonPropertyName("line_width_m")] public double LineWidthM { get; set; }
+        [JsonPropertyName("centre_line_width_m")] public double CentreLineWidthM { get; set; }
+
+        [JsonPropertyName("clearance_end_m")] public double ClearanceEndM { get; set; }
+        [JsonPropertyName("clearance_side_m")] public double ClearanceSideM { get; set; }
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    internal class FootballDto
+    {
+        /// <summary>"futsal" | "small_sided" | "mini".</summary>
+        [JsonPropertyName("court_type")] public string? CourtType { get; set; }
+        [JsonPropertyName("surface")] public string? Surface { get; set; }
+        [JsonPropertyName("court_colour")] public string? CourtColour { get; set; }
+        /// <summary>"none" | "low" — rebound boards along both touchlines.</summary>
+        [JsonPropertyName("boards")] public string? Boards { get; set; }
+        [JsonPropertyName("goals")] public string? Goals { get; set; }
+        [JsonPropertyName("appearance_hex")] public string? AppearanceHex { get; set; }
+        [JsonPropertyName("texture")] public string? Texture { get; set; }
+
+        /// <summary>The whole footprint, pitch plus run-off.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        /// <summary>The pitch the markings are drawn to.</summary>
+        [JsonPropertyName("play_length_m")] public double PlayLengthM { get; set; }
+        [JsonPropertyName("play_width_m")] public double PlayWidthM { get; set; }
+        [JsonPropertyName("runoff_m")] public double RunoffM { get; set; }
+        [JsonPropertyName("clear_height_min_m")] public double ClearHeightMinM { get; set; }
+
+        [JsonPropertyName("goal_width_m")] public double GoalWidthM { get; set; }
+        [JsonPropertyName("goal_height_m")] public double GoalHeightM { get; set; }
+
+        /// <summary>"futsal" (the full set of markings) or "simple" (a mini pitch: halfway line and centre circle).</summary>
+        [JsonPropertyName("markings")] public string? Markings { get; set; }
+        [JsonPropertyName("line_width_m")] public double LineWidthM { get; set; }
+        [JsonPropertyName("centre_circle_radius_m")] public double CentreCircleRadiusM { get; set; }
+        /// <summary>Futsal's penalty area is a quarter circle of this radius from each post, not a rectangle.</summary>
+        [JsonPropertyName("penalty_arc_radius_m")] public double PenaltyArcRadiusM { get; set; }
+        [JsonPropertyName("penalty_mark_m")] public double PenaltyMarkM { get; set; }
+        [JsonPropertyName("second_penalty_mark_m")] public double SecondPenaltyMarkM { get; set; }
+        [JsonPropertyName("corner_arc_radius_m")] public double CornerArcRadiusM { get; set; }
+
+        [JsonPropertyName("board_length_m")] public double BoardLengthM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
     internal class BasketballDto
     {
         [JsonPropertyName("variant")] public string? Variant { get; set; }
@@ -598,6 +828,38 @@ namespace SportfyRevit
     }
 
     /// <summary>A catalogue product of site furniture, as the web app exports it (parameters.furniture).</summary>
+    /// <summary>
+    /// A family the design team authored, with the values the web app set on it.
+    ///
+    /// `Params` is deliberately open: the web app mirrors whatever parameters the
+    /// family exposes, so a parameter added in Revit flows through without this
+    /// class changing. The keys are the family's own parameter names in camel
+    /// case ("substrateDepth" is Revit's "Substrate Depth"); lengths are in
+    /// MILLIMETRES, as the family states them.
+    /// </summary>
+    internal class DesignFamilyDto
+    {
+        /// <summary>"planter_s" | "planter_t" | "park_bench_table" — which of the kit this is.</summary>
+        [JsonPropertyName("type")] public string? Type { get; set; }
+
+        [JsonPropertyName("label")] public string? Label { get; set; }
+
+        /// <summary>The family the web app believes this is, e.g. "Planter". Null while a family is still to come.</summary>
+        [JsonPropertyName("family")] public string? Family { get; set; }
+
+        /// <summary>
+        /// Parameter name → value. Yes/No parameters arrive as true/false.
+        /// Lengths are in whatever unit the family states itself in, which
+        /// `Units` names: the planter family is authored in millimetres, the
+        /// Climbing Tower in metres. Mirroring each family in its own unit
+        /// keeps the numbers the same on both sides of the pipe.
+        /// </summary>
+        [JsonPropertyName("params")] public Dictionary<string, JsonElement>? Params { get; set; }
+
+        /// <summary>"mm" (the default, as the planters are) or "m".</summary>
+        [JsonPropertyName("units")] public string? Units { get; set; }
+    }
+
     internal class FurnitureDto
     {
         [JsonPropertyName("key")] public string? Key { get; set; }
@@ -661,6 +923,43 @@ namespace SportfyRevit
         /// corners, which is why the box is still carried.
         /// </summary>
         [JsonPropertyName("points")] public List<PointDto>? Points { get; set; }
+
+        /// <summary>
+        /// The tray the build-up sits in, sized to this zone. Null when the zone
+        /// is a roof laid directly, which is a real answer and not a gap: those
+        /// zones become a floor and nothing else, exactly as they always did.
+        /// </summary>
+        [JsonPropertyName("family")] public ZoneFamilyDto? Family { get; set; }
+    }
+
+    /// <summary>
+    /// A green roof module placed for a zone.
+    ///
+    /// The parameters arrive already worked out by the web app using the
+    /// family's OWN formulas, so this side never recomputes them — it sets the
+    /// inputs and lets Revit's formulas produce the rest. The derived ones
+    /// (Rim Level, Fleece Top, Substrate Top …) are read-only in the family and
+    /// are carried only so a reader can check the two agree.
+    /// </summary>
+    internal class ZoneFamilyDto
+    {
+        [JsonPropertyName("key")] public string? Key { get; set; }
+        [JsonPropertyName("family")] public string? Family { get; set; }
+        [JsonPropertyName("type")] public string? Type { get; set; }
+        [JsonPropertyName("units")] public string? Units { get; set; }
+        [JsonPropertyName("parameters")] public Dictionary<string, JsonElement>? Parameters { get; set; }
+
+        /// <summary>
+        /// Delete the placeholder block between Fleece Top and Rim Level, so the
+        /// real floor of the chosen build-up can occupy that space instead of
+        /// sharing it with a stand-in. False when no build-up was chosen, because
+        /// then the placeholder is still the best description available.
+        /// </summary>
+        [JsonPropertyName("strip_generic_model")] public bool StripGenericModel { get; set; }
+
+        /// <summary>Where the floor's top sits inside the tray, in mm above the family's origin.</summary>
+        [JsonPropertyName("floor_top_mm")] public double FloorTopMm { get; set; }
+        [JsonPropertyName("trayed_mm")] public double TrayedMm { get; set; }
     }
 
     internal class AssemblyLayerDto

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sportify-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "C:\claude file\Sportify_Revit_and_API\Sportify.Api\Sportify.Api\Sportify.Api.csproj", "--urls", "http://localhost:5107"],
+      "port": 5107
+    },
+    {
+      "name": "sportify-web",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8124", "--directory", "C:/claude file/sportfify_goldbeck"],
+      "port": 8124
+    }
+  ]
+}

@@ -163,7 +163,7 @@ namespace SportfyRevit
             // Ground zones become real floors — the build-up the designer chose,
             // at the area they drew. Done before the pieces so a court sits
             // visually on top of the ground rather than under it.
-            int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds);
+            int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds, prepared);
 
             // The leftover surface, before the pieces, so a court reads as
             // sitting in the finish rather than on top of it.
@@ -318,7 +318,8 @@ namespace SportfyRevit
 
         private static int CreateZoneFloors(Document doc, SportifyLayout layout,
                                             double originXFt, double originYFt,
-                                            WorksetId worksetId, List<ElementId> createdIds)
+                                            WorksetId worksetId, List<ElementId> createdIds,
+                                            PreparedFamilies prepared)
         {
             if (layout.Zones == null) return 0;
             int drawn = 0;
@@ -341,14 +342,24 @@ namespace SportfyRevit
                     continue;
                 }
 
+                // A zone with a tray has its build-up INSIDE the tray, not under
+                // it. The tray stands on the roof — that is what the pedestal is
+                // for — so the build-up is what rises, and it rests on the tray's
+                // own floor exactly as it would on site.
+                //
+                // Revit's height offset positions the TOP of a floor, so the tray
+                // floor plus the build-up's own thickness puts its underside on
+                // the tray floor.
+                double floorElevFt = CurrentOriginZFt + TrayLiftFt(zone, floorType);
+
                 // Sketch the outline the designer actually drew. Only an export
                 // from before zones had movable corners falls back to the box,
                 // which for those is the same shape anyway.
                 var floor = (zone.Points != null && zone.Points.Count >= 3)
                     ? SportifyFloorTypeBuilder.CreateFloorFromPoints(
-                        doc, floorType, zone.Points, originXFt, originYFt, CurrentOriginZFt, out string failure)
+                        doc, floorType, zone.Points, originXFt, originYFt, floorElevFt, out string failure)
                     : SportifyFloorTypeBuilder.CreateFloor(
-                        doc, floorType, bb, originXFt, originYFt, CurrentOriginZFt, out failure);
+                        doc, floorType, bb, originXFt, originYFt, floorElevFt, out failure);
 
                 // CreateRoofFinish reports a partial success through the same out
                 // parameter, so it can be null on the failure path too.
@@ -358,8 +369,148 @@ namespace SportfyRevit
                 createdIds.Add(floor.Id);
                 ImportDiagnostics.FloorCreated(label, floorType.Name, zone.AreaM2);
                 drawn++;
+
+                if (floorElevFt > CurrentOriginZFt)
+                    SportifyLog.Info("greenroof", $"{label}: build-up raised " +
+                        $"{UnitUtils.ConvertFromInternalUnits(floorElevFt - CurrentOriginZFt, UnitTypeId.Millimeters):0} mm to sit in its tray");
+
+                PlaceZoneTray(doc, zone, bb, originXFt, originYFt, worksetId, createdIds, prepared);
             }
             return drawn;
+        }
+
+        /// <summary>
+        /// The tray the zone's build-up sits in, stretched to the zone.
+        ///
+        /// The family is parametric in Length and Width, so one instance covers
+        /// the zone rather than the zone being tiled out of 2400 mm modules. That
+        /// is the designer's call (2026-09-28) and it holds because zones are
+        /// drawn as rectangles: a stretched tray and the zone are the same shape.
+        ///
+        /// Placed at the zone's centre, because the family's Length and Width
+        /// grow about its origin rather than from a corner.
+        /// </summary>
+        private static void PlaceZoneTray(Document doc, ZoneDto zone, BoundingBoxDto bb,
+                                          double originXFt, double originYFt,
+                                          WorksetId worksetId, List<ElementId> createdIds,
+                                          PreparedFamilies prepared)
+        {
+            var fam = zone.Family;
+            if (fam == null) return;                      // no tray was asked for: a floor on its own is the answer
+
+            var label = zone.Label ?? zone.Kind ?? "(zone)";
+            var resolution = prepared.ForZone(zone);
+
+            // Neither of these is silent any more. Both used to be, and that is
+            // how a tray went missing with a clean-looking import behind it: the
+            // strip reported success, the floor drew, and the placement returned
+            // without a word. If the tray cannot be placed, the report says so.
+            if (resolution.SymbolId == null)
+            {
+                ImportDiagnostics.FloorFailed(label,
+                    $"the build-up was drawn but its tray was not placed — {resolution.Reason ?? "no family was resolved for it"}");
+                return;
+            }
+
+            if (doc.GetElement(resolution.SymbolId) is not FamilySymbol symbol)
+            {
+                ImportDiagnostics.FloorFailed(label,
+                    "the build-up was drawn but its tray was not placed — the family was resolved and then replaced, " +
+                    "so what was resolved is no longer in the model (this is the stale-element case; it means the reload handed back an id we did not follow)");
+                return;
+            }
+
+            try
+            {
+                // Each distinct size needs its own type: the family holds Length
+                // and Width as type parameters, so instances cannot differ.
+                double lengthMm = ParamMm(fam, "length"), widthMm = ParamMm(fam, "width");
+                symbol = SportifyGreenRoofModuleBuilder.SymbolForSize(
+                    doc, symbol, lengthMm, widthMm, zone.AssemblyKey, out string typeNote);
+                SportifyLog.Info("greenroof", $"{label}: {typeNote}");
+
+                if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
+
+                // PlanToWorldFt, not arithmetic of our own. It is the one place
+                // the plan's turn against the model's axes is undone, and it
+                // carries the Y flip as well — a hand-rolled "origin + x,
+                // origin - y" ignores both, which is exactly how these trays
+                // ended up off the roof entirely and square to the wrong axis.
+                var (cx, cy) = PlanToWorldFt(bb.TopLeftXM + bb.WidthM / 2.0, bb.TopLeftYM + bb.HeightM / 2.0);
+                var center = new XYZ(cx, cy, CurrentOriginZFt);
+                var instance = doc.Create.NewFamilyInstance(
+                    center, symbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+                // And turned with the plan, the same as every placed piece
+                // (FamilyPlacementBuilder): a roof set at an angle to the model
+                // has a plan set at that angle, so the tray turns with it or it
+                // sits askew in a zone it is supposed to fill.
+                if (Math.Abs(CurrentAngleRad) > 1e-9)
+                {
+                    var axis = Line.CreateBound(center, center + XYZ.BasisZ);
+                    ElementTransformUtils.RotateElement(doc, instance.Id, axis, CurrentAngleRad);
+                }
+
+                // Same path the planters take: the parameters arrive already worked
+                // out by the web app with the family's own formulas, and the ones
+                // the family computes itself are offered and quietly declined.
+                SportifyPlanterFamilyBuilder.ApplyParameters(instance, new DesignFamilyDto
+                {
+                    Type = fam.Key,
+                    Family = fam.Family,
+                    Units = fam.Units,
+                    Params = fam.Parameters,
+                });
+
+                SetWorkset(instance, worksetId);
+                createdIds.Add(instance.Id);
+                SportifyLog.Info("greenroof",
+                    $"{label}: tray \"{symbol.Family?.Name}\" placed at {bb.WidthM:0.#} x {bb.HeightM:0.#} m (element {instance.Id})");
+            }
+            catch (Exception ex)
+            {
+                // The floor is already in. Losing the tray is a worse drawing, not
+                // a lost import, so it is reported and the zone stands.
+                ImportDiagnostics.FloorFailed(label, $"the build-up was drawn but its tray could not be placed ({ex.Message})");
+            }
+        }
+
+        /// <summary>
+        /// How far a zone's build-up rises because it sits in a tray.
+        ///
+        /// Zero when there is no tray: a roof laid directly has its finish at
+        /// roof level, which is where it has always been drawn.
+        ///
+        /// With a tray it is the tray's own floor plus the build-up's thickness,
+        /// because Revit's height offset positions the top of a floor and we want
+        /// the BOTTOM to land on the tray floor. Taking the thickness from the
+        /// floor type rather than from the payload means the two can never
+        /// disagree — it is the same compound structure Revit is about to build.
+        ///
+        /// Vegetation standing proud of the rim is not an error to correct: a
+        /// planted roof does that, and the rim was sized for the growing medium,
+        /// not for the plants on top of it.
+        /// </summary>
+        private static double TrayLiftFt(ZoneDto zone, FloorType floorType)
+        {
+            if (zone.Family == null) return 0;
+
+            double trayFloorMm = ParamMm(zone.Family, "trayFloorTop");
+            if (trayFloorMm <= 0) return 0;
+
+            double thicknessFt = 0;
+            try { thicknessFt = floorType.GetCompoundStructure()?.GetWidth() ?? 0; }
+            catch (Exception) { /* a floor type that will not describe itself: rest on the tray floor alone */ }
+
+            return UnitUtils.ConvertToInternalUnits(trayFloorMm, UnitTypeId.Millimeters) + thicknessFt;
+        }
+
+        /// <summary>One of the tray's parameters, in millimetres; 0 when it is absent or not a number.</summary>
+        private static double ParamMm(ZoneFamilyDto fam, string key)
+        {
+            if (fam.Parameters == null) return 0;
+            if (!fam.Parameters.TryGetValue(key, out var v)) return 0;
+            return v.ValueKind == System.Text.Json.JsonValueKind.Number && v.TryGetDouble(out double d) ? d : 0;
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
