@@ -101,6 +101,14 @@ namespace SportfyRevit
         public static void BasketballCourtBuilt(string variant, int hoops, string mounting, string surface, double weightKg)
             => Lines.Add($"BBL  Basketball court — {variant}, {hoops} basket(s), {mounting}, {surface} — {weightKg:0} kg on the deck");
 
+        public static void CrossfitBuilt(int bays, bool doubleSided, int stations, double rigL, double rigW, double weightKg)
+            => Lines.Add($"CFR  CrossFit rig — {bays} bay(s), {(doubleSided ? "double" : "single")} sided, "
+                         + $"{stations} station(s), {rigL:0.#} x {rigW:0.#} m — {weightKg:0} kg on the deck");
+
+        public static void TrxBuilt(int anchors, bool splayed, double beamM, double heightM, double weightKg)
+            => Lines.Add($"TRX  Suspension frame — {anchors} anchor(s), {beamM:0.#} m beam at {heightM:0.##} m, "
+                         + $"{(splayed ? "splayed legs" : "vertical posts")} — {weightKg:0} kg on the deck");
+
         public static void CalisthenicsBuilt(int bays, double rigL, double rigW, double heightM, int rungs, double weightKg)
             => Lines.Add($"CAL  Calisthenics rig — {bays} bay(s), {rigL:0.#} x {rigW:0.#} m, {heightM:0.##} m high"
                          + (rungs > 0 ? $", {rungs} monkey-bar rungs" : "")

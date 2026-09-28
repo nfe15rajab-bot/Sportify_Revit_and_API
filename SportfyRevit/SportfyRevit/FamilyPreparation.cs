@@ -61,7 +61,7 @@ namespace SportfyRevit
             var assemblyKeys = new HashSet<string>((layout.Assemblies ?? new List<AssemblyDto>()).Where(a => a.Key != null).Select(a => a.Key!), StringComparer.OrdinalIgnoreCase);
 
             // The template first, once, outside any transaction (it may open a file, and asks a person only for a manual import).
-            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null
+            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null || p.Parameters?.Crossfit != null || p.Parameters?.Trx != null
                                                                                   || p.Parameters?.Vegetation != null || p.Parameters?.Furniture != null || p.Parameters?.DesignFamily != null
                                                                                   || SportifyFamilyGenerator.FamilyNameFor(p) != null));
             if (needsBuilder) GenericFamilyTemplateLocator.Prepare(doc.Application, allowTemplateDialog);
@@ -241,7 +241,7 @@ namespace SportfyRevit
                 return "designfamily::" + df.Type + "::" + DesignFamilySignature(df);
             if (p.Parameters?.Furniture is { } furniture && !string.IsNullOrWhiteSpace(furniture.Key))
                 return "furniture::" + FurnitureShape.FamilyName(furniture.RevitFamilyName, furniture.Label ?? furniture.Product, furniture.Key, furniture.LengthM, furniture.WidthM, furniture.HeightM);
-            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
+            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null || p.Parameters?.Crossfit != null || p.Parameters?.Trx != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
                 return null;   // their builders cache by themselves; a shared key would have to repeat their naming
             return SportifyFamilyGenerator.FamilyNameFor(p);
         }
@@ -280,6 +280,22 @@ namespace SportfyRevit
                 if (s == null) return FamilyResolution.None("the basketball court builder returned no family");
                 ImportDiagnostics.BasketballCourtBuilt(basket.Variant ?? "standard", basket.Hoops, basket.Mounting ?? "", basket.Surface ?? "", basket.WeightKg);
                 return Found(s, ImportDiagnostics.HowSpecified);
+            }
+            if (p.Parameters?.Crossfit is { } cf)
+            {
+                var s = SportifyCrossfitRigBuilder.GetOrCreateSymbol(doc, cf);
+                if (s == null) return FamilyResolution.None("the CrossFit rig builder returned no family");
+                ImportDiagnostics.CrossfitBuilt(cf.Bays, cf.DoubleSided, cf.Stations,
+                    cf.RigLengthM, cf.RigWidthM, cf.WeightKg);
+                return Found(s, ImportDiagnostics.HowGenerated);
+            }
+            if (p.Parameters?.Trx is { } trx)
+            {
+                var s = SportifyTrxFrameBuilder.GetOrCreateSymbol(doc, trx);
+                if (s == null) return FamilyResolution.None("the suspension frame builder returned no family");
+                ImportDiagnostics.TrxBuilt(trx.AnchorCount, trx.AFrame, trx.FrameLengthM,
+                    trx.FrameHeightM, trx.WeightKg);
+                return Found(s, ImportDiagnostics.HowGenerated);
             }
             if (p.Parameters?.Calisthenics is { } rig)
             {

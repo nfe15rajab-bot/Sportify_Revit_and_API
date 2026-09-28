@@ -348,6 +348,8 @@ namespace SportfyRevit
         /// <summary>Present when the placement is a table tennis table and the space round it.</summary>
         [JsonPropertyName("ping_pong")] public PingPongDto? PingPong { get; set; }
         [JsonPropertyName("calisthenics")] public CalisthenicsDto? Calisthenics { get; set; }
+        [JsonPropertyName("crossfit")] public CrossfitDto? Crossfit { get; set; }
+        [JsonPropertyName("trx")] public TrxDto? Trx { get; set; }
 
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
@@ -549,6 +551,80 @@ namespace SportfyRevit
         [JsonPropertyName("length_m")] public double LengthM { get; set; }
         [JsonPropertyName("width_m")] public double WidthM { get; set; }
         [JsonPropertyName("safety_margin_m")] public double SafetyMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A CrossFit rig: square uprights you bolt things to, normally two rows
+    /// facing each other with a barbell racking between them.
+    ///
+    /// `LengthM`/`WidthM` include the working room in front of each face, which
+    /// is usually what decides whether a rig fits: the frame is under 4 m long
+    /// and the space it needs is nearly 8 m deep.
+    /// </summary>
+    internal class CrossfitDto
+    {
+        [JsonPropertyName("bays")] public int Bays { get; set; }
+        [JsonPropertyName("bay_width_m")] public double BayWidthM { get; set; }
+        [JsonPropertyName("rig_depth_m")] public double RigDepthM { get; set; }
+        [JsonPropertyName("upright_size_m")] public double UprightSizeM { get; set; }
+        [JsonPropertyName("upright_height_m")] public double UprightHeightM { get; set; }
+        [JsonPropertyName("pull_up_height_m")] public double PullUpHeightM { get; set; }
+        [JsonPropertyName("bar_diameter_m")] public double BarDiameterM { get; set; }
+        [JsonPropertyName("j_cup_height_m")] public double JCupHeightM { get; set; }
+        [JsonPropertyName("dip_height_m")] public double DipHeightM { get; set; }
+        [JsonPropertyName("peg_height_m")] public double PegHeightM { get; set; }
+        [JsonPropertyName("peg_projection_m")] public double PegProjectionM { get; set; }
+
+        [JsonPropertyName("double_sided")] public bool DoubleSided { get; set; }
+        [JsonPropertyName("squat_stations")] public bool SquatStations { get; set; }
+        [JsonPropertyName("pull_up_bars")] public bool PullUpBars { get; set; }
+        [JsonPropertyName("dip_bars")] public bool DipBars { get; set; }
+        [JsonPropertyName("plate_storage")] public bool PlateStorage { get; set; }
+        [JsonPropertyName("rows")] public int Rows { get; set; }
+        [JsonPropertyName("stations")] public int Stations { get; set; }
+
+        [JsonPropertyName("rig_length_m")] public double RigLengthM { get; set; }
+        [JsonPropertyName("rig_width_m")] public double RigWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("working_depth_m")] public double WorkingDepthM { get; set; }
+        [JsonPropertyName("end_margin_m")] public double EndMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
+    /// <summary>
+    /// A suspension training frame.
+    ///
+    /// Loaded at an angle rather than straight down, which is why it has a leg
+    /// spread and the rigs do not: the splay is the base that resists the
+    /// overturning. `AFrame` false means vertical posts, which only stand up if
+    /// `GroundAnchor` is true.
+    /// </summary>
+    internal class TrxDto
+    {
+        [JsonPropertyName("beam_length_m")] public double BeamLengthM { get; set; }
+        [JsonPropertyName("frame_height_m")] public double FrameHeightM { get; set; }
+        [JsonPropertyName("leg_spread_m")] public double LegSpreadM { get; set; }
+        [JsonPropertyName("anchor_spacing_m")] public double AnchorSpacingM { get; set; }
+        [JsonPropertyName("beam_diameter_m")] public double BeamDiameterM { get; set; }
+        [JsonPropertyName("leg_diameter_m")] public double LegDiameterM { get; set; }
+
+        [JsonPropertyName("a_frame")] public bool AFrame { get; set; }
+        [JsonPropertyName("mid_rail")] public bool MidRail { get; set; }
+        [JsonPropertyName("ground_anchor")] public bool GroundAnchor { get; set; }
+        [JsonPropertyName("anchor_count")] public int AnchorCount { get; set; }
+
+        [JsonPropertyName("frame_length_m")] public double FrameLengthM { get; set; }
+        [JsonPropertyName("frame_width_m")] public double FrameWidthM { get; set; }
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("reach_depth_m")] public double ReachDepthM { get; set; }
+        [JsonPropertyName("side_margin_m")] public double SideMarginM { get; set; }
         [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
         [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
         [JsonPropertyName("source")] public string? Source { get; set; }
