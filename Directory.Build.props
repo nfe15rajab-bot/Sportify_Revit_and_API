@@ -14,7 +14,8 @@
     <Product>Sportify</Product>
     <Authors>Digital Tools and Methods - Group of Sports and Gardens</Authors>
     <Company>Digital Tools and Methods - Group of Sports and Gardens (TH OWL)</Company>
-    <Copyright>Open source, for educational purposes: see LICENSE_AGREEMENT.txt</Copyright>
+    <Copyright>MIT License: see LICENSE</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/nfe15rajab-bot/Sportify_Revit_and_API</RepositoryUrl>
   </PropertyGroup>
 </Project>

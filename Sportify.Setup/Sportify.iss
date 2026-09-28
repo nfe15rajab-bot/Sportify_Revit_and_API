@@ -47,7 +47,7 @@ AppPublisher={#Publisher}
 AppPublisherURL={#RepoUrl}
 AppSupportURL={#RepoUrl}/issues
 AppUpdatesURL={#RepoUrl}/releases
-AppCopyright=Open source, for educational purposes
+AppCopyright=Open source (MIT License)
 VersionInfoVersion={#AppVersionNumeric}
 VersionInfoProductVersion={#AppVersionNumeric}
 VersionInfoCompany={#Publisher}
@@ -383,7 +383,7 @@ begin
   Lines[5] := '    <Assembly>' + XmlEscape(ExpandConstant('{app}\SportfyRevit.dll')) + '</Assembly>';
   Lines[6] := '    <FullClassName>SportfyRevit.SportfyRevitApp</FullClassName>';
   Lines[7] := '    <AddInId>b7c46fc3-f9d9-4b51-8323-24632d2b42db</AddInId>';
-  Lines[8] := '    <VendorId>DTMSG</VendorId>';
+  Lines[8] := '    <VendorId>Group_Gardens_&amp;_Sports_MID_TH-OWL_DT</VendorId>';
   Lines[9] := '    <VendorDescription>{#Publisher}</VendorDescription>';
   Lines[10] := '  </AddIn>';
   Lines[11] := '</RevitAddIns>';

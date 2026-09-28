@@ -1,7 +1,7 @@
 SPORTIFY {{VERSION}} - test package for Autodesk Revit 2025
 ================================================================================
-Digital Tools and Methods - Group of Sports and Gardens, TH OWL. Open source, for
-educational purposes, still under testing.
+Digital Tools and Methods - Group of Sports and Gardens, TH OWL. Open source
+(MIT License), still under testing.
 
 IN THIS ZIP
   Sportify-Setup-{{VERSION}}-Revit2025.exe   the installer: ONE file with the Revit add-in, the web app,

@@ -105,7 +105,7 @@ This folder holds what came with Sportify (Revit 2025 add-in, web app, local API
   Revit-SOLIDWORKS-bridge.md how the Kinetics bridge between Revit and SOLIDWORKS works and what it does not do
 
 Start menu > Sportify: the web app (Chrome), the web app inside Revit, your files, this library, the user guide, uninstall.
-Sportify is open source, for educational purposes, and still under testing: https://github.com/nfe15rajab-bot/Sportify_Revit_and_API
+Sportify is open source (MIT License), and still under testing: https://github.com/nfe15rajab-bot/Sportify_Revit_and_API
 Digital Tools and Methods - Group of Sports and Gardens, TH OWL.
 "@ | Set-Content (Join-Path $docs "README.txt") -Encoding UTF8
 Copy-Item (Join-Path $docs "README.txt") (Join-Path $library "README.txt")

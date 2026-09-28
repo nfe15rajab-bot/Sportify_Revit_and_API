@@ -44,7 +44,7 @@ check(read("Sportify.Setup", "package", "README-FIRST.txt").includes("{{VERSION}
 const license = read("Sportify.Setup", "LICENSE_AGREEMENT.txt");
 for (const phrase of ["TH OWL", "School of Architecture", "MID project", "architecture and", "engineering backgrounds", "GOLDBECK", "Claude (Anthropic)", "computational design team",
                       "Nada", "Moamen", "Sukriti", "Ali", "https://github.com/nfe15rajab-bot/Sportify_Revit_and_API", "https://github.com/nfe15rajab-bot/sportfify_goldbeck",
-                      "open source", "educational purposes", "still under testing and deployment", "Digital Tools and Methods - Group of Sports and Gardens", "I accept the agreement"])
+                      "open source", "LICENSE (MIT)", "still under testing and deployment", "Digital Tools and Methods - Group of Sports and Gardens", "I accept the agreement"])
     check(license.includes(phrase), "the license agreement says: " + phrase);
 check(/computational and facade design students/i.test(license), "the license agreement says the students are computational and facade design students");
 check(iss.includes("LicenseFile=LICENSE_AGREEMENT.txt"), "the installer shows LICENSE_AGREEMENT.txt on its license page");
