@@ -308,11 +308,19 @@ namespace SportfyRevit
                     var outward = KineticsPlan.DirFromPlan(nx, ny).Unit();
                     var run = outward.Cross(V3.UnitZ).Unit();
                     var origin = (b - a).Dot(run) >= 0 ? a : b;
+                    var lengthM = Math.Abs((b - a).Dot(run));
+                    var heightM = DefaultHeightM(kind);
                     list.Add(new KineticHost
                     {
                         Kind = kind, Key = "fence_placed_" + n, Name = name, From = from + " (" + edge + " edge)",
-                        Frame = KineticsPlan.Upright(origin, run), LengthM = Math.Abs((b - a).Dot(run)), DepthM = 0.3, HeightM = DefaultHeightM(kind),
+                        Frame = KineticsPlan.Upright(origin, run), LengthM = lengthM, DepthM = 0.3, HeightM = heightM,
                         NormalPlan = (nx, ny),
+                        // BuildFence dereferences host.Fence directly (host.Fence!.Edge) — FromFences always sets it from the
+                        // Ball Trajectory result; a placed fence has no such result, so this stands in with what the placement
+                        // itself gives. StopsPercentOfExits stays 0 (not computed here, unlike the analysis-derived path) —
+                        // RollerFenceMechanics.Analyse only uses it for a findings line, never for sizing.
+                        Fence = new RoofFenceDto { Edge = edge, FromM = 0, ToM = lengthM, HeightM = heightM, FullHeightM = heightM, StopsPercentOfExits = 0 },
+                        SiteNote = "how much of the roof's ball exits it stops is not known here (that comes from the Ball Trajectory analysis) — run it for that number",
                     });
                     continue;
                 }
