@@ -146,6 +146,72 @@ namespace SportfyRevit
         }
 
         /// <summary>
+        /// The type to place for a zone of this size.
+        ///
+        /// ── Why this exists ──
+        /// Two zones came into Revit as two trays of the SAME size, neither
+        /// matching its zone. The family holds Length and Width as TYPE
+        /// parameters, so every instance shares one value and the last zone
+        /// written wins. Setting them per instance cannot work; there is only one
+        /// number to set.
+        ///
+        /// So each distinct size gets its own type. That is also how a Revit user
+        /// would do it by hand, and it makes the sizes visible in the project
+        /// browser and schedulable, instead of hidden in instance overrides.
+        ///
+        /// The type is named for what makes it different — the size and the
+        /// build-up it was made for — so two zones that really are the same tray
+        /// share one type rather than multiplying.
+        ///
+        /// When Length turns out to be an INSTANCE parameter after all (a later
+        /// family, or one the design team changes), this steps aside and returns
+        /// the symbol untouched: setting it per instance then does the right
+        /// thing on its own.
+        /// </summary>
+        public static FamilySymbol SymbolForSize(Document doc, FamilySymbol baseSymbol,
+                                                 double lengthMm, double widthMm,
+                                                 string? variantKey, out string note)
+        {
+            note = "";
+            // An instance parameter needs no type of its own.
+            if (baseSymbol.LookupParameter("Length") == null)
+            {
+                note = "Length is an instance parameter — one type is enough";
+                return baseSymbol;
+            }
+
+            var wanted = $"{baseSymbol.Family?.Name ?? "Green Roof"} {lengthMm:0}x{widthMm:0}"
+                       + (string.IsNullOrWhiteSpace(variantKey) ? "" : $" {variantKey}");
+
+            var familyName = baseSymbol.Family?.Name;
+            foreach (var e in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)))
+                if (e is FamilySymbol s
+                    && string.Equals(s.Family?.Name, familyName, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(s.Name, wanted, StringComparison.Ordinal))
+                {
+                    note = $"reused type \"{wanted}\"";
+                    return s;
+                }
+
+            try
+            {
+                if (baseSymbol.Duplicate(wanted) is FamilySymbol made)
+                {
+                    note = $"new type \"{wanted}\"";
+                    return made;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Not fatal: the tray is still placed, at whatever size the base
+                // type carries, and the report says it is the wrong size rather
+                // than leaving it to be measured.
+                note = $"could not make a type for {lengthMm:0}x{widthMm:0} mm ({ex.Message}) — placed at the base type's size";
+            }
+            return baseSymbol;
+        }
+
+        /// <summary>
         /// The reloaded family's type, by name.
         ///
         /// LoadFamily's return value is preferred, but it can come back null when

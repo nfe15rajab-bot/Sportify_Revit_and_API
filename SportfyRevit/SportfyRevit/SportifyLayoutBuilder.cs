@@ -396,13 +396,34 @@ namespace SportfyRevit
 
             try
             {
+                // Each distinct size needs its own type: the family holds Length
+                // and Width as type parameters, so instances cannot differ.
+                double lengthMm = ParamMm(fam, "length"), widthMm = ParamMm(fam, "width");
+                symbol = SportifyGreenRoofModuleBuilder.SymbolForSize(
+                    doc, symbol, lengthMm, widthMm, zone.AssemblyKey, out string typeNote);
+                SportifyLog.Info("greenroof", $"{label}: {typeNote}");
+
                 if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
 
-                double cx = originXFt + FeetFromMeters(bb.TopLeftXM + bb.WidthM / 2.0);
-                double cy = originYFt - FeetFromMeters(bb.TopLeftYM + bb.HeightM / 2.0);
+                // PlanToWorldFt, not arithmetic of our own. It is the one place
+                // the plan's turn against the model's axes is undone, and it
+                // carries the Y flip as well — a hand-rolled "origin + x,
+                // origin - y" ignores both, which is exactly how these trays
+                // ended up off the roof entirely and square to the wrong axis.
+                var (cx, cy) = PlanToWorldFt(bb.TopLeftXM + bb.WidthM / 2.0, bb.TopLeftYM + bb.HeightM / 2.0);
+                var center = new XYZ(cx, cy, CurrentOriginZFt);
                 var instance = doc.Create.NewFamilyInstance(
-                    new XYZ(cx, cy, CurrentOriginZFt), symbol,
-                    Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+                    center, symbol, Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+                // And turned with the plan, the same as every placed piece
+                // (FamilyPlacementBuilder): a roof set at an angle to the model
+                // has a plan set at that angle, so the tray turns with it or it
+                // sits askew in a zone it is supposed to fill.
+                if (Math.Abs(CurrentAngleRad) > 1e-9)
+                {
+                    var axis = Line.CreateBound(center, center + XYZ.BasisZ);
+                    ElementTransformUtils.RotateElement(doc, instance.Id, axis, CurrentAngleRad);
+                }
 
                 // Same path the planters take: the parameters arrive already worked
                 // out by the web app with the family's own formulas, and the ones
@@ -426,6 +447,14 @@ namespace SportfyRevit
                 // a lost import, so it is reported and the zone stands.
                 ImportDiagnostics.FloorFailed(label, $"the build-up was drawn but its tray could not be placed ({ex.Message})");
             }
+        }
+
+        /// <summary>One of the tray's parameters, in millimetres; 0 when it is absent or not a number.</summary>
+        private static double ParamMm(ZoneFamilyDto fam, string key)
+        {
+            if (fam.Parameters == null) return 0;
+            if (!fam.Parameters.TryGetValue(key, out var v)) return 0;
+            return v.ValueKind == System.Text.Json.JsonValueKind.Number && v.TryGetDouble(out double d) ? d : 0;
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
