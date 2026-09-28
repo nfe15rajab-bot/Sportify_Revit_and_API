@@ -80,6 +80,8 @@ namespace Sportify.Simulation.Sun
             // Optional: from the CAD model (Sportify.Mechanical writes them from SOLIDWORKS). Default 0 = not entered, the value follows from the section above.
             new LouvreInputDef { Key = "blade_mass_per_m_kg", Label = "Blade mass per metre (from the CAD model)", Unit = "kg/m", Default = 0, Status = "optional", Reference = "SOLIDWORKS mass properties of the designed section; replaces the hollow-section estimate" },
             new LouvreInputDef { Key = "blade_inertia_m4", Label = "Blade area moment about the chord axis (from the CAD model)", Unit = "m4", Default = 0, Status = "optional", Reference = "SOLIDWORKS section of the designed blade; replaces the hollow-section estimate in the deflection check" },
+            // The PV canopy (KineticsBuild.BuildPvCanopy): the same overhead-louvre frame and single-axis tracking law, a panel in place of a bare blade.
+            new LouvreInputDef { Key = "pv_module_areal_kg_m2", Label = "PV module areal mass", Unit = "kg/m2", Default = 15, Status = "assumed", Reference = "typical mid-weight glass-glass bifacial module; replace with the real module spec (WithOverride feeds this into blade_mass_per_m_kg, chord_m wide)" },
         };
 
         readonly Dictionary<string, double> _values = new Dictionary<string, double>();
@@ -99,6 +101,20 @@ namespace Sportify.Simulation.Sun
         }
 
         public double this[string key] { get { return _values[key]; } }
+
+        /// <summary>
+        /// A design carrying every one of this design's resolved values (defaults and whatever the mechanical engineer entered, alike), with
+        /// <paramref name="key"/> set to <paramref name="value"/> on top — for a variant that shares almost all its inputs but needs one of its own worked
+        /// out at build time rather than read from the file (a PV canopy's panel mass in place of the aluminium blade estimate, computed from
+        /// pv_module_areal_kg_m2 x chord_m). The overridden key reports as "entered" in Uses(), same as a real file override would.
+        /// </summary>
+        public LouvreDesign WithOverride(string key, double value)
+        {
+            var values = new Dictionary<string, double>();
+            foreach (var d in Inputs) values[d.Key] = this[d.Key];
+            values[key] = value;
+            return new LouvreDesign(values);
+        }
 
         public List<LouvreInputUse> Uses()
         {

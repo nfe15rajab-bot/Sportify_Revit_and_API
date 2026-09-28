@@ -35,6 +35,7 @@ namespace SportfyRevit
             {
                 case KineticKind.Sail: BuildSail(unit, design, env); break;
                 case KineticKind.Fence: BuildFence(unit, design, env); break;
+                case KineticKind.PvCanopy: BuildPvCanopy(unit, design, env); break;
                 default: BuildLouvre(unit, design, env); break;
             }
             // Revit places the structure and the moving parts; the mechanism's hardware (cranks, pistons, motors) and the CAD-only curtain slats stay in the videos and the CAD model (StatePlans)
@@ -111,6 +112,71 @@ namespace SportfyRevit
             };
             if (states.Count == 0)
                 unit.Dto.Mechanics!.Findings!.Insert(0, "On the design day the sun is never in front of this " + (host.Kind == KineticKind.Fins ? "fin" : "slat") + " screen: it is placed at rest and there is nothing for it to track (the storm position holds).");
+        }
+
+        // ------------------------------------------------------------------ PV canopy: the overhead louvre's own frame and tracking law, panels not blades
+
+        /// <summary>
+        /// Reuses the overhead louvre almost entirely — same frame, same single-axis "face the sun" tracking law
+        /// (LouvreActuationModel's OpenAngleDegForElevation is a max-shade law geometrically identical to normal-
+        /// incidence PV tracking: a plate turned face-on to the rays blocks the most sun AND catches the most
+        /// irradiance, same angle either way) — with two real differences from a shading louvre:
+        ///   1. Row pitch answers self-shading avoidance, not a shade target. RecommendSpacing's own formula,
+        ///      run with targetStoppedPercent = 100, IS that calculation: "stops 100% of the sun between rows at
+        ///      the worst tracked angle" and "adjacent rows' shadows just meet, no closer" are the same geometry.
+        ///      (A real single-axis tracker's "backtracking" — trading peak-hour capture for tighter rows at low
+        ///      sun — is a further refinement this does not attempt; 100%-avoidance across the same operating
+        ///      window the shading louvre uses is the simpler, safe choice actually asked for.)
+        ///   2. A panel's mass is areal (pv_module_areal_kg_m2 x chord_m), not an aluminium hollow section's — fed
+        ///      into LouvreMechanics.Analyse through blade_mass_per_m_kg (the same override point the CAD model
+        ///      already uses), via LouvreDesign.WithOverride so nothing else in the shared design file changes.
+        /// Wind/actuator/deflection mechanics are otherwise the exact same model as the shading louvre.
+        /// </summary>
+        static void BuildPvCanopy(KineticUnit unit, LouvreDesign d, KineticEnvironment env)
+        {
+            var host = unit.Host;
+            var states = LouvreActuationModel.StatesFor(LouvreHost.Horizontal, env.LatitudeDeg, env.NorthDeg, host.AxisPlan.X, host.AxisPlan.Y, host.NormalPlan.X, host.NormalPlan.Y);
+            var stack = host.LengthM; var span = host.DepthM;
+
+            var pv = d.WithOverride("blade_mass_per_m_kg", d["pv_module_areal_kg_m2"] * d["chord_m"]);
+            var spacing = LouvreMechanics.RecommendSpacing(pv, LouvreHost.Horizontal, stack, 100.0, states);
+            var uplift = host.Piece?.WindUpliftKn ?? 0;
+            var mech = LouvreMechanics.Analyse(pv, LouvreHost.Horizontal, stack, span, env.PressurePa, uplift, states, spacing);
+            var bays = Math.Max(1, mech.Supports?.Bays ?? 1);
+
+            UnitPlan PlanAt(LouvreActuationModel.ActuationState? s)
+            {
+                var open = s?.LouvreOpenAngleDeg ?? 0.0;
+                var lean = s != null ? KineticsPlan.PlanDirToLocal(host.Frame, s.LeanX, s.LeanY) : V3.UnitY;
+                return KineticUnits.Overhead(host.LengthM, host.DepthM, host.HeightM, spacing.Count, mech.ChordM, mech.ThicknessM, bays, pv["post_size_m"], pv["rail_size_m"], KineticUnits.NormalOverhead(open, lean));
+            }
+
+            var reference = states.Count == 0 ? null : states.FirstOrDefault(s => s.Label == "solar noon" || s.Label == "peak sun") ?? states[states.Count / 2];
+            unit.Plan = PlanAt(reference);
+            unit.StateLabel = reference?.Label ?? "rest (the sun never reaches it)";
+            foreach (var s in states) { unit.StatePlans.Add(PlanAt(s)); unit.StateLabels.Add(s.Label); }
+            if (states.Count == 0) { unit.StatePlans.Add(unit.Plan); unit.StateLabels.Add("rest"); }
+            unit.Louvre = mech;
+
+            unit.Dto = new KineticPieceDto
+            {
+                BladeCount = spacing.Count,
+                States = KineticsShared.StatesDto(mech), Mechanics = KineticsShared.ToDto(mech),
+                Spacing = new KineticSpacingDto
+                {
+                    Count = spacing.Count, PitchMm = Math.Round(spacing.PitchM * 1000, 1), StackLengthM = Math.Round(spacing.StackLengthM, 2),
+                    TargetStoppedPercent = spacing.TargetStoppedPercent, StoppedAtBindingPercent = spacing.StoppedAtBindingPercent, BindingState = spacing.BindingLabel,
+                    BindingProfileDeg = Math.Round(spacing.BindingProfileDeg, 1), ClosedStoppedPercent = spacing.ClosedStoppedPercent, CappedAtMaxPitch = spacing.CappedAtMaxPitch,
+                    Reason = "Row spacing avoids self-shading, not a shade target: " + spacing.Reason,
+                },
+                Supports = mech.Supports == null ? null : new KineticSupportsDto
+                {
+                    SpanM = Math.Round(mech.Supports.SpanM, 2), AllowedSpanM = Math.Round(mech.Supports.AllowedSpanM, 2), Bays = mech.Supports.Bays, BayLengthM = Math.Round(mech.Supports.BayLengthM, 2),
+                    IntermediatePosts = mech.Supports.IntermediatePosts, DeflectionMm = Math.Round(mech.Supports.DeflectionMm, 1),
+                },
+            };
+            if (states.Count == 0)
+                unit.Dto.Mechanics!.Findings!.Insert(0, "On the design day the sun is never in front of this canopy: it is placed at rest and there is nothing for it to track.");
         }
 
         // ------------------------------------------------------------------ sails on movable pillars

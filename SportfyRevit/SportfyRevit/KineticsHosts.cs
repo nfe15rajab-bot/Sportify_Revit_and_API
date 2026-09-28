@@ -30,7 +30,7 @@ namespace SportfyRevit
             new KineticKindInfo { Kind = KineticKind.Fence, Key = "fence", Label = "Roller fence (roof edge)", Hint = "at the roof edge placed in the web app's Kinetics tab, else on the edges the Ball Trajectory analysis fences: a curtain on guide rails, deployed only when needed" },
             // Placeable in the web app's Kinetics tab for spatial planning; no parametric mechanism built yet (Built = false) —
             // picking one here says so plainly instead of guessing.
-            new KineticKindInfo { Kind = KineticKind.PvCanopy, Key = "pv_canopy", Label = "Solar-tracking PV canopy", Hint = "same overhead-louvre mechanism, tracking for energy yield instead of shade", Built = false },
+            new KineticKindInfo { Kind = KineticKind.PvCanopy, Key = "pv_canopy", Label = "Solar-tracking PV canopy", Hint = "at the spot placed in the web app's Kinetics tab: the overhead louvre's own frame and tracking law, panels not blades, row pitch avoiding self-shading instead of hitting a shade target" },
             new KineticKindInfo { Kind = KineticKind.AcousticScreen, Key = "acoustic_screen", Label = "Retractable acoustic screen", Hint = "a deployable baffle between a loud court and a quiet zone", Built = false },
             new KineticKindInfo { Kind = KineticKind.DividerNet, Key = "divider_net", Label = "Retractable court divider net", Hint = "a net or mesh wall that raises and lowers between two courts", Built = false },
             new KineticKindInfo { Kind = KineticKind.MembraneRoof, Key = "membrane_roof", Label = "Retractable membrane roof", Hint = "an ETFE/fabric roof over a single court that opens and closes", Built = false },
