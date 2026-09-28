@@ -165,26 +165,32 @@ namespace SportfyRevit
                 // is reported but does not cost us the tray: a tray with its
                 // placeholder still in is worse than one without, but far better
                 // than no tray at all, and the report says which it is.
+                // Read before the strip: after a reload the symbol handle is a
+                // dead element, and even asking it for its own name throws.
+                var familyName = symbol.Family?.Name;
+                var typeName = symbol.Name;
+                var symbolId = symbol.Id;
+
                 if (fam.StripGenericModel)
                 {
-                    bool ok = SportifyGreenRoofModuleBuilder.StripPlaceholder(doc, symbol, out string note);
+                    bool ok = SportifyGreenRoofModuleBuilder.StripPlaceholder(doc, symbol, out string note, out var freshId);
                     SportifyLog.Info("greenroof", $"{fam.Family}: {note}");
-                    if (!ok) ImportDiagnostics.FloorFailed(label, $"the tray was placed but {note}");
+                    if (!ok) ImportDiagnostics.FloorFailed(label, $"the build-up was drawn but {note}");
 
-                    // Reloading the family replaces the symbol, so the old handle
-                    // may be stale. Look it up again rather than trusting it.
-                    symbol = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, new DesignFamilyDto
-                    {
-                        Type = fam.Key, Family = fam.Family, Label = fam.Type, Units = fam.Units,
-                    }) ?? symbol;
+                    // Take the id the strip hands back. Reloading the family
+                    // replaces it and its types with NEW elements, so the id we
+                    // walked in with now points at something Revit has deleted.
+                    // Trusting it is what made the tray vanish silently the first
+                    // time this ran.
+                    if (freshId != null) symbolId = freshId;
                 }
 
                 var resolved = new FamilyResolution
                 {
-                    SymbolId = symbol.Id,
+                    SymbolId = symbolId,
                     How = "the design team's green roof family",
-                    FamilyName = symbol.Family?.Name,
-                    TypeName = symbol.Name,
+                    FamilyName = familyName,
+                    TypeName = typeName,
                 };
                 byKey[fam.Key!] = resolved;
                 prepared.SetZone(zone, resolved);

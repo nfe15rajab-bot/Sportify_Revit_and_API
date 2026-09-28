@@ -58,12 +58,24 @@ namespace SportfyRevit
         /// Returns what happened in <paramref name="note"/> so the import report
         /// can say it plainly — a silent no-op here would leave a designer looking
         /// at a section with two solids in it and no idea why.
+        ///
+        /// <paramref name="freshSymbolId"/> is the symbol to use AFTERWARDS, and
+        /// callers must take it rather than keeping the one they passed in.
+        /// Reloading a family replaces it and its types with new elements, so the
+        /// handle that came in is left pointing at something Revit has deleted —
+        /// "the referenced object is not valid". That is exactly how the tray went
+        /// missing the first time this ran: the strip succeeded, the ElementId
+        /// went stale, and the placement quietly resolved it to nothing.
         /// </summary>
-        public static bool StripPlaceholder(Document doc, FamilySymbol symbol, out string note)
+        public static bool StripPlaceholder(Document doc, FamilySymbol symbol, out string note, out ElementId? freshSymbolId)
         {
             note = "";
+            // Read across the reload, so they are strings rather than handles into
+            // a family that is about to be replaced.
             var family = symbol.Family;
             var key = family.Name;
+            var typeName = symbol.Name;
+            freshSymbolId = symbol.Id;
 
             if (StrippedInDoc.Contains(key)) { note = "already stripped in this import"; return true; }
 
@@ -104,8 +116,20 @@ namespace SportfyRevit
 
                 // Back into the project. The .rfa on disk is deliberately not
                 // written: the design team's file stays theirs.
-                famDoc.LoadFamily(doc, new OverwriteFamilyLoadOptions());
+                var reloaded = famDoc.LoadFamily(doc, new OverwriteFamilyLoadOptions());
                 StrippedInDoc.Add(key);
+
+                // The family that comes back is a NEW element. Take its type by
+                // name rather than trusting the id we walked in with.
+                var fresh = FindSymbol(doc, reloaded, key, typeName);
+                if (fresh == null)
+                {
+                    note = $"placeholder removed ({bottomMm:0}–{topMm:0} mm), but the reloaded family has no type \"{typeName}\"";
+                    freshSymbolId = null;
+                    return false;
+                }
+
+                freshSymbolId = fresh.Id;
                 note = $"placeholder removed ({bottomMm:0}–{topMm:0} mm), floor takes its place";
                 return true;
             }
@@ -119,6 +143,35 @@ namespace SportfyRevit
                 // Closed without saving, so nothing reaches the library file.
                 try { famDoc?.Close(false); } catch (Exception) { /* already gone */ }
             }
+        }
+
+        /// <summary>
+        /// The reloaded family's type, by name.
+        ///
+        /// LoadFamily's return value is preferred, but it can come back null when
+        /// Revit decides the family was merged rather than added — so the project
+        /// is searched by family name as well, and only then do we give up. Going
+        /// by name is the point: every handle from before the reload is stale.
+        /// </summary>
+        private static FamilySymbol? FindSymbol(Document doc, Family? reloaded, string familyName, string typeName)
+        {
+            var candidates = new List<FamilySymbol>();
+
+            if (reloaded != null)
+            {
+                foreach (var id in reloaded.GetFamilySymbolIds())
+                    if (doc.GetElement(id) is FamilySymbol s) candidates.Add(s);
+            }
+
+            if (candidates.Count == 0)
+            {
+                foreach (var e in new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)))
+                    if (e is FamilySymbol s && string.Equals(s.Family?.Name, familyName, StringComparison.OrdinalIgnoreCase))
+                        candidates.Add(s);
+            }
+
+            return candidates.FirstOrDefault(s => string.Equals(s.Name, typeName, StringComparison.OrdinalIgnoreCase))
+                ?? candidates.FirstOrDefault();
         }
 
         /// <summary>

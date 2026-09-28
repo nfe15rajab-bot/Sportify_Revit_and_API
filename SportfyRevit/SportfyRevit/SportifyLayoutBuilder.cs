@@ -370,13 +370,30 @@ namespace SportfyRevit
                                           PreparedFamilies prepared)
         {
             var fam = zone.Family;
-            if (fam == null) return;
-
-            var resolution = prepared.ForZone(zone);
-            if (resolution.SymbolId == null) return;      // already reported where it was resolved
-            if (doc.GetElement(resolution.SymbolId) is not FamilySymbol symbol) return;
+            if (fam == null) return;                      // no tray was asked for: a floor on its own is the answer
 
             var label = zone.Label ?? zone.Kind ?? "(zone)";
+            var resolution = prepared.ForZone(zone);
+
+            // Neither of these is silent any more. Both used to be, and that is
+            // how a tray went missing with a clean-looking import behind it: the
+            // strip reported success, the floor drew, and the placement returned
+            // without a word. If the tray cannot be placed, the report says so.
+            if (resolution.SymbolId == null)
+            {
+                ImportDiagnostics.FloorFailed(label,
+                    $"the build-up was drawn but its tray was not placed — {resolution.Reason ?? "no family was resolved for it"}");
+                return;
+            }
+
+            if (doc.GetElement(resolution.SymbolId) is not FamilySymbol symbol)
+            {
+                ImportDiagnostics.FloorFailed(label,
+                    "the build-up was drawn but its tray was not placed — the family was resolved and then replaced, " +
+                    "so what was resolved is no longer in the model (this is the stale-element case; it means the reload handed back an id we did not follow)");
+                return;
+            }
+
             try
             {
                 if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
@@ -400,6 +417,8 @@ namespace SportfyRevit
 
                 SetWorkset(instance, worksetId);
                 createdIds.Add(instance.Id);
+                SportifyLog.Info("greenroof",
+                    $"{label}: tray \"{symbol.Family?.Name}\" placed at {bb.WidthM:0.#} x {bb.HeightM:0.#} m (element {instance.Id})");
             }
             catch (Exception ex)
             {
