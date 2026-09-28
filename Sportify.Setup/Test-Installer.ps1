@@ -38,7 +38,7 @@ $p = Start-Process -FilePath $Setup -ArgumentList @("/VERYSILENT", "/SUPPRESSMSG
 Expect ($p.ExitCode -eq 0) "the installer exits with code 0 (got $($p.ExitCode))"
 
 Write-Host "What was installed:"
-foreach ($f in "SportfyRevit.dll", "web\index.html", "web\kineticsPostAnalysis.js", "api\Sportify.Api.exe", "tools\Open-Sportify-WebApp.ps1", "tools\Open-Sportify-InRevit.ps1", "tools\Stop-Sportify.ps1",
+foreach ($f in "SportfyRevit.dll", "web\index.html", "web\main.js", "api\Sportify.Api.exe", "tools\Open-Sportify-WebApp.ps1", "tools\Open-Sportify-InRevit.ps1", "tools\Stop-Sportify.ps1",
                "LICENSE_AGREEMENT.txt", "Library\Worksets\Sportify_Worksets_and_Phases.json", "Library\Database\README.txt", "Library\README.txt", "uninstall\unins000.exe") {
     Expect (Test-Path (Join-Path $app $f)) "installed: $f"
 }
@@ -81,7 +81,7 @@ if ($RunApi) {
         try {
             $index = Invoke-WebRequest "http://localhost:5107/" -UseBasicParsing -TimeoutSec 10
             Expect ($index.StatusCode -eq 200 -and $index.Content -match "Sportify") "the API serves the web app at http://localhost:5107/"
-            $js = Invoke-WebRequest "http://localhost:5107/kineticsPostAnalysis.js" -UseBasicParsing -TimeoutSec 10
+            $js = Invoke-WebRequest "http://localhost:5107/main.js" -UseBasicParsing -TimeoutSec 10
             Expect ($js.StatusCode -eq 200) "the API serves the web app's scripts"
             $cat = Invoke-WebRequest "http://localhost:5107/api/AnalysisParameters" -UseBasicParsing -TimeoutSec 10
             Expect ($cat.StatusCode -eq 200) "the catalogue answers (the database was made from the shipped data)"

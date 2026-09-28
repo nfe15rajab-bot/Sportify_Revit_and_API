@@ -450,7 +450,7 @@ namespace SportfyRevit
     /// run — position and build size come from the layout, not a dialog — working out from the published analyses how
     /// many blades and how far apart (or how far the sail's masts run on their tracks, or what the fence needs), what
     /// carries them, and how they move; then placing (or replacing) each unit as adaptive components: the moving parts
-    /// on the Dynamic Furniture workset, the frame that carries them on the Structure workset, all in the Post analysis
+    /// and the frame that carries them together on the Sportify Kinetic Furniture workset, all in the Post analysis
     /// phase, opened to the sun's solar-noon state (LouvreActuationModel). A layout with no such placements falls back
     /// to the interactive, one-kind-at-a-time dialog exactly as before this batch path existed.
     /// </summary>
@@ -495,12 +495,12 @@ namespace SportfyRevit
                 t.Start();
                 var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                 var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
-                var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.DynamicFurniture, SportifyWorksetSet.Structure });
+                var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.KineticFurniture });
                 foreach (var kind in contexts.Select(c => c.Kind).Distinct()) AdaptiveUnitPlacer.ClearKind(doc, kind);
                 var all = new List<ElementId>();
                 foreach (var u in allUnits)
                 {
-                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.DynamicFurniture], ws[SportifyWorksetSet.Structure], u.Host.Key);
+                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key);
                     u.Dto.PartsPlaced = placed.Bars + placed.Surfaces;
                     u.Dto.Phase = SportifyPhases.PostAnalysis;
                     all.AddRange(placed.Ids);
@@ -546,7 +546,7 @@ namespace SportfyRevit
                 perKind + "\n" +
                 (design.Preliminary ? "PRELIMINARY: the mechanical inputs are built-in values. Enter your own in " + KineticsInputsFile.Path + ".\n" : "") +
                 (notes.Count > 0 ? "\n" + string.Join("\n", notes) + "\n" : "") +
-                "\nPublished to the web app's Improve tab. Next: “Record Isolated Video” (Unity) shows the states move, or “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study — or run “Bill of Materials” for a parts list with real dimensions.");
+                "\nNext: “Record Isolated Video” (Unity) shows the states move, or “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study — or run “Bill of Materials” for a parts list with real dimensions.");
             return Result.Succeeded;
         }
 
@@ -649,7 +649,7 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishKinetics(kinetics);
 
             var text = string.Join("\n", summary) + "\n\nFiles in " + outDir + ":\n  " + Path.GetFileName(run.AssemblyPath ?? "") + " (the assembly, to open in SOLIDWORKS)\n  " + Path.GetFileName(run.StepPath ?? "") + " (STEP)" +
-                       (videoPath != null ? "\n\nThe motion is recorded as " + Path.GetFileName(videoPath) + " and published to the web app's Improve tab." : "\n\nNo video was made.");
+                       (videoPath != null ? "\n\nThe motion is recorded as " + Path.GetFileName(videoPath) + "." : "\n\nNo video was made.");
             TaskDialog.Show(KineticsShared.Title, text);
             return Result.Succeeded;
         }
@@ -719,7 +719,7 @@ namespace SportfyRevit
             AnalysisResultPublisher.PublishKinetics(kinetics);
 
             TaskDialog.Show(KineticsShared.Title, videoPath != null
-                ? "The isolated video is ready: " + Path.GetFileName(videoPath) + ". Published to the web app's Improve tab."
+                ? "The isolated video is ready: " + Path.GetFileName(videoPath) + "."
                 : "The video did not render (Unity produced no file).");
             return Result.Succeeded;
         }

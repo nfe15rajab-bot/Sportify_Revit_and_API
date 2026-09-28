@@ -8,7 +8,7 @@ namespace SportfyRevit
     /// The Revit side of PushWorksets: tells what a model element IS (a <see cref="PushKind"/>), sorts the model onto the Sportify worksets (creating them), flags what sits in the wrong one,
     /// and reads back the elements of a scope's worksets for a push by workset. The rules themselves are in PushWorksets (Revit-free, tested).
     ///
-    /// Sportify's own elements (what an import made: pieces with a Sportify_Category, floors of a "Sportify - ..." type) are never sorted here: they have their own worksets (Sports, Gardens, Combine,
+    /// Sportify's own elements (what an import made: pieces with a Sportify_Category, floors of a "Sportify - ..." type) are never sorted here: they have their own worksets (SportifyWorksetSet,
     /// see "Organize Multi-Worksets"), and the roof pushed to the web app is the model's, not Sportify's.
     /// </summary>
     internal static class PushWorksetAssigner
@@ -192,7 +192,7 @@ namespace SportfyRevit
             foreach (var (s, name) in PushWorksets.All.Where(w => scope.HasFlag(w.Scope)))
                 foreach (var e in ElementsIn(doc, new[] { name }))
                 {
-                    if (PushWorksets.ScopeOf(KindOf(e)) != s) result.Add(e);    // includes a Sportify-made element: it belongs on Sports/Gardens/Combine, not here either
+                    if (PushWorksets.ScopeOf(KindOf(e)) != s) result.Add(e);    // includes a Sportify-made element: it belongs on one of SportifyWorksetSet's own worksets, not here either
                 }
             return result;
         }

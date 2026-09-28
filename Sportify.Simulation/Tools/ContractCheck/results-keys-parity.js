@@ -24,9 +24,9 @@ vm.runInContext(fs.readFileSync(jsPath, "utf8") + "\n;this.__web = { sections: O
 const known = [...ctx.__web.sections].sort();
 const grouped = [...ctx.__web.grouped].sort();
 
-// Sections the Improve tab shows instead of the Analysis rail (kineticsPostAnalysis.js, not analysisResults.js) — the
-// professor's "less confusing" note moved dynamic-family interpretation out of the rail on purpose, so RESULT_SECTIONS
-// still describes them (title, where to run it) but ANALYSIS_SUBTABS is not where they are shown.
+// Sections with no web tab of their own (the Improve tab that used to show "kinetics" was removed 2026-09-28) — the
+// professor's "less confusing" note moved dynamic-family interpretation out of the Analysis rail on purpose, so
+// RESULT_SECTIONS still describes them (title, where to run it) but ANALYSIS_SUBTABS is not where they are shown.
 const SHOWN_ELSEWHERE = new Set(["kinetics"]);
 
 let problems = 0;

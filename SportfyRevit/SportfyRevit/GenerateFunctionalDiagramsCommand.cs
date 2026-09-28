@@ -8,7 +8,7 @@ namespace SportfyRevit
     /// <summary>
     /// Scoped to the two sub-deliverables buildable from geometry
     /// SportifyLayoutBuilder already creates, without any new input: a
-    /// circulation diagram (only what the import put on the "Combine" workset:
+    /// circulation diagram (only what the import put on Sportify's own worksets:
     /// the roof outline, setback, circulation-path lines and entry markers) and
     /// a 3D axonometric (the placeholder pieces are already real extruded
     /// solids — DirectShape boxes from FamilyPlacementBuilder — so this
@@ -19,12 +19,13 @@ namespace SportfyRevit
     /// than creating duplicates each time.
     ///
     /// It works with or without worksets. In a workshared project the circulation
-    /// view hides every workset but Combine, as it always did. In a project without
-    /// worksharing (the import asks first, and "import without worksets" is a
-    /// legitimate answer) the same is done element by element: what the import
-    /// created and would have put on any other workset is hidden in that view. It used
-    /// to refuse such a project with "No Sportify layout has been imported", which was
-    /// wrong: the layout was there, it was the worksets that were not.
+    /// view hides every workset but Sportify's own (SportifyWorksetSet.All), as it
+    /// always did. In a project without worksharing (the import asks first, and
+    /// "import without worksets" is a legitimate answer) the same is done element by
+    /// element: what the import created and would have put on any other workset is
+    /// hidden in that view. It used to refuse such a project with "No Sportify layout
+    /// has been imported", which was wrong: the layout was there, it was the worksets
+    /// that were not.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class GenerateFunctionalDiagramsCommand : IExternalCommand
@@ -106,21 +107,21 @@ namespace SportfyRevit
             return view;
         }
 
-        /// <summary>What makes the circulation view the circulation view: only Combine visible (by workset, or element by element without worksets). Separate so that a view template can be applied first and this after.</summary>
+        /// <summary>What makes the circulation view the circulation view: only Sportify's own content visible (by workset, or element by element without worksets). Separate so that a view template can be applied first and this after.</summary>
         internal static void ConfigureCirculationView(Document doc, ViewPlan view)
         {
-            ApplyCombineVisibility(doc, view);
+            ApplySportifyVisibility(doc, view);
             StyleCirculationDiagram(doc, view);
         }
 
         /// <summary>
         /// Shows exactly one coherent Sportify layout in `view` — the latest iteration's own worksets if "Import Iterations as
-        /// Design Options" has run, otherwise the plain import's Sports/Gardens/Combine — and hides every other workset (the
-        /// rest of the building this add-in did not create). Sports and Gardens are shown, not hidden: StyleCirculationDiagram
-        /// grays those pieces out and labels them rather than hiding them, so a workset-hidden piece (which no per-element
-        /// override can undo) would leave nothing for that styling to gray.
+        /// Design Options" has run, otherwise the plain import's own 6 canonical worksets (SportifyWorksetSet.All) — and hides
+        /// every other workset (the rest of the building this add-in did not create). Sports and Gardens are shown, not hidden:
+        /// StyleCirculationDiagram grays those pieces out and labels them rather than hiding them, so a workset-hidden piece
+        /// (which no per-element override can undo) would leave nothing for that styling to gray.
         /// </summary>
-        private static void ApplyCombineVisibility(Document doc, View view)
+        private static void ApplySportifyVisibility(Document doc, View view)
         {
             if (!doc.IsWorkshared) return;   // no worksets to hide the rest of the building by; StyleCirculationDiagram still styles every Sportify element it finds
 
@@ -128,15 +129,15 @@ namespace SportfyRevit
             if (groups.Count > 0)
             {
                 IterationWorksets.ShowOnly(view, groups, groups[^1]);
-                // A plain (non-iteration) import's own Sports/Gardens/Combine worksets, if any, would otherwise sit alongside
-                // the iteration's — hide those too so the view shows exactly one coherent layout.
+                // A plain (non-iteration) import's own worksets, if any, would otherwise sit alongside the iteration's —
+                // hide those too so the view shows exactly one coherent layout.
                 foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
-                    if (BimRules.WorksetNames.Contains(w.Name)) view.SetWorksetVisibility(w.Id, WorksetVisibility.Hidden);
+                    if (SportifyWorksetSet.All.Contains(w.Name)) view.SetWorksetVisibility(w.Id, WorksetVisibility.Hidden);
                 return;
             }
 
             foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
-                view.SetWorksetVisibility(w.Id, BimRules.WorksetNames.Contains(w.Name) ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
+                view.SetWorksetVisibility(w.Id, SportifyWorksetSet.All.Contains(w.Name) ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
         }
 
         /// <summary>
@@ -149,7 +150,7 @@ namespace SportfyRevit
         /// </summary>
         /// <summary>The setback boundary (BimRules.SetbackLineStyle) is a design-rule reference, not something a reader
         /// needs to see — Revit's own default line colour for it otherwise reads as a stray, unexplained diagonal in any
-        /// view that shows the Combine workset. Hidden here rather than recoloured, in every Sportify-generated view
+        /// view that shows Sportify's own worksets. Hidden here rather than recoloured, in every Sportify-generated view
         /// (circulation diagram and the massing axonometric alike); a project imported before this style existed has no
         /// tagged setback line yet, so the category lookup comes back null and this is simply skipped.</summary>
         private static void HideSetbackLine(Document doc, View view)
@@ -234,7 +235,7 @@ namespace SportfyRevit
                 }
                 try { view.SetElementOverrides(el.Id, pieceOv); } catch (Exception) { /* a category this view type can't override — skip it, not fatal */ }
 
-                // A defensive check, not the usual path: nothing here hides a piece by view anymore (see ApplyCombineVisibility),
+                // A defensive check, not the usual path: nothing here hides a piece by view anymore (see ApplySportifyVisibility),
                 // but skip the label too if something else did, or it would float free of its now-invisible piece.
                 if (el is FamilyInstance && !el.IsHidden(view))
                 {

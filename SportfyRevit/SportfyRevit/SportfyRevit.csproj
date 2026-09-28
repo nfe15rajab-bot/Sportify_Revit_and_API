@@ -147,6 +147,14 @@
        otherwise, exactly like DeployToRevitAddins skips a machine with no
        Revit Addins folder. -->
   <Target Name="BundleWebApp" AfterTargets="Build" Condition="Exists('$(SportifyWebAppDir)index.html')">
+    <!-- Removed first, not just overwritten: Copy with SkipUnchangedFiles only adds/updates, it never deletes, so a
+         file the web app used to have but no longer does (a renamed or removed script) would otherwise survive here
+         forever once a single build had ever copied it in — silently shipping dead code in every build and every
+         installer after it, found live 2026-09-28 when a just-deleted kineticsPostAnalysis.js turned up in a freshly
+         built installer's payload from a stale $(OutDir)web\ two builds earlier. Removing the whole folder first
+         makes this copy a real mirror of the source, at the cost of SkipUnchangedFiles no longer skipping anything
+         on an unchanged file (a full recopy each build; this folder is small plain text/assets, not worth optimising). -->
+    <RemoveDir Directories="$(OutDir)web" Condition="Exists('$(OutDir)web')" />
     <ItemGroup>
       <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
       <!-- vendor\ (Titillium Web, Tabler Icons, Leaflet, SunCalc) — added once
@@ -155,9 +163,15 @@
            preserves the vendor\<lib>\... structure the app's own <link>/<script>
            tags expect, same trick DeployToRevitAddins already uses below. -->
       <SportifyWebVendorFiles Include="$(SportifyWebAppDir)vendor\**\*" />
+      <!-- samples\ (the landing page's screenshots, the welcome screen's court photo) was never bundled at all —
+           found live in the same 2026-09-28 payload check: vendor\ already covers vendor\fonts\{jura,bruno-ace}
+           fine (it globs vendor\**\*), but samples\*.jpg has no *.html/*.css/*.js/vendor\ match, so every image
+           the welcome and landing screens show was 404ing in every packaged installer since they were added. -->
+      <SportifyWebSampleFiles Include="$(SportifyWebAppDir)samples\**\*" Condition="Exists('$(SportifyWebAppDir)samples')" />
     </ItemGroup>
     <Copy SourceFiles="@(SportifyWebFiles)" DestinationFolder="$(OutDir)web\" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(SportifyWebVendorFiles)" DestinationFolder="$(OutDir)web\vendor\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SportifyWebSampleFiles)" DestinationFolder="$(OutDir)web\samples\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="'@(SportifyWebSampleFiles)' != ''" />
   </Target>
 
   <!-- Kinetics' "Simulate" drives SOLIDWORKS through a separate program, Sportify.Mechanical, which the add-in finds in a "mechanical" folder next to itself
@@ -182,6 +196,17 @@
        WebView2Loader.dll — %(RecursiveDir) preserves that subfolder
        structure at the destination, which is where the native loader
        actually gets probed for. -->
+  <!-- The design team's own families travel with the add-in: their geometry is
+       authored in Revit, not generated here, so the .rfa IS the content. They go
+       to Library\Families beside the assembly, which is where
+       SportifyPlanterFamilyBuilder looks, and the deploy target below carries
+       that subfolder across to Revit's add-in folder. -->
+  <ItemGroup>
+    <None Include="..\Library\Families\*.rfa"
+          Link="Library\Families\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <Target Name="DeployToRevitAddins" AfterTargets="Build">
     <ItemGroup>
       <RevitAddinFiles Include="$(OutDir)**\*" />

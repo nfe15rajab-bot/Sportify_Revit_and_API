@@ -160,16 +160,24 @@ internal static class UnitAssembly
     /// <summary>
     /// SOLIDWORKS' transform array: the images of the part's own x, y and z axes (three rows), then the translation, then the scale.
     /// MakePart() sketches its rectangle (SizeU x SizeV) on the first ref-plane it finds and extrudes along that plane's normal for
-    /// Length -- for every part built that way, that makes the part's own local axes (X = length, the extrusion direction; Y = SizeU,
-    /// the sketch's first in-plane axis; Z = SizeV, the sketch's second in-plane axis), not (chord, thickness, length) in that order.
-    /// So it is the bar's own axis (A) that is the part's local X image, U (the chord direction) is its local Y image, and V
-    /// (thickness) is its local Z image -- confirmed empirically (SPORTIFY_DEBUG_BOXES=1): before this fix a blade's own 1.05 m
-    /// length landed on the world axis its 0.15 m chord was supposed to occupy, which is exactly why differently-positioned blades
-    /// that should never touch (a clear 0.25 m gap between neighbours, on the plan) were overlapping in the built assembly.
+    /// Length -- for every part built that way, that makes the part's own local axes (X = SizeU, the sketch's first in-plane axis;
+    /// Y = SizeV, the sketch's second in-plane axis; Z = length, the extrusion direction), not (length, chord, thickness) in that
+    /// order as an earlier version of this comment assumed. So it is U (the chord direction) that is the part's local X image, V
+    /// (thickness) is its local Y image, and the bar's own axis (A) -- the length direction -- is its local Z image: a cyclic
+    /// shift of (A, U, V) to (U, V, A), which keeps the three rows a proper (non-mirrored) rotation because U x V = A already
+    /// holds for the right-handed frame BarPose builds (U, V = A x U, A), the same way X x Y = Z does for a normal right-handed
+    /// axis set -- a plain two-row swap would instead have produced a left-handed (mirrored) part orientation.
+    /// Found live (SPORTIFY_DEBUG_BOXES=1) 2026-09-28: the earlier (A, U, V) order put a bar's own length on the row that
+    /// actually maps to a SIZE dimension in the built part, and a size dimension (railSizeM etc.) on the row that actually
+    /// maps to length -- for a short, roughly cube-shaped part (a blade, spread across two axes at once) this stayed inside
+    /// the part's own bounding box and never showed as a visible defect; for a long, thin, full-width part (a rail or a
+    /// push-rod, one per bay) it meant every rod's true 6 m length rode along the SAME world axis the depth translation
+    /// already used to keep bays apart, undoing that separation -- exactly why a production-scale, multi-bay pergola (not
+    /// the single-bay smoke-test unit) showed a real "rod/rod" and "rail/rod" interference that no small-scale check caught.
     /// </summary>
     static double[] Array16((V3 U, V3 V, V3 A, V3 P) pose)
     {
-        V3 u = Sw(pose.A), v = Sw(pose.U), a = Sw(pose.V), p = Sw(pose.P);
+        V3 u = Sw(pose.U), v = Sw(pose.V), a = Sw(pose.A), p = Sw(pose.P);
         return new[] { u.X, u.Y, u.Z, v.X, v.Y, v.Z, a.X, a.Y, a.Z, p.X, p.Y, p.Z, 1, 0, 0, 0 };
     }
 
@@ -446,7 +454,7 @@ internal static class UnitAssembly
             // what SolidWorks really built -- not left on by default.
             if (System.Environment.GetEnvironmentVariable("SPORTIFY_DEBUG_BOXES") == "1")
             {
-                foreach (var b in bodies.Where(x => x.Role == "blade" || x.Role == "pvpanel" || x.Role == "post" || x.Role == "rail"))
+                foreach (var b in bodies.Where(x => x.Role == "blade" || x.Role == "pvpanel" || x.Role == "post" || x.Role == "rail" || x.Role == "rod" || x.Role == "crank" || x.Role == "piston" || x.Role == "housing"))
                 {
                     var box = b.Comp.GetBox(false, false) as double[];
                     Console.WriteLine("DEBUG " + b.Role + " idx=" + b.Index + " box(m)=" +
@@ -510,6 +518,13 @@ internal static class UnitAssembly
                 CheckCancel(opt);
                 Pose(0, s, 1.0, false);
                 asm.ForceRebuild3(false);
+                if (System.Environment.GetEnvironmentVariable("SPORTIFY_DEBUG_BOXES") == "1")
+                    foreach (var b in bodies.Where(x => x.Role == "rod" || x.Role == "rail" || x.Role == "crank" || x.Role == "piston" || x.Role == "housing"))
+                    {
+                        var box = b.Comp.GetBox(false, false) as double[];
+                        Console.WriteLine("DEBUG " + req.States[s].Label + " " + b.Role + " idx=" + b.Index + " box(m)=" +
+                            (box == null ? "null" : string.Join(",", box.Select(v => v.ToString("0.000", CultureInfo.InvariantCulture)))));
+                    }
                 var row = new InterferenceRow { State = req.States[s].Label };
                 try
                 {
