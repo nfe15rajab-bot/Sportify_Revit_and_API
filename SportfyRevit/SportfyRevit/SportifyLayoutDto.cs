@@ -767,6 +767,43 @@ namespace SportfyRevit
         /// corners, which is why the box is still carried.
         /// </summary>
         [JsonPropertyName("points")] public List<PointDto>? Points { get; set; }
+
+        /// <summary>
+        /// The tray the build-up sits in, sized to this zone. Null when the zone
+        /// is a roof laid directly, which is a real answer and not a gap: those
+        /// zones become a floor and nothing else, exactly as they always did.
+        /// </summary>
+        [JsonPropertyName("family")] public ZoneFamilyDto? Family { get; set; }
+    }
+
+    /// <summary>
+    /// A green roof module placed for a zone.
+    ///
+    /// The parameters arrive already worked out by the web app using the
+    /// family's OWN formulas, so this side never recomputes them — it sets the
+    /// inputs and lets Revit's formulas produce the rest. The derived ones
+    /// (Rim Level, Fleece Top, Substrate Top …) are read-only in the family and
+    /// are carried only so a reader can check the two agree.
+    /// </summary>
+    internal class ZoneFamilyDto
+    {
+        [JsonPropertyName("key")] public string? Key { get; set; }
+        [JsonPropertyName("family")] public string? Family { get; set; }
+        [JsonPropertyName("type")] public string? Type { get; set; }
+        [JsonPropertyName("units")] public string? Units { get; set; }
+        [JsonPropertyName("parameters")] public Dictionary<string, JsonElement>? Parameters { get; set; }
+
+        /// <summary>
+        /// Delete the placeholder block between Fleece Top and Rim Level, so the
+        /// real floor of the chosen build-up can occupy that space instead of
+        /// sharing it with a stand-in. False when no build-up was chosen, because
+        /// then the placeholder is still the best description available.
+        /// </summary>
+        [JsonPropertyName("strip_generic_model")] public bool StripGenericModel { get; set; }
+
+        /// <summary>Where the floor's top sits inside the tray, in mm above the family's origin.</summary>
+        [JsonPropertyName("floor_top_mm")] public double FloorTopMm { get; set; }
+        [JsonPropertyName("trayed_mm")] public double TrayedMm { get; set; }
     }
 
     internal class AssemblyLayerDto

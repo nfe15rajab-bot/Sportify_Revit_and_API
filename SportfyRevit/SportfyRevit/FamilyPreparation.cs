@@ -20,13 +20,23 @@ namespace SportfyRevit
     internal sealed class PreparedFamilies
     {
         private readonly Dictionary<PlacementDto, FamilyResolution> _byPlacement = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<ZoneDto, FamilyResolution> _byZone = new(ReferenceEqualityComparer.Instance);
 
         internal void Set(PlacementDto p, FamilyResolution r) => _byPlacement[p] = r;
+        internal void SetZone(ZoneDto z, FamilyResolution r) => _byZone[z] = r;
 
         public FamilyResolution For(PlacementDto p) =>
             _byPlacement.TryGetValue(p, out var r) ? r : FamilyResolution.None("no family was prepared for this piece (the import ran without the preparation step)");
 
+        /// <summary>
+        /// The tray a zone is built from. A zone with no tray is the normal case
+        /// for a roof laid directly, so "none" here is an answer and not a fault.
+        /// </summary>
+        public FamilyResolution ForZone(ZoneDto z) =>
+            _byZone.TryGetValue(z, out var r) ? r : FamilyResolution.None("no tray was chosen for this zone");
+
         public int Count => _byPlacement.Count;
+        public int ZoneCount => _byZone.Count;
     }
 
     /// <summary>
@@ -86,9 +96,101 @@ namespace SportfyRevit
                 EndGroup(group);
             }
 
+            PrepareZoneTrays(doc, layout, prepared);
+
             SportifyLog.Info("families", $"{placements.Count} placement(s), {byKey.Count} distinct family key(s), " +
                                           $"{prepared.Count} resolved; failures: {placements.Count(p => prepared.For(p).SymbolId == null && !IsFloor(p, assemblyKeys))}");
             return prepared;
+        }
+
+        /// <summary>
+        /// The green roof trays the zones are built from.
+        ///
+        /// Here rather than in the import for one hard reason: removing the
+        /// build-up placeholder means editing the family document, and
+        /// Document.EditFamily throws inside an open transaction — the same
+        /// constraint that already forces worksharing to be settled before the
+        /// import. Loading the family needs a transaction; stripping it must not
+        /// be in one. So both happen here, in that order, before the import
+        /// transaction opens.
+        ///
+        /// One resolution per distinct family, not per zone: forty zones of the
+        /// same tray edit the family once.
+        /// </summary>
+        private static void PrepareZoneTrays(Document doc, SportifyLayout layout, PreparedFamilies prepared)
+        {
+            var zones = (layout.Zones ?? new List<ZoneDto>()).Where(z => z.Family?.Key != null).ToList();
+            if (zones.Count == 0) return;
+
+            SportifyGreenRoofModuleBuilder.BeginImport();
+            var byKey = new Dictionary<string, FamilyResolution>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var zone in zones)
+            {
+                var fam = zone.Family!;
+                var label = zone.Label ?? zone.Kind ?? "(zone)";
+
+                if (byKey.TryGetValue(fam.Key!, out var shared)) { prepared.SetZone(zone, shared); continue; }
+
+                FamilySymbol? symbol = null;
+                using (var t = new Transaction(doc, "Sportify: tray for " + label))
+                {
+                    try
+                    {
+                        t.Start();
+                        // The tray is one of the design team's families, so it is
+                        // found and loaded by exactly the same path as a planter.
+                        symbol = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, new DesignFamilyDto
+                        {
+                            Type = fam.Key,
+                            Family = fam.Family,
+                            Label = fam.Type,
+                            Units = fam.Units,
+                        });
+                        if (symbol != null) t.Commit(); else t.RollBack();
+                    }
+                    catch (Exception) { try { t.RollBack(); } catch (Exception) { } }
+                }
+
+                if (symbol == null)
+                {
+                    var none = FamilyResolution.None($"the green roof family \"{fam.Family}\" is neither in the project nor in the add-in's library");
+                    byKey[fam.Key!] = none;
+                    prepared.SetZone(zone, none);
+                    ImportDiagnostics.FloorFailed(label, none.Reason!);
+                    continue;
+                }
+
+                // Outside any transaction, as EditFamily requires. A failure here
+                // is reported but does not cost us the tray: a tray with its
+                // placeholder still in is worse than one without, but far better
+                // than no tray at all, and the report says which it is.
+                if (fam.StripGenericModel)
+                {
+                    bool ok = SportifyGreenRoofModuleBuilder.StripPlaceholder(doc, symbol, out string note);
+                    SportifyLog.Info("greenroof", $"{fam.Family}: {note}");
+                    if (!ok) ImportDiagnostics.FloorFailed(label, $"the tray was placed but {note}");
+
+                    // Reloading the family replaces the symbol, so the old handle
+                    // may be stale. Look it up again rather than trusting it.
+                    symbol = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, new DesignFamilyDto
+                    {
+                        Type = fam.Key, Family = fam.Family, Label = fam.Type, Units = fam.Units,
+                    }) ?? symbol;
+                }
+
+                var resolved = new FamilyResolution
+                {
+                    SymbolId = symbol.Id,
+                    How = "the design team's green roof family",
+                    FamilyName = symbol.Family?.Name,
+                    TypeName = symbol.Name,
+                };
+                byKey[fam.Key!] = resolved;
+                prepared.SetZone(zone, resolved);
+            }
+
+            SportifyLog.Info("greenroof", $"{zones.Count} zone(s) with a tray, {byKey.Count} distinct family/families");
         }
 
         /// <summary>A parcel that names a build-up the layout carries becomes a Floor, not a family (SportifyLayoutBuilder.TryCreateAssemblyFloor).</summary>

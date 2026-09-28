@@ -40,6 +40,12 @@ namespace SportfyRevit
         {
             ["planter_s"]      = ("Sportify_PlanterS",     "Planter S"),
             ["planter_t"]      = ("Sportify_PlanterT",     "Planter T"),
+            // Same parameters as the two above, checked value for value against
+            // the shipped .rfa — the pedestal is real geometry here rather than a
+            // dimension the tray floor sits above, so it is a separate family.
+            ["planter_s_pedestal"] = ("Sportify_PlanterSPedestal", "PlanterS ( With Pedestal)"),
+            ["planter_t_pedestal"] = ("Sportify_PlanterTPedestal", "PlanterT (With Pedestal)"),
+            ["green_roof_module"]  = ("Sportify_GreenRoofModule",  "Green Roof Module"),
             ["climbing_tower"] = ("Sportify_ClimbingTower", "Climbing Tower"),
             ["locker_module"]  = ("Sportify_LockerBank",    "Locker Bank"),
             ["dressing_cabin"] = ("Sportify_DressingCabin", "Dressing_Cabin"),

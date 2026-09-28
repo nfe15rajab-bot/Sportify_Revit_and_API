@@ -153,7 +153,7 @@ namespace SportfyRevit
             // Ground zones become real floors — the build-up the designer chose,
             // at the area they drew. Done before the pieces so a court sits
             // visually on top of the ground rather than under it.
-            int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds);
+            int zoneCount = CreateZoneFloors(doc, layout, originXFt, originYFt, worksets["Gardens"], createdIds, prepared);
 
             // The leftover surface, before the pieces, so a court reads as
             // sitting in the finish rather than on top of it.
@@ -306,7 +306,8 @@ namespace SportfyRevit
 
         private static int CreateZoneFloors(Document doc, SportifyLayout layout,
                                             double originXFt, double originYFt,
-                                            WorksetId worksetId, List<ElementId> createdIds)
+                                            WorksetId worksetId, List<ElementId> createdIds,
+                                            PreparedFamilies prepared)
         {
             if (layout.Zones == null) return 0;
             int drawn = 0;
@@ -346,8 +347,66 @@ namespace SportfyRevit
                 createdIds.Add(floor.Id);
                 ImportDiagnostics.FloorCreated(label, floorType.Name, zone.AreaM2);
                 drawn++;
+
+                PlaceZoneTray(doc, zone, bb, originXFt, originYFt, worksetId, createdIds, prepared);
             }
             return drawn;
+        }
+
+        /// <summary>
+        /// The tray the zone's build-up sits in, stretched to the zone.
+        ///
+        /// The family is parametric in Length and Width, so one instance covers
+        /// the zone rather than the zone being tiled out of 2400 mm modules. That
+        /// is the designer's call (2026-09-28) and it holds because zones are
+        /// drawn as rectangles: a stretched tray and the zone are the same shape.
+        ///
+        /// Placed at the zone's centre, because the family's Length and Width
+        /// grow about its origin rather than from a corner.
+        /// </summary>
+        private static void PlaceZoneTray(Document doc, ZoneDto zone, BoundingBoxDto bb,
+                                          double originXFt, double originYFt,
+                                          WorksetId worksetId, List<ElementId> createdIds,
+                                          PreparedFamilies prepared)
+        {
+            var fam = zone.Family;
+            if (fam == null) return;
+
+            var resolution = prepared.ForZone(zone);
+            if (resolution.SymbolId == null) return;      // already reported where it was resolved
+            if (doc.GetElement(resolution.SymbolId) is not FamilySymbol symbol) return;
+
+            var label = zone.Label ?? zone.Kind ?? "(zone)";
+            try
+            {
+                if (!symbol.IsActive) { symbol.Activate(); doc.Regenerate(); }
+
+                double cx = originXFt + FeetFromMeters(bb.TopLeftXM + bb.WidthM / 2.0);
+                double cy = originYFt - FeetFromMeters(bb.TopLeftYM + bb.HeightM / 2.0);
+                var instance = doc.Create.NewFamilyInstance(
+                    new XYZ(cx, cy, CurrentOriginZFt), symbol,
+                    Autodesk.Revit.DB.Structure.StructuralType.NonStructural);
+
+                // Same path the planters take: the parameters arrive already worked
+                // out by the web app with the family's own formulas, and the ones
+                // the family computes itself are offered and quietly declined.
+                SportifyPlanterFamilyBuilder.ApplyParameters(instance, new DesignFamilyDto
+                {
+                    Type = fam.Key,
+                    Family = fam.Family,
+                    Units = fam.Units,
+                    Params = fam.Parameters,
+                });
+
+                SetWorkset(instance, worksetId);
+                createdIds.Add(instance.Id);
+            }
+            catch (Exception ex)
+            {
+                // The floor is already in. Losing the tray is a worse drawing, not
+                // a lost import, so it is reported and the zone stands.
+                ImportDiagnostics.FloorFailed(label, $"the build-up was drawn but its tray could not be placed ({ex.Message})");
+            }
         }
 
         /// <summary>internal, not private: FamilyPlacementBuilder calls this too.</summary>
