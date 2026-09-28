@@ -6,7 +6,6 @@ using Sportify.Simulation.Structure;
 namespace SportfyRevit
 {
     /// <summary>
-<<<<<<< HEAD
     /// What an analysis-result payload looks like once published through
     /// RoofBoundaryServer's GET /analysis-results (mirrors SportifyLayoutDto's
     /// pattern: explicit JsonPropertyName per field, snake_case on the wire).

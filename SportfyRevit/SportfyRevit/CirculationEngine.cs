@@ -160,6 +160,53 @@ namespace SportfyRevit
             return len;
         }
 
+        /// <summary>Cell-centre points from `endCell` back to its entry (walking `parent`), in roof-local plan metres (y down) — entry first, item last.</summary>
+        private static List<(double X, double Y)> PathPoints(Grid grid, int[] parent, int endCell)
+        {
+            var pts = new List<(double X, double Y)>();
+            int cur = endCell;
+            while (cur != -1)
+            {
+                int r = cur / grid.Cols, c = cur % grid.Cols;
+                pts.Add(((c + 0.5) * grid.Cell, (r + 0.5) * grid.Cell));
+                cur = parent[cur];
+            }
+            pts.Reverse();
+            return pts;
+        }
+
+        /// <summary>
+        /// The same walkable BFS as ComputeTravelDistances, but for every reachable item its actual polyline (entry -&gt; item, roof-local plan metres, y down) instead of just
+        /// its length — what the functional diagrams draw as the circulation "spine". An unreachable item is simply absent (ComputeTravelDistances already reports it).
+        /// Built separately (its own occupancy grid and BFS) rather than sharing state with ComputeTravelDistances, since the two are never both needed hot in a loop.
+        /// </summary>
+        public static Dictionary<string, List<(double X, double Y)>> ComputeTravelPaths(SportifyLayout layout)
+        {
+            var paths = new Dictionary<string, List<(double X, double Y)>>();
+            var items = layout.Placements ?? new List<PlacementDto>();
+            var entries = layout.EntryPoints ?? new List<EntryPointDto>();
+            double roofLengthM = layout.RoofContext?.LengthM ?? 0;
+            double roofWidthM = layout.RoofContext?.WidthM ?? 0;
+            double circulationWidthM = layout.DesignRules?.CirculationWidthM ?? 1.2;
+            if (items.Count == 0 || entries.Count == 0) return paths;
+
+            var grid = BuildOccupancyGrid(roofLengthM, roofWidthM, items, circulationWidthM);
+            var starts = new List<int>();
+            foreach (var ep in entries) { int k = EntryStartCell(ep, roofLengthM, roofWidthM, grid); if (k >= 0) starts.Add(k); }
+            if (starts.Count == 0) return paths;
+
+            var (dist, parent) = Bfs(grid, starts);
+            for (int idx = 0; idx < items.Count; idx++)
+            {
+                var it = items[idx];
+                if (it.Id == null) continue;
+                int best = NearestAccessCell(grid, idx, dist);
+                if (best == -1) continue;
+                paths[it.Id] = PathPoints(grid, parent, best);
+            }
+            return paths;
+        }
+
         /// <summary>
         /// For every placement with an Id: its shortest walkable distance
         /// back to any entry point (in DistancesM), or added to Unreachable
