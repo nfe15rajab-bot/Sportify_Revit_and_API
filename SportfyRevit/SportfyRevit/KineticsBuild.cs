@@ -39,11 +39,13 @@ namespace SportfyRevit
                 default: BuildLouvre(unit, design, env); break;
             }
             // Revit places the structure and the moving parts; the mechanism's hardware (cranks, pistons, motors) stays in the videos and the CAD model only (StatePlans).
-            // A fence's curtain is the one exception to "CAD-only stays out of Revit": Revit follows SolidWorks's own
-            // simplification for it (UnitAssembly.cs skips the flat "curtain" surface outright and builds it from
-            // "curtainslat" bars instead), not the video's flat membrane (KineticsRunner.cs keeps that, unchanged) -
-            // so the model shows real, individual slats here, the same way it already shows a pergola's real blades,
-            // rather than reading as a plain solid wall.
+            // An open mesh curtain (Fence, Windbreak, DividerNet) is the one exception to "CAD-only stays out of Revit":
+            // Revit follows SOLIDWORKS's own simplification for it (UnitAssembly.cs skips its flat "curtain" surface
+            // outright and builds it from "curtainslat" bars instead), not the video's flat membrane (KineticsRunner.cs
+            // keeps that, unchanged) - so the model shows real, individual slats, the same way it shows a pergola's real
+            // blades. A solid mounted panel (AcousticScreen, GreenScreen — role "acousticpanel"/"greenpanel", never
+            // "curtain") has no such slats to begin with: it keeps its one real surface here instead, since a solid panel
+            // reading as a solid panel is correct, not a plain wall to disguise.
             unit.Plan = new UnitPlan
             {
                 Kind = unit.Plan.Kind, Label = unit.Plan.Label, LengthM = unit.Plan.LengthM, DepthM = unit.Plan.DepthM, HeightM = unit.Plan.HeightM,
@@ -140,6 +142,11 @@ namespace SportfyRevit
         ///   2. A panel's mass is areal (pv_module_areal_kg_m2 x chord_m), not an aluminium hollow section's — fed
         ///      into LouvreMechanics.Analyse through blade_mass_per_m_kg (the same override point the CAD model
         ///      already uses), via LouvreDesign.WithOverride so nothing else in the shared design file changes.
+        ///   3. A panel's own chord and thickness replace the louvre's blade section entirely (pv_chord_m, pv_thickness_m,
+        ///      also via WithOverride): a real single-axis tracker runs wide, near-continuous panel rows, not many thin
+        ///      aluminium blades with big gaps between them, so row pitch (from RecommendSpacing) is worked out for that
+        ///      real panel width. The bars carry their own "pvpanel" role, not "blade", so the CAD model, the BIM model and
+        ///      the bill of materials all see a panel, not a blade, and can show and cost it differently.
         /// Wind/actuator/deflection mechanics are otherwise the exact same model as the shading louvre.
         /// </summary>
         static void BuildPvCanopy(KineticUnit unit, LouvreDesign d, KineticEnvironment env)
@@ -148,17 +155,24 @@ namespace SportfyRevit
             var states = LouvreActuationModel.StatesFor(LouvreHost.Horizontal, env.LatitudeDeg, env.NorthDeg, host.AxisPlan.X, host.AxisPlan.Y, host.NormalPlan.X, host.NormalPlan.Y);
             var stack = host.LengthM; var span = host.DepthM;
 
-            var pv = d.WithOverride("blade_mass_per_m_kg", d["pv_module_areal_kg_m2"] * d["chord_m"]);
+            var pv = d.WithOverride("blade_mass_per_m_kg", d["pv_module_areal_kg_m2"] * d["pv_chord_m"])
+                      .WithOverride("chord_m", d["pv_chord_m"])
+                      .WithOverride("thickness_m", d["pv_thickness_m"]);
             var spacing = LouvreMechanics.RecommendSpacing(pv, LouvreHost.Horizontal, stack, 100.0, states);
             var uplift = host.Piece?.WindUpliftKn ?? 0;
             var mech = LouvreMechanics.Analyse(pv, LouvreHost.Horizontal, stack, span, env.PressurePa, uplift, states, spacing);
             var bays = Math.Max(1, mech.Supports?.Bays ?? 1);
+            // LouvreMechanics' own findings are worded for a shading blade ("19 blades of 150 mm..."), shared verbatim with
+            // the real louvre — a panel is not a blade, so the wording is swapped here rather than in the shared model.
+            for (var i = 0; i < mech.Findings.Count; i++) mech.Findings[i] = mech.Findings[i].Replace("blades", "panels").Replace("blade", "panel");
+            spacing.Reason = spacing.Reason.Replace("blades", "panels").Replace("blade", "panel");
 
             UnitPlan PlanAt(LouvreActuationModel.ActuationState? s)
             {
                 var open = s?.LouvreOpenAngleDeg ?? 0.0;
                 var lean = s != null ? KineticsPlan.PlanDirToLocal(host.Frame, s.LeanX, s.LeanY) : V3.UnitY;
-                return KineticUnits.Overhead(host.LengthM, host.DepthM, host.HeightM, spacing.Count, mech.ChordM, mech.ThicknessM, bays, pv["post_size_m"], pv["rail_size_m"], KineticUnits.NormalOverhead(open, lean));
+                return KineticUnits.Overhead(host.LengthM, host.DepthM, host.HeightM, spacing.Count, mech.ChordM, mech.ThicknessM, bays, pv["post_size_m"], pv["rail_size_m"], KineticUnits.NormalOverhead(open, lean),
+                    bladeRole: "pvpanel", kind: "pv_canopy", label: "Solar-tracking PV canopy");
             }
 
             var reference = states.Count == 0 ? null : states.FirstOrDefault(s => s.Label == "solar noon" || s.Label == "peak sun") ?? states[states.Count / 2];
@@ -292,7 +306,19 @@ namespace SportfyRevit
             }
             var roller = d["fence_roller_diameter_m"];
             var rail = Math.Max(rep.RailSizeM, rep.RecommendedRailSizeM);
-            UnitPlan PlanAt(double deployed) => KineticUnits.RollerFence(host.LengthM, host.HeightM + roller, deployed, rep.Bays, rail, roller);
+            // Fence, Windbreak and DividerNet are all really an open ball-stop or wind mesh: a roller shutter's own slats,
+            // real in the CAD model and, since last session, in the BIM model too. AcousticScreen (fence_solidity = 1
+            // above: explicitly solid) and GreenScreen (a trellis with foliage, not a slatted curtain) are not that
+            // material — each gets one continuous panel instead, tagged with its own role so every consumer (Revit,
+            // SOLIDWORKS, the video, the bill of materials) can tell a panel from a mesh curtain from a PV row.
+            var solidPanel = host.Kind == KineticKind.AcousticScreen || host.Kind == KineticKind.GreenScreen;
+            var curtainRole = host.Kind switch
+            {
+                KineticKind.AcousticScreen => "acousticpanel",
+                KineticKind.GreenScreen => "greenpanel",
+                _ => "curtain",
+            };
+            UnitPlan PlanAt(double deployed) => KineticUnits.RollerFence(host.LengthM, host.HeightM + roller, deployed, rep.Bays, rail, roller, curtainRole, solidPanel);
 
             unit.Plan = PlanAt(host.HeightM);                                             // placed in play: deployed
             unit.StateLabel = "deployed (in play)";

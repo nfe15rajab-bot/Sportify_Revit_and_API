@@ -192,6 +192,11 @@ internal static class UnitAssembly
             case "fin":
             case "slat":
                 return (In("wall_m", 0.002), false, In("density_kg_m3", 2700), kind == "slats" || kind == "fins" ? new[] { 0.63, 0.45, 0.28 } : new[] { 0.78, 0.80, 0.83 });
+            // a PV panel is glass over a cell laminate, not an aluminium blade: dark, near-black-blue, and much lighter per
+            // its own (wide x thick) cross-section than solid glass would be — this density is back-solved from the real
+            // areal mass input (pv_module_areal_kg_m2) over the panel's own box, an informational SOLIDWORKS mass only;
+            // the actual engineering mass (wind, actuator) comes from Revit's own blade_mass_per_m_kg override, not this.
+            case "pvpanel": return (0, false, 430, new[] { 0.05, 0.09, 0.20 });
             case "post": return (In("post_wall_m", 0.003), false, SteelKgM3, new[] { 0.55, 0.57, 0.60 });
             case "rail": return (kind == "fence" ? In("fence_rail_wall_m", 0.004) : In("post_wall_m", 0.003), false, SteelKgM3, new[] { 0.55, 0.57, 0.60 });
             case "mast": return (In("mast_wall_m", 0.006), true, SteelKgM3, new[] { 0.96, 0.76, 0.10 });
@@ -205,6 +210,11 @@ internal static class UnitAssembly
             case "bottombar": return (0.003, false, SteelKgM3, new[] { 0.30, 0.31, 0.33 });
             case "rod": return (0, true, SteelKgM3, new[] { 0.25, 0.26, 0.28 });      // solid
             case "sail": return (0, false, 350, new[] { 0.92, 0.93, 0.95 });            // 350 g per square metre of fabric spread over the plate's thickness is handled in the mass, not here
+            // a solid mounted panel, not fabric on a mast and not a mesh curtain: dark charcoal for an absorptive
+            // acoustic board, foliage green for a planted trellis — areal mass is handled in the mass calc below, as
+            // for a sail's fabric.
+            case "acousticpanel": return (0, false, 900, new[] { 0.18, 0.19, 0.20 });
+            case "greenpanel": return (0, false, 300, new[] { 0.20, 0.45, 0.22 });
             default: return (0.003, false, SteelKgM3, new[] { 0.6, 0.6, 0.6 });
         }
     }
@@ -329,8 +339,11 @@ internal static class UnitAssembly
         for (var i = 0; i < s0.Surfaces.Count; i++)
         {
             var f = s0.Surfaces[i];
-            if (f.Role != "sail") { skipped.Add(f.Role); continue; }        // a fence's curtain is made of slats in the CAD model (bars), not a plate
-            // the fabric changes its size and shape as the masts run: one plate part per outline it takes through the film (on a 15 cm grid), one showing at a time
+            // a fence's open mesh curtain is made of slats in the CAD model (bars), not a plate — only a real continuous
+            // surface (a sail's fabric, or a solid mounted panel: acousticpanel, greenpanel) is built as one here.
+            if (f.Role != "sail" && f.Role != "acousticpanel" && f.Role != "greenpanel") { skipped.Add(f.Role); continue; }
+            var (_, _, _, plateColour) = SectionFor(f.Role, req.Kind, req);
+            // the surface changes its size and shape over the film (a sail's masts run, a panel's curtain rises): one plate part per outline it takes (on a 15 cm grid), one showing at a time
             var group = new PlateGroup { SurfaceIndex = i };
             var firstKey = PolyKey(PlateGeom(s0.Surfaces[i], PlateThicknessM).Poly);
             var outlines = new Dictionary<string, List<double[]>>();
@@ -344,9 +357,9 @@ internal static class UnitAssembly
             foreach (var kv in outlines)
             {
                 var xs = kv.Value.Select(p => p[0]); var ys = kv.Value.Select(p => p[1]);
-                var spec = new PartSpec { Key = "s" + (specs.Count + 1), Role = "sail", SizeU = xs.Max() - xs.Min(), SizeV = ys.Max() - ys.Min(), Length = PlateThicknessM, Wall = 0, Colour = new[] { 0.92, 0.93, 0.95 }, Poly = kv.Value, Instances = 1 };
+                var spec = new PartSpec { Key = "s" + (specs.Count + 1), Role = f.Role, SizeU = xs.Max() - xs.Min(), SizeV = ys.Max() - ys.Min(), Length = PlateThicknessM, Wall = 0, Colour = plateColour, Poly = kv.Value, Instances = 1 };
                 specs[i + "|" + kv.Key] = spec;
-                var body = new Body { Role = "sail", Dynamic = f.Dynamic, Index = i, IsPlate = true, Part = spec, Counted = kv.Key == firstKey };
+                var body = new Body { Role = f.Role, Dynamic = f.Dynamic, Index = i, IsPlate = true, Part = spec, Counted = kv.Key == firstKey };
                 bodies.Add(body); group.Variants[kv.Key] = body;
             }
             plateGroups.Add(group);
@@ -356,12 +369,21 @@ internal static class UnitAssembly
             CheckCancel(opt);
             MakePart(sw, partsDir, name, spec, req.Kind);
             var (_, _, density, _) = SectionFor(spec.Role, req.Kind, req);
-            // a sail's plate stands for fabric: 0.35 kg/m2 (the input) over its area, not steel or aluminium
-            spec.MassKg = spec.Role == "sail" ? req.Input("fabric_mass_kg_m2", 0.35) * PolyArea(spec.Poly ?? new List<double[]> { new[] { 0.0, 0.0 }, new[] { spec.SizeU, 0.0 }, new[] { spec.SizeU, spec.SizeV }, new[] { 0.0, spec.SizeV } })
-                        : spec.Role == "curtainslat" ? req.Input("fence_curtain_kg_m2", 0.6) * spec.Length * spec.SizeU : spec.VolumeM3 * density;
+            var plateArea = PolyArea(spec.Poly ?? new List<double[]> { new[] { 0.0, 0.0 }, new[] { spec.SizeU, 0.0 }, new[] { spec.SizeU, spec.SizeV }, new[] { 0.0, spec.SizeV } });
+            // a plate's areal mass stands for its real material, not steel or aluminium: fabric for a sail, an open mesh
+            // curtain's own slats (elsewhere), or a solid mounted panel's own board (acoustic) or trellis (green).
+            spec.MassKg = spec.Role switch
+            {
+                "sail" => req.Input("fabric_mass_kg_m2", 0.35) * plateArea,
+                "curtainslat" => req.Input("fence_curtain_kg_m2", 0.6) * spec.Length * spec.SizeU,
+                "acousticpanel" => req.Input("acoustic_panel_kg_m2", 12) * plateArea,
+                "greenpanel" => req.Input("green_screen_kg_m2", 12) * plateArea,
+                _ => spec.VolumeM3 * density,
+            };
             Progress(2 + 18 * specs.Values.TakeWhile(x => x != spec).Count() / Math.Max(1, specs.Count), "Built the " + spec.Role + " (" + spec.Instances + " of them)");
         }
-        report.Parts = specs.Values.Count(p => p.Role != "sail") + (plateGroups.Count > 0 ? 1 : 0);
+        var plateRoles = new HashSet<string> { "sail", "acousticpanel", "greenpanel" };
+        report.Parts = specs.Values.Count(p => !plateRoles.Contains(p.Role)) + (plateGroups.Count > 0 ? 1 : 0);
 
         // ---- the assembly
         Progress(22, "Assembling " + bodies.Count + " components");
@@ -432,7 +454,7 @@ internal static class UnitAssembly
             // what SolidWorks really built -- not left on by default.
             if (System.Environment.GetEnvironmentVariable("SPORTIFY_DEBUG_BOXES") == "1")
             {
-                foreach (var b in bodies.Where(x => x.Role == "blade" || x.Role == "post" || x.Role == "rail" || x.Role == "rod" || x.Role == "crank" || x.Role == "piston" || x.Role == "housing"))
+                foreach (var b in bodies.Where(x => x.Role == "blade" || x.Role == "pvpanel" || x.Role == "post" || x.Role == "rail" || x.Role == "rod" || x.Role == "crank" || x.Role == "piston" || x.Role == "housing"))
                 {
                     var box = b.Comp.GetBox(false, false) as double[];
                     Console.WriteLine("DEBUG " + b.Role + " idx=" + b.Index + " box(m)=" +
@@ -443,14 +465,15 @@ internal static class UnitAssembly
             // ---- what the assembly weighs, against what the add-in's mechanics says the blade weighs
             foreach (var body in bodies.Where(b => b.Counted)) report.MassByRoleKg[body.Role] = report.MassByRoleKg.GetValueOrDefault(body.Role) + body.Part.MassKg;
             report.TotalMassKg = report.MassByRoleKg.Values.Sum();
-            var blade = specs.Values.FirstOrDefault(p => p.Role == "blade" || p.Role == "fin" || p.Role == "slat");
+            var blade = specs.Values.FirstOrDefault(p => p.Role == "blade" || p.Role == "fin" || p.Role == "slat" || p.Role == "pvpanel");
             if (blade != null)
             {
                 double c = req.Input("chord_m", 0.15), t = req.Input("thickness_m", 0.03), w = Math.Min(req.Input("wall_m", 0.002), Math.Min(c, t) / 2 - 1e-6);
                 var modelPerM = req.Input("blade_mass_per_m_kg", 0) > 0 ? req.Input("blade_mass_per_m_kg", 0) : req.Input("density_kg_m3", 2700) * (c * t - (c - 2 * w) * (t - 2 * w));
                 report.BladeMassSolidWorksKg = blade.MassKg; report.BladeMassModelKg = modelPerM * blade.Length;
+                var what = blade.Role == "pvpanel" ? "A PV panel" : "A blade";
                 if (Math.Abs(report.BladeMassSolidWorksKg - report.BladeMassModelKg) > 0.01 * report.BladeMassModelKg)
-                    report.Notes.Add("A blade weighs " + report.BladeMassSolidWorksKg.ToString("0.000") + " kg in SOLIDWORKS against " + report.BladeMassModelKg.ToString("0.000") + " kg in the add-in's model: the CAD blade mass per metre (blade_mass_per_m_kg) is in use, or the sections differ.");
+                    report.Notes.Add(what + " weighs " + report.BladeMassSolidWorksKg.ToString("0.000") + " kg in SOLIDWORKS against " + report.BladeMassModelKg.ToString("0.000") + " kg in the add-in's model: the CAD blade mass per metre (blade_mass_per_m_kg) is in use, or the sections differ.");
             }
             if (skipped.Count > 0) report.Notes.Add("The " + string.Join(", ", skipped.Distinct()) + " is drawn as slats that follow the bottom bar (a real one is a rolled curtain whose height changes as it is paid out); the guide rails, roller housing, motor and bottom bar are as in the plan.");
 
@@ -483,6 +506,10 @@ internal static class UnitAssembly
                                               // the mechanism: a crank is pinned to its blade and to the rod, the piston runs into its housing and through what it passes; a carriage sits on its track, a motor at the end of one; a curtain's slats lap
                                               "blade|crank", "crank|fin", "crank|rod", "piston|rod", "housing|piston", "piston|rail", "piston|post", "carriage|mast", "carriage|track", "motor|track", "carriage|motor",
                                               "curtainslat|curtainslat", "curtainslat|housing", "bottombar|curtainslat", "curtainslat|rail",
+                                              // a PV panel is a blade in the same frame: the crank/rail/rod pairs it touches are the same, just a different part role
+                                              "pvpanel|rail", "pvpanel|rod", "pvpanel|crank",
+                                              // a solid mounted panel (acoustic, green) spans the same frame a mesh curtain's slats would, edge to edge
+                                              "acousticpanel|housing", "acousticpanel|bottombar", "acousticpanel|rail", "greenpanel|housing", "greenpanel|bottombar", "greenpanel|rail",
                                               // the push-rod runs through the end post (a slot in the real post), an L of tracks crosses at its corner, a motor sits against the rail it drives
                                               "post|rod", "track|track", "motor|rail" };
             var byName = bodies.ToDictionary(b => b.Comp.Name2, b => b.Role);

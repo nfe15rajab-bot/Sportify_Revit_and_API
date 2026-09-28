@@ -736,13 +736,15 @@ namespace SportfyRevit
     }
 
     /// <summary>
-    /// Kinetics, "Bill of Materials": every real part the placed, built kinds (overhead louvre, sail, roller fence)
-    /// need — blade, post, rail, mast, rod, roller housing, sail/curtain fabric — with the actual dimensions the
-    /// mechanics compute for whatever is placed in the web app's Kinetics tab right now, grouped so 19 identical
-    /// blades is one row with Count 19. Recomputed fresh each time, independent of whether Import Analysis Adaptation
-    /// has been run: the whole point is answering "what would this cost to build" before committing to it in Revit.
-    /// CSV, saved beside the other schedules (see KineticsBillOfMaterials's own doc comment for why not a
-    /// ViewSchedule, and why Material/BuySupplier/BuyLink are left for a person to fill in).
+    /// Kinetics, "Bill of Materials": a manufacturing PDF for every placed, built kind — one page per unit, each
+    /// with its real parts (blade/panel/curtain, structure, and the mechanism's own hardware: crank, actuator,
+    /// drive motor) at the actual dimensions the mechanics compute for whatever is placed in the web app's
+    /// Kinetics tab right now, and a plain-language account of how that unit moves, built from the same findings
+    /// the Improve tab shows. Grouped so 19 identical blades is one row with Count 19. Recomputed fresh each time,
+    /// independent of whether Import Analysis Adaptation has been run: the whole point is answering "what would
+    /// this cost to build" before committing to it in Revit. See KineticsBillOfMaterials's and
+    /// KineticsManufacturingPdfBuilder's own doc comments for why a PDF (not a ViewSchedule) and why Material is
+    /// an honest "assumed" default rather than guessed supplier data.
     /// </summary>
     [Transaction(TransactionMode.ReadOnly)]
     public class KineticsBillOfMaterialsCommand : IExternalCommand
@@ -766,19 +768,19 @@ namespace SportfyRevit
             try { units = contexts.SelectMany(c => KineticsShared.BuildUnits(c, design)).ToList(); }
             catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the mechanics could not be worked out", ex, ref message); }
 
-            var rows = KineticsBillOfMaterials.Rows(units);
+            var partCount = units.Sum(u => KineticsBillOfMaterials.RowsFull(u).Count);
             string path;
             try
             {
-                path = SportifyWorkspace.UniquePath("schedules", DeliverableNaming.Named($"Sportify_Kinetics_BOM_{DateTime.Now:yyyyMMdd_HHmmss}.csv"), DeliverableNaming.FolderFor("schedules"));
-                var csv = KineticsBillOfMaterials.Header + "\n" + string.Join("\n", rows.Select(r => string.Join(",", r.Select(ScheduleCsv.Field)))) + "\n";
-                File.WriteAllBytes(path, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray());
+                path = SportifyWorkspace.UniquePath("schedules", DeliverableNaming.Named($"Sportify_Kinetics_Manufacturing_{DateTime.Now:yyyyMMdd_HHmmss}.pdf"), DeliverableNaming.FolderFor("schedules"));
+                KineticsManufacturingPdfBuilder.Generate(path, units, design.Preliminary, design.Preliminary ? design.PreliminaryNote() : null);
             }
-            catch (Exception ex) { TaskDialog.Show(KineticsShared.Title, "Couldn't write the CSV file: " + ex.Message); return Result.Failed; }
+            catch (Exception ex) { TaskDialog.Show(KineticsShared.Title, "Couldn't write the PDF file: " + ex.Message); return Result.Failed; }
 
             TaskDialog.Show(KineticsShared.Title,
-                rows.Count + " part(s) across " + units.Count + " unit(s) (" + string.Join(", ", contexts.Select(c => KineticKinds.Get(c.Kind).Label.ToLowerInvariant())) + "), written to:\n" + path +
-                "\n\nMaterial is filled in with a plain per-role default, marked \"assumed\" — check it against what the mechanical engineer actually specifies. Supplier and buy-link are left blank: Sportify has no real catalogue to draw them from, so a guess there would be worse than nothing." +
+                partCount + " part(s) across " + units.Count + " unit(s) (" + string.Join(", ", contexts.Select(c => KineticKinds.Get(c.Kind).Label.ToLowerInvariant())) + "), written to:\n" + path +
+                "\n\nEach unit's own page lists its real parts — including the mechanism's hardware (crank, actuator, motor) that Revit itself never places — and a plain-language account of how it moves, ready to hand to a machinist." +
+                "\n\nMaterial is filled in with a plain per-role default, marked \"assumed\" — check it against what the mechanical engineer actually specifies before ordering." +
                 (design.Preliminary ? "\n\nPRELIMINARY: the sizes rest on built-in mechanical inputs. Enter your own in " + KineticsInputsFile.Path + " and run this again." : ""));
             return Result.Succeeded;
         }

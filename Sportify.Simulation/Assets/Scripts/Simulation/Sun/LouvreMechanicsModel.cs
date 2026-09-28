@@ -82,6 +82,12 @@ namespace Sportify.Simulation.Sun
             new LouvreInputDef { Key = "blade_inertia_m4", Label = "Blade area moment about the chord axis (from the CAD model)", Unit = "m4", Default = 0, Status = "optional", Reference = "SOLIDWORKS section of the designed blade; replaces the hollow-section estimate in the deflection check" },
             // The PV canopy (KineticsBuild.BuildPvCanopy): the same overhead-louvre frame and single-axis tracking law, a panel in place of a bare blade.
             new LouvreInputDef { Key = "pv_module_areal_kg_m2", Label = "PV module areal mass", Unit = "kg/m2", Default = 15, Status = "assumed", Reference = "typical mid-weight glass-glass bifacial module; replace with the real module spec (WithOverride feeds this into blade_mass_per_m_kg, chord_m wide)" },
+            // A shading louvre's chord_m (0.15 m, an aluminium extrusion) is the wrong shape for a panel: real single-axis
+            // trackers run wide, near-continuous rows, not narrow slats with big gaps between them. WithOverride feeds this
+            // into chord_m itself before RecommendSpacing runs, so row pitch is worked out for the real panel width (fewer,
+            // wider-spaced rows), not the louvre's own many-thin-blades layout.
+            new LouvreInputDef { Key = "pv_chord_m", Label = "PV row width (module row, not a blade)", Unit = "m", Default = 2.0, Status = "assumed", Reference = "two glass-glass modules ganged on one row, a typical canopy-integrated tracker row width" },
+            new LouvreInputDef { Key = "pv_thickness_m", Label = "PV panel thickness (framed module edge)", Unit = "m", Default = 0.035, Status = "assumed", Reference = "a framed glass-glass module's own edge profile" },
             // The acoustic screen and the green screen (KineticsBuild.BuildFence): the roller fence's own mechanism
             // (guide rails, a panel, a roller motor), with a panel of a different material fed in through
             // WithOverride, same override point PV canopy uses. The fence's own fence_curtain_kg_m2/fence_solidity
