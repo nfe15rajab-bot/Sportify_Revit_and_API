@@ -61,7 +61,7 @@ namespace SportfyRevit
             var assemblyKeys = new HashSet<string>((layout.Assemblies ?? new List<AssemblyDto>()).Where(a => a.Key != null).Select(a => a.Key!), StringComparer.OrdinalIgnoreCase);
 
             // The template first, once, outside any transaction (it may open a file, and asks a person only for a manual import).
-            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null
+            bool needsBuilder = placements.Any(p => !IsFloor(p, assemblyKeys) && (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null
                                                                                   || p.Parameters?.Vegetation != null || p.Parameters?.Furniture != null || p.Parameters?.DesignFamily != null
                                                                                   || SportifyFamilyGenerator.FamilyNameFor(p) != null));
             if (needsBuilder) GenericFamilyTemplateLocator.Prepare(doc.Application, allowTemplateDialog);
@@ -241,7 +241,7 @@ namespace SportfyRevit
                 return "designfamily::" + df.Type + "::" + DesignFamilySignature(df);
             if (p.Parameters?.Furniture is { } furniture && !string.IsNullOrWhiteSpace(furniture.Key))
                 return "furniture::" + FurnitureShape.FamilyName(furniture.RevitFamilyName, furniture.Label ?? furniture.Product, furniture.Key, furniture.LengthM, furniture.WidthM, furniture.HeightM);
-            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
+            if (p.Parameters?.Padel != null || p.Parameters?.Basketball != null || p.Parameters?.Volleyball != null || p.Parameters?.Football != null || p.Parameters?.PingPong != null || p.Parameters?.Calisthenics != null || p.Parameters?.Vegetation != null || p.Parameters?.RevitFamily != null || p.Parameters?.Furniture != null)
                 return null;   // their builders cache by themselves; a shared key would have to repeat their naming
             return SportifyFamilyGenerator.FamilyNameFor(p);
         }
@@ -280,6 +280,14 @@ namespace SportfyRevit
                 if (s == null) return FamilyResolution.None("the basketball court builder returned no family");
                 ImportDiagnostics.BasketballCourtBuilt(basket.Variant ?? "standard", basket.Hoops, basket.Mounting ?? "", basket.Surface ?? "", basket.WeightKg);
                 return Found(s, ImportDiagnostics.HowSpecified);
+            }
+            if (p.Parameters?.Calisthenics is { } rig)
+            {
+                var s = SportifyCalisthenicsRigBuilder.GetOrCreateSymbol(doc, rig);
+                if (s == null) return FamilyResolution.None("the calisthenics builder returned no family");
+                ImportDiagnostics.CalisthenicsBuilt(rig.Bays, rig.RigLengthM, rig.RigWidthM,
+                    rig.FrameHeightM, rig.RungCount, rig.WeightKg);
+                return Found(s, ImportDiagnostics.HowGenerated);
             }
             if (p.Parameters?.PingPong is { } pingPong)
             {

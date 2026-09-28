@@ -347,6 +347,7 @@ namespace SportfyRevit
 
         /// <summary>Present when the placement is a table tennis table and the space round it.</summary>
         [JsonPropertyName("ping_pong")] public PingPongDto? PingPong { get; set; }
+        [JsonPropertyName("calisthenics")] public CalisthenicsDto? Calisthenics { get; set; }
 
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
@@ -512,6 +513,47 @@ namespace SportfyRevit
     /// SPACE around it, which is what decides whether a table fits on a roof —
     /// 35 m2 for casual play against 98 m2 for the Olympic minimum.
     /// </summary>
+    /// <summary>
+    /// A calisthenics rig: a portal frame of posts and rails with bars on it.
+    ///
+    /// Sized by BAYS rather than by an overall length, because a bay is the unit
+    /// the thing is built and priced in. `RigLengthM` is what that comes to and
+    /// is carried so the two sides cannot disagree, while `LengthM`/`WidthM` are
+    /// the footprint INCLUDING the safety area — which is what decides whether
+    /// the rig fits on the roof at all.
+    /// </summary>
+    internal class CalisthenicsDto
+    {
+        [JsonPropertyName("bays")] public int Bays { get; set; }
+        [JsonPropertyName("bay_width_m")] public double BayWidthM { get; set; }
+        [JsonPropertyName("rig_depth_m")] public double RigDepthM { get; set; }
+        [JsonPropertyName("frame_height_m")] public double FrameHeightM { get; set; }
+        [JsonPropertyName("pull_up_height_m")] public double PullUpHeightM { get; set; }
+        [JsonPropertyName("post_diameter_m")] public double PostDiameterM { get; set; }
+        [JsonPropertyName("bar_diameter_m")] public double BarDiameterM { get; set; }
+        [JsonPropertyName("rung_spacing_m")] public double RungSpacingM { get; set; }
+        [JsonPropertyName("dip_height_m")] public double DipHeightM { get; set; }
+        [JsonPropertyName("dip_spacing_m")] public double DipSpacingM { get; set; }
+        [JsonPropertyName("low_bar_height_m")] public double LowBarHeightM { get; set; }
+
+        [JsonPropertyName("monkey_bars")] public bool MonkeyBars { get; set; }
+        [JsonPropertyName("pull_up_bars")] public bool PullUpBars { get; set; }
+        [JsonPropertyName("dip_bars")] public bool DipBars { get; set; }
+        [JsonPropertyName("low_bar")] public bool LowBar { get; set; }
+        [JsonPropertyName("monkey_bays")] public int MonkeyBays { get; set; }
+        [JsonPropertyName("rung_count")] public int RungCount { get; set; }
+
+        [JsonPropertyName("rig_length_m")] public double RigLengthM { get; set; }
+        [JsonPropertyName("rig_width_m")] public double RigWidthM { get; set; }
+        /// <summary>The footprint including the safety area.</summary>
+        [JsonPropertyName("length_m")] public double LengthM { get; set; }
+        [JsonPropertyName("width_m")] public double WidthM { get; set; }
+        [JsonPropertyName("safety_margin_m")] public double SafetyMarginM { get; set; }
+        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
+        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
+        [JsonPropertyName("source")] public string? Source { get; set; }
+    }
+
     internal class PingPongDto
     {
         /// <summary>"recreational" | "national" | "international" | "world".</summary>
