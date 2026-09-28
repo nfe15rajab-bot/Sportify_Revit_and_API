@@ -260,7 +260,8 @@ namespace SportfyRevit
             return p != null && p.HasValue ? new WorksetId(p.AsInteger()) : WorksetId.InvalidWorksetId;
         }
 
-        private static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId)
+        /// <summary>internal, not private: AnalysisHatchViews reuses this for its own per-shape labels (the same "a label must never break diagram generation" reasoning applies there too).</summary>
+        internal static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId)
         {
             if (textTypeId == null) return;
             try
@@ -332,8 +333,9 @@ namespace SportfyRevit
         /// was really "there is nothing in view to style." Read the roof's own elements for their real Z instead of guessing from the
         /// level, and set the range in offsets from whatever level the view is stuck with (ViewPlan.GenLevel cannot be reassigned after
         /// creation) — offsets can be arbitrarily large, so this works whether that level is close to the roof or far below it.
+        /// internal, not private: AnalysisHatchViews reuses this for its own per-analysis views, which are plain floor plans with the same problem.
         /// </summary>
-        private static void FixViewRangeForRoof(ViewPlan view, SportifyElementScan.Found found)
+        internal static void FixViewRangeForRoof(ViewPlan view, SportifyElementScan.Found found)
         {
             double? minZ = null, maxZ = null;
             foreach (var el in found.Elements)

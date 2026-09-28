@@ -57,14 +57,19 @@ namespace SportfyRevit
 
             try
             {
-                using var t = new Transaction(doc, "Sportify: record analysis report revision");
+                using var t = new Transaction(doc, "Sportify: record analysis report revision and hatch views");
                 t.Start();
                 AnalysisRevisions.Record(doc, AnalysisRevisions.TitlesFrom(results));
+                if (!string.IsNullOrWhiteSpace(layoutJson))
+                {
+                    var layoutForHatches = JsonSerializer.Deserialize<SportifyLayout>(layoutJson!);
+                    if (layoutForHatches != null) AnalysisHatchViews.Build(doc, layoutForHatches);
+                }
                 t.Commit();
             }
             catch (Exception ex)
             {
-                SportifyLog.Warn("revisions", "the report's Revit revision could not be recorded: " + ex.Message);
+                SportifyLog.Warn("revisions", "the report's Revit revision or hatch views could not be recorded: " + ex.Message);
             }
 
             try
