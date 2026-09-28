@@ -21,7 +21,13 @@ namespace SportfyRevit
     /// </summary>
     internal static class ImportLedger
     {
-        private static readonly Guid SchemaId = new("6b1f6c58-2a0e-4c3f-9a0d-51b0a1f0c2d7");
+        // Bumped (2026-09-28, adding RoofId) rather than reusing the old GUID: an Extensible Storage schema is locked to whatever fields it had
+        // when a document (or this Revit session) first registered that GUID. Adding a field under the SAME GUID made Schema.Lookup hand back
+        // the old, RoofId-less definition, and Entity.Set("RoofId", ...) then failed for real with "the name matches no field in this Entity's
+        // Schema" -- a hard, unignorable import error, not a warning. A ledger entry written under the old GUID (6b1f6c58-2a0e-4c3f-9a0d-51b0a1f0c2d7)
+        // is simply invisible to this code now; its elements are not deleted automatically, but nothing here can read or use that old schema
+        // safely either, so leaving them and starting clean under the new GUID is the right trade-off. Whenever a field is added again, bump this again.
+        private static readonly Guid SchemaId = new("77983038-c829-4b79-b63a-9a64358c10ab");
 
         /// <summary>A ledger entry from before roofs each got their own (no RoofId field at all) belongs to this bucket — treated as one particular roof's entry, not "every roof's", so it is only ever replaced by another import that also has no roof identity (the ContractCheck tool, an old manually re-imported export).</summary>
         internal const string UnknownRoofId = "";
