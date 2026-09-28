@@ -33,8 +33,8 @@ namespace SportfyRevit
             var unit = new KineticUnit { Host = host };
             switch (host.Kind)
             {
-                case KineticKind.Sail: BuildSail(unit, design, env); break;
-                case KineticKind.Fence: case KineticKind.Windbreak: BuildFence(unit, design, env); break;
+                case KineticKind.Sail: case KineticKind.MembraneRoof: BuildSail(unit, design, env); break;
+                case KineticKind.Fence: case KineticKind.Windbreak: case KineticKind.DividerNet: case KineticKind.AcousticScreen: case KineticKind.GreenScreen: BuildFence(unit, design, env); break;
                 case KineticKind.PvCanopy: BuildPvCanopy(unit, design, env); break;
                 default: BuildLouvre(unit, design, env); break;
             }
@@ -233,19 +233,53 @@ namespace SportfyRevit
 
         // ------------------------------------------------------------------ roller fences
 
+        /// <summary>
+        /// The standard simplified mass law for normal-incidence airborne sound transmission loss of a single limp
+        /// panel: TL(dB) = 20 log10(surface density) + 20 log10(frequency) - 47 (a widely used screening estimate,
+        /// accurate to a few dB in the "mass-controlled" region — it ignores stiffness/coincidence effects a full
+        /// acoustic design would check). Evaluated at 500 Hz, a standard reference frequency for outdoor noise
+        /// screening.
+        /// </summary>
+        static double MassLawTlDb(double arealKgM2) => arealKgM2 > 0 ? 20 * Math.Log10(arealKgM2) + 20 * Math.Log10(500.0) - 47.0 : 0;
+
         static void BuildFence(KineticUnit unit, LouvreDesign d, KineticEnvironment env)
         {
             var host = unit.Host;
             var f = host.Fence!;
-            var rep = RollerFenceMechanics.Analyse(d, f.Edge ?? "", host.LengthM, host.HeightM, f.StopsPercentOfExits, env.PressurePa);
-            // A wind-break answers wind, not balls — RollerFenceMechanics still sizes the rails for a ball impact too (the
-            // rail is whichever moment is larger, so this can only make the rails MORE conservative, never unsafe), but its
-            // own findings text talks about "shots that leave the roof", which reads wrong for a kind that was never asked
-            // to stop one. Reworded rather than skipped, so the number (still a real, if untargeted, margin) is not lost.
-            if (host.Kind == KineticKind.Windbreak && rep.Findings.Count > 0)
-                rep.Findings[0] = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                    "{0} edge, {1:0.#} m of wind-break screen {2:0.0} m high: {3} guide rails {4:0.0} m apart, a {5:0} kg curtain and a {6:0} kg bottom bar. (Sized against wind on the net, {7:0.0} kN m; a ball-impact check runs too and only makes the rails more conservative, never less.)",
-                    rep.Edge, rep.LengthM, rep.HeightM, rep.Rails, rep.BaySpacingM, rep.CurtainMassKg, rep.BottomBarMassKg, rep.WindMomentKnM);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+            // Fence, Windbreak, DividerNet share the real fence's own mesh (fence_curtain_kg_m2/fence_solidity)
+            // unchanged — a divider net is, physically, the same ball-stop mesh as a real fence. Acoustic and Green
+            // screens carry a different panel, fed in through the same WithOverride point PV canopy uses.
+            var design = d;
+            if (host.Kind == KineticKind.AcousticScreen) design = d.WithOverride("fence_curtain_kg_m2", d["acoustic_panel_kg_m2"]).WithOverride("fence_solidity", 1.0);
+            else if (host.Kind == KineticKind.GreenScreen) design = d.WithOverride("fence_curtain_kg_m2", d["green_screen_kg_m2"]);
+
+            var rep = RollerFenceMechanics.Analyse(design, f.Edge ?? "", host.LengthM, host.HeightM, f.StopsPercentOfExits, env.PressurePa);
+
+            // A wind-break, divider net, acoustic screen and green screen all answer something other than "stops X% of
+            // the shots that leave the roof" (RollerFenceMechanics' own framing, written for the real roof-edge fence) —
+            // reworded per kind rather than dropped, since the underlying numbers (rail sizing, motor) are still real and
+            // still computed the same way; a ball-impact check still runs for all of them and can only make the rails
+            // more conservative, never less.
+            if (host.Kind != KineticKind.Fence && rep.Findings.Count > 0)
+            {
+                var what = host.Kind switch
+                {
+                    KineticKind.Windbreak => "wind-break screen",
+                    KineticKind.DividerNet => "court divider net",
+                    KineticKind.AcousticScreen => "acoustic screen",
+                    KineticKind.GreenScreen => "green screen",
+                    _ => "screen",
+                };
+                rep.Findings[0] = string.Format(inv, "{0} edge, {1:0.#} m of {2} {3:0.0} m high: {4} guide rails {5:0.0} m apart, a {6:0} kg curtain and a {7:0} kg bottom bar. (Sized against wind on the net, {8:0.0} kN m, and a ball's impact, {9:0.0} kN m, whichever is larger.)",
+                    rep.Edge, rep.LengthM, what, rep.HeightM, rep.Rails, rep.BaySpacingM, rep.CurtainMassKg, rep.BottomBarMassKg, rep.WindMomentKnM, rep.ImpactMomentKnM);
+            }
+            if (host.Kind == KineticKind.AcousticScreen)
+            {
+                var tl = MassLawTlDb(design["fence_curtain_kg_m2"]);
+                rep.Findings.Add(string.Format(inv, "Screening sound-transmission-loss estimate (mass law, 500 Hz, this panel's {0:0.#} kg/m2): about {1:0.#} dB. A full acoustic design also checks stiffness and coincidence effects this screening estimate does not.", design["fence_curtain_kg_m2"], tl));
+            }
             var roller = d["fence_roller_diameter_m"];
             var rail = Math.Max(rep.RailSizeM, rep.RecommendedRailSizeM);
             UnitPlan PlanAt(double deployed) => KineticUnits.RollerFence(host.LengthM, host.HeightM + roller, deployed, rep.Bays, rail, roller);

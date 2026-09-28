@@ -82,6 +82,13 @@ namespace Sportify.Simulation.Sun
             new LouvreInputDef { Key = "blade_inertia_m4", Label = "Blade area moment about the chord axis (from the CAD model)", Unit = "m4", Default = 0, Status = "optional", Reference = "SOLIDWORKS section of the designed blade; replaces the hollow-section estimate in the deflection check" },
             // The PV canopy (KineticsBuild.BuildPvCanopy): the same overhead-louvre frame and single-axis tracking law, a panel in place of a bare blade.
             new LouvreInputDef { Key = "pv_module_areal_kg_m2", Label = "PV module areal mass", Unit = "kg/m2", Default = 15, Status = "assumed", Reference = "typical mid-weight glass-glass bifacial module; replace with the real module spec (WithOverride feeds this into blade_mass_per_m_kg, chord_m wide)" },
+            // The acoustic screen and the green screen (KineticsBuild.BuildFence): the roller fence's own mechanism
+            // (guide rails, a panel, a roller motor), with a panel of a different material fed in through
+            // WithOverride, same override point PV canopy uses. The fence's own fence_curtain_kg_m2/fence_solidity
+            // stand for the divider net (also a ball-stop mesh, same material as the real fence) and the wind-break
+            // (a mesh net again) unchanged.
+            new LouvreInputDef { Key = "acoustic_panel_kg_m2", Label = "Acoustic screen panel areal mass", Unit = "kg/m2", Default = 12, Status = "assumed", Reference = "a lightweight composite/mineral-wool acoustic barrier panel; replace with the real panel spec" },
+            new LouvreInputDef { Key = "green_screen_kg_m2", Label = "Green screen panel areal mass (frame + foliage, soil stays in a base planter)", Unit = "kg/m2", Default = 12, Status = "assumed", Reference = "a trellis frame with mature climbing foliage; a soil-panel living wall would be far too heavy to retract on a roller mechanism, so the soil is assumed to stay in a stationary base planter" },
         };
 
         readonly Dictionary<string, double> _values = new Dictionary<string, double>();
