@@ -99,6 +99,9 @@ namespace Sportify.Simulation.Kinetics
         static readonly Color SailColor = new Color(0.92f, 0.93f, 0.95f);
         static readonly Color NetColor = new Color(0.32f, 0.42f, 0.36f);
         static readonly Color SlabColor = new Color(0.55f, 0.56f, 0.58f);
+        static readonly Color PvPanelColor = new Color(0.05f, 0.09f, 0.20f);
+        static readonly Color AcousticPanelColor = new Color(0.18f, 0.19f, 0.20f);
+        static readonly Color GreenPanelColor = new Color(0.20f, 0.45f, 0.22f);
 
         readonly ResultsFile _results = new ResultsFile();
         Config _cfg;
@@ -183,9 +186,12 @@ namespace Sportify.Simulation.Kinetics
             switch (role)
             {
                 case "blade": case "fin": case "slat": return TimberColor;
+                case "pvpanel": return PvPanelColor;
                 case "mast": return MastColor;
                 case "sail": return SailColor;
                 case "curtain": return NetColor;
+                case "acousticpanel": return AcousticPanelColor;
+                case "greenpanel": return GreenPanelColor;
                 case "rod": case "bottombar": return SteelColor;
                 case "crank": case "piston": return new Color(0.75f, 0.35f, 0.15f);
                 case "track": case "housing": return new Color(0.45f, 0.47f, 0.50f);

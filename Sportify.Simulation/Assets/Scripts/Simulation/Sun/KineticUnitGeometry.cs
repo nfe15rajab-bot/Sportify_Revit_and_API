@@ -147,10 +147,12 @@ namespace Sportify.Simulation.Sun
         /// that ends the bay; there a crank arm on each blade reaches a pin, a push-rod along x hangs from the pins (a parallelogram linkage: it moves on an arc as the blades
         /// turn), an actuator piston runs from the rod's end into a housing on the frame beyond the last post.
         /// <paramref name="normalOfBlade"/> is the blades' face normal at this moment (LouvreActuationModel: cos(open) z + sin(open) toward the sun).
+        /// <paramref name="bladeRole"/> and <paramref name="kind"/>/<paramref name="label"/> let a PV canopy reuse this same frame and tracking geometry with its own
+        /// part role ("pvpanel", not "blade") and wide, near-continuous panel rows instead of many thin blades (see BuildPvCanopy).
         /// </summary>
-        public static UnitPlan Overhead(double widthM, double depthM, double heightM, int count, double chordM, double thicknessM, int bays, double postSizeM, double railSizeM, V3 normalOfBlade, double crankM = 0.06)
+        public static UnitPlan Overhead(double widthM, double depthM, double heightM, int count, double chordM, double thicknessM, int bays, double postSizeM, double railSizeM, V3 normalOfBlade, double crankM = 0.06, string bladeRole = "blade", string kind = "overhead", string label = "Overhead louvre")
         {
-            var plan = new UnitPlan { Kind = "overhead", Label = "Overhead louvre", LengthM = widthM, DepthM = depthM, HeightM = heightM };
+            var plan = new UnitPlan { Kind = kind, Label = label, LengthM = widthM, DepthM = depthM, HeightM = heightM };
             var ys = Stations(depthM, Math.Max(1, bays));
             var pitch = widthM / count;
             var n = new V3(normalOfBlade.X, 0, normalOfBlade.Z);                                     // a blade turns about its own axis (y): its normal has no y
@@ -168,7 +170,7 @@ namespace Sportify.Simulation.Sun
                 for (var i = 0; i < count; i++)
                 {
                     var x = (i + 0.5) * pitch;
-                    plan.Bars.Add(Blade("blade", new V3(x, y0, heightM), new V3(x, y1, heightM), chordM, thicknessM, normalOfBlade));
+                    plan.Bars.Add(Blade(bladeRole, new V3(x, y0, heightM), new V3(x, y1, heightM), chordM, thicknessM, normalOfBlade));
                 }
                 if (!hardware) continue;
                 var yPin = y1 + PinStubM;
@@ -335,11 +337,13 @@ namespace Sportify.Simulation.Sun
         /// <summary>
         /// A ROLLER FENCE (a rouleau on vertical guide rails, deployed only when it is needed). Local x along the fence, y the outward normal, z up. The roller housing
         /// lies along the base, a drive motor at its end; two or more guide rails stand in the Z axis; the curtain runs from the roller up to the bottom bar, which the roller
-        /// lets rise along the rails: <paramref name="deployedM"/> is how high the top of the curtain stands now (0 stored, the recommended height in play). The curtain is
-        /// also made of slats (as a roller shutter is), stacked at the roller when stored and spread up the rails as the bar rises — the CAD model and the BIM model
-        /// (KineticsBuild.cs) both build it from these; the flat membrane surface stays for the video only, which draws it that way for speed.
+        /// lets rise along the rails: <paramref name="deployedM"/> is how high the top of the curtain stands now (0 stored, the recommended height in play).
+        /// Two real curtain materials share this same frame: an open ball-stop or wind mesh (<paramref name="solidPanel"/> false — Fence, Windbreak, DividerNet) is
+        /// also made of slats, as a roller shutter is, stacked at the roller when stored and spread up the rails as the bar rises; a solid mounted panel
+        /// (<paramref name="solidPanel"/> true — AcousticScreen's absorptive board, GreenScreen's trellis) is one continuous plate instead, since neither is a
+        /// slatted curtain in reality. <paramref name="curtainRole"/> tags which material this is, for the CAD model, the BIM model and the bill of materials alike.
         /// </summary>
-        public static UnitPlan RollerFence(double lengthM, double fullHeightM, double deployedM, int bays, double railSizeM, double rollerDiameterM)
+        public static UnitPlan RollerFence(double lengthM, double fullHeightM, double deployedM, int bays, double railSizeM, double rollerDiameterM, string curtainRole = "curtain", bool solidPanel = false)
         {
             var plan = new UnitPlan { Kind = "fence", Label = "Roller fence", LengthM = lengthM, DepthM = rollerDiameterM, HeightM = fullHeightM };
             var xs = Stations(lengthM, Math.Max(1, bays));
@@ -348,14 +352,17 @@ namespace Sportify.Simulation.Sun
             plan.Bars.Add(Bar("motor", new V3(lengthM + 0.03, 0, rollerDiameterM / 2), new V3(lengthM + 0.33, 0, rollerDiameterM / 2), rollerDiameterM * 1.4, rollerDiameterM * 1.4, V3.UnitY, false, detail: true));
             foreach (var x in xs) plan.Bars.Add(Bar("rail", new V3(x, 0, rollerDiameterM), new V3(x, 0, fullHeightM), railSizeM, railSizeM, V3.UnitY, false));
             plan.Bars.Add(Bar("bottombar", new V3(0, 0, barTop), new V3(lengthM, 0, barTop), 0.05, 0.05, V3.UnitY, true));
-            plan.Surfaces.Add(new SurfacePlan { Role = "curtain", A = new V3(0, 0, rollerDiameterM), B = new V3(lengthM, 0, rollerDiameterM), C = new V3(lengthM, 0, barTop), D = new V3(0, 0, barTop) });
+            plan.Surfaces.Add(new SurfacePlan { Role = curtainRole, A = new V3(0, 0, rollerDiameterM), B = new V3(lengthM, 0, rollerDiameterM), C = new V3(lengthM, 0, barTop), D = new V3(0, 0, barTop) });
 
-            const double slatH = 0.10;
-            var n = Math.Max(1, (int)Math.Round((fullHeightM - rollerDiameterM) / slatH));
-            for (var i = 0; i < n; i++)
+            if (!solidPanel)
             {
-                var z = rollerDiameterM + (i + 0.5) / n * (barTop - rollerDiameterM);
-                plan.Bars.Add(Bar("curtainslat", new V3(0.03, 0, z), new V3(lengthM - 0.03, 0, z), slatH * 0.95, 0.012, V3.UnitZ, true, cadOnly: true));
+                const double slatH = 0.10;
+                var n = Math.Max(1, (int)Math.Round((fullHeightM - rollerDiameterM) / slatH));
+                for (var i = 0; i < n; i++)
+                {
+                    var z = rollerDiameterM + (i + 0.5) / n * (barTop - rollerDiameterM);
+                    plan.Bars.Add(Bar("curtainslat", new V3(0.03, 0, z), new V3(lengthM - 0.03, 0, z), slatH * 0.95, 0.012, V3.UnitZ, true, cadOnly: true));
+                }
             }
             return plan;
         }

@@ -22,10 +22,11 @@ namespace SportfyRevit
         public const string Header = "Kind,Unit,BuildSize,PartRole,Count,LengthM,SectionMm,AreaM2,Material,BuySupplier,BuyLink,Notes";
 
         // BarPlan.Role's documented vocabulary (KineticUnitGeometry.cs): blade | fin | post | rail | rod | mast |
-        // housing | bottombar | crank | piston | motor | track | carriage | curtainslat. Only the non-Detail ones
-        // ever reach here (unit.Plan is already filtered) — for the nine built kinds, that is blade/fin, post, rail,
-        // mast, rod, housing, bottombar and, for the five fence-derived kinds, curtainslat (a fence's own roller
-        // housing; an actuator's own housing is Detail and never appears here).
+        // housing | bottombar | crank | piston | motor | track | carriage | curtainslat | pvpanel. Only the non-
+        // Detail ones ever reach here (unit.Plan is already filtered) — for the nine built kinds, that is blade/fin,
+        // post, rail, mast, rod, housing, bottombar, pvpanel (the PV canopy's own wide panel rows, not a blade) and,
+        // for the fence-derived kinds with an open mesh curtain, curtainslat (a fence's own roller housing; an
+        // actuator's own housing is Detail and never appears here).
         static readonly Dictionary<string, string> RoleMaterial = new(StringComparer.OrdinalIgnoreCase)
         {
             ["blade"] = "Aluminium extrusion, anodised — assumed",
@@ -39,10 +40,16 @@ namespace SportfyRevit
             ["carriage"] = "Steel carriage — assumed",
             ["bottombar"] = "Aluminium bottom bar — assumed",
             ["curtainslat"] = "Aluminium slat, roller curtain — assumed",
+            ["pvpanel"] = "PV module, glass-glass — assumed",
         };
+        // Surfaces: a fence-derived kind's own solid mounted panel (acousticpanel, greenpanel) reaches unit.Plan.Surfaces
+        // the same way a sail's fabric does (BuildFence gives each its own role instead of "curtain" specifically so it
+        // is not filtered out with the open mesh curtain — see KineticsBuild.Build()).
         static readonly Dictionary<string, string> SurfaceMaterial = new(StringComparer.OrdinalIgnoreCase)
         {
             ["sail"] = "PTFE-coated architectural fabric — assumed",
+            ["acousticpanel"] = "Absorptive acoustic panel, composite/mineral-wool core — assumed",
+            ["greenpanel"] = "Trellis frame with climbing foliage — assumed",
         };
         static readonly HashSet<string> DetailRoles = new(StringComparer.OrdinalIgnoreCase) { "crank", "piston", "motor" };
 
@@ -93,7 +100,8 @@ namespace SportfyRevit
         {
             "blade" => "Blade", "fin" => "Fin", "post" => "Post", "rail" => "Rail", "mast" => "Mast", "rod" => "Rod",
             "housing" => "Roller housing", "track" => "Ground track", "carriage" => "Carriage", "bottombar" => "Bottom bar",
-            "sail" => "Sail fabric", "curtainslat" => "Curtain slat",
+            "sail" => "Sail fabric", "curtainslat" => "Curtain slat", "pvpanel" => "PV panel",
+            "acousticpanel" => "Acoustic panel", "greenpanel" => "Green screen panel",
             _ => role.Length > 0 ? char.ToUpperInvariant(role[0]) + role[1..] : role,
         };
 
