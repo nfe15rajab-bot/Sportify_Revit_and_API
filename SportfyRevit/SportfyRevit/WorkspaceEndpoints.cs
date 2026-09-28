@@ -344,7 +344,7 @@ namespace SportfyRevit
 
         static EndpointResponse RevitCommand(string? name)
         {
-            if (name != "diagrams") return EndpointResponse.Error(400, "Unknown command \"" + name + "\".");
+            if (name != "diagrams" && name != "import-now") return EndpointResponse.Error(400, "Unknown command \"" + name + "\".");
             if (RevitCommandRequested == null) return EndpointResponse.Error(501, "This is not running inside Revit.");
             var problem = RevitCommandRequested(name);
             return problem == null ? EndpointResponse.Json(new { requested = name }, 202) : EndpointResponse.Error(409, problem);
