@@ -57,6 +57,18 @@ namespace SportfyRevit
 
             try
             {
+                using var t = new Transaction(doc, "Sportify: record analysis report revision");
+                t.Start();
+                AnalysisRevisions.Record(doc, AnalysisRevisions.TitlesFrom(results));
+                t.Commit();
+            }
+            catch (Exception ex)
+            {
+                SportifyLog.Warn("revisions", "the report's Revit revision could not be recorded: " + ex.Message);
+            }
+
+            try
+            {
                 Process.Start(new ProcessStartInfo(outputPath) { UseShellExecute = true });
             }
             catch (Exception)
