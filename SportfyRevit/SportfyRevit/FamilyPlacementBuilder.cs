@@ -52,7 +52,7 @@ namespace SportfyRevit
                 SportifySharedParameters.SetValues(placed, p.Category, typeId, variant,
                     PlacementDataHelpers.GetQualityLevel(p), norm, lengthM, widthM,
                     PlacementDataHelpers.GetReferenceMaterialName(p), PlacementDataHelpers.GetReferenceProviderName(p),
-                    p.Parameters?.QualityKey);
+                    p.Parameters?.QualityKey, label: p.Label);
             }
 
             // The richer generalities/materials(+LCA+provider)/analysis set — safe no-op wherever these Sportify_* parameters don't exist

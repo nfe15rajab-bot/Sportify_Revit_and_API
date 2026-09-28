@@ -30,6 +30,10 @@ namespace SportfyRevit
             "Sportify_ReferenceMaterial", "Sportify_ReferenceProvider", "Sportify_QualityKey",
             // the two the German templates schedule by (GermanNorms): the DIN 277 class of the area and the DIN 276 Kostengruppe
             "Sportify_DIN277", "Sportify_KG",
+            // the web app's own human label ("Pickleball Court"), for anything that reads a placed element's name back
+            // (the circulation diagram, say) to show instead of the element's own Revit family/type name, which for a
+            // generated placeholder or family is an internal identifier (e.g. "ACTIVITY_PICKLEBALL_COURT"), not prose.
+            "Sportify_Label",
         };
 
         // one attempt per document (a project opened later in the same session gets its own): the parameters are bound in a document, not in the session
@@ -165,7 +169,7 @@ namespace SportfyRevit
         /// <summary>Best-effort: any single parameter that isn't found or is read-only is skipped rather than failing the whole set.</summary>
         public static void SetValues(Element element, string? category, string? typeId, string? variant,
             string? qualityLevel, string? norm, double? lengthM, double? widthM,
-            string? referenceMaterial, string? referenceProvider, string? qualityKey)
+            string? referenceMaterial, string? referenceProvider, string? qualityKey, string? label = null)
         {
             if (!_ready) return;
 
@@ -179,6 +183,7 @@ namespace SportfyRevit
             TrySet(element, "Sportify_ReferenceMaterial", referenceMaterial);
             TrySet(element, "Sportify_ReferenceProvider", referenceProvider);
             TrySet(element, "Sportify_QualityKey", qualityKey);
+            TrySet(element, "Sportify_Label", label);
         }
 
         private static void TrySet(Element element, string paramName, string? value)

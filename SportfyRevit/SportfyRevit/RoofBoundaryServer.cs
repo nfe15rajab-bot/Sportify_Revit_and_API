@@ -83,6 +83,9 @@ namespace SportfyRevit
         private static readonly object IterationsLock = new();
         private static string? _iterationsJson;
 
+        private static readonly object AcceptedPrimaryLock = new();
+        private static string? _acceptedPrimaryJson;
+
         public static void Start()
         {
             if (_listener != null) return;
@@ -197,6 +200,20 @@ namespace SportfyRevit
         {
             lock (IterationsLock) { json = _iterationsJson; }
             return json != null;
+        }
+
+        /// <summary>
+        /// Called by SwitchIterationCommand ("Show Iteration") when the user accepts one imported iteration as the
+        /// primary (final) layout. `sourceId` is the web app's own id for that saved layout when this Revit session
+        /// still has it (IterationSourceIds, set by the last "Import Iterations as Design Options" run) — null if the
+        /// project was reopened without a fresh import, in which case the web app falls back to matching by position.
+        /// GET /iterations/primary polls this (workspaceBridge.js's pullAcceptedPrimary), archiving every other saved
+        /// iteration in the Compare tab once it sees a new accepted_at.
+        /// </summary>
+        public static void SetAcceptedPrimary(int index, string? sourceId)
+        {
+            var json = JsonSerializer.Serialize(new { index, id = sourceId, accepted_at = DateTime.UtcNow.ToString("o") });
+            lock (AcceptedPrimaryLock) { _acceptedPrimaryJson = json; }
         }
 
         /// <summary>Every "video_path" (a .mp4 that exists) named anywhere in a published results document, as a full path.</summary>
@@ -481,6 +498,26 @@ namespace SportfyRevit
                         ctx.Response.ContentType = "application/json";
                         ctx.Response.ContentLength64 = countBytes.Length;
                         await ctx.Response.OutputStream.WriteAsync(countBytes);
+                        ctx.Response.Close();
+                        continue;
+                    }
+
+                    if (path == "/iterations/primary" && ctx.Request.HttpMethod == "GET")
+                    {
+                        string? primaryJson;
+                        lock (AcceptedPrimaryLock) { primaryJson = _acceptedPrimaryJson; }
+
+                        if (primaryJson == null)
+                        {
+                            ctx.Response.StatusCode = 404;
+                            ctx.Response.Close();
+                            continue;
+                        }
+
+                        var primaryBytes = Encoding.UTF8.GetBytes(primaryJson);
+                        ctx.Response.ContentType = "application/json";
+                        ctx.Response.ContentLength64 = primaryBytes.Length;
+                        await ctx.Response.OutputStream.WriteAsync(primaryBytes);
                         ctx.Response.Close();
                         continue;
                     }

@@ -177,19 +177,7 @@ namespace SportfyRevit
             s.Facts.Add(("People expected", F(sum.expectedPersons, "0")));
             s.Facts.Add(("Balance", $"{r.balance.status}" + (string.IsNullOrEmpty(r.balance.heavySide) ? "" : ", heavy on the " + r.balance.heavySide) + $" ({F(r.balance.leftSharePercent, "0")}% left / {F(r.balance.rightSharePercent, "0")}% right)"));
 
-            var shapes = new List<PlanShape>();
-            foreach (var b in r.bays)
-            {
-                var sh = new PlanShape { Fill = SvgChart.ForStatus(b.status), Label = Pct(b.utilisation) };
-                if (b.polygon != null && b.polygon.Length >= 6)
-                {
-                    sh.Kind = "poly";
-                    for (var i = 0; i + 1 < b.polygon.Length; i += 2) sh.Points.Add(new double[] { b.polygon[i], b.polygon[i + 1] });
-                }
-                else { sh.X = b.x0; sh.Y = b.y0; sh.W = b.x1 - b.x0; sh.H = b.y1 - b.y0; }
-                shapes.Add(sh);
-            }
-            foreach (var c in r.columns) shapes.Add(new PlanShape { Kind = "circle", X = c.x, Y = c.y, W = 0.6, Fill = SvgChart.Ink, FillOpacity = 1 });
+            var shapes = StructuralShapes(r);
             s.Charts.Add(new PdfChart
             {
                 Svg = SvgChart.Plan("Bay utilisation: load against the deck capacity", inputs.RoofLength, inputs.RoofWidth, inputs.Outline, shapes,
@@ -219,6 +207,25 @@ namespace SportfyRevit
             Uses(s, r.assumptionUses);
             s.Assumptions.AddRange(r.assumptions);
             return s;
+        }
+
+        /// <summary>internal, not private: AnalysisHatchViews reuses this to draw the same bays/columns as real Revit hatches instead of this SVG chart.</summary>
+        internal static List<PlanShape> StructuralShapes(StructureReport r)
+        {
+            var shapes = new List<PlanShape>();
+            foreach (var b in r.bays)
+            {
+                var sh = new PlanShape { Fill = SvgChart.ForStatus(b.status), Label = Pct(b.utilisation) };
+                if (b.polygon != null && b.polygon.Length >= 6)
+                {
+                    sh.Kind = "poly";
+                    for (var i = 0; i + 1 < b.polygon.Length; i += 2) sh.Points.Add(new double[] { b.polygon[i], b.polygon[i + 1] });
+                }
+                else { sh.X = b.x0; sh.Y = b.y0; sh.W = b.x1 - b.x0; sh.H = b.y1 - b.y0; }
+                shapes.Add(sh);
+            }
+            foreach (var c in r.columns) shapes.Add(new PlanShape { Kind = "circle", X = c.x, Y = c.y, W = 0.6, Fill = SvgChart.Ink, FillOpacity = 1 });
+            return shapes;
         }
 
         static PdfSection Dynamic(DynamicReport r, string caseStudy)
@@ -308,15 +315,7 @@ namespace SportfyRevit
             s.Facts.Add(("Build-ups that could lift", $"{sum.zonesUpliftFlagged} of {sum.zonesChecked} ({F(sum.percentPlantedAreaUpliftFlagged, "0")}% of the planted area)"));
             s.Facts.Add(("Growing medium that could blow away", $"{F(sum.percentPlantedAreaBareErodes, "0")}% of the planted area while bare; loose substrate moves from {F(sum.lowestBareOnsetMs, "0")} m/s"));
 
-            var shapes = new List<PlanShape>();
-            foreach (var z in r.zones)
-            {
-                var g = inputs.Zones.FirstOrDefault(x => x.Id == z.id);
-                if (g == null) continue;
-                shapes.Add(new PlanShape { X = g.X, Y = g.Y, W = g.Width, H = g.Height, Fill = SvgChart.ForStatus(z.upliftStatus), Label = z.upliftStatus == "unknown" ? "?" : Pct(z.upliftUtilisationMax), FillOpacity = 0.75 });
-            }
-            foreach (var p in r.plants)
-                shapes.Add(new PlanShape { Kind = "circle", X = p.xM, Y = p.yM, W = Math.Max(0.8, p.crownM), Fill = SvgChart.ForStatus(p.status), Stroke = SvgChart.Ink, StrokeWidthM = 0.1, FillOpacity = 0.95 });
+            var shapes = WindShapes(inputs, r);
             s.Charts.Add(new PdfChart
             {
                 Svg = SvgChart.Plan("Uplift of the build-ups and wind on the trees", inputs.RoofLength, inputs.RoofWidth, inputs.Outline, shapes,
@@ -343,6 +342,21 @@ namespace SportfyRevit
             s.Findings.AddRange(r.recommendations.Select(x => x.text));
             s.Assumptions.AddRange(r.assumptions);
             return s;
+        }
+
+        /// <summary>internal, not private: AnalysisHatchViews reuses this to draw the same zones/trees as real Revit hatches instead of this SVG chart.</summary>
+        internal static List<PlanShape> WindShapes(WindInputs inputs, WindReport r)
+        {
+            var shapes = new List<PlanShape>();
+            foreach (var z in r.zones)
+            {
+                var g = inputs.Zones.FirstOrDefault(x => x.Id == z.id);
+                if (g == null) continue;
+                shapes.Add(new PlanShape { X = g.X, Y = g.Y, W = g.Width, H = g.Height, Fill = SvgChart.ForStatus(z.upliftStatus), Label = z.upliftStatus == "unknown" ? "?" : Pct(z.upliftUtilisationMax), FillOpacity = 0.75 });
+            }
+            foreach (var p in r.plants)
+                shapes.Add(new PlanShape { Kind = "circle", X = p.xM, Y = p.yM, W = Math.Max(0.8, p.crownM), Fill = SvgChart.ForStatus(p.status), Stroke = SvgChart.Ink, StrokeWidthM = 0.1, FillOpacity = 0.95 });
+            return shapes;
         }
 
         static PdfSection Rain(PercolationReport r, string caseStudy)
@@ -411,24 +425,7 @@ namespace SportfyRevit
             if (r.structure.ran) s.Facts.Add(("Deck with the pieces", $"most loaded bay {Pct(r.structure.peakUtilisationBefore)} → {Pct(r.structure.peakUtilisationAfter)}; bays over capacity {r.structure.baysOverBefore} → {r.structure.baysOverAfter}"));
             foreach (var d in r.days) s.Facts.Add((d.name, $"sunrise {Hhmm(d.sunriseH)}, sunset {Hhmm(d.sunsetH)}, noon elevation {F(d.noonElevationDeg, "0")}°, roof mean {F(d.roofMeanSunHours, "0.0")} h of sun"));
 
-            var shapes = new List<PlanShape>();
-            foreach (var it in inputs.Structure.Items)
-            {
-                var z = r.zones.FirstOrDefault(x => x.id == it.Id);
-                if (it.Kind == LoadKind.Tree)     // a tree is its crown: a circle, and no label over the zone it stands in
-                {
-                    shapes.Add(new PlanShape { Kind = "circle", X = it.X + it.Width / 2, Y = it.Y + it.Height / 2, W = Math.Max(it.Width, it.Height), Fill = "#2f6b45", FillOpacity = 0.55, Stroke = "#2f6b45", StrokeWidthM = 0.08 });
-                    continue;
-                }
-                shapes.Add(new PlanShape { X = it.X, Y = it.Y, W = it.Width, H = it.Height, Fill = z == null ? SvgChart.Faint : SvgChart.ForStatus(z.status), FillOpacity = 0.7, LabelColor = SvgChart.Ink, Label = it.Label ?? "" });
-            }
-            foreach (var e in r.equipment)
-            {
-                var sh = new PlanShape { Fill = SvgChart.Ink, FillOpacity = 0.25, Stroke = SvgChart.Ink, StrokeWidthM = 0.12, Dashed = true, LabelColor = SvgChart.Ink, LabelSize = 6, Label = "" };
-                if (e.shape == "rect") { sh.X = e.x; sh.Y = e.y; sh.W = e.widthM; sh.H = e.depthM; }
-                else { sh.Kind = "circle"; sh.X = e.x + e.widthM / 2; sh.Y = e.y + e.depthM / 2; sh.W = e.widthM; }
-                shapes.Add(sh);
-            }
+            var shapes = SunShapes(inputs, r);
             s.Charts.Add(new PdfChart
             {
                 Svg = SvgChart.Plan("Sun and shade on the roof", inputs.Structure.RoofLength, inputs.Structure.RoofWidth, inputs.Structure.Outline, shapes,
@@ -465,6 +462,30 @@ namespace SportfyRevit
             Uses(s, r.assumptionUses);
             s.Assumptions.AddRange(r.assumptions);
             return s;
+        }
+
+        /// <summary>internal, not private: AnalysisHatchViews reuses this to draw the same zones/trees/shading pieces as real Revit hatches instead of this SVG chart.</summary>
+        internal static List<PlanShape> SunShapes(SunInputs inputs, SunReport r)
+        {
+            var shapes = new List<PlanShape>();
+            foreach (var it in inputs.Structure.Items)
+            {
+                var z = r.zones.FirstOrDefault(x => x.id == it.Id);
+                if (it.Kind == LoadKind.Tree)     // a tree is its crown: a circle, and no label over the zone it stands in
+                {
+                    shapes.Add(new PlanShape { Kind = "circle", X = it.X + it.Width / 2, Y = it.Y + it.Height / 2, W = Math.Max(it.Width, it.Height), Fill = "#2f6b45", FillOpacity = 0.55, Stroke = "#2f6b45", StrokeWidthM = 0.08 });
+                    continue;
+                }
+                shapes.Add(new PlanShape { X = it.X, Y = it.Y, W = it.Width, H = it.Height, Fill = z == null ? SvgChart.Faint : SvgChart.ForStatus(z.status), FillOpacity = 0.7, LabelColor = SvgChart.Ink, Label = it.Label ?? "" });
+            }
+            foreach (var e in r.equipment)
+            {
+                var sh = new PlanShape { Fill = SvgChart.Ink, FillOpacity = 0.25, Stroke = SvgChart.Ink, StrokeWidthM = 0.12, Dashed = true, LabelColor = SvgChart.Ink, LabelSize = 6, Label = "" };
+                if (e.shape == "rect") { sh.X = e.x; sh.Y = e.y; sh.W = e.widthM; sh.H = e.depthM; }
+                else { sh.Kind = "circle"; sh.X = e.x + e.widthM / 2; sh.Y = e.y + e.depthM / 2; sh.W = e.widthM; }
+                shapes.Add(sh);
+            }
+            return shapes;
         }
 
         static string Hhmm(double h) => ((int)h).ToString("00", Inv) + ":" + ((int)Math.Round((h - Math.Floor(h)) * 60) % 60).ToString("00", Inv);
@@ -516,61 +537,71 @@ namespace SportfyRevit
                     doc.Page(page =>
                     {
                         Frame(page, projectName);
-                        page.Content().Column(col =>
-                        {
-                            col.Spacing(8);
-                            col.Item().Text(s.Title).FontSize(20).Bold().FontColor(ink);
-                            if (s.CaseStudy.Length > 0) col.Item().Text(s.CaseStudy).FontSize(9).FontColor(muted);
-                            col.Item().Text(s.Headline).FontSize(11).SemiBold();
-                            if (s.Preliminary)
-                                col.Item().Background("#fff4d6").Padding(6).Text("PRELIMINARY — " + s.PreliminaryNote.Replace("PRELIMINARY: ", "")).FontSize(8.5f).FontColor("#7a4b00");
-
-                            col.Item().Table(table =>
-                            {
-                                table.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(4); });
-                                foreach (var f in s.Facts)
-                                {
-                                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Label).FontSize(8.5f).FontColor(muted);
-                                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Value).FontSize(8.5f);
-                                }
-                            });
-
-                            foreach (var c in s.Charts)
-                                col.Item().ShowEntire().Column(cc =>
-                                {
-                                    cc.Item().AspectRatio(c.Aspect).Svg(c.Svg);
-                                    if (c.Caption.Length > 0) cc.Item().PaddingTop(2).Text(c.Caption).FontSize(8).FontColor(muted);
-                                });
-
-                            if (s.Findings.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("What to change").FontSize(12).Bold();
-                                foreach (var f in s.Findings) col.Item().Row(r => { r.ConstantItem(10).Text("•"); r.RelativeItem().Text(f).FontSize(8.5f); });
-                            }
-
-                            if (s.Inputs.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("What it rests on").FontSize(12).Bold();
-                                col.Item().Table(table =>
-                                {
-                                    table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2.5f); c.RelativeColumn(1.6f); });
-                                    foreach (var i in s.Inputs)
-                                    {
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Label).FontSize(8.5f);
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Value).FontSize(8.5f);
-                                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.State == "unconfirmed" ? "not confirmed" : i.State).FontSize(8.5f).FontColor(i.State == "unconfirmed" ? "#b26a00" : muted);
-                                    }
-                                });
-                            }
-
-                            if (s.Assumptions.Count > 0)
-                            {
-                                col.Item().PaddingTop(4).Text("Assumptions and method").FontSize(12).Bold();
-                                foreach (var a in s.Assumptions.Where(x => !x.StartsWith("Input - "))) col.Item().Row(r => { r.ConstantItem(10).Text("•").FontSize(7.5f); r.RelativeItem().Text(a).FontSize(7.5f).FontColor(muted); });
-                            }
-                        });
+                        page.Content().Column(col => RenderSectionContent(col, s));
                     });
             });
+        }
+
+        /// <summary>
+        /// One analysis section's content (title, headline, facts table, charts, findings, inputs, assumptions) —
+        /// factored out of Render so AnalysisReportPdfBuilder's combined report can embed the exact same charts
+        /// "Send All to Web App" → "Also save the charts as a PDF" produces, instead of its own compact summary
+        /// of the DTOs sent to the web app (which carry only aggregate numbers, not the per-bay/per-zone detail
+        /// these charts need).
+        /// </summary>
+        internal static void RenderSectionContent(ColumnDescriptor col, PdfSection s)
+        {
+            const string ink = "#222633", muted = "#5b6274";
+            col.Spacing(8);
+            col.Item().Text(s.Title).FontSize(20).Bold().FontColor(ink);
+            if (s.CaseStudy.Length > 0) col.Item().Text(s.CaseStudy).FontSize(9).FontColor(muted);
+            col.Item().Text(s.Headline).FontSize(11).SemiBold();
+            if (s.Preliminary)
+                col.Item().Background("#fff4d6").Padding(6).Text("PRELIMINARY — " + s.PreliminaryNote.Replace("PRELIMINARY: ", "")).FontSize(8.5f).FontColor("#7a4b00");
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(c => { c.RelativeColumn(2.3f); c.RelativeColumn(4); });
+                foreach (var f in s.Facts)
+                {
+                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Label).FontSize(8.5f).FontColor(muted);
+                    table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(f.Value).FontSize(8.5f);
+                }
+            });
+
+            foreach (var c in s.Charts)
+                col.Item().ShowEntire().Column(cc =>
+                {
+                    cc.Item().AspectRatio(c.Aspect).Svg(c.Svg);
+                    if (c.Caption.Length > 0) cc.Item().PaddingTop(2).Text(c.Caption).FontSize(8).FontColor(muted);
+                });
+
+            if (s.Findings.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("What to change").FontSize(12).Bold();
+                foreach (var f in s.Findings) col.Item().Row(r => { r.ConstantItem(10).Text("•"); r.RelativeItem().Text(f).FontSize(8.5f); });
+            }
+
+            if (s.Inputs.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("What it rests on").FontSize(12).Bold();
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2.5f); c.RelativeColumn(1.6f); });
+                    foreach (var i in s.Inputs)
+                    {
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Label).FontSize(8.5f);
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.Value).FontSize(8.5f);
+                        table.Cell().BorderBottom(0.4f).BorderColor("#d8dbe3").PaddingVertical(2).Text(i.State == "unconfirmed" ? "not confirmed" : i.State).FontSize(8.5f).FontColor(i.State == "unconfirmed" ? "#b26a00" : muted);
+                    }
+                });
+            }
+
+            if (s.Assumptions.Count > 0)
+            {
+                col.Item().PaddingTop(4).Text("Assumptions and method").FontSize(12).Bold();
+                foreach (var a in s.Assumptions.Where(x => !x.StartsWith("Input - "))) col.Item().Row(r => { r.ConstantItem(10).Text("•").FontSize(7.5f); r.RelativeItem().Text(a).FontSize(7.5f).FontColor(muted); });
+            }
         }
 
         static void Frame(PageDescriptor page, string projectName)

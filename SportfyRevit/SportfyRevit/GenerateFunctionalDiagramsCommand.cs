@@ -147,6 +147,19 @@ namespace SportfyRevit
         /// existed has no tagged lines yet — the category lookups below come back null and are simply skipped; the next
         /// re-import (or re-push from the web app) tags them.
         /// </summary>
+        /// <summary>The setback boundary (BimRules.SetbackLineStyle) is a design-rule reference, not something a reader
+        /// needs to see — Revit's own default line colour for it otherwise reads as a stray, unexplained diagonal in any
+        /// view that shows the Combine workset. Hidden here rather than recoloured, in every Sportify-generated view
+        /// (circulation diagram and the massing axonometric alike); a project imported before this style existed has no
+        /// tagged setback line yet, so the category lookup comes back null and this is simply skipped.</summary>
+        private static void HideSetbackLine(Document doc, View view)
+        {
+            var linesCategory = doc.Settings.Categories.get_Item(BuiltInCategory.OST_Lines);
+            var setbackCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.SetbackLineStyle);
+            if (setbackCategory == null || !view.CanCategoryBeHidden(setbackCategory.Id)) return;
+            try { view.SetCategoryHidden(setbackCategory.Id, true); } catch (Exception) { /* a template-locked view — not fatal */ }
+        }
+
         private static void StyleCirculationDiagram(Document doc, View view)
         {
             var found = SportifyElementScan.Find(doc);
@@ -162,6 +175,7 @@ namespace SportfyRevit
             var circCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.CirculationLineStyle);
             var entryCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.EntryLineStyle);
             var nodeCategory = linesCategory.SubCategories.Cast<Category>().FirstOrDefault(c => c.Name == BimRules.CirculationNodeLineStyle);
+            HideSetbackLine(doc, view);
 
             // A solid bold line (not dashed) with a round dot at each path's ends, the way a hand-drawn circulation diagram marks a route.
             if (circCategory != null)
@@ -228,7 +242,13 @@ namespace SportfyRevit
                     if (bb != null)
                     {
                         var center = (bb.Min + bb.Max) / 2;
-                        CreateDiagramLabel(doc, view, el.Name, new XYZ(center.X, center.Y, bb.Max.Z), textTypeId, ElementWorksetId(el));
+                        // el.Name is the family/type's own Revit name — for a generated piece that is an internal
+                        // identifier (e.g. "ACTIVITY_PICKLEBALL_COURT"), not prose. Sportify_Label (SportifySharedParameters,
+                        // stamped from the web app's own placement label) is the human-readable one; fall back to el.Name
+                        // only for an older import made before that parameter existed, or a non-Sportify family.
+                        var niceLabel = el.LookupParameter("Sportify_Label")?.AsString();
+                        var displayLabel = !string.IsNullOrWhiteSpace(niceLabel) ? niceLabel : el.Name;
+                        CreateDiagramLabel(doc, view, displayLabel, new XYZ(center.X, center.Y, bb.Max.Z), textTypeId, ElementWorksetId(el));
                     }
                 }
             }
@@ -240,7 +260,8 @@ namespace SportfyRevit
             return p != null && p.HasValue ? new WorksetId(p.AsInteger()) : WorksetId.InvalidWorksetId;
         }
 
-        private static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId)
+        /// <summary>internal, not private: AnalysisHatchViews reuses this for its own per-shape labels (the same "a label must never break diagram generation" reasoning applies there too).</summary>
+        internal static void CreateDiagramLabel(Document doc, View view, string text, XYZ origin, ElementId? textTypeId, WorksetId worksetId)
         {
             if (textTypeId == null) return;
             try
@@ -274,6 +295,7 @@ namespace SportfyRevit
 
             view.DetailLevel = ViewDetailLevel.Fine;
             view.DisplayStyle = DisplayStyle.ShadingWithEdges;
+            HideSetbackLine(doc, view);
 
             if (doc.IsWorkshared)
             {
@@ -311,8 +333,9 @@ namespace SportfyRevit
         /// was really "there is nothing in view to style." Read the roof's own elements for their real Z instead of guessing from the
         /// level, and set the range in offsets from whatever level the view is stuck with (ViewPlan.GenLevel cannot be reassigned after
         /// creation) — offsets can be arbitrarily large, so this works whether that level is close to the roof or far below it.
+        /// internal, not private: AnalysisHatchViews reuses this for its own per-analysis views, which are plain floor plans with the same problem.
         /// </summary>
-        private static void FixViewRangeForRoof(ViewPlan view, SportifyElementScan.Found found)
+        internal static void FixViewRangeForRoof(ViewPlan view, SportifyElementScan.Found found)
         {
             double? minZ = null, maxZ = null;
             foreach (var el in found.Elements)

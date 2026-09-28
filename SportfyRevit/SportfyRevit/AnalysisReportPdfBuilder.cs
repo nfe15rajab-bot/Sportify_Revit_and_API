@@ -32,7 +32,8 @@ namespace SportfyRevit
             string? circulationImagePath,
             string? axoImagePath,
             string? sessionName = null,
-            string? iterationName = null)
+            string? iterationName = null,
+            string? layoutJson = null)
         {
             QuestPDF.Settings.License = LicenseType.Community;
             // the session and the iteration the report is for, as they are in its file name (DeliverableNaming), under the title
@@ -62,6 +63,8 @@ namespace SportfyRevit
                             col.Item().Element(c => RoofSummarySection(c, layout));
 
                         col.Item().Element(c => AnalysisResultsSection(c, results));
+
+                        col.Item().Element(c => PhysicalAnalysisSection(c, layoutJson));
 
                         if (layout?.Placements is { Count: > 0 })
                             col.Item().Element(c => PlacementsSection(c, layout.Placements));
@@ -234,8 +237,12 @@ namespace SportfyRevit
                 col.Spacing(10);
                 col.Item().Text("Analysis Results").FontSize(14).Bold();
 
-                var any = r != null && (r.FireSafety != null || r.Accessibility != null || r.Lca != null || r.CarbonImpact != null || r.BallTrajectory != null
-                    || r.WindErosion != null || r.SoilPercolation != null || r.StructuralLoads != null || r.SunAndShading != null || r.DynamicAnalysis != null);
+                // The five physical analyses (wind/erosion, rain/percolation, structural loads, sun/shade, dynamic)
+                // are no longer summarised here as compact cards — PhysicalAnalysisSection below embeds the exact
+                // same detailed charts "Send All to Web App" -> "Also save the charts as a PDF" produces, run fresh
+                // from the current layout rather than repeating whatever aggregate numbers were last sent to the
+                // web app. Only the algorithmic ones (no chart equivalent) still show here.
+                var any = r != null && (r.FireSafety != null || r.Accessibility != null || r.Lca != null || r.CarbonImpact != null || r.BallTrajectory != null);
                 if (!any)
                 {
                     col.Item().Text("No Algorithmic Analysis checks have been run yet this session.").Italic();
@@ -247,11 +254,29 @@ namespace SportfyRevit
                 if (r.Lca is { } lca) LcaCard(col, lca);
                 if (r.CarbonImpact is { } ci) CarbonImpactCard(col, ci);
                 if (r.BallTrajectory is { } bt) BallTrajectoryCard(col, bt);
-                if (r.WindErosion is { } we) WindErosionCard(col, we);
-                if (r.SoilPercolation is { } sp) SoilPercolationCard(col, sp);
-                if (r.StructuralLoads is { } sl) StructuralLoadsCard(col, sl);
-                if (r.SunAndShading is { } sn) SunShadeCard(col, sn);
-                if (r.DynamicAnalysis is { } da) DynamicAnalysisCard(col, da);
+            });
+        }
+
+        /// <summary>
+        /// The physical analyses (wind/erosion, rain/percolation, structural loads, sun/shade, dynamic), as the
+        /// exact same charts PhysicalAnalysisPdf's own dedicated report shows — run fresh from the layout this
+        /// report is for, so this report and "Send All to Web App" -> "Also save the charts as a PDF" always agree,
+        /// rather than the two computing or showing this differently. Silently omitted if there is no layout, or
+        /// none of the five analyses could compute anything from it (a fresh session with nothing pushed yet).
+        /// </summary>
+        static void PhysicalAnalysisSection(IContainer container, string? layoutJson)
+        {
+            if (string.IsNullOrWhiteSpace(layoutJson)) return;
+            PdfExport export;
+            try { export = PhysicalAnalysisPdf.Build(layoutJson); }
+            catch (Exception) { return; }
+            if (export.Sections.Count == 0) return;
+
+            container.Column(col =>
+            {
+                col.Spacing(14);
+                foreach (var s in export.Sections)
+                    col.Item().Column(sc => PhysicalAnalysisPdf.RenderSectionContent(sc, s));
             });
         }
 

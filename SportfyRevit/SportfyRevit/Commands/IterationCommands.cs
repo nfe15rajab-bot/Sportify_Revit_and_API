@@ -61,6 +61,19 @@ namespace SportfyRevit
     }
 
     /// <summary>
+    /// The web app's own id for each iteration index (SavedIterationDto.Id), from the last "Import Iterations as Design Options" run
+    /// THIS Revit session — never persisted, so a session reopened without a fresh import has none. Lets "Accept as Primary"
+    /// (SwitchIterationCommand) tell the web app exactly which saved layout was accepted by id, instead of only a position that
+    /// could have shifted if the user saved or evicted more since sending; the web app falls back to position when there is no id.
+    /// </summary>
+    internal static class IterationSourceIds
+    {
+        private static readonly Dictionary<int, string?> ById = new();
+        public static void Set(int oneBasedIndex, string? sourceId) => ById[oneBasedIndex] = sourceId;
+        public static string? Get(int oneBasedIndex) => ById.TryGetValue(oneBasedIndex, out var v) ? v : null;
+    }
+
+    /// <summary>
     /// Reads the iterations the web app last sent (POST /iterations, compareController.js's savedCompareConfigs — up to 3 saved layouts) and builds
     /// each one's complete geometry onto its own workset(s) (IterationWorksets), so they can be switched like Design Options (SwitchIterationCommand).
     /// Re-running this replaces what an earlier run of this command built (IterationLedger), independent of the normal single-layout import/ledger.
@@ -132,6 +145,7 @@ namespace SportfyRevit
                             worksetNameOverride: IterationWorksets.NameOverride(oneBased, detailed.Value));
                         createdIds.AddRange(summary.CreatedIds);
                         built.Add((oneBased, string.IsNullOrWhiteSpace(iterations[i].Name) ? $"Iteration {oneBased}" : iterations[i].Name!, summary.PieceCount));
+                        IterationSourceIds.Set(oneBased, iterations[i].Id);
                     }
                     IterationLedger.Write(doc, createdIds);
 
@@ -238,7 +252,28 @@ namespace SportfyRevit
                 IterationWorksets.ShowOnly(doc.ActiveView, groups, keep);
                 t.Commit();
 
-                TaskDialog.Show(Title, keep != null ? $"Showing Iteration {keep.Index} in \"{doc.ActiveView.Name}\"." : $"Showing all iterations in \"{doc.ActiveView.Name}\".");
+                if (keep == null)
+                {
+                    TaskDialog.Show(Title, $"Showing all iterations in \"{doc.ActiveView.Name}\".");
+                    return Result.Succeeded;
+                }
+
+                // A second, separate ask rather than a fifth command-link on the dialog above (TaskDialog allows at
+                // most four): accepting is a bigger decision than just looking, and it reaches into the web app's own
+                // state (archiving the others there), so it gets its own explicit Yes/No rather than riding along.
+                var acceptAsk = new TaskDialog(Title)
+                {
+                    MainInstruction = $"Showing Iteration {keep.Index} in \"{doc.ActiveView.Name}\". Accept it as the primary layout?",
+                    MainContent = "The web app will archive the other saved iterations in the Compare tab so only this one stays active there. Nothing else in this Revit project changes.",
+                    CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    DefaultButton = TaskDialogResult.No,
+                };
+                if (acceptAsk.Show() == TaskDialogResult.Yes)
+                {
+                    RoofBoundaryServer.SetAcceptedPrimary(keep.Index, IterationSourceIds.Get(keep.Index));
+                    SportifyLog.Info("iterations", $"Iteration {keep.Index} accepted as primary — the web app will archive the others next time it checks in.");
+                    TaskDialog.Show(Title, $"Iteration {keep.Index} accepted as primary. The web app archives the others the next time it checks in (within a few seconds if it's open).");
+                }
                 return Result.Succeeded;
             }
             catch (Exception ex)

@@ -44,6 +44,21 @@ function Get-SportifySigningCertificate {
     return $cert
 }
 
+<#
+Exports the PUBLIC portion only (no private key — Export-Certificate never includes one) of the certificate used to
+sign, so the installer can bundle it and offer to trust it (Sportify.iss's "trustcertificate" task). Safe to publish:
+a .cer file cannot sign anything by itself, it only lets Windows recognize files already signed by this certificate.
+#>
+function Export-SportifySigningCertificate {
+    param(
+        [string]$CertificateThumbprint, [string]$PfxFile, [securestring]$PfxPassword,
+        [Parameter(Mandatory)][string]$OutputPath
+    )
+    $cert = Get-SportifySigningCertificate -Thumbprint $CertificateThumbprint -Pfx $PfxFile -Password $PfxPassword
+    Export-Certificate -Cert $cert -FilePath $OutputPath -Type CERT | Out-Null
+    Write-Host "Exported the certificate's public key (no private key) to $OutputPath, for the installer to offer to trust."
+}
+
 <# Signs each file and verifies the result. Returns one object per file: Path, Status, Signer, Timestamped. Throws when a file could not be signed or does not verify. #>
 function Sign-SportifyFiles {
     param(
