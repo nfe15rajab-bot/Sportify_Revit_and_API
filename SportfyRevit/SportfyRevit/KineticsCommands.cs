@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Autodesk.Revit.Attributes;
@@ -176,125 +177,124 @@ namespace SportfyRevit
 
             var layout = AdoptLayoutFrame();
             var payload = ReadPayload();
+            var screenKind = ctx.Kind == KineticKind.Slats || ctx.Kind == KineticKind.Fins;
 
-            // ---- the sun and shade result: the pieces of an overhead louvre or a sail, and the place and the sun of every kind but the fence
-            if (ctx.Kind != KineticKind.Fence)
+            // A designer who placed this kind by hand in the web app's Kinetics tab decided where and how many
+            // already — try that first, for every kind FromPlacements answers (every kind except Slats/Fins,
+            // which are tied to picking a real wall/railing in the model, not a 2D footprint on the plan).
+            // Whichever path finds hosts, SetEnvironment at the end still sizes the mechanism from real sun/wind
+            // numbers — this only ever changes WHERE the hosts come from.
+            if (!screenKind)
             {
-                ctx.SunAnalysisMode = ctx.Kind == KineticKind.Sail ? "light" : "fixed";
-                var screen = ctx.Kind == KineticKind.Slats || ctx.Kind == KineticKind.Fins;
-                if (!HasCurrentSun(payload))
-                {
-                    if (!RunSunAnalysis(ctx.SunAnalysisMode, out var problem))
-                    {
-                        // A screen only needs the place and the sun (latitude, north), not a recommended piece: without a layout to analyse it takes the analysis's defaults, and says so
-                        if (!screen) { TaskDialog.Show(Title, problem); return null; }
-                        ctx.Notes.Add("Sun: there is no layout to take the site from (" + problem.TrimEnd('.') + "), so the screens use the analysis's default latitude and a plan with north up.");
-                    }
-                    else { ctx.RanSunAnalysis = true; payload = ReadPayload(); }
-                }
-                ctx.Sun = payload?.SunAndShading;
-                if (ctx.Sun == null && !screen) { TaskDialog.Show(Title, "No Sun & Shade Analysis result is available."); return null; }
-
-                if (ctx.Kind == KineticKind.Overhead || ctx.Kind == KineticKind.Sail)
-                {
-                    // A designer who placed this kind by hand in the web app's Kinetics tab decided where and how many already —
-                    // that stands in for the whole "which piece does the analysis recommend" derivation below, which stays exactly
-                    // as it was for a project that never uses the web app's tab (ctx.Sun is still resolved above, so SetEnvironment
-                    // below sizes the mechanism from real sun/wind numbers either way).
-                    var placed = KineticsHosts.FromPlacements(layout, ctx.Kind);
-                    if (placed.Count > 0)
-                    {
-                        SetEnvironment(ctx, payload);
-                        ctx.Hosts = placed;
-                        ctx.Notes.Add(placed.Count + " placed in the web app's Kinetics tab: position and count follow the layout, not the Sun & Shade recommendation.");
-                        foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
-                        return ctx;
-                    }
-
-                    var pieces = Pieces(ctx.Sun, ctx.Kind);
-                    var wanted = ctx.Kind == KineticKind.Sail ? "a sail" : "a pergola or a canopy";
-                    // A result made with the default choice picks other equipment: offer to run it again for the kind wanted, which replaces it.
-                    if (pieces.Count == 0 && !ctx.RanSunAnalysis && (ctx.Sun.Equipment?.Count ?? 0) > 0)
-                    {
-                        var ask = new TaskDialog(Title)
-                        {
-                            MainInstruction = "The Sun & Shade Analysis picked " + string.Join(", ", ctx.Sun.Equipment!.Select(e => e.Name ?? e.Key).Distinct().Select(n => n.ToLowerInvariant())) + ", not " + wanted,
-                            MainContent = ctx.Kind == KineticKind.Sail
-                                ? "Kinetics can put movable pillars under a shade sail; the analysis chose something else for this layout."
-                                : "By default the analysis prefers the lightest piece on the deck, which is a sail. Kinetics adapts the fixed, roof-like types (louvre pergola, solid canopy) here.",
-                            CommonButtons = TaskDialogCommonButtons.Cancel,
-                        };
-                        ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Run it again, allowing only " + (ctx.Kind == KineticKind.Sail ? "sails and parasols" : "fixed structures"),
-                            "Replaces the published sun and shade result with one that shades with " + (ctx.Kind == KineticKind.Sail ? "sails" : "pergolas or canopies") + ".");
-                        ask.DefaultButton = TaskDialogResult.CommandLink1;       // after the link exists: Revit throws otherwise
-                        if (ask.Show() != TaskDialogResult.CommandLink1) return null;
-                        if (!RunSunAnalysis(ctx.SunAnalysisMode, out var problem)) { TaskDialog.Show(Title, problem); return null; }
-                        ctx.RanSunAnalysis = true;
-                        payload = ReadPayload();
-                        ctx.Sun = payload?.SunAndShading;
-                        pieces = Pieces(ctx.Sun, ctx.Kind);
-                    }
-                    if (pieces.Count == 0)
-                    {
-                        // Nothing to adapt: no people zone is too sunny. The designer can still try the unit where they want it, at the analysis's own catalogue size.
-                        var size = SunModel.Catalogue.First(t => t.Key == (ctx.Kind == KineticKind.Sail ? "sail" : "pergola"));
-                        var hand = new TaskDialog(Title)
-                        {
-                            MainInstruction = "The Sun & Shade Analysis recommended no " + (ctx.Kind == KineticKind.Sail ? "sail" : "pergola or canopy") + " for this layout",
-                            MainContent = (ctx.RanSunAnalysis ? "(Kinetics ran it just now, allowing only " + (ctx.Kind == KineticKind.Sail ? "sails and parasols" : "fixed structures") + ".) " : "") +
-                                          "No people zone is too sunny at midday, so there is nothing for it to adapt: it needs an activity or a spectators' area on the roof (the courts themselves are never covered).\n\n" +
-                                          "You can still place one where you want it: " + size.Sizes[0][0].ToString("0.#") + " x " + size.Sizes[0][1].ToString("0.#") + " m, " + size.HeightM.ToString("0.#") + " m high (the catalogue's own size). Its " +
-                                          (ctx.Kind == KineticKind.Sail ? "masts run on their rails" : "blades' spacing and angles follow the sun") + " for that place.",
-                            CommonButtons = TaskDialogCommonButtons.Cancel,
-                        };
-                        hand.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Place one where I pick", "You are asked for the centre of it: a point in the active view.");
-                        hand.DefaultButton = TaskDialogResult.CommandLink1;
-                        if (hand.Show() != TaskDialogResult.CommandLink1) return null;
-                        var byHand = KineticsHosts.PickPiece(data.Application.ActiveUIDocument, ctx.Kind, size);
-                        if (byHand == null) return null;
-                        pieces = new List<SunEquipmentDto> { byHand };
-                        ctx.Notes.Add("Placed by hand at your pick (" + byHand.XM.ToString("0.#") + ", " + byHand.YM.ToString("0.#") + " m of the roof plan): the analysis recommended none.");
-                    }
-                    SetEnvironment(ctx, payload);
-                    ctx.Hosts = KineticsHosts.FromPieces(ctx.Kind, pieces, ctx.Env, ctx.SailShape, ctx.Kind == KineticKind.Sail ? KineticsSite.Read() : null);
-                    foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
-                }
-                else
-                {
-                    var hosts = KineticsHosts.FromSelection(data.Application.ActiveUIDocument, ctx.Kind, out var problem);
-                    if (hosts == null) return null;                                   // the pick was cancelled
-                    if (hosts.Count == 0) { TaskDialog.Show(Title, problem); return null; }
-                    ctx.Hosts = hosts;
-                }
-            }
-            else
-            {
-                // Same "the designer already decided" precedence as Overhead/Sail above: a fence placed by hand in the
-                // web app's Kinetics tab does not need the Ball Trajectory analysis to have proposed that edge.
-                var placed = KineticsHosts.FromPlacements(layout, KineticKind.Fence);
+                var placed = KineticsHosts.FromPlacements(layout, ctx.Kind);
                 if (placed.Count > 0)
                 {
                     ctx.Sun = payload?.SunAndShading;
                     ctx.Hosts = placed;
-                    ctx.Notes.Add(placed.Count + " placed in the web app's Kinetics tab: edge and length follow the layout, not the Ball Trajectory recommendation.");
+                    ctx.Notes.Add(placed.Count + " placed in the web app's Kinetics tab: position and count follow the layout, not an analysis recommendation.");
+                    foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
+                    SetEnvironment(ctx, payload);
+                    return ctx;
                 }
-                else
+            }
+
+            // ---- nothing of this kind is placed: each kind's own fallback. Overhead/Sail answer the Sun &
+            // Shade result, Fence the Ball Trajectory result, Slats/Fins a wall/railing you select — the three
+            // ways this worked before the web app's Kinetics tab existed. The six kinds added since (PV canopy,
+            // wind-break, divider net, acoustic screen, green screen, membrane roof) have no such analysis-
+            // derived fallback — nothing in either published result proposes one — so placement in the web
+            // app's Kinetics tab is their only source, and FromPlacements above just found none.
+            if (ctx.Kind == KineticKind.Overhead || ctx.Kind == KineticKind.Sail)
+            {
+                ctx.SunAnalysisMode = ctx.Kind == KineticKind.Sail ? "light" : "fixed";
+                if (!HasCurrentSun(payload))
                 {
-                    var fences = payload?.BallTrajectory?.Fences;
-                    if (fences == null || fences.Count == 0)
-                    {
-                        TaskDialog.Show(Title, "There is no fence to make roller: run the Ball Trajectory analysis (Simulation & Analytics) first — its roof-exit sweep proposes the fences: which edge, how far along it and how high. Or place one by hand in the web app's Kinetics tab.");
-                        return null;
-                    }
-                    var (roofL, roofW) = SportifyLayoutBuilder.CurrentRoofSizeM;
-                    if (roofL <= 0 || roofW <= 0)
-                    {
-                        TaskDialog.Show(Title, "The roof's size is not known here: push or import the layout from the web app first, so the fences can be put on its edges.");
-                        return null;
-                    }
-                    ctx.Sun = payload!.SunAndShading;
-                    ctx.Hosts = KineticsHosts.FromFences(fences, roofL, roofW);
+                    if (!RunSunAnalysis(ctx.SunAnalysisMode, out var problem)) { TaskDialog.Show(Title, problem); return null; }
+                    ctx.RanSunAnalysis = true; payload = ReadPayload();
                 }
+                ctx.Sun = payload?.SunAndShading;
+                if (ctx.Sun == null) { TaskDialog.Show(Title, "No Sun & Shade Analysis result is available."); return null; }
+
+                var pieces = Pieces(ctx.Sun, ctx.Kind);
+                var wanted = ctx.Kind == KineticKind.Sail ? "a sail" : "a pergola or a canopy";
+                // A result made with the default choice picks other equipment: offer to run it again for the kind wanted, which replaces it.
+                if (pieces.Count == 0 && !ctx.RanSunAnalysis && (ctx.Sun.Equipment?.Count ?? 0) > 0)
+                {
+                    var ask = new TaskDialog(Title)
+                    {
+                        MainInstruction = "The Sun & Shade Analysis picked " + string.Join(", ", ctx.Sun.Equipment!.Select(e => e.Name ?? e.Key).Distinct().Select(n => n.ToLowerInvariant())) + ", not " + wanted,
+                        MainContent = ctx.Kind == KineticKind.Sail
+                            ? "Kinetics can put movable pillars under a shade sail; the analysis chose something else for this layout."
+                            : "By default the analysis prefers the lightest piece on the deck, which is a sail. Kinetics adapts the fixed, roof-like types (louvre pergola, solid canopy) here.",
+                        CommonButtons = TaskDialogCommonButtons.Cancel,
+                    };
+                    ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Run it again, allowing only " + (ctx.Kind == KineticKind.Sail ? "sails and parasols" : "fixed structures"),
+                        "Replaces the published sun and shade result with one that shades with " + (ctx.Kind == KineticKind.Sail ? "sails" : "pergolas or canopies") + ".");
+                    ask.DefaultButton = TaskDialogResult.CommandLink1;       // after the link exists: Revit throws otherwise
+                    if (ask.Show() != TaskDialogResult.CommandLink1) return null;
+                    if (!RunSunAnalysis(ctx.SunAnalysisMode, out var problem2)) { TaskDialog.Show(Title, problem2); return null; }
+                    ctx.RanSunAnalysis = true;
+                    payload = ReadPayload();
+                    ctx.Sun = payload?.SunAndShading;
+                    pieces = Pieces(ctx.Sun, ctx.Kind);
+                }
+                if (pieces.Count == 0)
+                {
+                    // Nothing to adapt: no people zone is too sunny. The designer can still try the unit where they want it, at the analysis's own catalogue size.
+                    var size = SunModel.Catalogue.First(t => t.Key == (ctx.Kind == KineticKind.Sail ? "sail" : "pergola"));
+                    var hand = new TaskDialog(Title)
+                    {
+                        MainInstruction = "The Sun & Shade Analysis recommended no " + (ctx.Kind == KineticKind.Sail ? "sail" : "pergola or canopy") + " for this layout",
+                        MainContent = (ctx.RanSunAnalysis ? "(Kinetics ran it just now, allowing only " + (ctx.Kind == KineticKind.Sail ? "sails and parasols" : "fixed structures") + ".) " : "") +
+                                      "No people zone is too sunny at midday, so there is nothing for it to adapt: it needs an activity or a spectators' area on the roof (the courts themselves are never covered).\n\n" +
+                                      "You can still place one where you want it: " + size.Sizes[0][0].ToString("0.#") + " x " + size.Sizes[0][1].ToString("0.#") + " m, " + size.HeightM.ToString("0.#") + " m high (the catalogue's own size). Its " +
+                                      (ctx.Kind == KineticKind.Sail ? "masts run on their rails" : "blades' spacing and angles follow the sun") + " for that place.",
+                        CommonButtons = TaskDialogCommonButtons.Cancel,
+                    };
+                    hand.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Place one where I pick", "You are asked for the centre of it: a point in the active view.");
+                    hand.DefaultButton = TaskDialogResult.CommandLink1;
+                    if (hand.Show() != TaskDialogResult.CommandLink1) return null;
+                    var byHand = KineticsHosts.PickPiece(data.Application.ActiveUIDocument, ctx.Kind, size);
+                    if (byHand == null) return null;
+                    pieces = new List<SunEquipmentDto> { byHand };
+                    ctx.Notes.Add("Placed by hand at your pick (" + byHand.XM.ToString("0.#") + ", " + byHand.YM.ToString("0.#") + " m of the roof plan): the analysis recommended none.");
+                }
+                SetEnvironment(ctx, payload);
+                ctx.Hosts = KineticsHosts.FromPieces(ctx.Kind, pieces, ctx.Env, ctx.SailShape, ctx.Kind == KineticKind.Sail ? KineticsSite.Read() : null);
+                foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
+            }
+            else if (screenKind)
+            {
+                // A screen only needs the place and the sun (latitude, north), not a recommended piece — reads whatever
+                // is currently published rather than running a fresh analysis for it; SetEnvironment below falls back
+                // to the analysis's own default latitude and a plan with north up when nothing is published yet.
+                ctx.Sun = payload?.SunAndShading;
+                var hosts = KineticsHosts.FromSelection(data.Application.ActiveUIDocument, ctx.Kind, out var problem);
+                if (hosts == null) return null;                                   // the pick was cancelled
+                if (hosts.Count == 0) { TaskDialog.Show(Title, problem); return null; }
+                ctx.Hosts = hosts;
+            }
+            else if (ctx.Kind == KineticKind.Fence)
+            {
+                var fences = payload?.BallTrajectory?.Fences;
+                if (fences == null || fences.Count == 0)
+                {
+                    TaskDialog.Show(Title, "There is no fence to make roller: run the Ball Trajectory analysis (Simulation & Analytics) first — its roof-exit sweep proposes the fences: which edge, how far along it and how high. Or place one by hand in the web app's Kinetics tab.");
+                    return null;
+                }
+                var (roofL, roofW) = SportifyLayoutBuilder.CurrentRoofSizeM;
+                if (roofL <= 0 || roofW <= 0)
+                {
+                    TaskDialog.Show(Title, "The roof's size is not known here: push or import the layout from the web app first, so the fences can be put on its edges.");
+                    return null;
+                }
+                ctx.Sun = payload!.SunAndShading;
+                ctx.Hosts = KineticsHosts.FromFences(fences, roofL, roofW);
+            }
+            else
+            {
+                TaskDialog.Show(Title, KineticKinds.Get(ctx.Kind).Label + " has nothing placed in the web app's Kinetics tab, and there is no other way to find its position (only Overhead louvre, Sail and Roller fence also answer to a published analysis). Place one in the web app's Kinetics tab, push or sync the layout, then try again.");
+                return null;
             }
 
             SetEnvironment(ctx, payload);
@@ -329,6 +329,48 @@ namespace SportfyRevit
             .Select(u => new AssumptionUseDto { Key = u.Key, Label = u.Label, Value = u.Value, State = u.State, Status = u.Status, Reference = u.Reference }).ToList();
 
         internal static AnalysisResultPayload? Latest() => ReadPayload();
+
+        /// <summary>The distinct built kinds the pushed layout has kinetics placements for, in a stable order — what
+        /// ImportKineticAdaptationCommand builds all at once when this is non-empty, instead of asking which single
+        /// kind to make. Empty when the layout has none (no layout pushed yet, or nothing placed in the web app's
+        /// Kinetics tab, or only not-yet-built concept kinds): the command then falls back to the interactive,
+        /// one-kind-at-a-time Prepare() exactly as before this existed.</summary>
+        internal static List<KineticKind> PlacedBuiltKinds(SportifyLayout? layout)
+        {
+            var found = new List<KineticKind>();
+            foreach (var p in layout?.Placements ?? new List<PlacementDto>())
+            {
+                if (!string.Equals(p.Category, "kinetics", StringComparison.OrdinalIgnoreCase)) continue;
+                var info = KineticKinds.ByKey(p.Parameters?.Kinetics?.KineticKind);
+                if (info == null || !info.Built) continue;
+                if (!found.Contains(info.Kind)) found.Add(info.Kind);
+            }
+            return found;
+        }
+
+        /// <summary>One kind's Context, built straight from the layout's own placements — no dialog, no analysis-derived
+        /// fallback. Always succeeds for a kind PlacedBuiltKinds returned (FromPlacements is then guaranteed non-empty).</summary>
+        static Context PreparePlaced(KineticKind kind, SportifyLayout? layout, AnalysisResultPayload? payload)
+        {
+            var ctx = new Context { Priority = "sun", Kind = kind, Sun = payload?.SunAndShading, Hosts = KineticsHosts.FromPlacements(layout, kind) };
+            foreach (var h in ctx.Hosts) if (h.SiteNote.Length > 0) ctx.Notes.Add(h.Name + ": " + h.SiteNote + ".");
+            SetEnvironment(ctx, payload);
+            return ctx;
+        }
+
+        /// <summary>
+        /// The batch alternative to Prepare(): every kind the pushed layout has a placement for, built without asking
+        /// which one — the whole point of placing kinds by hand in the web app's Kinetics tab is deciding this already.
+        /// Empty when there is nothing to batch (ImportKineticAdaptationCommand then falls back to Prepare()).
+        /// </summary>
+        internal static List<Context> PrepareAllPlaced()
+        {
+            var layout = AdoptLayoutFrame();
+            var kinds = PlacedBuiltKinds(layout);
+            if (kinds.Count == 0) return new List<Context>();
+            var payload = ReadPayload();
+            return kinds.Select(k => PreparePlaced(k, layout, payload)).ToList();
+        }
     }
 
     /// <summary>Kinetics, step 1: are the two adaptive families (a bar and a membrane) loaded in this project, and what could be made from the results published so far?</summary>
@@ -355,12 +397,13 @@ namespace SportfyRevit
                 "Adaptive families in this project:\n" +
                 "  " + AdaptiveFamilyBuilder.BarName + " (blades, fins, posts, rails, masts, rods): " + (bar ? "loaded" : "not loaded") + "\n" +
                 "  " + AdaptiveFamilyBuilder.SurfaceName + " (sail fabric, fence curtain): " + (surface ? "loaded" : "not loaded") + "\n\n" +
-                (bar && surface ? "Both are here. " : "Run “Generate Applicable Family” to build what is missing. ") +
                 "\nWhat the published results could make now:\n" +
                 "  overhead louvres: " + pergolas + " (pergolas or canopies in the Sun & Shade result)\n" +
                 "  tensile sails: " + sails + " (sails in the Sun & Shade result)\n" +
                 "  roller fences: " + fences + " (fences in the Ball Trajectory result)\n" +
-                "  vertical slat and fin screens: any railing or wall you select");
+                "  vertical slat and fin screens: any railing or wall you select\n\n" +
+                "Next: " + (bar && surface ? "run “Import Analysis Adaptation” — it also builds these families itself if they are still missing." : "run “Generate Applicable Family” to build the two families above, then “Import Analysis Adaptation”.") +
+                " If you placed kinds by hand in the web app's Kinetics tab, Import Analysis Adaptation builds all of them in one go.");
             return Result.Succeeded;
         }
     }
@@ -403,9 +446,13 @@ namespace SportfyRevit
     }
 
     /// <summary>
-    /// Kinetics, step 3: closes the loop. For the kind chosen, works out from the published analyses how many blades and how far apart (or how far the sail's masts run on their tracks, or what the
-    /// fence needs), what carries them, and how they move; then places (or replaces) the unit as adaptive components: the moving parts on the Dynamic Furniture workset,
-    /// the frame that carries them on the Structure workset, all in the Post analysis phase, opened to the sun's solar-noon state (LouvreActuationModel).
+    /// Kinetics, step 3: closes the loop. Every kind the web app's Kinetics tab has a placement for gets built in one
+    /// run — position and build size come from the layout, not a dialog — working out from the published analyses how
+    /// many blades and how far apart (or how far the sail's masts run on their tracks, or what the fence needs), what
+    /// carries them, and how they move; then placing (or replacing) each unit as adaptive components: the moving parts
+    /// and the frame that carries them together on the Sportify Kinetic Furniture workset, all in the Post analysis
+    /// phase, opened to the sun's solar-noon state (LouvreActuationModel). A layout with no such placements falls back
+    /// to the interactive, one-kind-at-a-time dialog exactly as before this batch path existed.
     /// </summary>
     [Transaction(TransactionMode.Manual)]
     public class ImportKineticAdaptationCommand : IExternalCommand
@@ -416,31 +463,42 @@ namespace SportfyRevit
             var doc = uidoc?.Document;
             if (uidoc == null || doc == null) { TaskDialog.Show(KineticsShared.Title, "Open a Revit project first."); return Result.Cancelled; }
 
-            KineticsShared.Context? ctx;
-            try { ctx = KineticsShared.Prepare(commandData); }
+            List<KineticsShared.Context> contexts;
+            bool batch;
+            try
+            {
+                contexts = KineticsShared.PrepareAllPlaced();
+                batch = contexts.Count > 0;
+                if (!batch)
+                {
+                    var single = KineticsShared.Prepare(commandData);
+                    if (single == null) return Result.Cancelled;
+                    contexts.Add(single);
+                }
+            }
             catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
-            if (ctx == null) return Result.Cancelled;
 
             // The adaptive template is found before the transaction: the search opens family documents.
             if (AdaptiveFamilyBuilder.FindTemplate(commandData.Application.Application) == null)
                 return BimCommandErrors.Failed(KineticsShared.Title, "the adaptive families could not be built", new InvalidOperationException(AdaptiveFamilyBuilder.FailureReason ?? "Revit's adaptive component template was not found"), ref message);
 
             var design = KineticsInputsFile.LoadDesign();
-            List<KineticUnit> units;
-            try { units = KineticsShared.BuildUnits(ctx, design); }
+            var allUnits = new List<KineticUnit>();
+            try { foreach (var ctx in contexts) allUnits.AddRange(KineticsShared.BuildUnits(ctx, design)); }
             catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the mechanics could not be worked out", ex, ref message); }
 
             var notes = new List<string>();
             try
             {
-                using var t = new Transaction(doc, "Sportify: Kinetics — place the " + KineticKinds.Get(ctx.Kind).Label.ToLowerInvariant());
+                var kindsLabel = string.Join(", ", contexts.Select(c => KineticKinds.Get(c.Kind).Label.ToLowerInvariant()));
+                using var t = new Transaction(doc, "Sportify: Kinetics — place " + kindsLabel);
                 t.Start();
                 var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                 var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
                 var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.KineticFurniture });
-                AdaptiveUnitPlacer.ClearKind(doc, ctx.Kind);
+                foreach (var kind in contexts.Select(c => c.Kind).Distinct()) AdaptiveUnitPlacer.ClearKind(doc, kind);
                 var all = new List<ElementId>();
-                foreach (var u in units)
+                foreach (var u in allUnits)
                 {
                     var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key);
                     u.Dto.PartsPlaced = placed.Bars + placed.Surfaces;
@@ -449,7 +507,7 @@ namespace SportfyRevit
                 }
                 var moved = SportifyPhases.Assign(doc, all, SportifyPhases.PostAnalysis, uidoc.ActiveView, out var phaseNote);
                 if (moved > 0) notes.Add(moved + " element(s) are in the “" + SportifyPhases.PostAnalysis + "” phase.");
-                if (phaseNote.Length > 0) { notes.Add("Phase: " + phaseNote + "."); foreach (var u in units) u.Dto.Phase = null; }
+                if (phaseNote.Length > 0) { notes.Add("Phase: " + phaseNote + "."); foreach (var u in allUnits) u.Dto.Phase = null; }
                 if (!doc.IsWorkshared) notes.Add("The project is not workshared, so the parts stay on one workset (Collaborate > Worksets turns it on; the next placement then sorts them).");
                 t.Commit();
             }
@@ -458,30 +516,37 @@ namespace SportfyRevit
                 return BimCommandErrors.Failed(KineticsShared.Title, "the units could not be placed", ex, ref message);
             }
 
-            // ---- publish: the pieces of this kind replace those of the same kind already published; the other kinds stay
+            // ---- publish: the pieces of every kind just built replace those of the same kind already published; other kinds stay
+            var builtKeys = contexts.Select(c => KineticKinds.Get(c.Kind).Key).ToHashSet();
             var previous = KineticsShared.Latest()?.Kinetics;
-            var kept = (previous?.Pieces ?? new List<KineticPieceDto>()).Where(p => p.Kind != KineticKinds.Get(ctx.Kind).Key && p.Kind != null).ToList();
-            var pieces = kept.Concat(units.Select(u => u.Dto)).ToList();
-            var preliminary = (ctx.Sun?.Preliminary ?? false) || design.Preliminary;
+            var kept = (previous?.Pieces ?? new List<KineticPieceDto>()).Where(p => p.Kind != null && !builtKeys.Contains(p.Kind)).ToList();
+            var pieces = kept.Concat(allUnits.Select(u => u.Dto)).ToList();
+            var preliminary = contexts.Any(c => c.Sun?.Preliminary ?? false) || design.Preliminary;
             AnalysisResultPublisher.PublishKinetics(new KineticsResultDto
             {
-                Priority = ctx.Priority,
+                Priority = contexts[0].Priority,
                 Preliminary = preliminary,
-                PreliminaryNote = string.Join(" ", new[] { ctx.Sun?.PreliminaryNote, design.PreliminaryNote() }.Where(n => !string.IsNullOrWhiteSpace(n))),
+                PreliminaryNote = string.Join(" ", contexts.Select(c => c.Sun?.PreliminaryNote).Append(design.PreliminaryNote()).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct()),
                 Pieces = pieces,
                 MechanicalInputs = KineticsShared.InputsDto(design),
                 VideoPath = previous?.VideoPath, SimulationVideoPath = previous?.SimulationVideoPath,
-                PlacementNotes = notes.Concat(ctx.Notes).ToList(),
+                PlacementNotes = notes.Concat(contexts.SelectMany(c => c.Notes)).ToList(),
             });
 
-            var first = units[0];
+            var perKind = string.Join("\n\n", contexts.Select(ctx =>
+            {
+                var kindUnits = allUnits.Where(u => u.Dto.Kind == KineticKinds.Get(ctx.Kind).Key).ToList();
+                if (kindUnits.Count == 0) return "";
+                return KineticKinds.Get(ctx.Kind).Label + " — " + kindUnits.Count + (kindUnits.Count == 1 ? " unit, " : " units, ") + kindUnits.Sum(u => u.Dto.PartsPlaced) + " adaptive parts:\n" + Summary(kindUnits[0]);
+            }).Where(s => s.Length > 0));
+
             TaskDialog.Show(KineticsShared.Title,
-                KineticsShared.RanNote(ctx) +
-                "Placed " + units.Count + " " + KineticKinds.Get(ctx.Kind).Label.ToLowerInvariant() + (units.Count == 1 ? "" : "s") + ": " + units.Sum(u => u.Dto.PartsPlaced) + " adaptive parts (" + units.Sum(u => u.Dto.MovingParts) + " of them moving), at the “" + first.StateLabel + "” state.\n\n" +
-                Summary(first) + "\n" +
+                (contexts.Count == 1 ? KineticsShared.RanNote(contexts[0]) : "") +
+                (batch ? "Built everything placed in the web app's Kinetics tab: " + contexts.Count + " kind" + (contexts.Count == 1 ? "" : "s") + ", " + allUnits.Count + " unit" + (allUnits.Count == 1 ? "" : "s") + " in all.\n\n" : "") +
+                perKind + "\n" +
                 (design.Preliminary ? "PRELIMINARY: the mechanical inputs are built-in values. Enter your own in " + KineticsInputsFile.Path + ".\n" : "") +
                 (notes.Count > 0 ? "\n" + string.Join("\n", notes) + "\n" : "") +
-                "\nPublished to the web app's Improve tab. “Record Isolated Video” (Unity) shows the states move; “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study.");
+                "\nPublished to the web app's Improve tab. Next: “Record Isolated Video” (Unity) shows the states move, or “Simulate” (SOLIDWORKS) builds the mechanism and records its motion study — or run “Bill of Materials” for a parts list with real dimensions.");
             return Result.Succeeded;
         }
 
@@ -667,6 +732,55 @@ namespace SportfyRevit
         {
             // Named FilePath rather than Path so it can't be confused with System.IO.Path (same reasoning as SimulateBallTrajectoriesCommand.VideoInfo).
             [JsonPropertyName("path")] public string? FilePath { get; set; }
+        }
+    }
+
+    /// <summary>
+    /// Kinetics, "Bill of Materials": every real part the placed, built kinds (overhead louvre, sail, roller fence)
+    /// need — blade, post, rail, mast, rod, roller housing, sail/curtain fabric — with the actual dimensions the
+    /// mechanics compute for whatever is placed in the web app's Kinetics tab right now, grouped so 19 identical
+    /// blades is one row with Count 19. Recomputed fresh each time, independent of whether Import Analysis Adaptation
+    /// has been run: the whole point is answering "what would this cost to build" before committing to it in Revit.
+    /// CSV, saved beside the other schedules (see KineticsBillOfMaterials's own doc comment for why not a
+    /// ViewSchedule, and why Material/BuySupplier/BuyLink are left for a person to fill in).
+    /// </summary>
+    [Transaction(TransactionMode.ReadOnly)]
+    public class KineticsBillOfMaterialsCommand : IExternalCommand
+    {
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            var doc = commandData.Application.ActiveUIDocument?.Document;
+            if (doc == null) { TaskDialog.Show(KineticsShared.Title, "Open a Revit project first."); return Result.Cancelled; }
+
+            List<KineticsShared.Context> contexts;
+            try { contexts = KineticsShared.PrepareAllPlaced(); }
+            catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
+            if (contexts.Count == 0)
+            {
+                TaskDialog.Show(KineticsShared.Title, "Nothing to list: place a louvre pergola, sail or roller fence in the web app's Kinetics tab first — the bill of materials is built from what you've placed and confirmed there, at the build size you chose, not from whatever is already in Revit.");
+                return Result.Cancelled;
+            }
+
+            var design = KineticsInputsFile.LoadDesign();
+            List<KineticUnit> units;
+            try { units = contexts.SelectMany(c => KineticsShared.BuildUnits(c, design)).ToList(); }
+            catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the mechanics could not be worked out", ex, ref message); }
+
+            var rows = KineticsBillOfMaterials.Rows(units);
+            string path;
+            try
+            {
+                path = SportifyWorkspace.UniquePath("schedules", DeliverableNaming.Named($"Sportify_Kinetics_BOM_{DateTime.Now:yyyyMMdd_HHmmss}.csv"), DeliverableNaming.FolderFor("schedules"));
+                var csv = KineticsBillOfMaterials.Header + "\n" + string.Join("\n", rows.Select(r => string.Join(",", r.Select(ScheduleCsv.Field)))) + "\n";
+                File.WriteAllBytes(path, new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray());
+            }
+            catch (Exception ex) { TaskDialog.Show(KineticsShared.Title, "Couldn't write the CSV file: " + ex.Message); return Result.Failed; }
+
+            TaskDialog.Show(KineticsShared.Title,
+                rows.Count + " part(s) across " + units.Count + " unit(s) (" + string.Join(", ", contexts.Select(c => KineticKinds.Get(c.Kind).Label.ToLowerInvariant())) + "), written to:\n" + path +
+                "\n\nMaterial is filled in with a plain per-role default, marked \"assumed\" — check it against what the mechanical engineer actually specifies. Supplier and buy-link are left blank: Sportify has no real catalogue to draw them from, so a guess there would be worse than nothing." +
+                (design.Preliminary ? "\n\nPRELIMINARY: the sizes rest on built-in mechanical inputs. Enter your own in " + KineticsInputsFile.Path + " and run this again." : ""));
+            return Result.Succeeded;
         }
     }
 }

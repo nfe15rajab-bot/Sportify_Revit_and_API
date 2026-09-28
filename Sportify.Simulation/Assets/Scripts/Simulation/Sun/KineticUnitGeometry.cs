@@ -33,7 +33,8 @@ namespace Sportify.Simulation.Sun
         public bool Dynamic;
         /// <summary>The mechanism's hardware (crank arms, actuator piston and housing, drive motors): the CAD model and the videos show it, the BIM model does not place it.</summary>
         public bool Detail;
-        /// <summary>Only the CAD model has it (the slats a roller curtain is made of, which the videos and the BIM model draw as one membrane).</summary>
+        /// <summary>Set on a roller curtain's own slats: the video draws the curtain as one membrane instead (KineticsRunner.cs filters these out), but the CAD model always
+        /// builds them, and the BIM model does too (KineticsBuild.cs special-cases this one role back in, in place of the flat membrane surface).</summary>
         public bool CadOnly;
 
         public V3 V => P1.Equals(P0) ? V3.UnitY : (P1 - P0).Unit().Cross(U).Unit();
@@ -334,8 +335,9 @@ namespace Sportify.Simulation.Sun
         /// <summary>
         /// A ROLLER FENCE (a rouleau on vertical guide rails, deployed only when it is needed). Local x along the fence, y the outward normal, z up. The roller housing
         /// lies along the base, a drive motor at its end; two or more guide rails stand in the Z axis; the curtain runs from the roller up to the bottom bar, which the roller
-        /// lets rise along the rails: <paramref name="deployedM"/> is how high the top of the curtain stands now (0 stored, the recommended height in play). For the CAD model
-        /// the curtain is also made of slats (as a roller shutter is), stacked at the roller when stored and spread up the rails as the bar rises.
+        /// lets rise along the rails: <paramref name="deployedM"/> is how high the top of the curtain stands now (0 stored, the recommended height in play). The curtain is
+        /// also made of slats (as a roller shutter is), stacked at the roller when stored and spread up the rails as the bar rises — the CAD model and the BIM model
+        /// (KineticsBuild.cs) both build it from these; the flat membrane surface stays for the video only, which draws it that way for speed.
         /// </summary>
         public static UnitPlan RollerFence(double lengthM, double fullHeightM, double deployedM, int bays, double railSizeM, double rollerDiameterM)
         {
