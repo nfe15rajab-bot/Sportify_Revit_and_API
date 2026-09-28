@@ -70,8 +70,10 @@ namespace SportfyRevit
         private static readonly Dictionary<long, int> _combinedLayoutVersionByRoof = new();
         private static readonly Dictionary<long, string> _combinedLayoutIdByRoof = new();
 
-        /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent for the ACTIVE roof, draft or export; null when none has arrived for it.</summary>
-        public static string? CurrentLayoutId { get { lock (CombinedLayoutLock) return _activeRoofId.HasValue && _combinedLayoutIdByRoof.TryGetValue(_activeRoofId.Value, out var id) ? id : null; } }
+        /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent for the ACTIVE roof, draft or export; null when none has arrived for it.
+        /// Falls back to bucket 0 the same way SetDraftLayoutPayload/SetCombinedLayoutPayload/TryGetLatestCombinedLayout do: a test (or a tool) that posts a
+        /// layout without ever pushing a real roof first still has one, under id 0, and must see IT back here, not null.</summary>
+        public static string? CurrentLayoutId { get { lock (CombinedLayoutLock) return _combinedLayoutIdByRoof.TryGetValue(_activeRoofId ?? 0, out var id) ? id : null; } }
 
         /// <summary>
         /// The identity of the layout THIS thread last read with TryGetLatestCombinedLayout, else the current one. An analysis reads the layout when it

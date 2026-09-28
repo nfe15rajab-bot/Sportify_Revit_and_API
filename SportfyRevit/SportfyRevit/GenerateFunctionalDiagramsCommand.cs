@@ -81,7 +81,7 @@ namespace SportfyRevit
                     GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation")),
                     GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric")));
 
-                var dir = SportifyWorkspace.PathFor("diagrams");
+                var dir = SportifyWorkspace.PathFor("diagrams", DeliverableNaming.FolderFor("diagrams"));
                 File.WriteAllText(Path.Combine(dir, "functional_spine.svg"), spineSvg);
                 File.WriteAllText(Path.Combine(dir, "functional_bubble.svg"), bubbleSvg);
                 saved = circulationImage != null || axoImage != null ? $"\n\nAll four saved to {dir}." : $"\n\nThe two diagrams saved to {dir}.";
