@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace Sportify.Simulation
@@ -58,6 +58,20 @@ namespace Sportify.Simulation
         readonly GameObject _arrowPanel;
         readonly Transform _arrowPivot;
 
+        const float TopBarPx = 124f;
+        const float MarginPx = 44f;
+        const float TitlePx = 34f, BannerPx = 27f, BannerMinPx = 17f;
+        const float CardHeadPx = 54f, CardBodyPx = 27f, CardBodyMin = 0.62f;
+        readonly float _bannerSize;                        // the banner's type size as built, for LayoutTopRow's scale
+        float _preliminaryPx;                              // the warning strip's height, 0 when it is off
+        static readonly Regex Tags = new Regex("<[^>]+>");
+
+        /// <summary>
+        /// How far down from the top of the frame the HUD's own strips reach, in pixels: the top bar, and the warning strip under it when it is on
+        /// (one or two lines). A chart drawn over the scene starts below it.
+        /// </summary>
+        public float TopReservedPx { get { return TopBarPx + _preliminaryPx; } }
+
         /// <param name="title">Heading in the top bar.</param>
         /// <param name="shotLegend">The ball simulation's legend of shot colours; other analyses set their own with SetLegend.</param>
         public SimulationHud(Camera cam, int widthPx, int heightPx, string title = "Ball trajectory simulation", bool shotLegend = true)
@@ -81,8 +95,9 @@ namespace Sportify.Simulation
             _title.text = "<b>" + title + "</b>";
             _caseStudy = Text("CaseStudy", 21f, TextAnchor.UpperLeft, TextAlignment.Left, -widthPx * 0.5f + m, heightPx * 0.5f - 68f, Muted, OrderHudText);
 
-            _clock = Text("Clock", 27f, TextAnchor.UpperCenter, TextAlignment.Center, 0f, heightPx * 0.5f - 26f, Ink, OrderHudText);
-            _counts = Text("Counts", 27f, TextAnchor.UpperRight, TextAlignment.Right, widthPx * 0.5f - m, heightPx * 0.5f - 26f, Ink, OrderHudText);
+            _clock = Text("Clock", BannerPx, TextAnchor.UpperCenter, TextAlignment.Center, 0f, heightPx * 0.5f - 26f, Ink, OrderHudText);
+            _bannerSize = _clock.characterSize;
+            _counts = Text("Counts", BannerPx, TextAnchor.UpperRight, TextAlignment.Right, widthPx * 0.5f - m, heightPx * 0.5f - 26f, Ink, OrderHudText);
 
             _feed = Text("Feed", 22f, TextAnchor.LowerLeft, TextAlignment.Left, -widthPx * 0.5f + m, -heightPx * 0.5f + 26f, Ink, OrderHudText);
             _legend = Text("Legend", 19f, TextAnchor.LowerRight, TextAlignment.Right, widthPx * 0.5f - m, -heightPx * 0.5f + 22f, Muted, OrderHudText);
@@ -121,9 +136,9 @@ namespace Sportify.Simulation
             cardRenderer.sortingOrder = OrderCard;
 
             var cx = -widthPx * 0.27f;
-            _cardHead = Text("CardHead", 54f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f, Ink, OrderCardText, _card.transform);
+            _cardHead = Text("CardHead", CardHeadPx, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f, Ink, OrderCardText, _card.transform);
             _cardSub = Text("CardSub", 26f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f - 84f, Muted, OrderCardText, _card.transform);
-            _cardBody = Text("CardBody", 27f, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f - 150f, Ink, OrderCardText, _card.transform);
+            _cardBody = Text("CardBody", CardBodyPx, TextAnchor.UpperLeft, TextAlignment.Left, cx, heightPx * 0.27f - 150f, Ink, OrderCardText, _card.transform);
             _cardHeadSize = _cardHead.characterSize;
             _cardBodySize = _cardBody.characterSize;
             _card.SetActive(false);
@@ -179,6 +194,7 @@ namespace Sportify.Simulation
             var on = !string.IsNullOrEmpty(text);
             _preliminaryBar.SetActive(on);
             _preliminary.gameObject.SetActive(on);
+            _preliminaryPx = 0f;
             if (!on) return;
 
             var lines = new List<string>();
@@ -196,6 +212,7 @@ namespace Sportify.Simulation
 
             // the strip is as tall as its lines
             var stripPx = 16f + 28f * lines.Count;
+            _preliminaryPx = stripPx;
             _preliminaryBar.transform.localScale = new Vector3((_widthPx - 300f) * _worldPerPx, stripPx * _worldPerPx, 1f);
             _preliminaryBar.transform.localPosition = new Vector3(-150f * _worldPerPx, (_heightPx * 0.5f - 124f - stripPx * 0.5f) * _worldPerPx, DistanceM + 0.06f);
         }
@@ -208,6 +225,52 @@ namespace Sportify.Simulation
         public void SetCountsText(string text)
         {
             _counts.text = text;
+            LayoutTopRow();
+        }
+
+        /// <summary>
+        /// Keeps the banner (the middle of the top bar) clear of the title on its left and the counters on its right: centred when it fits there,
+        /// else moved into the middle of the room between them, and set smaller (down to BannerMinPx) when even that room is too narrow. A long
+        /// banner used to run into the counters ("...3.0 HZRHYTHM 2.3 HZ").
+        /// </summary>
+        void LayoutTopRow()
+        {
+            const float gap = 32f;
+            var left = -_widthPx * 0.5f + MarginPx + WidthPx(_title.text, TitlePx) + gap;
+            var right = _widthPx * 0.5f - MarginPx - WidthPx(_counts.text, BannerPx) - gap;
+            var width = WidthPx(_clock.text, BannerPx);
+            var x = 0f;
+            var size = BannerPx;
+            if (width * 0.5f > Mathf.Min(-left, right))
+            {
+                x = (left + right) * 0.5f;
+                var room = Mathf.Max(1f, right - left);
+                if (width > room) size = Mathf.Max(BannerMinPx, BannerPx * room / width);
+            }
+            _clock.characterSize = _bannerSize * size / BannerPx;
+            var at = _clock.transform.localPosition;
+            _clock.transform.localPosition = new Vector3(x * _worldPerPx, at.y, at.z);
+        }
+
+        /// <summary>How wide the text stands on the frame, in pixels, at that type size: its widest line, from the font's own glyph advances (rich-text tags left out).</summary>
+        float WidthPx(string text, float sizePx)
+        {
+            if (string.IsNullOrEmpty(text)) return 0f;
+            var style = text.Contains("<b>") ? FontStyle.Bold : FontStyle.Normal;
+            var plain = Tags.Replace(text, "");
+            _font.RequestCharactersInTexture(plain, GlyphPx, style);
+            var widest = 0f;
+            foreach (var line in plain.Split('\n'))
+            {
+                var w = 0f;
+                foreach (var ch in line)
+                {
+                    CharacterInfo info;
+                    w += _font.GetCharacterInfo(ch, out info, GlyphPx, style) ? info.advance : GlyphPx * 0.55f;
+                }
+                widest = Mathf.Max(widest, w);
+            }
+            return widest * sizePx / GlyphPx;
         }
 
         /// <summary>Changes the words of a label made by WorldLabel, including its dark outline copy.</summary>
@@ -295,12 +358,14 @@ namespace Sportify.Simulation
         public void SetBanner(string text)
         {
             _clock.text = text;
+            LayoutTopRow();
         }
 
         public void SetCounts(int shots, int finished, int crossings)
         {
             _counts.text = "SHOTS " + shots + "   FINISHED " + finished + "   " +
                            Tint("CROSSINGS " + crossings, crossings > 0 ? ShotVisual.CrossingColor : Ink);
+            LayoutTopRow();
         }
 
         public void SetFeed(IList<string> lines)
@@ -315,22 +380,44 @@ namespace Sportify.Simulation
         /// <param name="panelHeightScale">Multiplies the panel's height, growing it downward from its top edge.</param>
         public void ShowCard(string headline, Color headlineColor, string subtitle, IList<string> bodyLines, float headlineScale = 1f, float bodyScale = 1f, float panelHeightScale = 1f)
         {
-            var h = _cardBackHeight * panelHeightScale;
+            // The card fits its words, whatever the scales asked: a headline wider than the card is set smaller; a body too wide or too long (a
+            // list per garden bed on a roof with eleven of them) is set smaller down to CardBodyMin, the panel grows down to the frame's bottom, and
+            // what still does not fit is cut with a last line saying how much more the results file holds. Lists used to run off the frame.
+            var textW = _widthPx * 0.54f;                                   // from the text's left edge (-0.27 W) to as far in from the card's right edge
+            var headW = WidthPx(headline, CardHeadPx);
+            if (headW > textW) headlineScale = Mathf.Min(headlineScale, Mathf.Max(0.45f, textW / headW));
+
+            var lines = new List<string>();
+            foreach (var line in bodyLines) lines.AddRange((line ?? "").Split('\n'));
+            var bodyTop = _heightPx * 0.27f - 150f;                         // px above the frame's middle, as built
+            var room = bodyTop + _heightPx * 0.5f - 30f;                     // down to just above the frame's bottom
+            var lineStep = CardBodyPx * 1.26f;                               // a line's pitch at lineSpacing 1.1: 34 px for 27 px type, measured from the frames
+            var widest = 0f;
+            foreach (var line in lines) widest = Mathf.Max(widest, WidthPx(line, CardBodyPx));
+            var byWidth = widest > textW ? textW / widest : 1f;
+            var scale = Mathf.Min(bodyScale, Mathf.Min(byWidth, room / Mathf.Max(1f, lines.Count * lineStep)));
+            if (scale < CardBodyMin)
+            {
+                scale = Mathf.Min(CardBodyMin, Mathf.Min(bodyScale, byWidth));
+                var fit = Mathf.Max(2, Mathf.FloorToInt(room / (lineStep * scale)));
+                if (lines.Count > fit)
+                {
+                    var more = lines.Count - (fit - 1);
+                    lines = lines.GetRange(0, fit - 1);
+                    lines.Add(Tint("... and " + more + " more lines: the results file lists them all", Muted));
+                }
+            }
+            var needed = _cardBackTop - bodyTop + lines.Count * lineStep * scale + 40f;
+            var h = Mathf.Min(Mathf.Max(_cardBackHeight * panelHeightScale, needed), _cardBackTop + _heightPx * 0.5f - 8f);
+
             _cardBack.localScale = new Vector3(_cardBack.localScale.x, h * _worldPerPx, 1f);
             _cardBack.localPosition = new Vector3(0f, (_cardBackTop - h / 2f) * _worldPerPx, _cardBack.localPosition.z);
             _cardHead.characterSize = _cardHeadSize * headlineScale;
-            _cardBody.characterSize = _cardBodySize * bodyScale;
+            _cardBody.characterSize = _cardBodySize * scale;
             _cardHead.text = headline;
             _cardHead.color = headlineColor;
             _cardSub.text = subtitle;
-
-            var sb = new StringBuilder();
-            for (var i = 0; i < bodyLines.Count; i++)
-            {
-                if (i > 0) sb.Append('\n');
-                sb.Append(bodyLines[i]);
-            }
-            _cardBody.text = sb.ToString();
+            _cardBody.text = string.Join("\n", lines);
             _card.SetActive(true);
         }
 

@@ -177,6 +177,7 @@ namespace Sportify.Simulation.Dynamics
             _cam = SceneBuilder.BuildCamera(roof, (float)_cfg.Width / _cfg.Height);
             var lookAt = LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 2.5f);
             _cam.transform.position = lookAt + (_cam.transform.position - lookAt) * 1.15f;
+            LabelFit.ForView(_cam, lookAt, (float)_cfg.Width / _cfg.Height);
             _cam.farClipPlane *= 1.2f;
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height, "Dynamic structural analysis", false);
@@ -195,11 +196,10 @@ namespace Sportify.Simulation.Dynamics
                 for (var ix = 0; ix < _field.Nx; ix++)
                     _cellBay[_field.Index(ix, iy)] = BayIndex((ix + 0.5) * _field.CellW, (iy + 0.5) * _field.CellH);
 
-            foreach (var bay in _run.Static.bays)
-            {
-                var top = _inputs.Structure.Items.FirstOrDefault(i => i.Label == bay.topContributor);
-                _towers.Add(new BayTower(bay, _hud, top != null ? PieceNames.Short(PieceNames.Compact(top), 22) : ""));
-            }
+            var subtitles = BayTower.Subtitles(_run.Static.bays, _inputs.Structure.Items);
+            for (var b = 0; b < _run.Static.bays.Count; b++) _towers.Add(new BayTower(_run.Static.bays[b], _hud, subtitles[b]));
+            var towerSpace = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            foreach (var t in _towers.OrderByDescending(t => t.Utilisation)) t.Claim(towerSpace);
             foreach (var t in _towers) t.SetActive(false);
 
             var centre = LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 6f);
@@ -214,6 +214,17 @@ namespace Sportify.Simulation.Dynamics
         {
             for (var i = 0; i < b.Count; i++) b.Hide(i);
             b.Apply();
+        }
+
+        /// <summary>
+        /// How big a label over the bay is: as big as fits the bay (LabelFit, sized for its widest text so neighbours match), and on a grid too fine for
+        /// that, just legible - wider than its bay, so ScreenSpace then keeps only some of them, the ones that matter most.
+        /// </summary>
+        static float BayLabelSize(BayResult bay, string widest, float preferred)
+        {
+            double sx, sy;
+            StructureModel.BaySpans(bay, out sx, out sy);
+            return Mathf.Min(preferred, Mathf.Max(LabelFit.Size(widest, (float)sx, (float)sy, preferred), LabelFit.Legible * 1.2f));
         }
 
         /// <summary>Where a bay's label goes: its middle, for a skewed or cut bay its centroid.</summary>
@@ -252,9 +263,14 @@ namespace Sportify.Simulation.Dynamics
                     else color = item.DeadKnM2 > 3.5 ? new Color(0.30f, 0.50f, 0.30f) : new Color(0.46f, 0.56f, 0.38f);
                     body = SceneBuilder.Box("Piece_" + item.Id, centre, new Vector3((float)item.Width, 0.08f, (float)item.Height), SceneBuilder.LitMaterial(color, 0.10f));
                 }
-                var name = PieceNames.Label(_hud, item, 0.7f);
-                if (name != null) name.gameObject.SetActive(false);
-                _pieces.Add(new Piece { Item = item, Body = body, Name = name });
+                _pieces.Add(new Piece { Item = item, Body = body });
+            }
+            // the names, the biggest piece first: where two would meet on the frame, the bigger piece keeps its own
+            var space = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            foreach (var p in _pieces.OrderByDescending(p => p.Item.Width * p.Item.Height))
+            {
+                p.Name = PieceNames.Label(_hud, p.Item, 0.7f, space);
+                if (p.Name != null) p.Name.gameObject.SetActive(false);
             }
         }
 
@@ -270,9 +286,12 @@ namespace Sportify.Simulation.Dynamics
         }
 
         // the chart area: the empty band above the roof
+        /// <summary>A chart in the band above the roof: its bottom edge fixed, its top below the HUD's strips (the warning strip can be two lines).</summary>
         ScreenPlot NewPlot(float cx, float w)
         {
-            return new ScreenPlot(_cam, _hud, _cfg.Height, cx, 268f, w, 205f, PlotBack);
+            const float bottom = 268f - 205f * 0.5f;                                    // px above the frame's middle
+            var top = Mathf.Min(268f + 205f * 0.5f, _cfg.Height * 0.5f - _hud.TopReservedPx - 8f);
+            return new ScreenPlot(_cam, _hud, _cfg.Height, cx, (top + bottom) * 0.5f, w, top - bottom, PlotBack);
         }
 
         // -------------------------------------------------------------- the run
@@ -383,7 +402,7 @@ namespace Sportify.Simulation.Dynamics
                 var x = Mathf.Clamp01((hour - c.startHour) / (c.endHour - c.startHour));
                 var n = Mathf.Max(2, Mathf.CeilToInt(x * pts.Count));
                 plot.SetLine(line, pts.Take(n).ToList());
-                plot.SetQuad(cursor, x - 0.0012f, 0.02f, x + 0.0012f, 0.98f);
+                plot.SetQuad(cursor, x - 0.0012f, 0.02f, x + 0.0012f, 0.86f);      // stops under the chart's title
 
                 var hi = Mathf.Clamp(sim.HourIndex, 0, DaySchedule.Hours - 1);
                 _hud.SetBanner(Banner("1  CROWDS", DynamicModel.Clock(hour) + "   " + sched.PhaseAt(hi).ToUpperInvariant()));
@@ -502,7 +521,7 @@ namespace Sportify.Simulation.Dynamics
                 var minute = done / 60f;
                 var x = Mathf.Clamp01(minute / 180f);
                 plot.SetLine(line, pts.Take(Mathf.Max(2, Mathf.CeilToInt(x * pts.Count))).ToList());
-                plot.SetQuad(cursor, x - 0.0012f, 0.02f, x + 0.0012f, 0.98f);
+                plot.SetQuad(cursor, x - 0.0012f, 0.02f, x + 0.0012f, 0.86f);      // stops under the chart's title
                 _hud.SetBanner(Banner("2  WEATHER: RAIN", raining ? "CLOUDBURST " + Num(w.rain.intensityMmH, "0") + " MM/H" : "THE RAIN HAS STOPPED"));
                 _hud.SetCountsText("WATER " + Tint("+" + Num((float)addedKn, "0") + " KN", Amber) + "   t = " + Num(minute, "0") + " MIN");
                 _hud.SetFeed(new List<string> { "Build-ups: " + Num(w.rain.dryKn, "0") + " kN dry, " + Num(w.rain.fieldCapacityKn, "0") + " at field capacity, " + Num(w.rain.saturatedKn, "0") + " saturated (what the static analysis carries)" });
@@ -702,11 +721,15 @@ namespace Sportify.Simulation.Dynamics
             ClearStage();
             var r = _report.resonance;
             var labels = new List<GameObject>();
-            for (var b = 0; b < r.bays.Count; b++)
+            // the lowest frequencies first (the ones a crowd can reach): where two bays' labels would meet on the frame, the lower keeps its own
+            var space = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            foreach (var b in Enumerable.Range(0, r.bays.Count).OrderBy(b => r.bays[b].frequencyHz))
             {
                 var bay = _run.Static.bays[b];
-                labels.Add(_hud.WorldLabel(Num(r.bays[b].frequencyHz, "0.0") + " Hz", BayPoint(bay, 1.0f), 1.15f, Color.white).gameObject);
-                labels[b].SetActive(false);
+                var size = BayLabelSize(bay, "00.0 Hz", 1.15f);
+                if (!space.Claim(BayPoint(bay, 1.0f), "00.0 Hz", size)) continue;
+                labels.Add(_hud.WorldLabel(Num(r.bays[b].frequencyHz, "0.0") + " Hz", BayPoint(bay, 1.0f), size, Color.white).gameObject);
+                labels[labels.Count - 1].SetActive(false);
             }
             var plot = NewPlot(0f, 1560f);
             var span = plot.Text("natural frequency of each bay: a strip along its long span, deck depth = span / " + Num((float)DynamicModel.SpanToDepth, "0") + ", concrete, the load's mass", 0.5f, 0.86f, Ink, 21f);
@@ -861,8 +884,16 @@ namespace Sportify.Simulation.Dynamics
             var fnMark = left.Bar(new Color(1f, 1f, 1f, 0.9f));
             var fnX = 0.05f + Mathf.Clamp01(((float)fn[worstIndex] - sMin) / (sMax - sMin)) * 0.935f;
             left.SetQuad(fnMark, fnX - 0.003f, 0.06f, fnX + 0.003f, 0.9f);
-            left.Text("this deck " + Num((float)fn[worstIndex], "0.0") + " Hz", fnX, 0.02f, Color.white, 16f);
-            for (var f = 2; f <= 12; f += 2) left.Text(f + "", 0.05f + (f - sMin) / (sMax - sMin) * 0.935f, 0.955f - 0.9f, Muted, 14f);
+            // the deck's own frequency under its mark, kept inside the chart (a deck beyond the scale says so), and no scale number under it
+            var deckText = "this deck " + Num((float)fn[worstIndex], "0.0") + " Hz" + (fn[worstIndex] > sMax ? " (off the scale)" : "");
+            var deckHalf = deckText.Length * 0.55f * 16f * 0.5f / 750f;
+            var deckX = Mathf.Clamp(fnX, 0.02f + deckHalf, 0.98f - deckHalf);
+            left.Text(deckText, deckX, 0.02f, Color.white, 16f);
+            for (var f = 2; f <= 12; f += 2)
+            {
+                var tx = 0.05f + (f - sMin) / (sMax - sMin) * 0.935f;
+                if (Mathf.Abs(tx - deckX) > deckHalf + 0.03f) left.Text(f + "", tx, 0.955f - 0.9f, Muted, 14f);
+            }
 
             // right: the response as the crowd's rhythm sweeps its range
             right.Text(r.sweepActivity.ToLowerInvariant() + ": " + r.worstBay + " as the rhythm sweeps", 0.5f, 0.93f, Ink, 19f);
@@ -872,8 +903,8 @@ namespace Sportify.Simulation.Dynamics
             var gMax = Mathf.Max(2f * limit, r.sweepG.Max() * 1.1f);
             right.SetQuad(limitBar2, 0.05f, limit / gMax * 0.82f + 0.08f - 0.004f, 0.985f, limit / gMax * 0.82f + 0.08f + 0.004f);
             right.Text("limit", 0.95f, limit / gMax * 0.82f + 0.13f, Color.white, 15f);
-            for (var f = 0; f <= 4; f++) right.Text(Num(act.fpLowHz + f / 4f * (act.fpHighHz - act.fpLowHz), "0.0"), 0.05f + f / 4f * 0.935f, 0.04f, Muted, 14f);
-            right.Text("rhythm (Hz)", 0.5f, 0.0f + 0.13f, Muted, 14f);
+            // the unit on the scale's own numbers: a separate "rhythm (Hz)" stood over the middle number and the curve
+            for (var f = 0; f <= 4; f++) right.Text(Num(act.fpLowHz + f / 4f * (act.fpHighHz - act.fpLowHz), "0.0") + " Hz", 0.05f + f / 4f * 0.935f, 0.04f, Muted, 14f);
             var sweepPts = new List<Vector2>();
             for (var i = 0; i < r.sweepG.Length; i++) sweepPts.Add(new Vector2(0.05f + i / (float)(r.sweepG.Length - 1) * 0.935f, Mathf.Clamp01(r.sweepG[i] / gMax) * 0.82f + 0.08f));
 
@@ -881,7 +912,8 @@ namespace Sportify.Simulation.Dynamics
 
             // where things stand, drawn above the swinging deck: white = the courts and play areas where the jumping crowd is, green = gardens (walkers only)
             var markers = new List<GameObject>();
-            foreach (var it in _inputs.Structure.Items)
+            var nameSpace = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            foreach (var it in _inputs.Structure.Items.OrderByDescending(i => i.Width * i.Height))
             {
                 if (it.IsObject) continue;
                 var host = (it.Kind == LoadKind.Court || it.Kind == LoadKind.Activity) && it.Persons > 0;
@@ -892,7 +924,12 @@ namespace Sportify.Simulation.Dynamics
                     LayoutSpace.ToWorld(x0, y0, h), LayoutSpace.ToWorld(x1, y0, h), LayoutSpace.ToWorld(x1, y1, h), LayoutSpace.ToWorld(x0, y1, h),
                 }, host ? new Color(1f, 1f, 1f, 0.95f) : new Color(0.55f, 0.95f, 0.55f, 0.75f), host ? 0.22f : 0.12f, true, true);
                 markers.Add(line.gameObject);
-                markers.Add(_hud.WorldLabel(PieceNames.Short(it.Name, 26), LayoutSpace.ToWorld((float)(it.X + it.Width * 0.5), (float)(it.Y + it.Height * 0.5), 3.4f), 0.85f, host ? Color.white : new Color(0.7f, 0.95f, 0.7f)).gameObject);
+                // the name as big as fits the piece, where it has room on the frame (the bigger piece first)
+                var at = LayoutSpace.ToWorld((float)(it.X + it.Width * 0.5), (float)(it.Y + it.Height * 0.5), 3.4f);
+                string name;
+                float nameSize;
+                if (PieceNames.Fit(it, 0.85f, true, nameSpace, at, out name, out nameSize, PieceNames.Short(it.Name, 26), PieceNames.Short(PieceNames.Compact(it), 14)))
+                    markers.Add(_hud.WorldLabel(name, at, nameSize, host ? Color.white : new Color(0.7f, 0.95f, 0.7f)).gameObject);
             }
             var amp = new float[nb];
             var colour = new Color[nb];
@@ -942,7 +979,7 @@ namespace Sportify.Simulation.Dynamics
                 var upto = sweeping ? Mathf.Max(2, Mathf.CeilToInt(t * sweepPts.Count)) : sweepPts.Count;
                 right.SetLine(curve, sweepPts.Take(upto).ToList());
                 var cx = 0.05f + Mathf.InverseLerp(act.fpLowHz, act.fpHighHz, fp) * 0.935f;
-                right.SetQuad(curveCursor, cx - 0.003f, 0.06f, cx + 0.003f, 0.92f);
+                right.SetQuad(curveCursor, cx - 0.003f, 0.06f, cx + 0.003f, 0.86f);   // stops under the chart's title
 
                 _hud.SetBanner(Banner("3  RESONANCE", sweeping ? "THE CROWD'S RHYTHM SWEEPS " + Num(act.fpLowHz, "0.0") + " TO " + Num(act.fpHighHz, "0.0") + " HZ" : "AT THE WORST RHYTHM"));
                 _hud.SetCountsText("RHYTHM " + Tint(Num(fp, "0.0") + " HZ", Color.white) + "   WORST " + Tint(Num(worstRatio * limit, "0.00") + " G", worstRatio > 1f ? Red : Good) + " / " + Num(limit, "0.00"));
@@ -954,13 +991,20 @@ namespace Sportify.Simulation.Dynamics
 
                 if (!sweeping && labels.Count == 0)
                 {
+                    // the bays that swing most first: where two labels would meet on the frame, the one that swings more keeps its own
+                    var space = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+                    var swings = new List<KeyValuePair<int, float>>();
                     for (var b = 0; b < nb; b++)
                     {
                         if (force[b] <= 0) continue;
-                        var bay = _run.Static.bays[b];
                         var g = (float)DynamicModel.AccelerationG(act.alpha, force[b], mass[b], fn[b], fp, DynamicModel.Damping);
-                        if (g / limit < 0.3f) continue;
-                        labels.Add(_hud.WorldLabel(Num(g, "0.00") + " g", BayPoint(bay, 2.2f), 1.1f, Color.white).gameObject);
+                        if (g / limit >= 0.3f) swings.Add(new KeyValuePair<int, float>(b, g));
+                    }
+                    foreach (var sw in swings.OrderByDescending(x => x.Value))
+                    {
+                        var bay = _run.Static.bays[sw.Key];
+                        var size = BayLabelSize(bay, "0.00 g", 1.1f);
+                        if (space.Claim(BayPoint(bay, 2.2f), "0.00 g", size)) labels.Add(_hud.WorldLabel(Num(sw.Value, "0.00") + " g", BayPoint(bay, 2.2f), size, Color.white).gameObject);
                     }
                 }
 

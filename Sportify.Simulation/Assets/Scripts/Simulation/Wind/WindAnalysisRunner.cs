@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Sportify.Simulation.Structure;
 using UnityEngine;
 
 namespace Sportify.Simulation.Wind
@@ -94,6 +95,8 @@ namespace Sportify.Simulation.Wind
         readonly List<HeatLayer> _zoneLayers = new List<HeatLayer>();
         readonly List<float> _zoneTops = new List<float>();
         readonly List<PlantVisual> _plants = new List<PlantVisual>();
+        ScreenSpace _frame;          // where the names that stay on the roof stand on the frame; the fixes' labels keep clear of them
+        LabelGroup _names;
         StreakField _streaks;
         DustField _dust;
         Camera _cam;
@@ -210,11 +213,18 @@ namespace Sportify.Simulation.Wind
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height, "Wind & erosion analysis", false);
             _hud.SetCaseStudy(_results.caseStudy);
+            // the names on the roof stay on for the whole film: placed once, none over another (the courts first, then the activities, then the beds)
+            LabelFit.ForView(_cam, LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 2.5f), aspect);
+            _frame = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            _names = new LabelGroup(_hud, _frame);
 
             BuildCourts();
             SceneBuilder.BuildContext(LayoutLoader.ExtractContext(_payload).Where(p => p.Category != "garden").ToList());
             foreach (var p in LayoutLoader.ExtractContext(_payload).Where(p => p.Category != "garden"))
-                _hud.WorldLabel(string.IsNullOrEmpty(p.Label) ? "Activity" : p.Label, LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), 0.9f, new Color(1f, 1f, 1f, 0.75f));
+            {
+                var name = string.IsNullOrEmpty(p.Label) ? "Activity" : p.Label;
+                _names.Add(LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), p.XMax - p.XMin, p.YMax - p.YMin, 0.9f, new Color(1f, 1f, 1f, 0.75f), name, LabelFit.TwoLines(name), PieceNames.Short(name, 16));
+            }
             SceneBuilder.BuildEntryPoints(_payload.entry_points);
 
             // The roof-wide layer sits just above the roof and courts; each bed gets its own on its top face.
@@ -247,7 +257,7 @@ namespace Sportify.Simulation.Wind
                     LayoutSpace.ToWorld(c.XMin, c.YMin, 0.055f), LayoutSpace.ToWorld(c.XMax, c.YMin, 0.055f),
                     LayoutSpace.ToWorld(c.XMax, c.YMax, 0.055f), LayoutSpace.ToWorld(c.XMin, c.YMax, 0.055f),
                 }, new Color(1f, 1f, 1f, 0.95f), 0.10f, true, true);
-                _hud.WorldLabel(c.Sport, LayoutSpace.ToWorld(centre.x, centre.y, 0.5f), 0.9f, new Color(1f, 1f, 1f, 0.75f));
+                _names.Add(LayoutSpace.ToWorld(centre.x, centre.y, 0.5f), c.ExtentX, c.ExtentY, 0.9f, new Color(1f, 1f, 1f, 0.75f), c.Sport);
             }
         }
 
@@ -289,7 +299,9 @@ namespace Sportify.Simulation.Wind
 
             var system = zone.Assembly != null ? (!string.IsNullOrEmpty(zone.Assembly.SystemName) ? zone.Assembly.SystemName : zone.Assembly.System) : "";
             var labelX = Mathf.Clamp(cx, 6f, _payload.roof_context.length_m - 6f);   // narrow beds at the roof edge would run off the picture
-            _hud.WorldLabel((index + 1) + "  " + Short(system), LayoutSpace.ToWorld(labelX, y1 - 1.2f, top + 0.6f), 0.85f, Color.white);
+            // the bed's number and system where they fit, its number alone where only that does (a thin edge bed); at least 2 m of room, so a number shows
+            _names.Add(LayoutSpace.ToWorld(labelX, y1 - 1.2f, top + 0.6f), Mathf.Max((float)zone.Width, 2f), Mathf.Max((float)zone.Height, 2f), 0.85f, Color.white,
+                (index + 1) + "  " + Short(system), (index + 1).ToString());
         }
 
         // -------------------------------------------------------------- the run
@@ -604,6 +616,15 @@ namespace Sportify.Simulation.Wind
                 SimulationHud.Tint("Red ring = tree needs anchorage, more substrate or a move", Red),
             });
 
+            // what to change, over the names already on the roof: the failing trees first, then each bed's gravel, in the shortest words that fit
+            var fixes = new LabelGroup(_hud, new ScreenSpace(_frame));
+            foreach (var p in _plants)
+            {
+                if (p.Data.status != "fails") continue;
+                var limit = Num(p.Data.utilisation, "0.0") + "x its limit";
+                fixes.Add(p.CrownTop + new Vector3(0f, 1.3f, 0f), 3f, 3f, 0.9f, Color.white, p.Data.species + "\n" + limit, limit);
+            }
+
             for (var i = 0; i < _zoneLayers.Count; i++)
             {
                 var f = _zoneFields[i];
@@ -620,16 +641,10 @@ namespace Sportify.Simulation.Wind
                 if (ballast)
                 {
                     var mid = new Vector2((float)(f.Zone.X + f.Zone.Width * 0.5), (float)(f.Zone.Y + f.Zone.Height * 0.5));
-                    _hud.WorldLabel("+" + Num(zoneResult.requiredBallastMm, "0") + " mm gravel at the edges",
-                        LayoutSpace.ToWorld(mid.x, mid.y, _zoneTops[i] + 1.0f), 0.85f, Color.white);
+                    var mm = "+" + Num(zoneResult.requiredBallastMm, "0") + " mm";
+                    fixes.Add(LayoutSpace.ToWorld(mid.x, mid.y, _zoneTops[i] + 1.0f), Mathf.Max((float)f.Zone.Width, 2f), Mathf.Max((float)f.Zone.Height, 2f), 0.85f, Color.white,
+                        mm + " gravel at the edges", mm + " gravel", mm);
                 }
-            }
-
-            foreach (var p in _plants)
-            {
-                if (p.Data.status != "fails") continue;
-                var text = p.Data.species + "\n" + Num(p.Data.utilisation, "0.0") + "x its limit";
-                _hud.WorldLabel(text, p.CrownTop + new Vector3(0f, 1.3f, 0f), 0.9f, Color.white);
             }
 
             _hud.SetFeed(new List<string>());

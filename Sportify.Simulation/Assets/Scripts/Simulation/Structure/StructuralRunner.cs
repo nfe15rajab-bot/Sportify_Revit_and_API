@@ -79,6 +79,7 @@ namespace Sportify.Simulation.Structure
         readonly List<GameObject> _columnObjects = new List<GameObject>();
         readonly List<GameObject> _labels = new List<GameObject>();
         readonly List<BayTower> _towers = new List<BayTower>();
+        ScreenSpace _gridNames;     // where the grid names stand on the frame: every other label keeps clear of them
         readonly List<GameObject> _balanceObjects = new List<GameObject>();
         Config _cfg;
         GoldbeckPayload _payload;
@@ -213,6 +214,7 @@ namespace Sportify.Simulation.Structure
             // A little further back than the shared view: grid names sit outside the roof edges and would run off the frame.
             var lookAt = LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 2.5f);
             _cam.transform.position = lookAt + (_cam.transform.position - lookAt) * 1.15f;
+            LabelFit.ForView(_cam, lookAt, (float)_cfg.Width / _cfg.Height);
             _cam.farClipPlane *= 1.2f;
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height, "Structural load analysis", false);
@@ -225,6 +227,7 @@ namespace Sportify.Simulation.Structure
             // One layer over the whole roof, at the model's own resolution: what is coloured is the load field the numbers came from.
             _heat = new HeatLayer("HeatLoad", 0f, 0f, roof.length_m, roof.width_m, _field.Nx, _field.Ny, LayerHeight, 3);
             BuildGrid();
+            NamePieces();
             BuildBays();
             BuildBalanceMarkers();
             _people = new PeopleDots(_field, _report.summary.expectedPersons, 320);
@@ -253,9 +256,18 @@ namespace Sportify.Simulation.Structure
                     else color = item.DeadKnM2 > 3.5 ? new Color(0.30f, 0.50f, 0.30f) : new Color(0.46f, 0.56f, 0.38f);
                     body = SceneBuilder.Box("Piece_" + item.Id, centre, new Vector3((float)item.Width, 0.08f, (float)item.Height), SceneBuilder.LitMaterial(color, 0.10f));
                 }
-                var name = PieceNames.Label(_hud, item, 0.7f);
-                if (name != null) name.gameObject.SetActive(false);
-                _pieces.Add(new Piece { Item = item, Body = body, Start = body.transform.position, Name = name });
+                _pieces.Add(new Piece { Item = item, Body = body, Start = body.transform.position });
+            }
+        }
+
+        /// <summary>Each piece's name, the biggest piece first: where two names would meet on the frame (or a grid name), the bigger piece keeps its own.</summary>
+        void NamePieces()
+        {
+            var space = new ScreenSpace(_gridNames);
+            foreach (var p in _pieces.OrderByDescending(p => p.Item.Width * p.Item.Height))
+            {
+                p.Name = PieceNames.Label(_hud, p.Item, 0.7f, space);
+                if (p.Name != null) p.Name.gameObject.SetActive(false);
             }
         }
 
@@ -306,17 +318,23 @@ namespace Sportify.Simulation.Structure
                 }
                 if (run.Count > 1) yield return new[] { run[0], run[run.Count - 1] };
             }
+            // a grid name whose place on the frame is taken by the one before (two lines a few decimetres apart, like 5 and 6) is left off
+            _gridNames = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
+            void Name(GridLineInput g, Vector3 at)
+            {
+                if (!string.IsNullOrEmpty(g.Name) && _gridNames.Claim(at, g.Name, 1.1f, 2f)) _labels.Add(_hud.WorldLabel(g.Name, at, 1.1f, GridBlue).gameObject);
+            }
             foreach (var g in _inputs.VerticalLines)
             {
                 var line = GridLine(g, true, 0.22f);
                 foreach (var part in OnRoof(line)) _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, part, lineColor, 0.12f, false, true).gameObject);
-                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, line[0] + new Vector3(0f, 0.08f, 1.4f), 1.1f, GridBlue).gameObject);
+                Name(g, line[0] + new Vector3(0f, 0.08f, 1.4f));
             }
             foreach (var g in _inputs.HorizontalLines)
             {
                 var line = GridLine(g, false, 0.22f);
                 foreach (var part in OnRoof(line)) _gridObjects.Add(SceneBuilder.Line("Grid_" + g.Name, part, lineColor, 0.12f, false, true).gameObject);
-                if (!string.IsNullOrEmpty(g.Name)) _labels.Add(_hud.WorldLabel(g.Name, line[0] + new Vector3(-1.6f, 0.08f, 0f), 1.1f, GridBlue).gameObject);
+                Name(g, line[0] + new Vector3(-1.6f, 0.08f, 0f));
             }
             if (_report.summary.gridAssumed)
             {
@@ -347,11 +365,11 @@ namespace Sportify.Simulation.Structure
 
         void BuildBays()
         {
-            foreach (var bay in _report.bays)
-            {
-                var top = _inputs.Items.FirstOrDefault(i => i.Label == bay.topContributor);
-                _towers.Add(new BayTower(bay, _hud, top != null ? PieceNames.Short(PieceNames.Compact(top), 22) : ""));
-            }
+            var subtitles = BayTower.Subtitles(_report.bays, _inputs.Items);
+            for (var b = 0; b < _report.bays.Count; b++) _towers.Add(new BayTower(_report.bays[b], _hud, subtitles[b]));
+            // on a fine grid not every bay's label has room (next to the others and the grid names, which stay on screen): the most loaded bays keep theirs
+            var space = new ScreenSpace(_gridNames);
+            foreach (var t in _towers.OrderByDescending(t => t.Utilisation)) t.Claim(space);
             SetTowersVisible(false);
         }
 
@@ -480,13 +498,20 @@ namespace Sportify.Simulation.Structure
             });
 
             var labels = new List<GameObject>();
-            foreach (var p in _pieces)
+            var space = new ScreenSpace(_gridNames);
+            foreach (var p in _pieces.OrderByDescending(p => p.Item.Width * p.Item.Height))
             {
                 if (p.Item.IsObject) continue;
                 var kn = permanent ? p.Item.DeadKnM2 : p.Item.LiveKnM2;
                 if (!permanent && kn <= StructureModel.RoofLiveKnM2 + 1e-6) continue;
                 var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 0.9f);
-                var label = _hud.WorldLabel(PieceNames.Short(p.Item.Name, 26) + "\n" + (permanent ? "G " : "Q ") + Num((float)kn, "0.0") + " kN/m2", pos, 0.85f, Color.white).gameObject;
+                // the name and the load when both fit over the piece and have room on the frame (the bigger piece first), the load alone when only
+                // that does, nothing on a piece too small for either
+                var number = (permanent ? "G " : "Q ") + Num((float)kn, "0.0") + " kN/m2";
+                string text;
+                float size;
+                if (!PieceNames.Fit(p.Item, 0.85f, false, space, pos, out text, out size, PieceNames.Short(p.Item.Name, 26) + "\n" + number, PieceNames.Short(PieceNames.Compact(p.Item), 14) + "\n" + number, number)) continue;
+                var label = _hud.WorldLabel(text, pos, size, Color.white).gameObject;
                 label.SetActive(false);
                 labels.Add(label);
             }
@@ -622,7 +647,10 @@ namespace Sportify.Simulation.Structure
             {
                 var i = _pieces.IndexOf(p);
                 var pos = LayoutSpace.ToWorld((float)(p.Item.X + p.Item.Width * 0.5), (float)(p.Item.Y + p.Item.Height * 0.5), 2.2f);
-                labels.Add(_hud.WorldLabel(Num((float)p.Item.DeadKnM2, "0.0") + " > " + Num((float)_after.Items[i].DeadKnM2, "0.0") + " kN/m2", pos, 1.1f, Amber).gameObject);
+                // few pieces, and the advice itself: fitted to the piece, but never left out (at least legible)
+                var text = Num((float)p.Item.DeadKnM2, "0.0") + " > " + Num((float)_after.Items[i].DeadKnM2, "0.0") + " kN/m2";
+                var size = LabelFit.Size(text, (float)p.Item.Width, (float)p.Item.Height, 1.1f);
+                labels.Add(_hud.WorldLabel(text, pos, size > 0f ? size : LabelFit.Legible, Amber).gameObject);
             }
 
             _hud.SetLegend(new List<string>

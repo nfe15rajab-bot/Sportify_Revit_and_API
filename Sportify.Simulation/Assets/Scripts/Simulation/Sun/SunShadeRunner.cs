@@ -194,6 +194,30 @@ namespace Sportify.Simulation.Sun
             x0 = item.X - grow; y0 = item.Y - grow; x1 = item.X + item.Width + grow; y1 = item.Y + item.Height + grow;
         }
 
+        /// <summary>A scene's zone labels, placed so none runs into another (LabelGroup).</summary>
+        LabelGroup ZoneLabels()
+        {
+            return new LabelGroup(_hud, new ScreenSpace(_cam, _cfg.Width, _cfg.Height));
+        }
+
+        /// <summary>The zones that get a label (not the courts): those "first" picks out (the ones missing their target) first, then the bigger before the smaller.</summary>
+        IEnumerable<ZoneSun> ZonesByImportance(Func<ZoneSun, bool> first)
+        {
+            return _report.zones.Where(z => z.kind != "court" && ItemOf(z) != null)
+                .OrderByDescending(first).ThenByDescending(z => ItemOf(z).Width * ItemOf(z).Height);
+        }
+
+        /// <summary>
+        /// A zone's label in the first wording that fits the zone and has room on the frame: a zone at least 2 m each way for it, so a thin edge
+        /// garden still carries its reading.
+        /// </summary>
+        void AddZoneLabel(LabelGroup group, ZoneSun z, LoadItem item, float height, Color color, params string[] wordings)
+        {
+            double x0, y0, x1, y1;
+            ZoneRect(z, item, out x0, out y0, out x1, out y1);
+            group.Add(LabelPos(z, item, height), Mathf.Max((float)(x1 - x0), 2f), Mathf.Max((float)(y1 - y0), 2f), 0.85f, color, wordings);
+        }
+
         /// <summary>Where a zone's label goes: people zones at their middle, gardens near their lower edge, so an activity on a garden does not hide its name.</summary>
         Vector3 LabelPos(ZoneSun z, LoadItem item, float height)
         {
@@ -238,6 +262,7 @@ namespace Sportify.Simulation.Sun
             _cam = SceneBuilder.BuildCamera(roof, (float)_cfg.Width / _cfg.Height);
             var lookAt = LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 2.5f);
             _cam.transform.position = lookAt + (_cam.transform.position - lookAt) * 1.12f;
+            LabelFit.ForView(_cam, lookAt, (float)_cfg.Width / _cfg.Height);
             _cam.farClipPlane *= 1.2f;
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
             var light = UnityEngine.Object.FindFirstObjectByType<Light>();
@@ -587,16 +612,15 @@ namespace Sportify.Simulation.Sun
             {
                 var hours = SunHoursMap(_before, d);
                 var info = _report.days[d];
-                var labels = new List<GameObject>();
-                foreach (var z in _report.zones.Where(z => z.kind != "court"))
+                var group = ZoneLabels();
+                foreach (var z in ZonesByImportance(z => false))
                 {
                     var item = ItemOf(z);
-                    if (item == null) continue;
-                    var h = d == 0 ? z.sunHoursJune : d == 1 ? z.sunHoursMarch : z.sunHoursDecember;
-                    var label = _hud.WorldLabel(PieceNames.Short(z.label, 22) + "\n" + Num(h, "0.#") + " h", LabelPos(z, item, 1.0f), 0.85f, Color.white).gameObject;
-                    label.SetActive(false);
-                    labels.Add(label);
+                    var h = Num(d == 0 ? z.sunHoursJune : d == 1 ? z.sunHoursMarch : z.sunHoursDecember, "0.#") + " h";
+                    AddZoneLabel(group, z, item, 1.0f, Color.white, PieceNames.Short(z.label, 22) + "\n" + h, PieceNames.Short(PieceNames.Compact(z.label), 14) + "\n" + h, h);
                 }
+                var labels = group.Labels;
+                foreach (var l in labels) l.SetActive(false);
                 var max = Mathf.Max(6f, Mathf.Ceil(_report.days[0].sunsetH - _report.days[0].sunriseH));
                 _hud.SetLegend(new List<string>
                 {
@@ -625,26 +649,26 @@ namespace Sportify.Simulation.Sun
             SetZonesVisible(true);
             var shade = MiddayShadeMap(scene);
             var s = _report.summary;
-            var labels = new List<GameObject>();
-            foreach (var z in _report.zones.Where(z => z.kind != "court"))
+            // the zones that miss their target first: where two labels would meet, theirs stay
+            var group = ZoneLabels();
+            foreach (var z in ZonesByImportance(z => (after ? z.afterStatus : z.status) == "too-shaded" || (after ? z.afterStatus : z.status) == "too-sunny"))
             {
                 var item = ItemOf(z);
-                if (item == null) continue;
-                string text; Color color;
+                string reading; Color color;
                 if (z.kind == "garden")
                 {
                     var hrs = after ? z.afterSunHoursJune : z.sunHoursJune; var st = after ? z.afterStatus : z.status;
-                    text = PieceNames.Short(z.label, 22) + "\nsun " + Num(hrs, "0.#") + " h (needs " + Num(s.gardenMinSunHours, "0.#") + ")"; color = st == "too-shaded" ? Amber : Good;
+                    reading = "sun " + Num(hrs, "0.#") + " h (needs " + Num(s.gardenMinSunHours, "0.#") + ")"; color = st == "too-shaded" ? Amber : Good;
                 }
                 else
                 {
                     var sh = after ? z.afterPeakShadePercent : z.peakShadePercent; var st = after ? z.afterStatus : z.status;
-                    text = PieceNames.Short(z.label, 22) + "\nshade " + Num(sh, "0") + "% (wants " + Num(s.shadeTargetPercent, "0") + "%)"; color = st == "too-sunny" ? Red : Good;
+                    reading = "shade " + Num(sh, "0") + "% (wants " + Num(s.shadeTargetPercent, "0") + "%)"; color = st == "too-sunny" ? Red : Good;
                 }
-                var label = _hud.WorldLabel(text, LabelPos(z, item, 1.2f), 0.85f, color).gameObject;
-                label.SetActive(false);
-                labels.Add(label);
+                AddZoneLabel(group, z, item, 1.2f, color, PieceNames.Short(z.label, 22) + "\n" + reading, PieceNames.Short(PieceNames.Compact(z.label), 14) + "\n" + reading, reading);
             }
+            var labels = group.Labels;
+            foreach (var l in labels) l.SetActive(false);
             _hud.SetLegend(new List<string>
             {
                 Tint("people zones: average shade between 11 and 16 h on 21 June, against the target of " + Num(s.shadeTargetPercent, "0") + "%:", Muted),

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using Sportify.Simulation.Structure;
 using UnityEngine;
 
 namespace Sportify.Simulation
@@ -239,18 +240,23 @@ namespace Sportify.Simulation
             SceneBuilder.BuildLight(Mathf.Sqrt(roof.length_m * roof.length_m + roof.width_m * roof.width_m));
 
             _hud = new SimulationHud(_cam, _cfg.Width, _cfg.Height);
-            foreach (var p in LayoutLoader.ExtractContext(_payload))
-            {
-                // what the patch is (its garden theme or activity), short enough not to run into the next one
-                var text = string.IsNullOrEmpty(p.Label) ? (p.Category == "garden" ? "Garden" : "Activity") : p.Label;
-                if (text.Length > 30) text = text.Substring(0, 29).TrimEnd() + "...";
-                _hud.WorldLabel(text, LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), 0.75f, new Color(1f, 1f, 1f, 0.8f));
-            }
+            // Names placed once, none over another: the courts first (the film is about them: under each, as wide as it), then what stands between
+            // them, each in the first wording that fits its place. Two courts side by side used to print "Court 1 - table tennis" over "Court 2 - ...".
+            LabelFit.ForView(_cam, LayoutSpace.ToWorld(roof.length_m * 0.5f, roof.width_m * 0.5f, 2.5f), aspect);
+            var names = new LabelGroup(_hud, new ScreenSpace(_cam, _cfg.Width, _cfg.Height));
             foreach (var court in _courts)
             {
                 var c = court.CenterLayout;
-                _hud.WorldLabel(court.DisplayName.Replace("(", "- ").Replace(")", ""),
-                    LayoutSpace.ToWorld(c.x, court.YMax + 1.1f, 0.3f), 0.95f, new Color(1f, 1f, 1f, 0.95f));
+                var number = "Court " + court.Index;
+                names.Add(LayoutSpace.ToWorld(c.x, court.YMax + 1.1f, 0.3f), Mathf.Max(court.ExtentX, 2f), 3f, 0.95f, new Color(1f, 1f, 1f, 0.95f),
+                    number + " - " + court.Sport, number + "\n" + court.Sport, number);
+            }
+            foreach (var p in LayoutLoader.ExtractContext(_payload))
+            {
+                // what the patch is (its garden theme or activity)
+                var text = string.IsNullOrEmpty(p.Label) ? (p.Category == "garden" ? "Garden" : "Activity") : p.Label;
+                names.Add(LayoutSpace.ToWorld((p.XMin + p.XMax) * 0.5f, (p.YMin + p.YMax) * 0.5f, 0.5f), p.XMax - p.XMin, p.YMax - p.YMin, 0.75f, new Color(1f, 1f, 1f, 0.8f),
+                    PieceNames.Short(text, 30), LabelFit.TwoLines(PieceNames.Short(text, 30)), PieceNames.Short(text, 16));
             }
 
             // Balls must not collide with each other; only with the trigger zones.
