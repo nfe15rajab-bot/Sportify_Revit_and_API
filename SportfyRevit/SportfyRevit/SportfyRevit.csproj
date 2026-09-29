@@ -211,6 +211,10 @@
     <ItemGroup>
       <RevitAddinFiles Include="$(OutDir)**\*" />
     </ItemGroup>
+    <!-- The deployed web app is a mirror of the bundle, like $(OutDir)web itself (BundleWebApp): the copy below only adds and updates, so a script the
+         web app no longer has stayed in the Addins folder forever (found 2026-09-29: trxFrame.js after TRX was removed). Only the web folder: the Addins
+         folder also holds the API, the generated families and other add-ins, which must stay. -->
+    <RemoveDir Directories="$(APPDATA)\Autodesk\Revit\Addins\2025\web" Condition="Exists('$(OutDir)web\index.html')" />
     <Copy SourceFiles="@(RevitAddinFiles)" DestinationFolder="$(APPDATA)\Autodesk\Revit\Addins\2025\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 

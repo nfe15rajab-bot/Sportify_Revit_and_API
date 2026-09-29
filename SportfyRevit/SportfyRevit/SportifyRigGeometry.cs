@@ -6,7 +6,7 @@ namespace SportfyRevit
     /// <summary>
     /// Tubes, plates and materials — the vocabulary every rig is written in.
     ///
-    /// The calisthenics rig, the CrossFit rig and the TRX frame are all the same
+    /// The calisthenics rig and the CrossFit rig (and, until 2026-09-29, the TRX frame) are the same
     /// kind of object: steel sections between two points. They differ in what
     /// they are FOR, not in how they are drawn, so the drawing lives here once
     /// rather than three times. When the calisthenics builder was the only one,

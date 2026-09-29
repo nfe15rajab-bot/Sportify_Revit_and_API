@@ -360,7 +360,6 @@ namespace SportfyRevit
         [JsonPropertyName("ping_pong")] public PingPongDto? PingPong { get; set; }
         [JsonPropertyName("calisthenics")] public CalisthenicsDto? Calisthenics { get; set; }
         [JsonPropertyName("crossfit")] public CrossfitDto? Crossfit { get; set; }
-        [JsonPropertyName("trx")] public TrxDto? Trx { get; set; }
 
         /// <summary>
         /// Present for placed plants. A tree is a family, not a build-up — this
@@ -641,38 +640,6 @@ namespace SportfyRevit
         [JsonPropertyName("source")] public string? Source { get; set; }
     }
 
-    /// <summary>
-    /// A suspension training frame.
-    ///
-    /// Loaded at an angle rather than straight down, which is why it has a leg
-    /// spread and the rigs do not: the splay is the base that resists the
-    /// overturning. `AFrame` false means vertical posts, which only stand up if
-    /// `GroundAnchor` is true.
-    /// </summary>
-    internal class TrxDto
-    {
-        [JsonPropertyName("beam_length_m")] public double BeamLengthM { get; set; }
-        [JsonPropertyName("frame_height_m")] public double FrameHeightM { get; set; }
-        [JsonPropertyName("leg_spread_m")] public double LegSpreadM { get; set; }
-        [JsonPropertyName("anchor_spacing_m")] public double AnchorSpacingM { get; set; }
-        [JsonPropertyName("beam_diameter_m")] public double BeamDiameterM { get; set; }
-        [JsonPropertyName("leg_diameter_m")] public double LegDiameterM { get; set; }
-
-        [JsonPropertyName("a_frame")] public bool AFrame { get; set; }
-        [JsonPropertyName("mid_rail")] public bool MidRail { get; set; }
-        [JsonPropertyName("ground_anchor")] public bool GroundAnchor { get; set; }
-        [JsonPropertyName("anchor_count")] public int AnchorCount { get; set; }
-
-        [JsonPropertyName("frame_length_m")] public double FrameLengthM { get; set; }
-        [JsonPropertyName("frame_width_m")] public double FrameWidthM { get; set; }
-        [JsonPropertyName("length_m")] public double LengthM { get; set; }
-        [JsonPropertyName("width_m")] public double WidthM { get; set; }
-        [JsonPropertyName("reach_depth_m")] public double ReachDepthM { get; set; }
-        [JsonPropertyName("side_margin_m")] public double SideMarginM { get; set; }
-        [JsonPropertyName("weight_kg")] public double WeightKg { get; set; }
-        [JsonPropertyName("weight_kg_m2")] public double WeightKgM2 { get; set; }
-        [JsonPropertyName("source")] public string? Source { get; set; }
-    }
 
     internal class PingPongDto
     {
