@@ -272,7 +272,10 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("un-deciding the orientation removes it; the latitude falls back to the site's own (the map)", back2.NorthDeg == null && back2.LatitudeDeg is { } l && Math.Abs(l - 53.5511) < 1e-4);
     var sunNoSite = JsonSerializer.Deserialize<SportifyLayout>(baseSun)!; sunNoSite.SiteLocation = null; sunNoSite.SiteConditions!.NorthDeg = null;
     Check("no site, no orientation: none given (the model assumes and says so)", SunLayoutAdapter.ToInputs(sunNoSite).LatitudeDeg == null && SunLayoutAdapter.ToInputs(sunNoSite).NorthDeg == null && SunModel.Analyse(SunLayoutAdapter.ToInputs(sunNoSite)).summary.latitudeAssumed);
-    Check("the sample has no people zone, so no equipment; its gardens all have their sun", sunReport.summary.pieces == 0 && sunReport.summary.gardenZonesTooShaded == 0);
+    // The sample's own trees and shrubs (placements, not roof.features.equipment) are real shading obstacles now — one garden zone sits
+    // close enough to the pine and hornbeam to lose its sun, which is the correct answer, not a regression: gardenZonesTooShaded went from
+    // 0 (before placements shaded anything) to 1 when that reader change landed. "No people zone, so no equipment" is still true of pieces.
+    Check("the sample has no people zone, so no equipment; one garden zone loses its sun to the sample's own trees", sunReport.summary.pieces == 0 && sunReport.summary.gardenZonesTooShaded == 1);
     foreach (var bad in new[] { ("shade_target", "0"), ("shade_target", "150"), ("garden_min_sun", "30"), ("site_latitude", "80"), ("roof_north", "400"), ("shade_equipment", "everything") })
         Check($"{bad.Item1} = {bad.Item2} is refused", !AnalysisAssumptionsPatcher.TryParse(AnalysisAssumptions.Find(bad.Item1)!, bad.Item2, out _, out _));
 }

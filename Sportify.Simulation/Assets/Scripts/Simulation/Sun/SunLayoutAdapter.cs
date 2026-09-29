@@ -64,14 +64,7 @@ namespace Sportify.Simulation.Sun
                         foreach (var q in f.equipment)
                         {
                             if (q.height_m <= 0.2f) continue;
-                            double x = R(q.x_m, 3), y = R(q.y_m, 3), w = R(q.width_m, 3), d2 = R(q.depth_m, 3);
-                            var alongX = w >= d2;
-                            inputs.Obstacles.Add(new ObstacleInput
-                            {
-                                Name = q.name ?? "", HeightM = R(q.height_m, 3), ThicknessM = alongX ? d2 : w,
-                                X0 = alongX ? Math.Round(x - w / 2, 3) : x, Y0 = alongX ? y : Math.Round(y - d2 / 2, 3),
-                                X1 = alongX ? Math.Round(x + w / 2, 3) : x, Y1 = alongX ? y : Math.Round(y + d2 / 2, 3),
-                            });
+                            inputs.Obstacles.Add(BoxObstacle(q.name, q.height_m, q.x_m, q.y_m, q.width_m, q.depth_m));
                         }
                     if (f.drains != null)
                         foreach (var d in f.drains) inputs.Drains.Add(new[] { R(d.x_m, 3), R(d.y_m, 3) });
@@ -85,7 +78,33 @@ namespace Sportify.Simulation.Sun
                         }
                 }
             }
+
+            // Trees and planters the designer placed (category "vegetation", or a garden block like Planter S/T that carries a plant) shade the
+            // roof just like a pre-existing plant does: same wall treatment, using the plant's own mature height, not the planter box's.
+            if (payload.placements != null)
+                foreach (var pl in payload.placements)
+                {
+                    var veg = pl.parameters?.vegetation;
+                    var bb = pl.bounding_box;
+                    if (veg == null || veg.height_m <= 0.2f || bb == null) continue;
+                    if (pl.category != "vegetation" && pl.category != "gardenBlock") continue;
+                    var cx = bb.top_left_x_m + bb.width_m / 2;
+                    var cy = bb.top_left_y_m + bb.height_m / 2;
+                    inputs.Obstacles.Add(BoxObstacle(pl.label, veg.height_m, cx, cy, bb.width_m, bb.height_m));
+                }
             return inputs;
+        }
+
+        static ObstacleInput BoxObstacle(string name, float heightM, float x0, float y0, float w0, float d0)
+        {
+            double x = R(x0, 3), y = R(y0, 3), w = R(w0, 3), d2 = R(d0, 3);
+            var alongX = w >= d2;
+            return new ObstacleInput
+            {
+                Name = name ?? "", HeightM = R(heightM, 3), ThicknessM = alongX ? d2 : w,
+                X0 = alongX ? Math.Round(x - w / 2, 3) : x, Y0 = alongX ? y : Math.Round(y - d2 / 2, 3),
+                X1 = alongX ? Math.Round(x + w / 2, 3) : x, Y1 = alongX ? y : Math.Round(y + d2 / 2, 3),
+            };
         }
     }
 }
