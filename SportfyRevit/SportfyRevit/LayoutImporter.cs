@@ -54,6 +54,17 @@ namespace SportfyRevit
 
             try
             {
+                // A design option being edited would catch the whole layout (what the API creates lands in the option being edited), and this roof's
+                // main-model content could not be cleared from inside an option: a sync or Auto Import waits for the Main Model. An iteration goes
+                // into an option through Import Iterations as Design Options.
+                if (DesignOption.GetActiveDesignOptionId(doc) != ElementId.InvalidElementId)
+                {
+                    outcome.Error = "a design option is being edited: switch the Design Options toolbar back to Main Model and sync again " +
+                                    "(to put an iteration into this option, use Import Iterations as Design Options)";
+                    SportifyLog.Warn("import", "not imported: " + outcome.Error);
+                    return Finish(outcome, sourceName, clock);
+                }
+
                 var choice = WorksharingConsent.Decide(doc, interactive: true);
                 if (choice == WorksharingChoice.Cancel)
                 {
