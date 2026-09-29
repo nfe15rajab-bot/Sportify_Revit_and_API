@@ -115,6 +115,34 @@ namespace Sportify.Simulation
             S("Wide-Shot", -0.7f, -0.6f, +1, -30f, 24f, 20f, 0.3f),
         };
 
+        // The activity catalogue's racket courts (2026-09-29, the assistant's figures awaiting the team's review): recreational to club
+        // level. Padel lobs ~15-20 m/s and smashes ~25-30 m/s (the court's glass walls and mesh are NOT modelled: the court is open, so
+        // what leaves it shows how high its enclosure has to be); pickleball drives ~18-22 m/s; table tennis loops ~10-15 m/s and smashes
+        // ~20-25 m/s from beside the table (its playing space is the court). Launch heights are paddle / racket height.
+        static readonly Spec[] PadelShots =
+        {
+            S("Lob{a}", -0.7f, 0f, +1, 0f, 18f, 40f, 1.0f),
+            S("Lob{a}", +0.7f, 0f, -1, 0f, 18f, 40f, 1.0f),
+            S("Smash", -0.3f, 0f, +1, 0f, 28f, -8f, 2.6f),
+            S("Wide-Mishit", -0.7f, -0.6f, +1, -32f, 20f, 35f, 1.0f),
+        };
+
+        static readonly Spec[] PickleballShots =
+        {
+            S("Lob{a}", -0.7f, 0f, +1, 0f, 14f, 45f, 0.9f),
+            S("Lob{a}", +0.7f, 0f, -1, 0f, 14f, 45f, 0.9f),
+            S("Drive", -0.3f, 0f, +1, 0f, 20f, 8f, 0.9f),
+            S("Wide-Mishit", -0.7f, -0.6f, +1, -32f, 15f, 35f, 0.9f),
+        };
+
+        static readonly Spec[] TableTennisShots =
+        {
+            S("Loop{a}", -0.7f, 0f, +1, 0f, 12f, 25f, 0.9f),
+            S("Loop{a}", +0.7f, 0f, -1, 0f, 12f, 25f, 0.9f),
+            S("Smash", -0.4f, 0f, +1, 0f, 24f, -5f, 1.1f),
+            S("Edge-Mishit", -0.7f, -0.6f, +1, -40f, 10f, 50f, 0.9f),
+        };
+
         static readonly Spec[] GenericShots =
         {
             S("Long-Throw{a}", -0.7f, 0f, +1, 0f, 18f, 35f, 2.2f),
@@ -132,6 +160,9 @@ namespace Sportify.Simulation
                 case "handball": ball = BallProfile.Handball; specs = HandballShots; break;
                 case "volleyball": ball = BallProfile.Volleyball; specs = VolleyballShots; break;
                 case "football": ball = BallProfile.FutsalBall; specs = FutsalShots; break;
+                case "padel": ball = BallProfile.PadelBall; specs = PadelShots; break;
+                case "pickleball": ball = BallProfile.Pickleball; specs = PickleballShots; break;
+                case "table tennis": ball = BallProfile.TableTennisBall; specs = TableTennisShots; break;
                 default: ball = BallProfile.GenericBall; specs = GenericShots; break;
             }
         }

@@ -183,7 +183,7 @@ namespace Sportify.Simulation
 
                 if (_shots.Count == 0)
                 {
-                    Debug.LogWarning("[Collision] No field placements in the layout - nothing to simulate.");
+                    Debug.LogWarning("[Collision] No ball courts in the layout (Sport tab fields or activity courts) - nothing to simulate.");
                     WriteReport(0);
                     return;
                 }
@@ -218,6 +218,12 @@ namespace Sportify.Simulation
                 ? "Goldbeck default - Garden Boundary, Sports Core"
                 : _courts.Count + " court" + (_courts.Count == 1 ? "" : "s") + " on a " +
                   Num(roof.length_m, "0.#") + " x " + Num(roof.width_m, "0.#") + " m roof";
+            // A court the simulation does not fly (bocce: rolled, not thrown through the air) is named, not silently dropped.
+            var skipped = LayoutLoader.SkippedActivityCourts(_payload);
+            if (skipped.Count > 0)
+                _report.caseStudy += " (not simulated, the balls are rolled: " + string.Join(", ", skipped) + ")";
+            if (_courts.Count == 0)
+                _report.caseStudy += " - no ball courts in this layout, nothing to simulate";
 
             SceneBuilder.BuildRoof(roof);
             SceneBuilder.BuildContext(LayoutLoader.ExtractContext(_payload));

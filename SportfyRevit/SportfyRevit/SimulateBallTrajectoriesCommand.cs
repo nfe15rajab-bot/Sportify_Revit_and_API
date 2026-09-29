@@ -155,7 +155,9 @@ namespace SportfyRevit
 
             var dialog = new TaskDialog(DialogTitle)
             {
-                MainInstruction = violations.Count == 0 ? "No boundary crossings found" : $"{violations.Count} boundary crossing(s) found",
+                // Zero shots means the layout has no ball court (or only bocce), not that every ball stayed in: say which it is.
+                MainInstruction = results.ShotsSimulated == 0 ? "Nothing to simulate: this layout has no ball courts"
+                                : violations.Count == 0 ? "No boundary crossings found" : $"{violations.Count} boundary crossing(s) found",
                 MainContent = body.ToString(),
                 CommonButtons = TaskDialogCommonButtons.Close,
                 DefaultButton = TaskDialogResult.Close,

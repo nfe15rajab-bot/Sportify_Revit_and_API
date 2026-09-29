@@ -51,6 +51,23 @@ namespace Sportify.Simulation
             Name = "Indoor football (futsal)", MassKg = 0.42f, DiameterM = 0.20f, DragCoefficient = 0.25f,
         };
 
+        // The activity catalogue's racket courts (2026-09-29, the assistant's figures awaiting the team's review): published
+        // ball masses and sizes; drag coefficients on the low side like the round balls above.
+        public static readonly BallProfile PadelBall = new BallProfile
+        {
+            Name = "Padel ball", MassKg = 0.057f, DiameterM = 0.065f, DragCoefficient = 0.50f,
+        };
+
+        public static readonly BallProfile Pickleball = new BallProfile
+        {
+            Name = "Pickleball (outdoor)", MassKg = 0.026f, DiameterM = 0.074f, DragCoefficient = 0.40f,
+        };
+
+        public static readonly BallProfile TableTennisBall = new BallProfile
+        {
+            Name = "Table tennis ball", MassKg = 0.0027f, DiameterM = 0.040f, DragCoefficient = 0.40f,
+        };
+
         // Multi-sport halls and any sport the table doesn't know about.
         public static readonly BallProfile GenericBall = new BallProfile
         {

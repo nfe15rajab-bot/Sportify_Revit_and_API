@@ -164,6 +164,19 @@ namespace Sportify.Simulation
         public int seats;
     }
 
+    /// <summary>
+    /// A piece from the web app's activity catalogue (parameters.activity: padel, ping pong, pickleball, a playground, a fitness rig ...).
+    /// category "court" is a ball game; its size is in dimensions (length_m, width_m).
+    /// </summary>
+    [Serializable]
+    public class ActivityInfo
+    {
+        public string type_id;
+        public string category;
+        public string norm;
+        public FieldDimensions dimensions;
+    }
+
     [Serializable]
     public class PointM
     {
@@ -286,6 +299,7 @@ namespace Sportify.Simulation
     public class PlacementParameters
     {
         public FieldInfo field;
+        public ActivityInfo activity;
         public VegetationData vegetation;
         public GardenParameters garden;
         public FurnitureData furniture;
