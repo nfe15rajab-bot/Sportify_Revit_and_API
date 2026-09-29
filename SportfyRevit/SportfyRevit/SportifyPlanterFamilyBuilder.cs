@@ -92,6 +92,32 @@ namespace SportfyRevit
         }
 
         /// <summary>
+        /// The same "the project's own copy wins, else load ours from the library" rule as <see cref="GetOrLoadSymbol"/>, generalized for a
+        /// curated quality_key match (FamilyMatchRules) rather than a design-team kit item: <paramref name="fileBase"/> and
+        /// <paramref name="familyName"/> are the same string for a family authored and named the same as its file.
+        /// </summary>
+        public static FamilySymbol? FindOrLoad(Document doc, string fileBase, string familyName)
+        {
+            var loaded = FindLoaded(doc, familyName) ?? FindLoaded(doc, fileBase);
+            if (loaded != null) return Activate(loaded);
+
+            var path = LibraryPath(fileBase);
+            if (path == null) return null;
+
+            try
+            {
+                if (!doc.LoadFamily(path, new OverwriteFamilyLoadOptions(), out Family family) && family == null)
+                    return null;
+                var symbol = FirstSymbol(family) ?? FindLoaded(doc, fileBase);
+                return symbol == null ? null : Activate(symbol);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Puts the web app's values onto the placed instance.
         ///
         /// Only what the family will accept: a parameter the family computes by

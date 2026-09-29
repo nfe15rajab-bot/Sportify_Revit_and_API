@@ -377,12 +377,12 @@ namespace SportfyRevit
             if (string.IsNullOrWhiteSpace(qualityKey))
                 return FamilyResolution.None("it has no quality_key, and nothing builds a family for this kind of piece yet");
 
-            // 6. A family a person named for this quality_key (FamilyMatchRules), when it is in the project.
+            // 6. A family a person named for this quality_key (FamilyMatchRules): already in the project, or loaded from the library
+            //    that ships with the add-in — the same "project wins, else the library" rule the design-team kit items use.
             if (FamilyMatchRules.Lookup.TryGetValue(qualityKey, out var curated))
             {
-                var loaded = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).Cast<FamilySymbol>()
-                    .FirstOrDefault(s => string.Equals(s.Family?.Name, curated, StringComparison.OrdinalIgnoreCase));
-                if (loaded != null) return Found(loaded, ImportDiagnostics.HowMatched);
+                var matched = SportifyPlanterFamilyBuilder.FindOrLoad(doc, curated, curated);
+                if (matched != null) return Found(matched, ImportDiagnostics.HowMatched);
             }
 
             // 7. The family generated for exactly this quality_key and size, when an earlier import already put it in the project.
