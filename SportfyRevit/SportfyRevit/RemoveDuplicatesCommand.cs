@@ -53,7 +53,7 @@ namespace SportfyRevit
             ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Keep the newest import",
                 "Removes every earlier import on this roof (whatever roof id it was recorded under), untracked Sportify leftovers, and repeated copies of a piece.");
             ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Clear this roof",
-                "Removes everything Sportify put on this roof, the newest import too — for example before importing the iterations into design options.");
+                "Removes everything Sportify put on this roof in the main model, the newest import and the worksets of an earlier \"Import Iterations\" too — for example before importing the iterations into design options.");
             ask.DefaultButton = TaskDialogResult.CommandLink1;
             var answer = ask.Show();
             if (answer != TaskDialogResult.CommandLink1 && answer != TaskDialogResult.CommandLink2) return Result.Cancelled;
@@ -64,7 +64,7 @@ namespace SportfyRevit
             {
                 using var t = new Transaction(doc, clearAll ? "Sportify: clear the roof" : "Sportify: remove duplicates");
                 t.Start();
-                removed = ImportLedger.RemoveOnRoof(doc, roofKey, roof, leftovers: true, keepNewest: !clearAll);
+                removed = ImportLedger.RemoveOnRoof(doc, roofKey, roof, leftovers: true, keepNewest: !clearAll, withIterations: clearAll);
                 if (!clearAll) duplicates = DuplicateCleanup.RemoveForRoof(doc, roofKey, roof);
                 t.Commit();
             }

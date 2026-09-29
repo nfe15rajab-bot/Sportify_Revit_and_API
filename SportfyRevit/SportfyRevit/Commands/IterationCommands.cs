@@ -199,6 +199,9 @@ namespace SportfyRevit
         /// keyed to the option). Before committing it checks that the new elements really are in the option; if Revit put them in the main
         /// model instead, it rolls back and says so, so the main model never collects an iteration by accident.
         /// </summary>
+        /// <summary>The ledger's Source for an iteration put into a design option: "design-option:" + the iteration's name, so the next run can tell what the option holds.</summary>
+        internal const string OptionSourcePrefix = "design-option:";
+
         static Result ImportIntoActiveOption(Document doc, List<SavedIterationDto> iterations, ElementId optionId, ref string message)
         {
             var optionName = doc.GetElement(optionId)?.Name ?? "the design option being edited";
@@ -207,9 +210,10 @@ namespace SportfyRevit
 
             var ask = new TaskDialog(Title)
             {
-                MainInstruction = $"Which iteration goes into \"{optionName}\"?",
+                MainInstruction = $"Which iteration goes into \"{optionName}\" (the option being edited)?",
                 MainContent = "It is built inside this design option only; the main model and the other options stay as they are. " +
-                              "Running this again in the same option replaces what it put there.",
+                              "Running this again in the same option replaces what it put there. To fill another option, make it the one being edited first " +
+                              "(the Design Options bar at the bottom of the window).",
                 CommonButtons = TaskDialogCommonButtons.Cancel,
             };
             for (var i = 0; i < names.Count; i++)
@@ -219,13 +223,30 @@ namespace SportfyRevit
             var index = ask.Show() - TaskDialogResult.CommandLink1;
             if (index < 0 || index >= iterations.Count) return Result.Cancelled;
 
+            // Live 2026-09-29: three runs meant for three options all went into Option 1, each replacing the one before, because the option being
+            // edited never changed. An option that already holds a DIFFERENT iteration is now asked about first.
+            var key = RoofMatch.OptionKey(optionId.Value);
+            var holds = ImportLedger.ReadEntries(doc).Where(e => e.RoofKey == key).Select(e => e.Source).FirstOrDefault(s => s.StartsWith(OptionSourcePrefix, StringComparison.Ordinal));
+            var heldName = holds?.Substring(OptionSourcePrefix.Length);
+            if (!string.IsNullOrEmpty(heldName) && heldName != names[index])
+            {
+                var replace = new TaskDialog(Title)
+                {
+                    MainInstruction = $"\"{optionName}\" already holds \"{heldName}\". Replace it with \"{names[index]}\"?",
+                    MainContent = "To fill ANOTHER option instead, first make that option the one being edited: the Design Options bar at the bottom of the Revit window " +
+                                  "(or Manage > Design Options > Edit Selected). Choosing an option in a view's Visibility/Graphics only changes what that view shows.",
+                    CommonButtons = TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No,
+                    DefaultButton = TaskDialogResult.No,
+                };
+                if (replace.Show() != TaskDialogResult.Yes) return Result.Cancelled;
+            }
+
             var choice = WorksharingConsent.Decide(doc, interactive: true);
             if (choice == WorksharingChoice.Cancel) return Result.Cancelled;
             if (choice == WorksharingChoice.Enable) doc.EnableWorksharing("Shared Levels and Grids", "Workset1");
 
             var payload = iterations[index].Payload!;
             var prepared = FamilyPreparation.Prepare(doc, payload, allowTemplateDialog: true);
-            var key = RoofMatch.OptionKey(optionId.Value);
 
             using var t = new Transaction(doc, $"Sportify: {names[index]} into {optionName}");
             t.Start();
@@ -245,7 +266,7 @@ namespace SportfyRevit
                                            "Make sure the option is being edited (Design Options toolbar at the bottom of the window, or Manage > Design Options > Edit Selected), then run this again.");
                     return Result.Cancelled;
                 }
-                ImportLedger.Write(doc, summary.CreatedIds, "design-option", key);
+                ImportLedger.Write(doc, summary.CreatedIds, OptionSourcePrefix + names[index], key);
             }
             catch (Exception ex)
             {

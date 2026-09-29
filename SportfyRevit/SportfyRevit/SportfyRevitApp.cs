@@ -216,6 +216,8 @@ namespace SportfyRevit
             IfcWorksetsSelfTest.Install(application);
             // SPORTIFY_OPEN_AND_PUSH_FILE=<project.rvt> + SPORTIFY_OPEN_AND_PUSH_ROOF_IFCTAG=<IfcTag>: opens a detached copy as the active document and pushes the named roof for real (see LiveRoofSession). Nothing otherwise.
             LiveRoofSession.Install(application);
+            // SPORTIFY_FIX_SOURCE / SPORTIFY_FIX_FILE / SPORTIFY_FIX_REPORT: a one-time unattended tidy-up of a project for submission (see SubmissionFix). Nothing otherwise.
+            SubmissionFix.Install(application);
 
             return Result.Succeeded;
         }

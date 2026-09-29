@@ -71,7 +71,7 @@ namespace SportfyRevit
             RemoveWhere(doc, storage => RoofIdOf(storage, GetSchema()) == roofId);
 
         /// <summary>One recorded import: its storage, the roof key it was recorded under, when, and the elements of it still in the model.</summary>
-        internal sealed record Entry(DataStorage Storage, string RoofKey, DateTime ImportedAtUtc, List<Element> Elements);
+        internal sealed record Entry(DataStorage Storage, string RoofKey, DateTime ImportedAtUtc, List<Element> Elements, string Source);
 
         /// <summary>Every recorded import of this project (read only).</summary>
         internal static List<Entry> ReadEntries(Document doc)
@@ -91,7 +91,9 @@ namespace SportfyRevit
                     var el = string.IsNullOrEmpty(uid) ? null : doc.GetElement(uid);
                     if (el != null && el.Id != storage.Id) elements.Add(el);
                 }
-                entries.Add(new Entry(storage, RoofIdOf(storage, schema), at, elements));
+                string source = "";
+                try { source = storage.GetEntity(schema).Get<string>("Source") ?? ""; } catch (Exception) { }
+                entries.Add(new Entry(storage, RoofIdOf(storage, schema), at, elements, source));
             }
             return entries;
         }
@@ -116,7 +118,7 @@ namespace SportfyRevit
         /// landed). Never touches another live roof's import, a design option's contents, or what an iterations import recorded (it has its own
         /// "clear iterations" choice). Returns how many elements were removed.
         /// </summary>
-        internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false)
+        internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false)
         {
             var roofBox = roof?.get_BoundingBox(null);
             var entries = ReadEntries(doc).Where(e => BelongsTo(doc, e, roofKey, roofBox)).OrderByDescending(e => e.ImportedAtUtc).ToList();
@@ -133,7 +135,7 @@ namespace SportfyRevit
             if (leftovers && roofBox != null)
             {
                 var listed = new HashSet<string>(ReadEntries(doc).SelectMany(e => e.Elements).Select(e => e.UniqueId));
-                listed.UnionWith(IterationLedger.ReadUniqueIds(doc));
+                if (!withIterations) listed.UnionWith(IterationLedger.ReadUniqueIds(doc));     // "Clear this roof" takes the workset iterations standing on it too
                 foreach (var el in new FilteredElementCollector(doc).WhereElementIsNotElementType()
                              .WherePasses(new LogicalOrFilter(new List<ElementFilter>
                              {

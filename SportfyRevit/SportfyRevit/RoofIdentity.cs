@@ -19,7 +19,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The building's roofs and floors (not Sportify's, not in a design option) — the candidates a Sportify element can stand on.</summary>
-        static List<Element> BuildingRoofs(Document doc) =>
+        internal static List<Element> BuildingRoofs(Document doc) =>
             new FilteredElementCollector(doc).WhereElementIsNotElementType()
                 .WherePasses(new LogicalOrFilter(new ElementCategoryFilter(BuiltInCategory.OST_Roofs), new ElementCategoryFilter(BuiltInCategory.OST_Floors)))
                 .Where(e => e.DesignOption == null && !IsSportifys(doc, e) && e.get_BoundingBox(null) != null)
