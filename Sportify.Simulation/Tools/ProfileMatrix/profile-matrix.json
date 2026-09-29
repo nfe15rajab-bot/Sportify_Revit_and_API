@@ -61,6 +61,7 @@
   "GenerateFunctionalDiagrams",
   "GenerateSchedules",
   "OpenSportifyFolder",
+  "RemoveDuplicates",
   "PushToSportify"
  ],
  "profiles": {
@@ -136,6 +137,7 @@
     "GenerateFunctionalDiagrams",
     "GenerateSchedules",
     "OpenSportifyFolder",
+    "RemoveDuplicates",
     "PushToSportify"
    ],
    "hidden_without_unity_solidworks_chrome": [

@@ -13,6 +13,8 @@ namespace SportfyRevit
         public ImportSummary? Summary { get; set; }
         /// <summary>Elements of the previous import of this project that this one replaced.</summary>
         public int Replaced { get; set; }
+        /// <summary>Stale, untracked leftovers (from before RoofId tracking, or a ledger entry that never landed) this import also found and removed as duplicates.</summary>
+        public int RemovedDuplicates { get; set; }
         /// <summary>Elements of an earlier "Import Iterations as Design Options" run that this one also cleared (0 unless asked to).</summary>
         public int ReplacedIterations { get; set; }
         /// <summary>ImportDiagnostics.Report(): which family every piece got, or why it became a box.</summary>
@@ -72,6 +74,7 @@ namespace SportfyRevit
                     if (clearIterations) outcome.ReplacedIterations = IterationLedger.RemovePrevious(doc);
                     outcome.Summary = SportifyLayoutBuilder.BuildGeometry(doc, layout, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
                     ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName, roofId);
+                    outcome.RemovedDuplicates = DuplicateCleanup.RemoveForRoof(doc, roofId);
                 }
                 catch (Exception ex)
                 {
@@ -107,7 +110,8 @@ namespace SportfyRevit
             SportifyLog.Block("import",
                 $"{sourceName} import {(outcome.Succeeded ? "finished" : outcome.Cancelled ? "cancelled" : "FAILED: " + outcome.Error)} in {clock.ElapsedMilliseconds} ms; " +
                 $"replaced {outcome.Replaced} element(s) of the previous import (Revit counts the sketches and lines that depend on what was tagged)" +
-                (outcome.ReplacedIterations > 0 ? $" and {outcome.ReplacedIterations} element(s) of the previously imported iterations" : "") + "; report:",
+                (outcome.ReplacedIterations > 0 ? $" and {outcome.ReplacedIterations} element(s) of the previously imported iterations" : "") +
+                (outcome.RemovedDuplicates > 0 ? $"; removed {outcome.RemovedDuplicates} stale duplicate(s)" : "") + "; report:",
                 outcome.Report);
             return outcome;
         }

@@ -95,6 +95,7 @@ namespace SportfyRevit
             ["diagram"] = new("export", "M4 6h6v6h-6z M14 12h6v6h-6z M10 9h4v6", "M4 6h6v6h-6z M14 12h6v6h-6z"),
             ["csv"] = new("export", Table, "M4 5h16v5h-16z"),
             ["folder"] = new("export", "M3 7h6l2 2h10v10h-18z", "M3 7h6l2 2h10v10h-18z"),
+            ["duplicates"] = new("export", "M4 4h11v11h-11z M9 9h11v11h-11z", "M4 4h11v11h-11z"),
         };
 
         /// <summary>The outline of each icon (kept as it was for the checks and anything that only wants the shape).</summary>

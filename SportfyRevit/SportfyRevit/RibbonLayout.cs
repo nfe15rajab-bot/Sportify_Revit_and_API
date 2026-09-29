@@ -100,6 +100,7 @@ namespace SportfyRevit
                 new RibbonButtonSpec("GenerateFunctionalDiagrams", "Functional\nDiagrams", "GenerateFunctionalDiagramsCommand", "Generates a circulation-only floor plan and a 3D massing axonometric, saved as PNG in the Diagrams folder of your Sportify folder (the web app's Documents tab can ask for them too). Bubble diagram not built yet.", "diagram"),
                 new RibbonButtonSpec("GenerateSchedules", "Schedules\n(CSV)", "GenerateSchedulesCommand", "Exports a CSV schedule of every synced component (category, quality, reference material/provider, area) into the Schedules folder of your Sportify folder.", "csv"),
                 new RibbonButtonSpec("OpenSportifyFolder", "Open Sportify\nFolder", "OpenSportifyFolderCommand", "Opens your Sportify folder (chosen when Sportify was installed, by default Documents\\Sportify Workspace) in Explorer: layouts, sport and garden data, analysis charts (PDF), videos, analysis reports, schedules and diagrams, one subfolder each. The web app's Documents tab lists the same files.", "folder"),
+                new RibbonButtonSpec("RemoveDuplicates", "Remove\nDuplicates", "RemoveDuplicatesCommand", "Removes overlapping leftovers on the active roof: an older copy of a placement sitting under a freshly reimported one. Every import already runs this on its own; use this button when a project picked up duplicates before that (an earlier add-in version) without running a fresh import.", "duplicates"),
             }),
         };
     }

@@ -83,6 +83,7 @@ namespace SportfyRevit
                 $"{summary.PathCount} circulation path(s) and {summary.EntryCount} entrance marker(s).\n" +
                 (outcome.Replaced > 0 ? $"Replaced {outcome.Replaced} element(s) of the previous import (with the sketches and lines that depend on them).\n" : "") +
                 (outcome.ReplacedIterations > 0 ? $"Also cleared {outcome.ReplacedIterations} element(s) of the previously imported iterations.\n" : "") +
+                (outcome.RemovedDuplicates > 0 ? $"Also removed {outcome.RemovedDuplicates} stale duplicate(s) left over from before this roof's imports were tracked.\n" : "") +
                 "\nPieces went to the Sports/Gardens worksets when the project has worksets; boundary, setback, circulation and entrances to the Combine workset.\n\n" +
                 // Which family every piece got, or why it became a box.
                 outcome.Report + "\nLog: " + SportifyLog.CurrentFile);
