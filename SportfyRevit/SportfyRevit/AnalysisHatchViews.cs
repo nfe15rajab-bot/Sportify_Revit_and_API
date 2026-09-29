@@ -120,7 +120,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The shape's own plan points (poly/circle/rect — PlanShape's three kinds), turned into a closed Revit CurveLoop in real world feet at the roof's own top elevation. A circle becomes a 16-sided polygon: close enough at this scale, and CurveLoop needs no Arc-continuity bookkeeping this way.</summary>
-        private static CurveLoop? LoopFor(PlanShape shape, RoofFrame frame, double originZFt)
+        internal static CurveLoop? LoopFor(PlanShape shape, RoofFrame frame, double originZFt)
         {
             var planPts = PlanPoints(shape);
             if (planPts.Count < 3) return null;
@@ -159,7 +159,7 @@ namespace SportfyRevit
             return new List<(double, double)> { (shape.X, shape.Y), (shape.X + shape.W, shape.Y), (shape.X + shape.W, shape.Y + shape.H), (shape.X, shape.Y + shape.H) };
         }
 
-        private static XYZ Centroid(PlanShape shape, RoofFrame frame, double originZFt)
+        internal static XYZ Centroid(PlanShape shape, RoofFrame frame, double originZFt)
         {
             double cx, cy;
             if (shape.Kind == "circle") { cx = shape.X; cy = shape.Y; }
@@ -175,7 +175,7 @@ namespace SportfyRevit
         }
 
         /// <summary>A named, coloured, solid-fill FilledRegionType for `hex` — reused across shapes and across runs (looked up by name first, so a rerun does not pile up duplicate types).</summary>
-        private static ElementId GetOrCreateFilledRegionType(Document doc, Dictionary<string, ElementId> cache, string hex, ElementId baseTypeId, ElementId solidPatternId)
+        internal static ElementId GetOrCreateFilledRegionType(Document doc, Dictionary<string, ElementId> cache, string hex, ElementId baseTypeId, ElementId solidPatternId)
         {
             if (cache.TryGetValue(hex, out var cached)) return cached;
 

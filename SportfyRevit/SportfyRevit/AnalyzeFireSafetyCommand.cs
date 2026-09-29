@@ -13,7 +13,7 @@ namespace SportfyRevit
     /// number can never disagree with the web app's own Results tab for
     /// the same layout.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class AnalyzeFireSafetyCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -22,6 +22,8 @@ namespace SportfyRevit
 
             var layout = AnalysisLayoutSource.GetLayout("Fire Safety Analysis");
             if (layout == null) return Result.Cancelled;
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document, layout);
 
             if (layout.Placements == null || layout.Placements.Count == 0)
             {

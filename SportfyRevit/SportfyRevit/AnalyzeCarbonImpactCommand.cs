@@ -12,7 +12,7 @@ namespace SportfyRevit
     /// prediction for whichever material was actually picked — the
     /// reference database doesn't track that property per material yet.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class AnalyzeCarbonImpactCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -21,6 +21,8 @@ namespace SportfyRevit
 
             var layout = AnalysisLayoutSource.GetLayout("Carbon Impact Analysis");
             if (layout == null) return Result.Cancelled;
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document, layout);
 
             var activeSurfaces = (layout.Placements ?? new List<PlacementDto>())
                 .Where(p => (string.Equals(p.Category, "field", StringComparison.OrdinalIgnoreCase)

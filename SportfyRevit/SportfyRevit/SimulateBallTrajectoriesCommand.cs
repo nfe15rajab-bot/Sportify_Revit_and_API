@@ -25,7 +25,7 @@ namespace SportfyRevit
     /// if nothing has been imported into this Revit session yet, so this
     /// always produces something rather than a dead end on a fresh session.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class SimulateBallTrajectoriesCommand : IExternalCommand
     {
         // Unity start-up, a 1080p slow-motion render and the H.264 encode: roughly
@@ -36,6 +36,8 @@ namespace SportfyRevit
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             var usingBundledDefault = layoutJson == null;
 
             if (!UnityHeadlessRunner.TryLocate(out var unity, out var problem))

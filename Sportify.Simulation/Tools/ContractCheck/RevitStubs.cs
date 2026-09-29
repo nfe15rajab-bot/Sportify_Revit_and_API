@@ -27,4 +27,6 @@ namespace SportfyRevit
     // LiveStructure reads the open model (Revit calls): here it hands the layout back unchanged. What it does with what it reads is
     // LiveStructureMerge, which Tools/AddinCheck checks on its own.
     internal static class LiveStructure { internal static string Apply(Autodesk.Revit.DB.Document? doc, string layoutJson, out string note) { note = ""; return layoutJson; } }
+    // SportifyDiagramViews draws Revit views: nothing to draw here.
+    internal static class SportifyDiagramViews { internal static void Refresh(Autodesk.Revit.DB.Document? doc, SportifyLayout? layout = null) { } }
 }

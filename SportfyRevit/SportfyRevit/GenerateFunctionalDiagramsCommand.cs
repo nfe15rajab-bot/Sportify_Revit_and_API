@@ -89,6 +89,9 @@ namespace SportfyRevit
                 t.Commit();
             }
 
+            // the circulation view in the Algorithmic placement's style, with the fire safety and accessibility diagrams beside it (SportifyDiagramViews)
+            SportifyDiagramViews.Refresh(doc);
+
             // the bubble and spine diagrams: read-only over what the import built, no transaction needed
             var data = FunctionalDiagramData.Collect(doc, roofId);
             var spineSvg = FunctionalDiagramData.SpineSvg(data);

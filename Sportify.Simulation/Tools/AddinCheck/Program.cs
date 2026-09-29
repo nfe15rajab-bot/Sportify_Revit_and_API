@@ -1927,6 +1927,48 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("no identity (an old web app): only an export is imported", AutoImportDecision.Decide(true, null, "a", 0) == I && AutoImportDecision.Decide(false, null, "a", 9999) == S);
 }
 
+// ---------------------------------------------------------------------------------------------------------------- the analysis diagrams in Revit (DiagramPlan)
+{
+    Console.WriteLine("\n===== the circulation, fire safety and accessibility diagrams (DiagramPlan) =====");
+    (int R, int G, int B) Rgb(string h) => (Convert.ToInt32(h.Substring(1, 2), 16), Convert.ToInt32(h.Substring(3, 2), 16), Convert.ToInt32(h.Substring(5, 2), 16));
+    double Sat(string h) { var (r, g, b) = Rgb(h); int mx = Math.Max(r, Math.Max(g, b)), mn = Math.Min(r, Math.Min(g, b)); return mx == 0 ? 0 : (mx - mn) / (double)mx; }
+    var soft = DiagramPlan.Soften("#9c4fe0");
+    Check("the plan's colours, less saturated and a little lighter (\"the vis style of the web algo but less saturation\")", Sat(soft) < Sat("#9c4fe0") && Rgb(soft).R + Rgb(soft).G + Rgb(soft).B > 0x9c + 0x4f + 0xe0, soft);
+
+    var lay = JsonSerializer.Deserialize<SportifyLayout>(File.ReadAllText(args[0]))!;
+    int pieces = lay.Placements!.Count(p => p.BoundingBox is { WidthM: > 0, HeightM: > 0 }), entries = lay.EntryPoints?.Count ?? 0;
+    var circ = DiagramPlan.Circulation(lay);
+    Check("circulation: one block per piece, one mark per entrance, the paths as bands, and a caption", circ.Shapes.Count(s => s.Kind == "rect" && s.Label != "") >= 1
+          && circ.Shapes.Count(s => s.Kind == "circle") == entries && circ.Caption.StartsWith("Circulation") && circ.Shapes.Count >= pieces + entries, $"{circ.Shapes.Count} shapes: {circ.Caption}");
+    // a piece carries the plan's own colour when the web app sent one, else its kind's
+    var colored = new PlacementDto { Category = "activity", DiagramColor = "#ff7f0e" };
+    Check("a piece is drawn in the colour the Algorithmic placement plan gives it (diagram_color), else in its kind's", DiagramPlan.PieceColor(colored) == "#ff7f0e" && DiagramPlan.PieceColor(new PlacementDto { Category = "field" }) == "#3d6fff");
+
+    // fire safety on the same layout: one piece within the limit, one over it, one with no route
+    var ids = lay.Placements!.Where(p => p.Id != null).Select(p => p.Id!).Take(3).ToList();
+    var dist = new Dictionary<string, double> { [ids[0]] = 12, [ids[1]] = 48 };
+    var fire = DiagramPlan.FireSafety(lay, dist, new HashSet<string> { ids[2] }, 35);
+    var within = fire.Shapes.First(s => s.Label.StartsWith((lay.Placements!.First(p => p.Id == ids[0]).Label ?? "").Trim().Length > 0 ? (lay.Placements!.First(p => p.Id == ids[0]).Label ?? "").Substring(0, 3) : "") && s.Label.Contains("12.0 m"));
+    var over = fire.Shapes.First(s => s.Label.Contains("48.0 m"));
+    Check("fire safety: each piece says its walking distance, green within the limit, red past it", Rgb(within.Fill).G > Rgb(within.Fill).R && Rgb(over.Fill).R > Rgb(over.Fill).G, within.Fill + " / " + over.Fill);
+    Check("a piece with no route to an entrance says so, and the caption counts it", fire.Shapes.Any(s => s.Label.EndsWith("no route")) && fire.Caption.Contains("1 piece(s) with no route"), fire.Caption);
+
+    // accessibility: the Algorithmic placement's paths with their real widths; the reference 1.5 m
+    var acc = JsonSerializer.Deserialize<SportifyLayout>("""
+        { "roof_context": { "length_m": 40, "width_m": 20 }, "placements": [],
+          "path_rects": [ { "x0": 0, "y0": 8, "x1": 30, "y1": 10.5, "primary": true }, { "x0": 5, "y0": 12, "x1": 6.2, "y1": 20, "primary": false }, { "x0": 1, "y0": 8.2, "x1": 2, "y1": 9.2 }, { "x0": 32, "y0": 0, "x1": 32.3, "y1": 20 } ] }
+        """)!;
+    var a = DiagramPlan.Accessibility(acc, 1.5);
+    var circles = a.Shapes.Where(s => s.Kind == "circle" && s.Label != "").ToList();
+    Check("accessibility: each path's clear width in a circle on it - 2.5 m (meets 1.5 m) green, 1.2 m amber", circles.Count == 2 && circles.Any(c => c.Label == "2.5 m" && Rgb(c.Fill).G > Rgb(c.Fill).R) && circles.Any(c => c.Label == "1.2 m" && Rgb(c.Fill).R > Rgb(c.Fill).B),
+          string.Join(", ", circles.Select(c => c.Label + " " + c.Fill)));
+    Check("a crossing (under 2 m long) and a 0.3 m sliver of paving get no circle and are not counted; the caption counts the narrow paths", a.Caption.Contains("1 path(s) narrower"), a.Caption);
+    var bands = DiagramPlan.PathBands(acc);
+    Check("the widths are the rectangles' short sides", bands.Select(b => b.WidthM).OrderBy(w => w).SequenceEqual(new[] { 0.3, 1.0, 1.2, 2.5 }));
+    // without the algorithm's paths: the circulation lines at the design rule's width
+    Check("a layout the algorithm did not plan: the circulation lines at the design rule's width", DiagramPlan.PathBands(lay).All(b => Math.Abs(b.WidthM - (lay.DesignRules?.CirculationWidthM ?? 1.2)) < 1e-9));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 

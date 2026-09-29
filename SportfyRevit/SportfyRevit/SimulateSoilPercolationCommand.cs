@@ -22,7 +22,7 @@ namespace SportfyRevit
     /// need no Unity and appear at once. Unity only adds the video (rain falling on each build-up in section, water
     /// soaking through its layers, the roof's outflow curve) and is offered afterwards, when the Editor is installed.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class SimulateSoilPercolationCommand : IExternalCommand
     {
         const string DialogTitle = "Sportify — Rain & Soil Percolation";
@@ -32,6 +32,8 @@ namespace SportfyRevit
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             var usingBundledSample = false;
 
             var haveUnity = UnityHeadlessRunner.TryLocate(out var unity, out _);

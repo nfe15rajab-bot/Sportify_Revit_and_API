@@ -46,6 +46,10 @@ namespace SportfyRevit
         /// full-thickness strips in the plan, the door's opening, and which side it is on. IndoorWallBuilder builds them as Revit walls with a door.
         /// </summary>
         [JsonPropertyName("walls")] public List<IndoorWallDto>? IndoorWalls { get; set; }
+
+        /// <summary>The Algorithmic placement's pathways as planned: rectangles in plan metres, each as wide as the path, the primary ones marked. What the
+        /// accessibility diagram measures the circulation by (SportifyDiagramViews); absent for a layout the algorithm did not plan.</summary>
+        [JsonPropertyName("path_rects")] public List<PathRectDto>? PathRects { get; set; }
         [JsonPropertyName("roof_finish")] public RoofFinishDto? RoofFinish { get; set; }
 
         /// <summary>
@@ -286,6 +290,8 @@ namespace SportfyRevit
         [JsonPropertyName("bounding_box")] public BoundingBoxDto? BoundingBox { get; set; }
         [JsonPropertyName("transform")] public TransformDto? Transform { get; set; }
         [JsonPropertyName("parameters")] public ParametersDto? Parameters { get; set; }
+        /// <summary>The colour the web app's Algorithmic placement plan gives this piece ("#rrggbb"), for Revit's diagrams (SportifyDiagramViews); null when it has none.</summary>
+        [JsonPropertyName("diagram_color")] public string? DiagramColor { get; set; }
 
         /// <summary>
         /// buildAnalysisForItem() (combineController.js) — the same per-item
@@ -1075,6 +1081,16 @@ namespace SportfyRevit
         [JsonPropertyName("category")] public string? Category { get; set; }
         [JsonPropertyName("norm")] public string? Norm { get; set; }
         [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
+    }
+
+    /// <summary>One pathway of the Algorithmic placement's plan: its rectangle (plan metres) and whether it is part of the primary network.</summary>
+    internal class PathRectDto
+    {
+        [JsonPropertyName("x0")] public double X0 { get; set; }
+        [JsonPropertyName("y0")] public double Y0 { get; set; }
+        [JsonPropertyName("x1")] public double X1 { get; set; }
+        [JsonPropertyName("y1")] public double Y1 { get; set; }
+        [JsonPropertyName("primary")] public bool Primary { get; set; }
     }
 
     /// <summary>One wall of the indoor zone: strips [x0, y0, x1, y1] in plan metres (x right, y down), each a full-thickness piece of wall; the door's opening.</summary>

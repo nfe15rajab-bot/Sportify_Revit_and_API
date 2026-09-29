@@ -18,7 +18,7 @@ namespace SportfyRevit
     /// rather than being computable from the layout JSON alone, so this
     /// command says so explicitly rather than silently skipping them.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class AnalyzeAccessibilityCommand : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -27,6 +27,8 @@ namespace SportfyRevit
 
             var layout = AnalysisLayoutSource.GetLayout("Accessibility Analysis");
             if (layout == null) return Result.Cancelled;
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document, layout);
 
             if (layout.Placements == null || layout.Placements.Count == 0)
             {

@@ -24,7 +24,7 @@ namespace SportfyRevit
     /// When Unity does run, its numbers are compared with these (they come from the same source, through a
     /// second reader of the layout), so a disagreement between the two readers cannot go unnoticed.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class AnalyzeWindErosionRiskCommand : IExternalCommand
     {
         const string DialogTitle = "Sportify — Wind & Erosion Analysis";
@@ -36,6 +36,8 @@ namespace SportfyRevit
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             var usingBundledSample = false;
 
             var haveUnity = UnityHeadlessRunner.TryLocate(out var unity, out _);

@@ -14,7 +14,7 @@ namespace SportfyRevit
     /// The ball trajectories and the videos are Unity's, and stay with their own commands in this panel (a recording made for exactly the numbers sent again stays
     /// with them: PhysicalAnalysisBatch). Nothing in the Revit model is touched.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class SendPhysicalAnalysisToWebCommand : IExternalCommand
     {
         const string DialogTitle = "Sportify — Send Physical Analysis to the Web App";
@@ -22,6 +22,8 @@ namespace SportfyRevit
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             if (baseJson == null)
             {
                 message = "No layout to analyse yet. Push or import a layout from the Sportify web app first (Combine tab).";

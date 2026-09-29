@@ -22,7 +22,7 @@ namespace SportfyRevit
     /// verification: the deck's capacity is an input (the layout carries the engineer's figure when it has been entered, else a
     /// placeholder that the results say is one), and every constant that is a judgement call is listed among the assumptions.
     /// </summary>
-    [Transaction(TransactionMode.ReadOnly)]
+    [Transaction(TransactionMode.Manual)]   // Manual, not ReadOnly: it redraws the analysis diagrams (SportifyDiagramViews)
     public class AnalyzeStructuralLoadsCommand : IExternalCommand
     {
         const string DialogTitle = "Sportify — Structural Loads";
@@ -32,6 +32,8 @@ namespace SportfyRevit
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
+            // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
+            SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             var usingBundledSample = false;
 
             var haveUnity = UnityHeadlessRunner.TryLocate(out var unity, out _);
