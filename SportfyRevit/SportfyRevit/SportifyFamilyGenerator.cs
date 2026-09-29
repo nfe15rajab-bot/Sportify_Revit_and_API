@@ -38,9 +38,9 @@ namespace SportfyRevit
             var qualityKey = p.Parameters?.QualityKey;
             if (string.IsNullOrWhiteSpace(qualityKey)) return null;
             var (lengthM, widthM, depthM) = SizeOf(p);
-            var name = $"{SanitizeFileName(qualityKey)}__{Cm(lengthM)}x{Cm(widthM)}";
-            if (PlacementDataHelpers.GetGeneralities(p)?.BuildupDepthM != null) name += $"__d{Cm(depthM)}";
-            return name;
+            bool hasDepth = PlacementDataHelpers.GetGeneralities(p)?.BuildupDepthM != null;
+            // "Sportify - Locker Room [1000x500 cm]": the convention of the families Sportify builds (SportifyFamilyNames)
+            return SportifyFamilyNames.Generated(qualityKey!, Cm(lengthM), Cm(widthM), hasDepth ? Cm(depthM) : (int?)null);
         }
 
         private static int Cm(double meters) => (int)Math.Round(meters * 100.0);

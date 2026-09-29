@@ -1865,6 +1865,30 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("within the tolerance the roof is the same roof", LiveStructureMerge.Merge(bare, Pushed(modelStructure), L + 0.05, W - 0.05, out _) != bare);
 }
 
+// ---------------------------------------------------------------------------------------------------------------- a placed family sits on its footprint, and generated families' names
+{
+    Console.WriteLine("\n===== placed families on their footprint (PlacementFit), generated family names (SportifyFamilyNames) =====");
+    // the Goldbeck sports roof's tower slide: a 7 x 5 m piece; a family drawn with its long side along y needs a quarter turn, one drawn along x does not
+    Check("a family drawn with its long side across the piece's is turned a quarter", PlacementFit.NeedsQuarterTurn(7, 5, 3.2, 6.8));
+    Check("one drawn along it is not", !PlacementFit.NeedsQuarterTurn(7, 5, 6.8, 3.2));
+    Check("a roughly square family, or piece, keeps the turn it was given (no long side to line up)", !PlacementFit.NeedsQuarterTurn(7, 5, 4, 4.3) && !PlacementFit.NeedsQuarterTurn(4, 4.2, 2, 6));
+    Check("the piece's own size: a piece turned 90 degrees on the roof has its footprint's width and height the other way round",
+          PlacementFit.OwnSize(5, 7, 90) == (7, 5) && PlacementFit.OwnSize(7, 5, 0) == (7, 5) && PlacementFit.OwnSize(5, 7, 270) == (7, 5) && PlacementFit.OwnSize(7, 5, 180) == (7, 5));
+    // a family with its origin at a corner: its geometry runs from the insertion point (10, 20) to (17, 25): the middle is 3.5 m / 2.5 m off
+    var mv = PlacementFit.Recentre(10, 20, 10, 20, 17, 25, 12);
+    Check("a family authored from its corner is moved so its geometry's middle is the footprint's", mv is { } m1 && Math.Abs(m1.Dx + 3.5) < 1e-9 && Math.Abs(m1.Dy + 2.5) < 1e-9, mv?.ToString() ?? "null");
+    Check("a family centred on its origin (Sportify's own) is not moved", PlacementFit.Recentre(10, 20, 6.5, 17.5, 13.5, 22.5, 12) == null);
+    Check("a box far bigger than the piece (a far-away reference in the family) is not followed", PlacementFit.Recentre(10, 20, 10, 20, 80, 25, 12) == null);
+
+    Check("a generated block is named like the families Sportify builds: 'Sportify - <name> [L x W cm]'", SportifyFamilyNames.Generated("ACTIVITY_LOCKER_ROOM", 1000, 500, null) == "Sportify - Locker Room [1000x500 cm]",
+          SportifyFamilyNames.Generated("ACTIVITY_LOCKER_ROOM", 1000, 500, null));
+    Check("a sport keeps its variant and quality, so two tiers never share a family; a garden says its build-up depth",
+          SportifyFamilyNames.Generated("BADMINTON_STANDARD_MEDIUM", 1340, 610, null) == "Sportify - Badminton Standard Medium [1340x610 cm]"
+          && SportifyFamilyNames.Generated("BADMINTON_STANDARD_HIGH", 1340, 610, null) != SportifyFamilyNames.Generated("BADMINTON_STANDARD_MEDIUM", 1340, 610, null)
+          && SportifyFamilyNames.Generated("GARDEN_PARCEL_CLASSIC_MEDIUM", 400, 400, 45) == "Sportify - Garden Parcel Classic Medium [400x400 cm, d45]");
+    Check("the name is also a file name in the cache: nothing a file name cannot hold", SportifyFamilyNames.Generated("ACTIVITY_A/B:C", 100, 100, null).IndexOfAny(Path.GetInvalidFileNameChars()) < 0);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 

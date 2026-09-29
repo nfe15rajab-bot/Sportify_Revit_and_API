@@ -132,6 +132,11 @@ namespace SportfyRevit
         /// <summary>A remark that is neither a success nor a failure of one piece.</summary>
         public static void Note(string message) => Lines.Add($"NOTE {message}");
 
+        /// <summary>A family whose geometry was not centred on its insertion point, or lay across its piece, was put on its footprint (PlacementFit).</summary>
+        public static void Fitted(string label, bool quarterTurn, double movedM)
+            => Lines.Add($"FIT  {label} → " + (quarterTurn ? "turned 90° so its long side runs along the piece's" + (movedM > 0 ? ", and " : "") : "")
+                         + (movedM > 0 ? $"moved {movedM:0.00} m so its geometry sits centred on the footprint (the family's origin is not its middle)" : ""));
+
         public static void FloorCreated(string label, string typeName, double areaM2)
         {
             _floorsDrawn++;

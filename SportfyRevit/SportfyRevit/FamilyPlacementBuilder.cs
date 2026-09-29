@@ -17,6 +17,7 @@ namespace SportfyRevit
     internal static class FamilyPlacementBuilder
     {
         private const double ThicknessM = 0.1;
+        private const double FeetToM = 0.3048;
 
         /// <summary>
         /// Single entry point SportifyLayoutBuilder calls per placement. The family was settled BEFORE the import transaction opened
@@ -104,6 +105,19 @@ namespace SportfyRevit
             MoveToElevation(doc, instance, center.Z);
 
             double rotationDeg = p.Transform?.RotationDeg ?? 0;
+
+            // The family as its author drew it, before any turn: which way its long side runs (PlacementFit). A family drawn with its long side across
+            // the piece's gets a quarter turn more, or it stands crosswise on its footprint.
+            bool quarterTurn = false;
+            try
+            {
+                doc.Regenerate();
+                var unturned = instance.get_BoundingBox(null);
+                var (pieceX, pieceY) = PlacementFit.OwnSize(bb.WidthM, bb.HeightM, rotationDeg);
+                if (unturned != null)
+                    quarterTurn = PlacementFit.NeedsQuarterTurn(pieceX, pieceY, (unturned.Max.X - unturned.Min.X) * FeetToM, (unturned.Max.Y - unturned.Min.Y) * FeetToM);
+            }
+            catch (Exception) { /* no box to measure: keep the turn the layout gives */ }
             // Negated because the Y axis is flipped on the way in (see
             // SportifyLayoutBuilder.WorldYFt). Mirroring a plan reverses the
             // sense of rotation, so a clockwise turn on the web canvas is a
@@ -111,11 +125,38 @@ namespace SportfyRevit
             // would leave every rotated piece turned the wrong way.
             // Plus the turn of the plan itself (RoofFrame): a roof turned against the
             // model's axes has a plan turned by that much, so every piece is turned with it.
-            double rotationRad = -rotationDeg * Math.PI / 180.0 + SportifyLayoutBuilder.CurrentAngleRad;
+            double rotationRad = -rotationDeg * Math.PI / 180.0 + SportifyLayoutBuilder.CurrentAngleRad + (quarterTurn ? Math.PI / 2 : 0);
             if (Math.Abs(rotationRad) > 1e-9)
             {
                 var axis = Line.CreateBound(center, center + XYZ.BasisZ);
                 ElementTransformUtils.RotateElement(doc, instance.Id, axis, rotationRad);
+            }
+
+            // Then the middle of its geometry on the middle of the footprint: a family authored with its origin at a corner or an edge landed half its
+            // size away from where the web plan shows it (PlacementFit). Sportify's own families are centred on their origin, so they do not move.
+            double movedM = 0;
+            try
+            {
+                doc.Regenerate();
+                var placed = instance.get_BoundingBox(null);
+                if (placed != null)
+                {
+                    double maxShiftM = Math.Max(bb.WidthM, bb.HeightM) * 1.5 + 1.0;
+                    var move = PlacementFit.Recentre(center.X * FeetToM, center.Y * FeetToM, placed.Min.X * FeetToM, placed.Min.Y * FeetToM,
+                                                     placed.Max.X * FeetToM, placed.Max.Y * FeetToM, maxShiftM);
+                    if (move is { } mv)
+                    {
+                        ElementTransformUtils.MoveElement(doc, instance.Id, new XYZ(mv.Dx / FeetToM, mv.Dy / FeetToM, 0));
+                        movedM = Math.Sqrt(mv.Dx * mv.Dx + mv.Dy * mv.Dy);
+                    }
+                }
+            }
+            catch (Exception) { /* pinned or unmeasurable: leave it on its insertion point */ }
+            if (quarterTurn || movedM > 0)
+            {
+                string who = !string.IsNullOrWhiteSpace(p.Label) ? p.Label! : (symbol.Family?.Name ?? symbol.Name);
+                ImportDiagnostics.Fitted(who, quarterTurn, movedM);
+                SportifyLog.Info("import", $"fitted \"{who}\" ({symbol.Family?.Name}) to its footprint: quarter turn {quarterTurn}, moved {movedM:0.00} m");
             }
 
             // Prefer the placement's own human label (matches PlacePlaceholderBox's
