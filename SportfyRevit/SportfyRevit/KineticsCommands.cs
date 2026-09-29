@@ -760,7 +760,14 @@ namespace SportfyRevit
             catch (Exception ex) { return BimCommandErrors.Failed(KineticsShared.Title, "the layout could not be read", ex, ref message); }
             if (contexts.Count == 0)
             {
-                TaskDialog.Show(KineticsShared.Title, "Nothing to list: place a louvre pergola, sail or roller fence in the web app's Kinetics tab first — the bill of materials is built from what you've placed and confirmed there, at the build size you chose, not from whatever is already in Revit.");
+                // Like every other Kinetics command, this reads the ACTIVE roof's own pushed layout only (RoofBoundaryServer.ActiveRoofId) —
+                // a pergola placed and confirmed on a different pushed roof is real, but invisible here until that roof is the active one.
+                var roofs = RoofBoundaryServer.ListRoofs();
+                var activeName = roofs.FirstOrDefault(r => r.Active).Name;
+                var otherRoofsHint = roofs.Count > 1
+                    ? $" If you placed one on a different roof, switch to it first (the roof picker in the web app, or POST /roofs/active) and run this again — Kinetics always works on whichever roof is active{(string.IsNullOrEmpty(activeName) ? "" : $" (currently \"{activeName}\")")}."
+                    : "";
+                TaskDialog.Show(KineticsShared.Title, "Nothing to list: place a louvre pergola, sail or roller fence in the web app's Kinetics tab first — the bill of materials is built from what you've placed and confirmed there, at the build size you chose, not from whatever is already in Revit." + otherRoofsHint);
                 return Result.Cancelled;
             }
 
