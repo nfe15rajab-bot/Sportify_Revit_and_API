@@ -381,7 +381,7 @@ namespace SportfyRevit
             //    that ships with the add-in — the same "project wins, else the library" rule the design-team kit items use.
             if (FamilyMatchRules.Lookup.TryGetValue(qualityKey, out var curated))
             {
-                var matched = SportifyPlanterFamilyBuilder.FindOrLoad(doc, curated, curated);
+                var matched = SportifyPlanterFamilyBuilder.FindOrLoad(doc, curated.File, curated.FamilyName);
                 if (matched != null) return Found(matched, ImportDiagnostics.HowMatched);
             }
 
