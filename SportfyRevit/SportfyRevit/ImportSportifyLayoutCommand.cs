@@ -67,8 +67,10 @@ namespace SportfyRevit
             RoofBoundaryServer.SetCombinedLayoutPayload(text);
             var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
 
+            var otherRoofs = ImportLedger.OtherRoofIds(doc, roofId);
+            var clearOtherRoofs = otherRoofs.Count > 0 && AskClearOtherRoofs(doc, otherRoofs) ? otherRoofs : null;
             var clearIterations = IterationLedger.HasAny(doc) && AskClearIterations(doc);
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations, roofId);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations, roofId, clearOtherRoofs);
             if (outcome.Cancelled) return Result.Cancelled;
             if (!outcome.Succeeded || outcome.Summary == null)
             {
@@ -84,11 +86,30 @@ namespace SportfyRevit
                 (outcome.Replaced > 0 ? $"Replaced {outcome.Replaced} element(s) of the previous import (with the sketches and lines that depend on them).\n" : "") +
                 (outcome.ReplacedIterations > 0 ? $"Also cleared {outcome.ReplacedIterations} element(s) of the previously imported iterations.\n" : "") +
                 (outcome.RemovedDuplicates > 0 ? $"Also removed {outcome.RemovedDuplicates} stale duplicate(s) left over from before this roof's imports were tracked.\n" : "") +
+                (outcome.RemovedOtherRoofs > 0 ? $"Also removed {outcome.RemovedOtherRoofs} element(s) of another roof's content, as asked.\n" : "") +
                 "\nPieces went to the Sports/Gardens worksets when the project has worksets; boundary, setback, circulation and entrances to the Combine workset.\n\n" +
                 // Which family every piece got, or why it became a box.
                 outcome.Report + "\nLog: " + SportifyLog.CurrentFile);
 
             return Result.Succeeded;
+        }
+
+        /// <summary>Asked only when this project already has another roof's own previous import tracked (ImportLedger.OtherRoofIds): keep it standing alongside the one
+        /// being imported now (what makes several pushed roofs "switchable" instead of one replacing another), or remove it first. Not asked for Auto Import or Sync with
+        /// Revit's "import now" — those stay hands-off by design; only this file-picker command is interactive enough to ask.</summary>
+        private static bool AskClearOtherRoofs(Document doc, List<string> otherRoofIds)
+        {
+            var names = RoofBoundaryServer.ListRoofs().Where(r => otherRoofIds.Contains(r.Id.ToString())).Select(r => r.Name).ToList();
+            var listed = names.Count > 0 ? string.Join(", ", names) : otherRoofIds.Count + " other roof(s)";
+            var ask = new TaskDialog("Sportify — Import Configuration")
+            {
+                MainInstruction = "This project also has another pushed roof's content already built",
+                MainContent = $"{listed} was imported earlier and is unrelated to the roof being imported now. Keep it standing alongside this one, or remove it first?",
+            };
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Keep it", "Both roofs' content stay in the project, side by side.");
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Remove it first", "Deletes what that roof's own import built, before this import runs.");
+            ask.DefaultButton = TaskDialogResult.CommandLink1;
+            return ask.Show() == TaskDialogResult.CommandLink2;
         }
 
         /// <summary>Asked only when this project actually has something from "Import Iterations as Design Options" to clear.</summary>

@@ -70,6 +70,15 @@ namespace SportfyRevit
         public static int RemovePrevious(Document doc, string roofId) =>
             RemoveWhere(doc, storage => RoofIdOf(storage, GetSchema()) == roofId);
 
+        /// <summary>The distinct roofs (other than <paramref name="excludeRoofId"/>) that already have a tracked import in this project — what
+        /// "switching to the second roof" (ImportSportifyLayoutCommand) asks the user about before importing: keep them alongside this one, or
+        /// remove them first. Read-only.</summary>
+        public static List<string> OtherRoofIds(Document doc, string excludeRoofId)
+        {
+            var schema = GetSchema();
+            return Find(doc, schema).Select(s => RoofIdOf(s, schema)).Where(id => id != excludeRoofId).Distinct().ToList();
+        }
+
         /// <summary>
         /// Deletes every roof's previous import in this project, not just one — what "Update" (UpdateSportifyCommand) uses for an explicit,
         /// deliberate full reset. A normal import (LayoutImporter.Run, always scoped to one roof via RemovePrevious above) never calls this:

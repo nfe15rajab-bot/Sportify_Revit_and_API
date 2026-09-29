@@ -15,6 +15,8 @@ namespace SportfyRevit
         public int Replaced { get; set; }
         /// <summary>Stale, untracked leftovers (from before RoofId tracking, or a ledger entry that never landed) this import also found and removed as duplicates.</summary>
         public int RemovedDuplicates { get; set; }
+        /// <summary>Elements of another roof's own previous import, removed because the person asked to when switching roofs (ImportSportifyLayoutCommand's prompt).</summary>
+        public int RemovedOtherRoofs { get; set; }
         /// <summary>Elements of an earlier "Import Iterations as Design Options" run that this one also cleared (0 unless asked to).</summary>
         public int ReplacedIterations { get; set; }
         /// <summary>ImportDiagnostics.Report(): which family every piece got, or why it became a box.</summary>
@@ -36,8 +38,10 @@ namespace SportfyRevit
         /// otherwise untouched by a normal import, so left in place they sit alongside it, sports and gardens overlapping. Manual asks each time there is something to clear;
         /// Auto Import asks once when it is turned on and remembers the answer for as long as it stays on (ToggleAutoImportCommand, AutoImportSync.ClearIterationsToo).
         /// `roofId`: which roof this layout is for (RoofBoundaryServer's key, or ImportLedger.UnknownRoofId) — only THIS roof's previous import is replaced; a project with
-        /// several roofs pushed and imported independently never has importing one delete what an earlier import of another built.</summary>
-        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations, string roofId)
+        /// several roofs pushed and imported independently never has importing one delete what an earlier import of another built.
+        /// `clearOtherRoofs`: other roofs' own previous imports to also remove, when the person switching to this one asked to (ImportSportifyLayoutCommand); null or empty
+        /// for the ordinary case — those roofs' content is left exactly as it was, which is what makes several roofs "switchable" rather than one replacing another.</summary>
+        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations, string roofId, IReadOnlyList<string>? clearOtherRoofs = null)
         {
             var outcome = new ImportOutcome();
             var sourceName = source.ToString().ToLowerInvariant();
@@ -71,6 +75,7 @@ namespace SportfyRevit
                 try
                 {
                     outcome.Replaced = ImportLedger.RemovePrevious(doc, roofId);
+                    if (clearOtherRoofs != null) foreach (var other in clearOtherRoofs) outcome.RemovedOtherRoofs += ImportLedger.RemovePrevious(doc, other);
                     if (clearIterations) outcome.ReplacedIterations = IterationLedger.RemovePrevious(doc);
                     outcome.Summary = SportifyLayoutBuilder.BuildGeometry(doc, layout, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
                     ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName, roofId);
@@ -111,7 +116,8 @@ namespace SportfyRevit
                 $"{sourceName} import {(outcome.Succeeded ? "finished" : outcome.Cancelled ? "cancelled" : "FAILED: " + outcome.Error)} in {clock.ElapsedMilliseconds} ms; " +
                 $"replaced {outcome.Replaced} element(s) of the previous import (Revit counts the sketches and lines that depend on what was tagged)" +
                 (outcome.ReplacedIterations > 0 ? $" and {outcome.ReplacedIterations} element(s) of the previously imported iterations" : "") +
-                (outcome.RemovedDuplicates > 0 ? $"; removed {outcome.RemovedDuplicates} stale duplicate(s)" : "") + "; report:",
+                (outcome.RemovedDuplicates > 0 ? $"; removed {outcome.RemovedDuplicates} stale duplicate(s)" : "") +
+                (outcome.RemovedOtherRoofs > 0 ? $"; removed {outcome.RemovedOtherRoofs} element(s) of another roof's import, by request" : "") + "; report:",
                 outcome.Report);
             return outcome;
         }
