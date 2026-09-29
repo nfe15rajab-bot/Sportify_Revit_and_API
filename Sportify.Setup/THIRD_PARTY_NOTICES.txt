@@ -1,0 +1,44 @@
+SPORTIFY - THIRD-PARTY NOTICES
+================================================================================
+Sportify itself is under the MIT License (LICENSE / LICENSE_AGREEMENT.txt). It ships with, or
+uses, the following software and data by others, each under its own license. The license texts of
+the web app's libraries are installed next to them (web\vendor\<name>\LICENSE or OFL.txt).
+
+THE WEB APP (web\vendor)
+  Leaflet 1.9.4 ................ the site map ................. BSD-2-Clause    (c) Volodymyr Agafonkin, CloudMade
+  SunCalc 2.0.2 ................ sun position ................ BSD-2-Clause    (c) Vladimir Agafonkin
+  Tabler Icons 3.4.0 ........... icons ....................... MIT             (c) Paweł Kuna
+  Titillium Web, Jura, Bruno Ace  fonts ....................... SIL Open Font License 1.1
+
+  Live data, not shipped (the page asks for it while you use it):
+  OpenStreetMap map tiles and Nominatim address search ....... (c) OpenStreetMap contributors, ODbL
+                                                               (usage policy: operations.osmfoundation.org/policies)
+  Esri World Imagery tiles (the satellite map) ............... (c) Esri, Maxar, Earthstar Geographics
+  Open-Meteo archive API (the site's weather overview) ....... CC BY 4.0, open-meteo.com
+
+THE REVIT ADD-IN
+  QuestPDF (the PDF reports) ................................. QuestPDF Community License: free for
+                                                               individuals, education and non-profit use,
+                                                               and for organisations under the revenue
+                                                               threshold of that license (questpdf.com/license)
+  Microsoft Edge WebView2 (the docked web app) ............... Microsoft Software License Terms
+  Autodesk Revit API (referenced, not shipped) ............... Autodesk license of your Revit installation
+
+THE LOCAL API
+  ASP.NET Core, Entity Framework Core, Microsoft.Data.Sqlite .. MIT, (c) .NET Foundation and contributors
+  SQLite (via SQLitePCLRaw) .................................. public domain / Apache-2.0 (SQLitePCLRaw)
+  Npgsql and its EF Core provider ............................ PostgreSQL License
+  Swashbuckle.AspNetCore ..................................... MIT
+  The .NET 8 runtime (self-contained in api\) ................ MIT, (c) .NET Foundation and contributors
+
+INSTALLED WHEN MISSING
+  Microsoft Visual C++ Redistributable, Microsoft Edge WebView2 Runtime - Microsoft license terms,
+  shown by their own installers.
+
+OPTIONAL, NOT SHIPPED
+  Unity (analysis videos) and SOLIDWORKS (Kinetics > Simulate): used only when installed on the
+  computer, under their own licenses.
+
+THE LIBRARY
+  The Revit templates (Library\Templates) and families (Library\Families) were authored in Revit by
+  the Sportify team; they are provided for use with Sportify and are not covered by the MIT grant.

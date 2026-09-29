@@ -172,7 +172,10 @@ namespace Sportify.Api.Data
             // two existed — CREATE TABLE IF NOT EXISTS does nothing to it.
             foreach (var col in new[] { "ImageUrl TEXT NULL", "ImageCredit TEXT NULL" })
             {
+                // DDL cannot take parameters, and every name here is a constant of this method: nothing from outside reaches the SQL.
+#pragma warning disable EF1002
                 try { db.Database.ExecuteSqlRaw($"ALTER TABLE FurnitureItems ADD COLUMN {col}"); }
+#pragma warning restore EF1002
                 catch { /* already there */ }
             }
         }

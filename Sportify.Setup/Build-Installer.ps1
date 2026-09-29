@@ -77,6 +77,7 @@ Copy-Item (Join-Path $here "Library\Database\*") (Join-Path $library "Database")
 
 $docs = Join-Path $library "Documentation"
 Copy-Item (Join-Path $here "LICENSE_AGREEMENT.txt") $docs
+Copy-Item (Join-Path $here "THIRD_PARTY_NOTICES.txt") $docs
 if (Test-Path (Join-Path $repo "WORKSPACE.md")) { Copy-Item (Join-Path $repo "WORKSPACE.md") (Join-Path $docs "The-Sportify-folder.md") }
 if (Test-Path (Join-Path $repo "Sportify.Mechanical\BRIDGE.md")) { Copy-Item (Join-Path $repo "Sportify.Mechanical\BRIDGE.md") (Join-Path $docs "Revit-SOLIDWORKS-bridge.md") }
 $guideHtml = Join-Path $docs "Sportify-User-Guide.html"
@@ -101,6 +102,7 @@ This folder holds what came with Sportify (Revit 2025 add-in, web app, local API
 
   Sportify-User-Guide.pdf   the guide for people who use Sportify: install, first start, a walkthrough
   LICENSE_AGREEMENT.txt     the license agreement you accepted
+  THIRD_PARTY_NOTICES.txt   the libraries, fonts, map data and components by others that Sportify uses
   The-Sportify-folder.md    what goes where in your Sportify folder
   Revit-SOLIDWORKS-bridge.md how the Kinetics bridge between Revit and SOLIDWORKS works and what it does not do
 

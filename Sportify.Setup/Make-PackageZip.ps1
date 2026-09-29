@@ -22,6 +22,7 @@ New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $exe $stage
 (Get-FileHash (Join-Path $stage (Split-Path $exe -Leaf)) -Algorithm SHA256).Hash.ToLower() + "  " + (Split-Path $exe -Leaf) | Set-Content (Join-Path $stage ((Split-Path $exe -Leaf) + ".sha256")) -Encoding ascii
 Copy-Item (Join-Path $here "LICENSE_AGREEMENT.txt") $stage
+Copy-Item (Join-Path $here "THIRD_PARTY_NOTICES.txt") $stage
 Copy-Item (Join-Path $here "package\Remove-Developer-Sportify.ps1") $stage
 (Get-Content (Join-Path $here "package\README-FIRST.txt") -Raw -Encoding UTF8).Replace("{{VERSION}}", $version) | Set-Content (Join-Path $stage "README-FIRST.txt") -Encoding UTF8
 

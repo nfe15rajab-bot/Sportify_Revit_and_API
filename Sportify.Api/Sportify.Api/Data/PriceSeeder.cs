@@ -159,7 +159,10 @@ namespace Sportify.Api.Data
             {
                 foreach (var col in columns)
                 {
+                    // DDL cannot take parameters, and every name here is a constant of this method: nothing from outside reaches the SQL.
+#pragma warning disable EF1002
                     try { db.Database.ExecuteSqlRaw($"ALTER TABLE {table} ADD COLUMN {col}"); }
+#pragma warning restore EF1002
                     catch { /* already there */ }
                 }
             }
