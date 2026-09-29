@@ -90,6 +90,7 @@ namespace SportfyRevit
             def.ShowGrandTotal = true;
             def.ShowGrandTotalCount = true;
             if (count != null) count.DisplayType = ScheduleFieldDisplayType.Totals;
+            ApplyPhaseAndTemplate(doc, schedule, notes);
             return schedule;
         }
 
@@ -107,6 +108,7 @@ namespace SportfyRevit
             if (familyType == null || material == null)
             {
                 notes.Add($"\"{RoofName}\": Revit did not offer the type or material fields for floors; the takeoff was left without them.");
+                ApplyPhaseAndTemplate(doc, schedule, notes);
                 return schedule;
             }
 
@@ -117,7 +119,38 @@ namespace SportfyRevit
             def.ShowGrandTotal = true;
             if (area != null) area.DisplayType = ScheduleFieldDisplayType.Totals;
             if (volume != null) volume.DisplayType = ScheduleFieldDisplayType.Totals;
+            ApplyPhaseAndTemplate(doc, schedule, notes);
             return schedule;
+        }
+
+        /// <summary>Phase: the latest real Sportify phase the project has (Post analysis, else Design and analysis, else Existing), so the takeoff shows what Sportify built without
+        /// depending on which phase happened to be active when the command ran. Template: the project's own Sportify schedule template (S-Liste-Standard / S-Schedule-Standard), found
+        /// by the language its view templates are already in (SportifyTemplateSet.Detect) — only there once "Apply Sportify Template" has run; otherwise left without one, same as any
+        /// other best-effort Sportify parameter/appearance call in this add-in.</summary>
+        private static void ApplyPhaseAndTemplate(Document doc, ViewSchedule schedule, List<string> notes)
+        {
+            try
+            {
+                var phases = SportifyPhases.Read(doc);
+                var phase = phases.PostAnalysis ?? phases.DesignAndAnalysis ?? phases.Existing;
+                if (phase != null)
+                {
+                    var p = schedule.get_Parameter(BuiltInParameter.VIEW_PHASE);
+                    if (p != null && !p.IsReadOnly) p.Set(phase.Id);
+                }
+            }
+            catch (Exception ex) { notes.Add($"\"{schedule.Name}\": its phase could not be set: {ex.Message.Split('\n')[0]}"); }
+
+            try
+            {
+                var templateNames = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).Select(v => v.Name);
+                var language = SportifyTemplateSpec.Detect(templateNames);
+                if (language == null) return;
+                var templateName = SportifyTemplateSpec.For(language.Value).ScheduleTemplateName;
+                var template = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().FirstOrDefault(v => v.IsTemplate && v.Name == templateName);
+                if (template != null) schedule.ViewTemplateId = template.Id;
+            }
+            catch (Exception ex) { notes.Add($"\"{schedule.Name}\": the Sportify schedule template could not be applied: {ex.Message.Split('\n')[0]}"); }
         }
 
         /// <summary>What a generated schedule holds, for the message to the user and the log: "name: 5 fields, 7 rows". Call after the transaction that made it.</summary>
