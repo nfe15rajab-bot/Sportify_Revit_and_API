@@ -62,6 +62,12 @@ namespace SportfyRevit
         /// Revit dialog before an analysis): which built-in values they accepted, and the comfort limits they set. Absent in older exports.
         /// </summary>
         [JsonPropertyName("analysis_assumptions")] public AnalysisAssumptionsDto? AnalysisAssumptions { get; set; }
+
+        /// <summary>
+        /// Ball-stop fences the design carries along the roof edges (the ball analysis proposed them and the designer added them in the web app). Unity's
+        /// ball analysis treats them as standing; nothing in Revit builds them yet. Absent when there are none.
+        /// </summary>
+        [JsonPropertyName("ball_fences")] public List<BallFenceDto>? BallFences { get; set; }
     }
 
     internal class AnalysisAssumptionsDto
@@ -1096,6 +1102,15 @@ namespace SportfyRevit
         [JsonPropertyName("category")] public string? Category { get; set; }
         [JsonPropertyName("norm")] public string? Norm { get; set; }
         [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
+    }
+
+    /// <summary>A ball-stop fence of the design: edge top | bottom | left | right, the stretch along it (x for top/bottom, y for left/right), its height, metres.</summary>
+    internal class BallFenceDto
+    {
+        [JsonPropertyName("edge")] public string? Edge { get; set; }
+        [JsonPropertyName("from_m")] public double FromM { get; set; }
+        [JsonPropertyName("to_m")] public double ToM { get; set; }
+        [JsonPropertyName("height_m")] public double HeightM { get; set; }
     }
 
     internal class DimensionsDto

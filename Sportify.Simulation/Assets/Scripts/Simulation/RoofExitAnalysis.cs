@@ -52,6 +52,9 @@ namespace Sportify.Simulation
         public int shotsLeavingRoof;
         public float percentLeavingRoof;
         public float percentLeavingAfterFences;   // shots still leaving OVER the recommended fences
+        public int designFences;                  // ball-stop fences the design already carries (the layout's ball_fences)
+        public int shotsStoppedByDesignFences;    // swept shots those fences stopped: they are not counted as leaving, and no fence is proposed for them
+        public float percentStoppedByDesignFences;
         public float percentEnteringOtherCourts;
         public float percentEnteringCirculation;
         public List<RoofEdgeExit> byEdge = new List<RoofEdgeExit>();
@@ -76,10 +79,29 @@ namespace Sportify.Simulation
 
         static readonly string[] EdgeOrder = { "top", "bottom", "left", "right" };
 
-        public static RoofExitReport Analyse(IList<SweepOutcome> outcomes, float roofLengthM, float roofWidthM)
+        /// <summary>Whether a ball-stop fence of the design stops a shot that crosses <paramref name="edge"/> at <paramref name="along"/>, <paramref name="height"/> m up.</summary>
+        public static bool StoppedByDesignFence(IList<BallFenceData> fences, string edge, float along, float height)
         {
-            var report = new RoofExitReport { ran = true, shotsSwept = outcomes.Count };
+            if (fences == null || edge == null) return false;
+            foreach (var f in fences)
+                if (f != null && f.edge == edge && along >= Math.Min(f.from_m, f.to_m) && along <= Math.Max(f.from_m, f.to_m) && height <= f.height_m) return true;
+            return false;
+        }
+
+        /// <param name="designFences">the fences the layout already carries: a shot one of them stops stays on the roof (counted apart), and the proposal is for what still leaves</param>
+        public static RoofExitReport Analyse(IList<SweepOutcome> outcomes, float roofLengthM, float roofWidthM, IList<BallFenceData> designFences = null)
+        {
+            var report = new RoofExitReport { ran = true, shotsSwept = outcomes.Count, designFences = designFences?.Count ?? 0 };
             if (outcomes.Count == 0) return report;
+
+            // The design's own fences first: what they stop is not an exit any more.
+            foreach (var o in outcomes)
+            {
+                if (o.Edge == null || !StoppedByDesignFence(designFences, o.Edge, o.Along, o.Height)) continue;
+                o.Edge = null;
+                report.shotsStoppedByDesignFences++;
+            }
+            report.percentStoppedByDesignFences = report.shotsStoppedByDesignFences / (float)outcomes.Count * 100f;
 
             var total = (float)outcomes.Count;
             var leftOverFence = 0;

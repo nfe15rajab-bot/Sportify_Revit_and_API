@@ -355,9 +355,17 @@ namespace Sportify.Simulation
         // any height), which is exact and doesn't depend on trigger ordering.
 
         public static readonly Color FenceColor = new Color(1.00f, 0.56f, 0.10f, 0.42f);
+        // A fence the design already carries (the layout's ball_fences): solid grey-blue, so it reads as built, not proposed.
+        public static readonly Color DesignFenceColor = new Color(0.55f, 0.66f, 0.80f, 0.55f);
+
+        /// <summary>A ball-stop fence the design carries, drawn like a proposed one but in its own colour.</summary>
+        public static void BuildDesignFence(BallFenceData f, RoofContext roof)
+        {
+            BuildFence(new FenceRecommendation { edge = f.edge, fromM = f.from_m, toM = f.to_m, lengthM = Mathf.Abs(f.to_m - f.from_m), heightM = f.height_m }, roof, true);
+        }
 
         /// <summary>A proposed fence, drawn as a translucent wall along the roof edge at its recommended height.</summary>
-        public static void BuildFence(FenceRecommendation fence, RoofContext roof)
+        public static void BuildFence(FenceRecommendation fence, RoofContext roof, bool designFence = false)
         {
             const float thickness = 0.30f;
             var h = fence.heightM;
@@ -395,11 +403,12 @@ namespace Sportify.Simulation
 
             // The fence on the edge nearest the camera stands between it and the roof:
             // keep that one faint so it doesn't tint the whole picture.
-            var panel = FenceColor;
+            var panel = designFence ? DesignFenceColor : FenceColor;
             if (fence.edge == "bottom") panel.a = 0.14f;
 
-            Box("Fence_" + fence.edge, centre, size, OverlayMaterial(panel));
-            Line("FenceRail_" + fence.edge, new[] { railStart, railEnd }, new Color(1f, 0.70f, 0.25f, 1f), 0.16f, false, false);
+            var name = (designFence ? "DesignFence_" : "Fence_") + fence.edge;
+            Box(name, centre, size, OverlayMaterial(panel));
+            Line(name + "Rail", new[] { railStart, railEnd }, designFence ? new Color(0.75f, 0.84f, 0.95f, 1f) : new Color(1f, 0.70f, 0.25f, 1f), 0.16f, false, false);
         }
 
         // ---------------------------------------------------------------- camera + light

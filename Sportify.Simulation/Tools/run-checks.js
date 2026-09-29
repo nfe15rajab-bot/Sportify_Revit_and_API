@@ -380,6 +380,14 @@ step("the web app: the one store of analysis results (the catalogue against the 
   return r.code === 0 ? { status: "pass", detail: "the real resultsStoreCore.js, analysisController.js, analysisResults.js and resultsStore.js on a small layout" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
 }, { needsWeb: true });
 
+step("the web app: the loop from the analyses back into the design (every green surface in the water estimate, the analyses on a given layout, the structural moves applied or refused, the ball fences taken into the design, each layout's Revit results kept)", async () => {
+  if (!web) return noWeb();
+  const test = path.join(web, "tools", "closed-loop-test.js");
+  if (!fs.existsSync(test)) return { status: "fail", output: "tools/closed-loop-test.js not found in the web app" };
+  const r = await node([test], { cwd: web });
+  return r.code === 0 ? { status: "pass", detail: "the real analysisController.js, analysisResults.js and ballFences.js" } : { status: "fail", output: tail(r.out.split(/\r?\n/).filter(l => /^FAIL|Error/.test(l)).join("\n") || r.out + r.err, 30) };
+}, { needsWeb: true });
+
 step("the web app: what the tabs are called (the table against the page, the words of the quiz and the tour, no older name left, 'Revit not open' as the one wording)", async () => {
   if (!web) return noWeb();
   const test = path.join(web, "tools", "names-test.js");

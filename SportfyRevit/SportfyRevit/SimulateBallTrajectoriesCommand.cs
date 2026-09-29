@@ -114,6 +114,8 @@ namespace SportfyRevit
                 dto.SweptShots = exit.ShotsSwept;
                 dto.PercentLeavingRoof = Math.Round(exit.PercentLeavingRoof, 2);
                 dto.PercentLeavingAfterFences = Math.Round(exit.PercentLeavingAfterFences, 2);
+                dto.DesignFences = exit.DesignFences;
+                dto.PercentStoppedByDesignFences = Math.Round(exit.PercentStoppedByDesignFences, 2);
                 dto.Fences = new List<RoofFenceDto>();
                 foreach (var f in exit.Fences ?? new List<FenceInfo>())
                 {
@@ -223,6 +225,8 @@ namespace SportfyRevit
             [JsonPropertyName("shotsLeavingRoof")] public int ShotsLeavingRoof { get; set; }
             [JsonPropertyName("percentLeavingRoof")] public double PercentLeavingRoof { get; set; }
             [JsonPropertyName("percentLeavingAfterFences")] public double PercentLeavingAfterFences { get; set; }
+            [JsonPropertyName("designFences")] public int DesignFences { get; set; }
+            [JsonPropertyName("percentStoppedByDesignFences")] public double PercentStoppedByDesignFences { get; set; }
             [JsonPropertyName("fences")] public List<FenceInfo>? Fences { get; set; }
         }
 

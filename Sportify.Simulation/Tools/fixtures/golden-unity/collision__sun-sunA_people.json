@@ -85,6 +85,9 @@
         "shotsLeavingRoof": 20,
         "percentLeavingRoof": 2.4691357612609863,
         "percentLeavingAfterFences": 0,
+        "designFences": 0,
+        "shotsStoppedByDesignFences": 0,
+        "percentStoppedByDesignFences": 0,
         "percentEnteringOtherCourts": 0,
         "percentEnteringCirculation": 0.7407407164573669,
         "byEdge": [

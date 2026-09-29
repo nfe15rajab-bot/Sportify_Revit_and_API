@@ -259,6 +259,12 @@ namespace SportfyRevit
                     Persons = Math.Round(x.persons, 1),
                 }).ToList(),
                 Findings = report.recommendations.Select(r => new WindFindingDto { Kind = r.kind, Target = r.target, Text = r.text }).ToList(),
+                Actions = report.recommendations.Where(r => (r.kind == "move" || r.kind == "lighten") && !string.IsNullOrEmpty(r.itemId)).Select(r => new StructuralActionDto
+                {
+                    Kind = r.kind, ItemId = r.itemId, Target = r.target, Text = r.text, Axis = r.axis,
+                    MoveM = Math.Round(r.moveM, 2), NewDeadKnM2 = Math.Round(r.newDeadKnM2, 2),
+                    PeakUtilisationAfterPercent = Math.Round(r.peakUtilisationAfter * 100.0, 1), OffsetAfterPercent = Math.Round(r.eccentricityAfter * 100.0, 1),
+                }).ToList(),
                 Assumptions = new List<string>(report.assumptions),
             };
         }

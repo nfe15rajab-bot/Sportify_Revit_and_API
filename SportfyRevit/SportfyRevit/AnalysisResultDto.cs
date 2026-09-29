@@ -228,6 +228,11 @@ namespace SportfyRevit
         [JsonPropertyName("percent_leaving_roof")] public double PercentLeavingRoof { get; set; }
         [JsonPropertyName("percent_leaving_after_fences")] public double PercentLeavingAfterFences { get; set; }
         [JsonPropertyName("fences")] public List<RoofFenceDto>? Fences { get; set; }
+
+        // The fences the design already carries (the layout's ball_fences): how many, and what share of the swept shots they stop. The percentages above and
+        // the proposed fences are about what still leaves past them.
+        [JsonPropertyName("design_fences")] public int DesignFences { get; set; }
+        [JsonPropertyName("percent_stopped_by_design_fences")] public double PercentStoppedByDesignFences { get; set; }
     }
 
     /// <summary>
@@ -337,6 +342,8 @@ namespace SportfyRevit
         [JsonPropertyName("load_centre_offset_y_percent")] public double LoadCentreOffsetYPercent { get; set; }
         [JsonPropertyName("bays")] public List<StructuralBayDto>? Bays { get; set; }
         [JsonPropertyName("findings")] public List<WindFindingDto>? Findings { get; set; }
+        /// <summary>The findings the web app can apply to the layout, with their numbers (a move: which piece, which axis, how far; a lighter build-up: down to what) and what the analysis says they lead to.</summary>
+        [JsonPropertyName("actions")] public List<StructuralActionDto>? Actions { get; set; }
         [JsonPropertyName("assumptions")] public List<string>? Assumptions { get; set; }
     }
 
@@ -438,6 +445,24 @@ namespace SportfyRevit
     }
 
     /// <summary>One thing to change: ballast, a heavier build-up, anchoring or moving a tree, protecting the substrate.</summary>
+    /// <summary>
+    /// A structural recommendation the web app can act on (StructureRecommendation, kind "move" or "lighten"): already checked by the analysis, which only proposes a
+    /// move that stops at other pieces and the roof edge and never makes the busiest bay worse. item_id is the placement's own id, the one the web app's piece has.
+    /// Plan metres, x right and y down (the layout's), + toward +x / +y.
+    /// </summary>
+    internal class StructuralActionDto
+    {
+        [JsonPropertyName("kind")] public string? Kind { get; set; }
+        [JsonPropertyName("item_id")] public string? ItemId { get; set; }
+        [JsonPropertyName("target")] public string? Target { get; set; }
+        [JsonPropertyName("text")] public string? Text { get; set; }
+        [JsonPropertyName("axis")] public string? Axis { get; set; }
+        [JsonPropertyName("move_m")] public double MoveM { get; set; }
+        [JsonPropertyName("new_dead_kn_m2")] public double NewDeadKnM2 { get; set; }
+        [JsonPropertyName("peak_utilisation_after_percent")] public double PeakUtilisationAfterPercent { get; set; }
+        [JsonPropertyName("offset_after_percent")] public double OffsetAfterPercent { get; set; }
+    }
+
     internal class WindFindingDto
     {
         [JsonPropertyName("kind")] public string? Kind { get; set; }

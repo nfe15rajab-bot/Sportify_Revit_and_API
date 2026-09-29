@@ -338,6 +338,22 @@ namespace Sportify.Simulation
 
         // Which built-in analysis assumptions the designer accepted, and the comfort limits they set; absent in older exports.
         public AnalysisAssumptionsData analysis_assumptions;
+
+        // Ball-stop fences the design carries along the roof edges (the ball analysis proposed them, the designer added them); absent when none.
+        public BallFenceData[] ball_fences;
+    }
+
+    /// <summary>
+    /// A ball-stop fence of the design along one roof edge: edge top | bottom | left | right (top = y 0, left = x 0 of the plan), from_m / to_m along that edge
+    /// (x for top and bottom, y for left and right), height_m above the roof. A ball that crosses the edge within that stretch no higher than that is stopped.
+    /// </summary>
+    [Serializable]
+    public class BallFenceData
+    {
+        public string edge;
+        public float from_m;
+        public float to_m;
+        public float height_m;
     }
 
     /// <summary>What the designer decided about the analyses' built-in assumptions (see Structure/AnalysisAssumptions.cs). Limits: 0 = not set.</summary>

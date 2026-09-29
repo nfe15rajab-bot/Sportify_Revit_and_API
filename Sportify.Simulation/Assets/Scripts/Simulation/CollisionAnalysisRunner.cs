@@ -226,6 +226,9 @@ namespace Sportify.Simulation
                 _report.caseStudy += " - no ball courts in this layout, nothing to simulate";
 
             SceneBuilder.BuildRoof(roof);
+            // The ball-stop fences the design already carries, standing from the start (the proposed ones appear at the end, for what still leaves).
+            foreach (var f in _payload.ball_fences ?? new BallFenceData[0])
+                if (f != null) SceneBuilder.BuildDesignFence(f, roof);
             SceneBuilder.BuildContext(LayoutLoader.ExtractContext(_payload));
             SceneBuilder.BuildEntryPoints(_payload.entry_points);
             SceneBuilder.BuildCourts(_courts);
@@ -370,7 +373,7 @@ namespace Sportify.Simulation
                     if (body != null) UnityEngine.Object.Destroy(body.gameObject);
             }
 
-            var report = RoofExitAnalysis.Analyse(collector.Outcomes.Values.ToList(), roof.length_m, roof.width_m);
+            var report = RoofExitAnalysis.Analyse(collector.Outcomes.Values.ToList(), roof.length_m, roof.width_m, _payload.ball_fences);
             report.assumptions = "Swept " + report.shotsSwept + " stray shots from " + _courts.Count + " court(s): " +
                                  ShotScenario.SweepDescription +
                                  ". Percentages are shares of this shot set, a way to compare layouts and edges - " +
@@ -528,6 +531,12 @@ namespace Sportify.Simulation
         /// <summary>A shot crossed the roof outline; its flight ended right there.</summary>
         void OnRoofExit(AerodynamicProjectile projectile)
         {
+            // A fence of the design stops it: the shot ends there, but it did not leave the roof.
+            if (RoofExitAnalysis.StoppedByDesignFence(_payload.ball_fences, projectile.CrossedEdge, AlongEdge(projectile.CrossedEdge, projectile.CrossedEdgePoint), projectile.CrossedEdgePoint.y))
+            {
+                Debug.Log("[Collision] stopped by the design's fence on the " + projectile.CrossedEdge + " edge");
+                return;
+            }
             var label = "Roof edge (" + projectile.CrossedEdge + ")";
             RecordCrossing(projectile, ZoneType.RoofEdge.ToString(), label, label, projectile.CrossedEdgePoint, projectile.EndTime);
         }
@@ -677,6 +686,8 @@ namespace Sportify.Simulation
                 var text = exit.shotsLeavingRoof == 0
                     ? "Roof edge: none of " + exit.shotsSwept + " swept shots left the roof - no fence needed"
                     : "Roof edge: " + Num(exit.percentLeavingRoof, "0.#") + "% of " + exit.shotsSwept + " swept shots leave the roof";
+                if (exit.designFences > 0)
+                    text += " (the design's " + exit.designFences + " fence" + (exit.designFences == 1 ? "" : "s") + " stop " + Num(exit.percentStoppedByDesignFences, "0.#") + "%)";
                 lines.Add(SimulationHud.Tint(text, exit.shotsLeavingRoof == 0 ? Good : SimulationHud.CrossingText));
             }
 
