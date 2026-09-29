@@ -108,8 +108,22 @@ namespace SportfyRevit
         public static string Bars(string title, string unit, IList<string> labels, IList<ChartSeries> series, IList<string>? colors = null, double? refLine = null, string refLabel = "", int w = 520, int h = 190)
         {
             var sb = new StringBuilder(Open(w, h, title));
-            double left = 44, right = 12, top = 30, bottom = labels.Count > 12 ? 58 : 44;
-            double pw = w - left - right, ph = h - top - bottom;
+            double left = 44, right = 12, top = 30;
+            double pw = w - left - right;
+
+            // The labels have to fit their slot (found in a Revit PDF, 2026-09-29: "What weighs most" ran its names into each other, and "Load per bay",
+            // with the real grid's hundreds of bays, turned its labels into one black smear). A label that fits is written level, broken over two lines when
+            // it needs them; when even that is too narrow they are turned, and only every k-th bar is named so that no two turned labels touch.
+            var n0 = Math.Max(1, labels.Count);
+            var slot0 = pw / n0;
+            const double charW = 4.3, turnedPitch = 10.0;                                  // font-size 8: a character's width; the gap two turned labels need
+            var fitChars = (int)Math.Floor(slot0 * 0.95 / charW);
+            var turned = fitChars < 7;
+            var nameEvery = turned ? Math.Max(1, (int)Math.Ceiling(turnedPitch / slot0)) : 1;
+            var wrapped = turned ? null : labels.Select(l => Wrap(l, fitChars, 2)).ToList();
+            var twoLines = wrapped != null && wrapped.Any(l => l.Count > 1);
+            double bottom = turned ? 58 : twoLines ? 52 : 44;
+            double ph = h - top - bottom;
             var maxV = series.SelectMany(s => s.Y).DefaultIfEmpty(0).Max();
             if (refLine.HasValue) maxV = Math.Max(maxV, refLine.Value);
             var (max, step) = Nice(maxV * 1.08);
@@ -143,11 +157,21 @@ namespace SportfyRevit
                     if (labels.Count <= 14 && series.Count <= 2)
                         sb.Append($"<text x='{N(x + barW / 2)}' y='{N(top + ph - bh - 2)}' font-size='7' text-anchor='middle' fill='{Ink}'>{Esc(Tick(v, step))}</text>");
                 }
-                var lab = Short(labels[i], labels.Count > 12 ? 12 : labels.Count > 6 ? 16 : 26);
-                if (labels.Count > 12) sb.Append($"<text transform='translate({N(cx)},{N(top + ph + 6)}) rotate(50)' font-size='7' fill='{Ink}'>{Esc(lab)}</text>");
-                else sb.Append($"<text x='{N(cx)}' y='{N(top + ph + 12)}' font-size='8' text-anchor='middle' fill='{Ink}'>{Esc(lab)}</text>");
+                if (turned)
+                {
+                    if (i % nameEvery == 0)
+                        sb.Append($"<text transform='translate({N(cx)},{N(top + ph + 6)}) rotate(50)' font-size='7' fill='{Ink}'>{Esc(Short(labels[i], 12))}</text>");
+                }
+                else
+                {
+                    var lines = wrapped![i];
+                    for (var k = 0; k < lines.Count; k++)
+                        sb.Append($"<text x='{N(cx)}' y='{N(top + ph + 12 + k * 9)}' font-size='8' text-anchor='middle' fill='{Ink}'>{Esc(lines[k])}</text>");
+                }
             }
             sb.Append($"<line x1='{N(left)}' y1='{N(top + ph)}' x2='{N(left + pw)}' y2='{N(top + ph)}' stroke='{Muted}' stroke-width='0.8'/>");
+            if (nameEvery > 1)
+                sb.Append($"<text x='{N(w - right)}' y='{N(h - 4)}' font-size='7' text-anchor='end' fill='{Muted}'>{labels.Count} bars; every {Ordinal(nameEvery)} one named</text>");
 
             if (refLine.HasValue)
             {
@@ -329,5 +353,35 @@ namespace SportfyRevit
         }
 
         static string Short(string s, int max) => s.Length <= max ? s : s.Substring(0, max - 1) + "…";
+
+        static string Ordinal(int k) => k + (k % 100 is 11 or 12 or 13 ? "th" : (k % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" });
+
+        /// <summary>A label broken at its spaces into at most maxLines lines of at most maxChars; what does not fit ends the last line with "…".</summary>
+        internal static List<string> Wrap(string label, int maxChars, int maxLines)
+        {
+            var lines = new List<string>();
+            maxChars = Math.Max(3, maxChars);
+            var words = (label ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var current = "";
+            var i = 0;
+            for (; i < words.Length; i++)
+            {
+                var word = words[i];
+                var candidate = current.Length == 0 ? word : current + " " + word;
+                if (candidate.Length <= maxChars) { current = candidate; continue; }
+                if (current.Length > 0) { lines.Add(current); current = ""; }
+                if (lines.Count == maxLines) break;
+                current = word.Length <= maxChars ? word : Short(word, maxChars);
+            }
+            if (current.Length > 0 && lines.Count < maxLines) lines.Add(current);
+            if (i < words.Length || lines.Count > maxLines)
+            {
+                // words left over: the last line says so
+                while (lines.Count > maxLines) lines.RemoveAt(lines.Count - 1);
+                var last = lines.Count > 0 ? lines[^1] : "";
+                lines[lines.Count - 1] = (last.Length + 1 <= maxChars ? last : last.Substring(0, Math.Max(1, maxChars - 1))) + "…";
+            }
+            return lines.Count > 0 ? lines : new List<string> { "" };
+        }
     }
 }
