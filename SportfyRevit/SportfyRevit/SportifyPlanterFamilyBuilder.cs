@@ -63,6 +63,11 @@ namespace SportfyRevit
         /// a placeholder, and the report says the family was not found rather
         /// than pretending a box is a planter.
         /// </summary>
+        /// <summary>The registry key ("green_roof_module") of a design family named by its file or family name ("Sportify_GreenRoofModule"); null when unknown.</summary>
+        internal static string? KeyForFamilyName(string? name) =>
+            string.IsNullOrEmpty(name) ? null
+                : FamilyFor.FirstOrDefault(kv => string.Equals(kv.Value.File, name, StringComparison.OrdinalIgnoreCase) || string.Equals(kv.Value.FamilyName, name, StringComparison.OrdinalIgnoreCase)).Key;
+
         public static FamilySymbol? GetOrLoadSymbol(Document doc, DesignFamilyDto block)
         {
             if (block.Type == null || !FamilyFor.TryGetValue(block.Type, out var known)) return null;

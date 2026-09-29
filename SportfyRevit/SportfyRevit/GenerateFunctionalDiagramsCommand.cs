@@ -31,7 +31,18 @@ namespace SportfyRevit
         /// <summary>A fixed view name is one shared view: with two roofs pushed, generating the diagrams for the second reused and restyled the first's, which read as
         /// "the other roof's info got overwritten." Every caller of CreateOrReuseCirculationView/CreateOrReuseAxonometricView that is not the German/English template's own
         /// fixed S2 sheets (a separate, larger scope this does not touch) now scopes its view name by the active roof.</summary>
-        internal static string RoofScopedName(string baseName) => baseName + " — Roof " + (RoofBoundaryServer.ActiveRoofId ?? 0);
+        internal static string RoofScopedName(string baseName) =>
+            RoofBoundaryServer.ActiveRoofId is long id && id != 0 ? baseName + " — Roof " + id : baseName;     // no roof pushed this session: no "Roof 0" suffix
+
+        /// <summary>A view named "… — Roof 0" (made while no roof was pushed, before RoofScopedName dropped that suffix) is taken over under the new name
+        /// instead of a second copy being made next to it.</summary>
+        static T? AdoptLegacy<T>(Document doc, string name) where T : View
+        {
+            if (name.Contains(" — Roof ")) return null;
+            var legacy = new FilteredElementCollector(doc).OfClass(typeof(T)).Cast<T>().FirstOrDefault(v => !v.IsTemplate && v.Name == name + " — Roof 0");
+            if (legacy == null) return null;
+            try { legacy.Name = name; return legacy; } catch (Exception) { return null; }
+        }
         internal static string RoofScopedCirculationName() => RoofScopedName(CirculationViewName);
         internal static string RoofScopedAxoName() => RoofScopedName(AxonometricViewName);
 
@@ -132,7 +143,7 @@ namespace SportfyRevit
         {
             name ??= CirculationViewName;
             var existing = new FilteredElementCollector(doc).OfClass(typeof(ViewPlan)).Cast<ViewPlan>()
-                .FirstOrDefault(v => !v.IsTemplate && v.Name == name);
+                .FirstOrDefault(v => !v.IsTemplate && v.Name == name) ?? AdoptLegacy<ViewPlan>(doc, name);
 
             ViewPlan view = existing ?? CreateFloorPlanView(doc, levelId);
             if (existing == null) view.Name = name;
@@ -312,7 +323,7 @@ namespace SportfyRevit
         {
             name ??= AxonometricViewName;
             var existing = new FilteredElementCollector(doc).OfClass(typeof(View3D)).Cast<View3D>()
-                .FirstOrDefault(v => !v.IsTemplate && v.Name == name);
+                .FirstOrDefault(v => !v.IsTemplate && v.Name == name) ?? AdoptLegacy<View3D>(doc, name);
 
             View3D view;
             if (existing != null)

@@ -70,6 +70,94 @@ namespace SportfyRevit
         public static int RemovePrevious(Document doc, string roofId) =>
             RemoveWhere(doc, storage => RoofIdOf(storage, GetSchema()) == roofId);
 
+        /// <summary>One recorded import: its storage, the roof key it was recorded under, when, and the elements of it still in the model.</summary>
+        internal sealed record Entry(DataStorage Storage, string RoofKey, DateTime ImportedAtUtc, List<Element> Elements);
+
+        /// <summary>Every recorded import of this project (read only).</summary>
+        internal static List<Entry> ReadEntries(Document doc)
+        {
+            var schema = GetSchema();
+            var entries = new List<Entry>();
+            foreach (var storage in Find(doc, schema))
+            {
+                IList<string> uniqueIds;
+                try { uniqueIds = storage.GetEntity(schema).Get<IList<string>>("ElementUniqueIds"); }
+                catch (Exception ex) { SportifyLog.Warn("ledger", "a ledger could not be read: " + ex.Message); continue; }
+                DateTime at = DateTime.MinValue;
+                try { DateTime.TryParse(storage.GetEntity(schema).Get<string>("ImportedAtUtc"), null, System.Globalization.DateTimeStyles.RoundtripKind, out at); } catch (Exception) { }
+                var elements = new List<Element>();
+                foreach (var uid in uniqueIds)
+                {
+                    var el = string.IsNullOrEmpty(uid) ? null : doc.GetElement(uid);
+                    if (el != null && el.Id != storage.Id) elements.Add(el);
+                }
+                entries.Add(new Entry(storage, RoofIdOf(storage, schema), at, elements));
+            }
+            return entries;
+        }
+
+        /// <summary>
+        /// Whether a recorded import belongs to this roof: recorded under its key, or recorded under a key that names no live building roof (roof "0"
+        /// from a session with no push, "" from before roofs were tracked, the id of one of Sportify's own floors that a push once took for the roof)
+        /// with most of its elements standing on it. A design option's own import ("option:…") never belongs to a roof here.
+        /// </summary>
+        internal static bool BelongsTo(Document doc, Entry entry, string roofKey, BoundingBoxXYZ? roofBox)
+        {
+            if (entry.RoofKey == roofKey) return true;
+            if (entry.RoofKey.StartsWith(RoofMatch.OptionKeyPrefix, StringComparison.Ordinal) || roofBox == null) return false;
+            if (RoofIdentity.RoofOfKey(doc, entry.RoofKey) != null) return false;       // another live roof's own import: switching roofs keeps it
+            return RoofIdentity.MostlyOn(entry.Elements, roofBox);
+        }
+
+        /// <summary>
+        /// Clears a roof of what earlier imports put on it, before the next one is built (inside the import transaction) or on request (Remove
+        /// Duplicates): every recorded import that belongs to it (BelongsTo), all but `keepNewest` of them when that is set, and — with
+        /// `leftovers` — Sportify elements on it that no ledger lists at all (from add-in versions before the ledger, or an entry that never
+        /// landed). Never touches another live roof's import, a design option's contents, or what an iterations import recorded (it has its own
+        /// "clear iterations" choice). Returns how many elements were removed.
+        /// </summary>
+        internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false)
+        {
+            var roofBox = roof?.get_BoundingBox(null);
+            var entries = ReadEntries(doc).Where(e => BelongsTo(doc, e, roofKey, roofBox)).OrderByDescending(e => e.ImportedAtUtc).ToList();
+            var keep = keepNewest ? entries.FirstOrDefault() : null;
+            var keepIds = new HashSet<ElementId>(keep?.Elements.Select(e => e.Id) ?? Enumerable.Empty<ElementId>());
+
+            var ids = new HashSet<ElementId>();
+            foreach (var entry in entries)
+            {
+                if (entry == keep) continue;
+                foreach (var el in entry.Elements) if (el.DesignOption == null && !keepIds.Contains(el.Id)) ids.Add(el.Id);
+            }
+
+            if (leftovers && roofBox != null)
+            {
+                var listed = new HashSet<string>(ReadEntries(doc).SelectMany(e => e.Elements).Select(e => e.UniqueId));
+                listed.UnionWith(IterationLedger.ReadUniqueIds(doc));
+                foreach (var el in new FilteredElementCollector(doc).WhereElementIsNotElementType()
+                             .WherePasses(new LogicalOrFilter(new List<ElementFilter>
+                             {
+                                 new ElementClassFilter(typeof(FamilyInstance)), new ElementClassFilter(typeof(Floor)),
+                             })))
+                {
+                    if (el.DesignOption != null || keepIds.Contains(el.Id) || listed.Contains(el.UniqueId)) continue;
+                    if (!RoofIdentity.IsSportifys(doc, el) || !RoofIdentity.StandsOn(el, roofBox)) continue;
+                    ids.Add(el.Id);
+                }
+            }
+
+            int removed = ids.Count > 0 ? Delete(doc, ids.ToList()) : 0;
+            foreach (var entry in entries)
+            {
+                if (entry == keep) continue;
+                try { doc.Delete(entry.Storage.Id); } catch (Exception ex) { SportifyLog.Warn("ledger", "an old ledger could not be deleted: " + ex.Message); }
+            }
+            if (removed > 0)
+                SportifyLog.Info("ledger", $"cleared roof {(string.IsNullOrEmpty(roofKey) ? "unknown" : roofKey)}: {removed} element(s) of {entries.Count - (keep == null ? 0 : 1)} earlier import(s)" +
+                                           (leftovers ? " and untracked Sportify leftovers" : "") + (keep != null ? ", the newest import kept" : ""));
+            return removed;
+        }
+
         /// <summary>The distinct roofs (other than <paramref name="excludeRoofId"/>) that already have a tracked import in this project — what
         /// "switching to the second roof" (ImportSportifyLayoutCommand) asks the user about before importing: keep them alongside this one, or
         /// remove them first. Read-only.</summary>

@@ -107,6 +107,12 @@ namespace SportfyRevit
                 return Result.Succeeded;
             }
 
+            // A design option being edited: that option gets ONE iteration, as real Revit Design Options (below). The API cannot make an option or
+            // move an element into one, but what it creates while an option is being edited lands in that option — so the person makes the option
+            // set in Revit (Manage > Design Options), edits each option in turn and runs this once per option.
+            var activeOption = DesignOption.GetActiveDesignOptionId(doc);
+            if (activeOption != ElementId.InvalidElementId) return ImportIntoActiveOption(doc, iterations, activeOption, ref message);
+
             try
             {
                 var choice = WorksharingConsent.Decide(doc, interactive: true);
@@ -185,6 +191,80 @@ namespace SportfyRevit
             {
                 return BimCommandErrors.Failed(Title, "the iterations could not be imported", ex, ref message);
             }
+        }
+
+        /// <summary>
+        /// One saved iteration into the design option being edited: chosen by the person, the one whose name matches the option's first
+        /// ("Option 1 planter" → "iteration 1 planted"). Running it again for the same option replaces what it put there before (ImportLedger,
+        /// keyed to the option). Before committing it checks that the new elements really are in the option; if Revit put them in the main
+        /// model instead, it rolls back and says so, so the main model never collects an iteration by accident.
+        /// </summary>
+        static Result ImportIntoActiveOption(Document doc, List<SavedIterationDto> iterations, ElementId optionId, ref string message)
+        {
+            var optionName = doc.GetElement(optionId)?.Name ?? "the design option being edited";
+            var names = iterations.Select((it, i) => string.IsNullOrWhiteSpace(it.Name) ? $"Iteration {i + 1}" : it.Name!.Trim()).ToList();
+            var match = RoofMatch.IterationForOption(optionName, names);
+
+            var ask = new TaskDialog(Title)
+            {
+                MainInstruction = $"Which iteration goes into \"{optionName}\"?",
+                MainContent = "It is built inside this design option only; the main model and the other options stay as they are. " +
+                              "Running this again in the same option replaces what it put there.",
+                CommonButtons = TaskDialogCommonButtons.Cancel,
+            };
+            for (var i = 0; i < names.Count; i++)
+                ask.AddCommandLink((TaskDialogCommandLinkId)((int)TaskDialogCommandLinkId.CommandLink1 + i), names[i],
+                    $"{iterations[i].Payload!.Placements?.Count ?? 0} piece(s), {iterations[i].Payload!.Zones?.Count ?? 0} zone(s)" + (i == match ? " — matches the option's name" : ""));
+            ask.DefaultButton = (TaskDialogResult)((int)TaskDialogResult.CommandLink1 + Math.Max(0, match));
+            var index = ask.Show() - TaskDialogResult.CommandLink1;
+            if (index < 0 || index >= iterations.Count) return Result.Cancelled;
+
+            var choice = WorksharingConsent.Decide(doc, interactive: true);
+            if (choice == WorksharingChoice.Cancel) return Result.Cancelled;
+            if (choice == WorksharingChoice.Enable) doc.EnableWorksharing("Shared Levels and Grids", "Workset1");
+
+            var payload = iterations[index].Payload!;
+            var prepared = FamilyPreparation.Prepare(doc, payload, allowTemplateDialog: true);
+            var key = RoofMatch.OptionKey(optionId.Value);
+
+            using var t = new Transaction(doc, $"Sportify: {names[index]} into {optionName}");
+            t.Start();
+            int replaced, built, inOption;
+            try
+            {
+                replaced = ImportLedger.RemovePrevious(doc, key);
+                var summary = SportifyLayoutBuilder.BuildGeometry(doc, payload, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
+                var model = summary.CreatedIds.Distinct().Select(id => doc.GetElement(id)).Where(e => e != null && !e.ViewSpecific && e.Category != null).ToList();
+                built = model.Count;
+                inOption = model.Count(e => e.DesignOption?.Id == optionId);
+                if (built > 0 && inOption * 2 < built)
+                {
+                    t.RollBack();
+                    SportifyLog.Warn("iterations", $"design option \"{optionName}\": only {inOption} of {built} new element(s) landed in it; rolled back");
+                    TaskDialog.Show(Title, $"Revit put the new elements in the main model, not in \"{optionName}\" ({inOption} of {built} in the option), so nothing was imported.\n\n" +
+                                           "Make sure the option is being edited (Design Options toolbar at the bottom of the window, or Manage > Design Options > Edit Selected), then run this again.");
+                    return Result.Cancelled;
+                }
+                ImportLedger.Write(doc, summary.CreatedIds, "design-option", key);
+            }
+            catch (Exception ex)
+            {
+                try { if (t.GetStatus() == TransactionStatus.Started) t.RollBack(); } catch (Exception) { }
+                return BimCommandErrors.Failed(Title, "the iteration could not be imported into the design option", ex, ref message);
+            }
+            if (t.Commit() != TransactionStatus.Committed)
+            {
+                message = "Revit rolled the import back when it was committed.";
+                return Result.Failed;
+            }
+
+            IterationSourceIds.Set(index + 1, iterations[index].Id);
+            SportifyLog.Info("iterations", $"\"{names[index]}\" imported into design option \"{optionName}\": {built} element(s), {inOption} in the option" +
+                                           (replaced > 0 ? $", {replaced} of its earlier import replaced" : ""));
+            TaskDialog.Show(Title, $"\"{names[index]}\" is in \"{optionName}\": {inOption} element(s)" + (replaced > 0 ? $" (replacing the {replaced} it had before)" : "") + ".\n\n" +
+                                   "Next: edit the next option in the Design Options toolbar and run this again. Finish with the toolbar back on the Main Model; " +
+                                   "a view shows one option through Visibility/Graphics > Design Options.");
+            return Result.Succeeded;
         }
 
         /// <summary>True = detailed (Sports/Gardens/Combine per iteration), false = simple (one workset per iteration), null = cancelled.</summary>

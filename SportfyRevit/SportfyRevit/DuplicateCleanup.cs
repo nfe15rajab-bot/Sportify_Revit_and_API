@@ -25,13 +25,26 @@ namespace SportfyRevit
             BuiltInCategory.OST_Floors, BuiltInCategory.OST_StructuralFoundation,
         };
 
-        /// <summary>Only this roof's own elements (Sportify_RoofId) are compared, so one pushed roof's placements never delete another's.</summary>
-        internal static int RemoveForRoof(Document doc, string roofId)
+        /// <summary>
+        /// Only this roof's own elements are compared, so one pushed roof's placements never delete another's: those recorded with its id
+        /// (Sportify_RoofId), and — given the roof — those recorded with an id that names no live building roof ("0", "", one of Sportify's own
+        /// floors that a push once took for the roof) that stand on it. Nothing inside a design option is ever compared.
+        /// </summary>
+        internal static int RemoveForRoof(Document doc, string roofId, Element? roof = null)
         {
+            var roofBox = roof?.get_BoundingBox(null);
+            var liveRoofs = new Dictionary<string, bool>();
+            bool Ours(Element el)
+            {
+                var id = el.LookupParameter("Sportify_RoofId")?.AsString() ?? "";
+                if (id == roofId) return true;
+                if (roofBox == null) return false;
+                if (!liveRoofs.TryGetValue(id, out var live)) liveRoofs[id] = live = RoofIdentity.RoofOfKey(doc, id) != null;
+                return !live && RoofIdentity.StandsOn(el, roofBox);
+            }
             var filter = new LogicalOrFilter(Categories.Select(c => (ElementFilter)new ElementCategoryFilter(c)).ToList());
             var candidates = new FilteredElementCollector(doc).WhereElementIsNotElementType().WherePasses(filter)
-                .Where(el => !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString())
-                             && (el.LookupParameter("Sportify_RoofId")?.AsString() ?? "") == roofId)
+                .Where(el => el.DesignOption == null && !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString()) && Ours(el))
                 .ToList();
             if (candidates.Count < 2) return 0;
 

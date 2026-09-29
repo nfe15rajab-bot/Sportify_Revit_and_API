@@ -314,7 +314,7 @@ namespace SportfyRevit
             }
 
             Item("UpdateSportify", "Update (switch to a different roof)", typeof(UpdateSportifyCommand),
-                "Clears this project's previous import (and any earlier iterations) right away, then pushes everything about the roof now selected — for when you are switching to a different roof mid-session: the model is clean immediately, instead of the old pieces sitting there until the web app's next send.");
+                "Pushes everything about the roof now selected and makes it the active one. The other roofs keep their content; syncing a layout for this roof then replaces what earlier imports put on it.");
             menu.AddSeparator();
             Item("PushRoofBoundary", "Everything", typeof(PushRoofBoundaryCommand),
                 "The roof's outline and size, its structure (grid, columns, beams, bearing walls), entries, openings, edge and walls on the roof, drains, equipment, and the slab build-up and levels.");

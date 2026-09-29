@@ -35,6 +35,19 @@ namespace SportfyRevit
         /// <summary>Whether an earlier "Import Iterations as Design Options" run left anything in this project — checked before offering to clear it from a normal import.</summary>
         public static bool HasAny(Document doc) => Find(doc, GetSchema()).Count > 0;
 
+        /// <summary>The UniqueIds an earlier iterations import recorded (read only): a roof's clean-up (ImportLedger.RemoveOnRoof) leaves these to their own "clear iterations" choice.</summary>
+        public static HashSet<string> ReadUniqueIds(Document doc)
+        {
+            var schema = GetSchema();
+            var all = new HashSet<string>();
+            foreach (var storage in Find(doc, schema))
+            {
+                try { foreach (var uid in storage.GetEntity(schema).Get<IList<string>>("ElementUniqueIds")) if (!string.IsNullOrEmpty(uid)) all.Add(uid); }
+                catch (Exception ex) { SportifyLog.Warn("iterations", "a ledger could not be read: " + ex.Message); }
+            }
+            return all;
+        }
+
         /// <summary>Deletes what the previous iterations import created (and the old ledger). Inside the import transaction, so a failed import puts it all back.</summary>
         public static int RemovePrevious(Document doc)
         {

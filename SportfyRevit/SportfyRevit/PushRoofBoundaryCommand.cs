@@ -135,6 +135,12 @@ namespace SportfyRevit
                 }
             }
 
+            // One of Sportify's own floors (the gravel ballast, a green roof floor: what a click in 3D lands on first) is not the roof: every import
+            // rebuilds them, so their id named nothing by the next import and each sync then left the earlier imports standing (RoofIdentity).
+            element = RoofIdentity.Resolve(doc, element, out var resolveNote);
+            if (resolveNote != null) SportifyLog.Info("push", resolveNote);
+            SportifyLog.Info("push", $"pushing \"{element.Name}\" (id {element.Id.Value}), {RoofPushScopes.Describe(scope)}{(reusedLast ? ", the roof pushed last" : "")}");
+
             var built = Build(doc, element, scope, _selection, out var failure);
             if (built == null)
             {
@@ -167,6 +173,7 @@ namespace SportfyRevit
 
             TaskDialog.Show("Sportify",
                 $"Pushed \"{element.Name}\" ({built.LengthM} m x {built.WidthM} m): {RoofPushScopes.Describe(scope)}." +
+                (resolveNote != null ? "\n" + char.ToUpperInvariant(resolveNote[0]) + resolveNote.Substring(1) + "." : "") +
                 (reusedLast ? "\nThe roof pushed before was used again; select another roof first to change it." : "") +
                 (RoofPushScopes.IsEverything(scope) ? "" : keptEarlier
                     ? "\nWhat earlier pushes of this roof brought is kept."

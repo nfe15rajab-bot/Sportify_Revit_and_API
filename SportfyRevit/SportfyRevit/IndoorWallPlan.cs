@@ -10,6 +10,10 @@ namespace SportfyRevit
     /// </summary>
     internal static class IndoorWallPlan
     {
+        /// <summary>The wall type's name, "Sportify - Indoor Zone Wall (30 cm)". Not "[30 cm]" like the family names: Revit refuses brackets in a type
+        /// name, and the walls were never built in live Revit while it had them (2026-09-29, "name cannot include prohibited characters").</summary>
+        internal static string WallTypeName(double thicknessM) => $"Sportify - Indoor Zone Wall ({(int)Math.Round(thicknessM * 100)} cm)";
+
         internal sealed record Segment(double X0, double Y0, double X1, double Y1, double ThicknessM, bool HostsDoor);
         internal sealed record DoorAt(double X, double Y, double WidthM, string Side);
         internal sealed record Plan(List<Segment> Walls, DoorAt? Door);

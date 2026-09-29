@@ -131,6 +131,9 @@ namespace SportfyRevit
         /// </summary>
         private static void PrepareZoneTrays(Document doc, SportifyLayout layout, PreparedFamilies prepared)
         {
+            // A tray sent without its key (web builds before 2026-09-29 left the default tray's key out) is still that tray: its key from its family name.
+            foreach (var z in layout.Zones ?? new List<ZoneDto>())
+                if (z.Family != null && string.IsNullOrEmpty(z.Family.Key)) z.Family.Key = SportifyPlanterFamilyBuilder.KeyForFamilyName(z.Family.Family) ?? SportifyPlanterFamilyBuilder.KeyForFamilyName(z.Family.Type);
             var zones = (layout.Zones ?? new List<ZoneDto>()).Where(z => z.Family?.Key != null).ToList();
             if (zones.Count == 0) return;
 

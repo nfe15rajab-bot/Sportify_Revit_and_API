@@ -1914,6 +1914,32 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     var without = IndoorWallPlan.Make(rects, door, "S", 0.3, withDoor: false);
     Check("without a door family: five walls, the opening left open, no door", without.Walls.Count == 5 && !without.Walls.Any(w => w.HostsDoor) && without.Door == null);
     Check("no door in the layout: the strips as they are", IndoorWallPlan.Make(rects, null, null, 0.3, true).Walls.Count == 5);
+    Check("the wall type's name is one Revit accepts (brackets are refused in a type name: the walls were never built in live Revit with \"[30 cm]\")",
+          IndoorWallPlan.WallTypeName(0.3) == "Sportify - Indoor Zone Wall (30 cm)" && RoofMatch.IsValidRevitName(IndoorWallPlan.WallTypeName(0.3))
+          && !RoofMatch.IsValidRevitName("Sportify - Indoor Zone Wall [30 cm]"), IndoorWallPlan.WallTypeName(0.3));
+}
+
+// ---------------------------------------------------------------------------------------------------------------- which roof an import stands on; iterations into design options
+{
+    Console.WriteLine("\n===== one roof, one design: what stands on a roof, which iteration goes in which design option (RoofMatch) =====");
+    const double ft = 1 / 0.3048;
+    // the Goldbeck model: two slabs with the same 67.5 x 16.28 m outline, tops at 12.481 m (E9) and 13.856 m (E10)
+    double e9 = 12.481 * ft, e10 = 13.856 * ft, L = 67.5 * ft, W = 16.28 * ft;
+    Check("a piece standing on E10 stands on E10, not on E9 1.375 m below (the stacked slabs are told apart)",
+          RoofMatch.StandsOn(e10 + 0.02 * ft, 30 * ft, 8 * ft, 0, 0, L, W, e10) && !RoofMatch.StandsOn(e10 + 0.02 * ft, 30 * ft, 8 * ft, 0, 0, L, W, e9));
+    Check("a green roof lifted 0.19 m by its tray, or laid on a gravel layer pushed as the roof, still stands on it", RoofMatch.StandsOn(e10 + 0.19 * ft, 5 * ft, 5 * ft, 0, 0, L, W, e10));
+    Check("a piece beside the roof's outline box does not", !RoofMatch.StandsOn(e10, 80 * ft, 8 * ft, 0, 0, L, W, e10));
+    Check("Sportify's gravel floor lies on the slab under it (a click on it pushes the slab), not on the one under that",
+          RoofMatch.LiesOn(0.2 * ft, 0.2 * ft, L - 0.2 * ft, W - 0.2 * ft, e10, 0, 0, L, W, e10) && !RoofMatch.LiesOn(0.2 * ft, 0.2 * ft, L - 0.2 * ft, W - 0.2 * ft, e10, 0, 0, L, W, e9));
+    Check("a floor that only touches the roof at a corner does not lie on it", !RoofMatch.LiesOn(60 * ft, 14 * ft, 90 * ft, 30 * ft, e10, 0, 0, L, W, e10));
+    Check("ledger keys that name no roof: \"\", \"0\", text; a roof's id and a design option's key do",
+          RoofMatch.IsUnnamedRoofKey("") && RoofMatch.IsUnnamedRoofKey("0") && RoofMatch.IsUnnamedRoofKey(null) && RoofMatch.IsUnnamedRoofKey("roof")
+          && !RoofMatch.IsUnnamedRoofKey("2519827") && !RoofMatch.IsUnnamedRoofKey(RoofMatch.OptionKey(123)));
+    var its = new List<string?> { "iteration 1 planted", "interation 2 social", "iteration 3 quiet" };
+    Check("option 1 planter / option 2 quiet / option 3 social find the planted, quiet and social iterations (the web app's own names, typo included)",
+          RoofMatch.IterationForOption("Option 1 planter", its) == 0 && RoofMatch.IterationForOption("Option 2 quiet", its) == 2 && RoofMatch.IterationForOption("Option 3 social", its) == 1
+          && RoofMatch.IterationForOption("Option 1 planted (primary)", its) == 0);
+    Check("an option named only by its number, or matching none, is left to the person to pick", RoofMatch.IterationForOption("Option 1", its) == -1 && RoofMatch.IterationForOption("Option 4 sport", its) == -1);
 }
 
 // ---------------------------------------------------------------------------------------------------------------- Auto Import ON follows the board like Sync with Revit

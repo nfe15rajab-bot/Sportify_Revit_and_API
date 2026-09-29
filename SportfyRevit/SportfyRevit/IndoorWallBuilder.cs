@@ -6,7 +6,7 @@ namespace SportfyRevit
     /// <summary>
     /// The indoor zone's walls and door, built as Revit walls (user, 2026-09-29: "build walls and door in that place where there is extrusion and slab"):
     /// the web app draws a real wall round the indoor zone (the locker and bathroom modules) with a door onto the paths, and until now it never reached
-    /// Revit. IndoorWallPlan decides the walls; this makes them - a basic wall type "Sportify - Indoor Zone Wall [30 cm]" (made from the project's first
+    /// Revit. IndoorWallPlan decides the walls; this makes them - a basic wall type "Sportify - Indoor Zone Wall (30 cm)" (made from the project's first
     /// basic wall when it is not there yet), on the level at or below the roof, standing on the roof's top, IndoorWallHeightM high - and places the
     /// door (SportifyDoorFamily, settled before the import) in the wall that holds it. Runs inside the import's transaction; everything it makes goes on
     /// the Sports workset and into the import's ledger, so the next import replaces it.
@@ -74,11 +74,10 @@ namespace SportfyRevit
 
         static string SideWord(string side) => side switch { "N" => "north (top)", "S" => "south (bottom)", "W" => "west (left)", "E" => "east (right)", _ => side };
 
-        /// <summary>"Sportify - Indoor Zone Wall [30 cm]": found, or made from the project's first basic wall type with one layer of that thickness.</summary>
+        /// <summary>"Sportify - Indoor Zone Wall (30 cm)" (IndoorWallPlan.WallTypeName): found, or made from the project's first basic wall type with one layer of that thickness.</summary>
         static WallType? WallTypeFor(Document doc, double thicknessM)
         {
-            int cm = (int)Math.Round(thicknessM * 100);
-            string name = $"Sportify - Indoor Zone Wall [{cm} cm]";
+            string name = IndoorWallPlan.WallTypeName(thicknessM);
             var types = new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>().ToList();
             var found = types.FirstOrDefault(t => t.Name == name);
             if (found != null) return found;

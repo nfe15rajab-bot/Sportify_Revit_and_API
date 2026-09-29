@@ -15,7 +15,8 @@ namespace SportfyRevit
     /// </summary>
     internal static class SportifyDiagramViews
     {
-        internal const string TemplateName = "Sportify - Analysis Diagrams";
+        internal const string TemplateName = "Diagrams";                                // user, 2026-09-29: "assign diagram views to a template, name it Diagrams"
+        const string OldTemplateName = "Sportify - Analysis Diagrams";           // what it was first made as: renamed, not made twice
         internal const string FireTitle = "Sportify - Fire Safety Diagram";
         internal const string AccessibilityTitle = "Sportify - Accessibility Diagram";
 
@@ -123,14 +124,22 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// "Sportify - Analysis Diagrams": the project's own, or made from the first diagram view - the model greyed (halftone) so the diagram's colours
+        /// "Diagrams": the project's own, or made from the first diagram view - the model greyed (halftone) so the diagram's colours
         /// read, the diagram's own regions (Detail Items) left in full colour, coarse detail. A person can change it in Revit like any template; it is only
         /// made when it is not there.
         /// </summary>
         static View? EnsureTemplate(Document doc, View from)
         {
-            var existing = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().FirstOrDefault(v => v.IsTemplate && v.Name == TemplateName);
-            if (existing != null) return existing;
+            var templates = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).ToList();
+            var existing = templates.FirstOrDefault(v => v.Name == TemplateName);
+            if (existing != null) return KeepOwnViewRange(existing);
+            var old = templates.FirstOrDefault(v => v.Name == OldTemplateName);
+            if (old != null)
+            {
+                try { old.Name = TemplateName; SportifyLog.Info("diagrams", $"renamed the view template \"{OldTemplateName}\" to \"{TemplateName}\""); }
+                catch (Exception ex) { SportifyLog.Warn("diagrams", "the old view template could not be renamed: " + ex.Message); }
+                return KeepOwnViewRange(old);
+            }
             try
             {
                 var template = from.CreateViewTemplate();
@@ -143,13 +152,33 @@ namespace SportfyRevit
                     try { template.SetCategoryOverrides(c.Id, halftone); } catch (Exception) { /* a category this view cannot override */ }
                 }
                 SportifyLog.Info("diagrams", "made the view template \"" + TemplateName + "\"");
-                return template;
+                return KeepOwnViewRange(template);
             }
             catch (Exception ex)
             {
                 SportifyLog.Warn("diagrams", "the view template could not be made: " + ex.Message);
                 return null;
             }
+        }
+
+        /// <summary>
+        /// A template made from a plan view controls its View Range too, and would then force the first diagram's range onto every view it is on:
+        /// each diagram keeps its own, fitted to its roof (GenerateFunctionalDiagramsCommand.FixViewRangeForRoof).
+        /// </summary>
+        static View KeepOwnViewRange(View template)
+        {
+            try
+            {
+                var free = template.GetNonControlledTemplateParameterIds();
+                var range = new ElementId(BuiltInParameter.PLAN_VIEW_RANGE);
+                if (!free.Contains(range) && template.GetTemplateParameterIds().Contains(range))
+                {
+                    free.Add(range);
+                    template.SetNonControlledTemplateParameterIds(free);
+                }
+            }
+            catch (Exception ex) { SportifyLog.Warn("diagrams", "the template's view range could not be left to each view: " + ex.Message); }
+            return template;
         }
     }
 }
