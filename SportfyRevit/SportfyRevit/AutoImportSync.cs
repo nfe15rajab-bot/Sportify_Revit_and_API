@@ -28,6 +28,15 @@ namespace SportfyRevit
         // polls (RoofBoundaryServer.SetActiveRoof) — one shared "already applied" version would otherwise mean something different
         // every time the designer switches roofs, importing a roof again (or missing a real change) for no reason.
         private static readonly Dictionary<long, int> _lastAppliedVersionByRoof = new();
+        // ... and the identity of the layout last imported for it: the board's drafts are imported too now (AutoImportDecision), and the same layout never twice.
+        private static readonly Dictionary<long, string> _lastImportedIdByRoof = new();
+
+        /// <summary>A layout imported by another way (Sync with Revit's import-now) is in the model: Auto Import does not import it again.</summary>
+        internal static void MarkImported(long roofId, string? layoutId, int version)
+        {
+            _lastAppliedVersionByRoof[roofId] = version;
+            if (!string.IsNullOrEmpty(layoutId)) _lastImportedIdByRoof[roofId] = layoutId!;
+        }
         private static DateTime _lastPollUtc = DateTime.MinValue;
 
         public static void SetEnabled(bool enabled)
@@ -51,8 +60,8 @@ namespace SportfyRevit
             if (ToggleButton == null) return;
             ToggleButton.ItemText = IsEnabled ? "Auto Import:\nON" : "Auto Import:\nOFF";
             ToggleButton.ToolTip = IsEnabled
-                ? "Live sync is ON — every Combine export from the web app is applied automatically, replacing the previous import. Click to turn off."
-                : "Automatically apply every Combine export pushed from the web app, without opening a file picker. Click to turn on.";
+                ? "Live sync is ON — the model follows the web app's board, like Sync with Revit: a change is imported a few seconds after the board stops changing (a Sync with Revit or an export at once), replacing the previous import. Click to turn off."
+                : "Keep the model in step with the web app's board, like Sync with Revit but by itself: every change is imported a few seconds after the board stops changing. Click to turn on.";
         }
 
         public static void OnIdling(object? sender, IdlingEventArgs e)
@@ -61,9 +70,13 @@ namespace SportfyRevit
             if ((DateTime.UtcNow - _lastPollUtc).TotalMilliseconds < PollIntervalMs) return;
             _lastPollUtc = DateTime.UtcNow;
 
-            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out var version, out var roofId)) return;
+            if (!RoofBoundaryServer.TryGetLatestLayoutState(out var json, out var version, out var roofId, out var layoutId, out var changedUtc) || json == null) return;
             var lastApplied = _lastAppliedVersionByRoof.TryGetValue(roofId, out var v) ? v : -1;
-            if (version == lastApplied || json == null) return;
+            var lastId = _lastImportedIdByRoof.TryGetValue(roofId, out var li) ? li : null;
+            // An export at once, the board's draft once it has settled, and never the layout that is already in the model (AutoImportDecision).
+            var action = AutoImportDecision.Decide(version != lastApplied, layoutId, lastId, (DateTime.UtcNow - changedUtc).TotalMilliseconds);
+            if (action == AutoImportDecision.Action.Skip) { _lastAppliedVersionByRoof[roofId] = version; return; }
+            if (action == AutoImportDecision.Action.Wait) return;
 
             var uiApp = sender as UIApplication;
             var doc = uiApp?.ActiveUIDocument?.Document;
@@ -77,19 +90,20 @@ namespace SportfyRevit
             catch (Exception ex)
             {
                 // A malformed push: wait for the next one rather than crash the idling loop — but say so.
-                _lastAppliedVersionByRoof[roofId] = version;
+                MarkImported(roofId, layoutId, version);
                 SportifyLog.Error("auto-import", "push " + version + " is not a readable layout", ex);
                 return;
             }
             if (layout?.Placements == null)
             {
-                _lastAppliedVersionByRoof[roofId] = version;
+                MarkImported(roofId, layoutId, version);
                 SportifyLog.Warn("auto-import", "push " + version + " has no placements array; ignored");
                 return;
             }
 
             // Whatever the outcome, this push is dealt with: a failing one must not be retried every two seconds.
-            _lastAppliedVersionByRoof[roofId] = version;
+            MarkImported(roofId, layoutId, version);
+            SportifyLog.Info("auto-import", $"importing layout {layoutId} (version {version}{(version != lastApplied ? ", an export" : ", the board's draft")})");
             var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo, roofId.ToString());
             if (outcome.Cancelled) return;
 

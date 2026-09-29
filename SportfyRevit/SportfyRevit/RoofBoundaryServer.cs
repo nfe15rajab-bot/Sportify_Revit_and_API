@@ -69,6 +69,32 @@ namespace SportfyRevit
         private static readonly Dictionary<long, string> _combinedLayoutJsonByRoof = new();
         private static readonly Dictionary<long, int> _combinedLayoutVersionByRoof = new();
         private static readonly Dictionary<long, string> _combinedLayoutIdByRoof = new();
+        // When the layout of each roof last became a different one (draft or export): Auto Import's live sync waits for the board to settle (AutoImportDecision).
+        private static readonly Dictionary<long, DateTime> _combinedLayoutChangedUtcByRoof = new();
+
+        private static void NoteLayout(long id, string json)
+        {
+            var layoutId = LayoutIdentity.Of(json);
+            if (!_combinedLayoutIdByRoof.TryGetValue(id, out var was) || was != layoutId) _combinedLayoutChangedUtcByRoof[id] = DateTime.UtcNow;
+            _combinedLayoutIdByRoof[id] = layoutId;
+        }
+
+        /// <summary>
+        /// The newest layout of the ACTIVE roof, with its version (bumped by an export), its identity and when it last changed: what Auto Import's live
+        /// sync decides by (AutoImportSync, AutoImportDecision). False when none has arrived for it.
+        /// </summary>
+        public static bool TryGetLatestLayoutState(out string? json, out int version, out long roofId, out string? layoutId, out DateTime changedUtc)
+        {
+            lock (CombinedLayoutLock)
+            {
+                roofId = _activeRoofId ?? 0;
+                json = _combinedLayoutJsonByRoof.TryGetValue(roofId, out var j) ? j : null;
+                version = _combinedLayoutVersionByRoof.TryGetValue(roofId, out var v) ? v : 0;
+                layoutId = _combinedLayoutIdByRoof.TryGetValue(roofId, out var lid) ? lid : null;
+                changedUtc = _combinedLayoutChangedUtcByRoof.TryGetValue(roofId, out var c) ? c : DateTime.MinValue;
+            }
+            return json != null;
+        }
 
         /// <summary>The identity (LayoutIdentity) of the newest layout the web app has sent for the ACTIVE roof, draft or export; null when none has arrived for it.
         /// Falls back to bucket 0 the same way SetDraftLayoutPayload/SetCombinedLayoutPayload/TryGetLatestCombinedLayout do: a test (or a tool) that posts a
@@ -194,15 +220,15 @@ namespace SportfyRevit
             {
                 var id = _activeRoofId ?? 0;
                 _combinedLayoutJsonByRoof[id] = json;
-                _combinedLayoutIdByRoof[id] = LayoutIdentity.Of(json);
+                NoteLayout(id, json);
                 _combinedLayoutVersionByRoof[id] = _combinedLayoutVersionByRoof.TryGetValue(id, out var v) ? v + 1 : 1;
             }
         }
 
         /// <summary>
         /// The layout as the web app has it right now, sent automatically as it changes (POST /combined-layout?draft=1). The analyses, the charts and the PDFs read
-        /// the newest layout, so this updates it; but it is not an export, so the version that Auto Import watches stays where it was and nothing is imported into
-        /// the Revit model until the designer exports.
+        /// the newest layout, so this updates it. It is not an export, so the version stays where it was; with Auto Import ON, Revit imports it once the board
+        /// has stopped changing for a moment (AutoImportDecision) - the live sync "Sync with Revit" gives on a click.
         /// </summary>
         public static void SetDraftLayoutPayload(string json)
         {
@@ -210,7 +236,7 @@ namespace SportfyRevit
             {
                 var id = _activeRoofId ?? 0;
                 _combinedLayoutJsonByRoof[id] = json;
-                _combinedLayoutIdByRoof[id] = LayoutIdentity.Of(json);
+                NoteLayout(id, json);
             }
         }
 

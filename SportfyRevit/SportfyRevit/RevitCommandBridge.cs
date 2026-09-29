@@ -66,7 +66,7 @@ namespace SportfyRevit
         {
             var doc = app.ActiveUIDocument?.Document;
             if (doc == null || doc.IsFamilyDocument) return;
-            if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out _, out var roofId) || json == null) return;
+            if (!RoofBoundaryServer.TryGetLatestLayoutState(out var json, out var version, out var roofId, out var layoutId, out _) || json == null) return;
 
             SportifyLayout? layout;
             try { layout = JsonSerializer.Deserialize<SportifyLayout>(json); }
@@ -74,6 +74,8 @@ namespace SportfyRevit
             if (layout?.Placements == null) return;
 
             var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, AutoImportSync.ClearIterationsToo, roofId.ToString());
+            // in the model now: Auto Import (if it is on) does not import the same layout a second time
+            if (outcome.Succeeded) AutoImportSync.MarkImported(roofId, layoutId, version);
             if (outcome.Cancelled || outcome.Succeeded) return;
             TaskDialog.Show("Sportify — Sync with Revit",
                 "The layout sent from the web app could not be imported into \"" + doc.Title + "\":\n" + outcome.Error +

@@ -1916,6 +1916,17 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("no door in the layout: the strips as they are", IndoorWallPlan.Make(rects, null, null, 0.3, true).Walls.Count == 5);
 }
 
+// ---------------------------------------------------------------------------------------------------------------- Auto Import ON follows the board like Sync with Revit
+{
+    Console.WriteLine("\n===== Auto Import: when the board is imported (AutoImportDecision) =====");
+    var I = AutoImportDecision.Action.Import; var W = AutoImportDecision.Action.Wait; var S = AutoImportDecision.Action.Skip;
+    Check("the board's draft is imported once it has stopped changing (3 s), not in the middle of a drag", AutoImportDecision.Decide(false, "b", "a", 3500) == I && AutoImportDecision.Decide(false, "b", "a", 800) == W);
+    Check("an export (Sync with Revit, Export Combined JSON) is imported at once", AutoImportDecision.Decide(true, "b", "a", 10) == I);
+    Check("a layout already in the model (Sync with Revit just imported it) is not imported again, draft or export", AutoImportDecision.Decide(true, "a", "a", 10) == S && AutoImportDecision.Decide(false, "a", "a", 9999) == S);
+    Check("turning Auto Import on with a board that was never imported imports it (no layout imported yet)", AutoImportDecision.Decide(false, "a", null, 5000) == I);
+    Check("no identity (an old web app): only an export is imported", AutoImportDecision.Decide(true, null, "a", 0) == I && AutoImportDecision.Decide(false, null, "a", 9999) == S);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 
