@@ -22,3 +22,9 @@ namespace Autodesk.Revit.UI
         public static TaskDialogResult Show(string title, string message) => TaskDialogResult.Close;
     }
 }
+namespace SportfyRevit
+{
+    // LiveStructure reads the open model (Revit calls): here it hands the layout back unchanged. What it does with what it reads is
+    // LiveStructureMerge, which Tools/AddinCheck checks on its own.
+    internal static class LiveStructure { internal static string Apply(Autodesk.Revit.DB.Document? doc, string layoutJson, out string note) { note = ""; return layoutJson; } }
+}

@@ -47,6 +47,10 @@ namespace SportfyRevit
                 }
             }
 
+            // The grid, columns, beams and walls as they stand in the open model now, not only as the last push carried them (LiveStructure).
+            var structureNote = "";
+            if (!usingBundledSample) baseJson = LiveStructure.Apply(commandData.Application.ActiveUIDocument?.Document, baseJson, out structureNote);
+
             var review = false;
             while (true)
             {
@@ -79,7 +83,7 @@ namespace SportfyRevit
                 AnalysisResultPublisher.PublishStructuralLoads(BuildPublishedResult(report, caseStudy, null));
 
                 var unityFree = haveUnity && !UnityHeadlessRunner.IsProjectOpenInUnity(unity!.ProjectDir);
-                var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree);
+                var choice = ShowSummary(report, caseStudy, usingBundledSample, haveUnity, unityFree, structureNote);
                 if (choice == SummaryChoice.Review) { review = true; continue; }
                 if (choice == SummaryChoice.Video)
                 {
@@ -99,7 +103,7 @@ namespace SportfyRevit
 
         // ------------------------------------------------------------------ dialogs
 
-        static SummaryChoice ShowSummary(StructureReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree)
+        static SummaryChoice ShowSummary(StructureReport report, string caseStudy, bool usingBundledSample, bool haveUnity, bool unityFree, string structureNote)
         {
             var s = report.summary;
             var b = report.balance;
@@ -109,6 +113,7 @@ namespace SportfyRevit
             if (s.preliminary)
                 body.AppendLine(s.preliminaryNote).AppendLine();
             body.AppendLine(caseStudy);
+            if (structureNote.Length > 0) body.AppendLine().AppendLine(structureNote);
             body.AppendLine(AnalysisMedia.SeeReport);
 
             var dialog = new TaskDialog(DialogTitle)

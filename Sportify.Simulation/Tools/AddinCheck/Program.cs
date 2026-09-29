@@ -1818,6 +1818,53 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
 
 }
 
+// ---------------------------------------------------------------------------------------------------------------- the structure read from the open model when an analysis runs
+{
+    Console.WriteLine("\n===== the structure from the Revit model at analysis time (LiveStructureMerge) =====");
+    var sampleRoot = JsonNode.Parse(File.ReadAllText(args[0]))!.AsObject();
+    sampleRoot.Remove("structure");
+    var bare = sampleRoot.ToJsonString();
+    double L = sampleRoot["roof_context"]!["length_m"]!.GetValue<double>(), W = sampleRoot["roof_context"]!["width_m"]!.GetValue<double>();
+    StructureReport Run(string json) => StructureModel.Analyse(StructureLayoutAdapter.ToInputs(JsonSerializer.Deserialize<SportifyLayout>(json)!));
+
+    // what PushRoofBoundaryCommand.Build makes for a roof with three grid lines across it and two columns
+    JsonObject Grid(string name, double x) => new() { ["name"] = name, ["start_m"] = new JsonObject { ["x_m"] = x, ["y_m"] = 0.0 }, ["end_m"] = new JsonObject { ["x_m"] = x, ["y_m"] = W } };
+    string Pushed(JsonObject? structure) => new JsonObject { ["roof"] = new JsonObject { ["id"] = 42, ["structure"] = structure?.DeepClone() } }.ToJsonString();
+    var modelStructure = new JsonObject
+    {
+        ["source"] = "revit", ["deck_capacity_kn_m2"] = null, ["natural_frequency_hz"] = null,
+        ["grid_lines"] = new JsonArray(Grid("1", L / 4), Grid("2", L / 2), Grid("3", 3 * L / 4)),
+        ["columns"] = new JsonArray(new JsonObject { ["label"] = "C1", ["x_m"] = L / 2, ["y_m"] = W / 2 }, new JsonObject { ["label"] = "C2", ["x_m"] = L / 4, ["y_m"] = W / 2 }),
+    };
+
+    var before = Run(bare);
+    var merged = LiveStructureMerge.Merge(bare, Pushed(modelStructure), L, W, out var note);
+    var after = Run(merged);
+    var st = JsonNode.Parse(merged)!["structure"]!;
+    Check("a layout without a structure: before, the analysis assumes a regular grid", before.summary.gridAssumed);
+    Check("the model's grid and columns go into the layout, marked as Revit's, and the note says how many", st["grid_lines"]!.AsArray().Count == 3 && st["columns"]!.AsArray().Count == 2 && (string?)st["source"] == "revit"
+          && note.Contains("3 grid line(s)") && note.Contains("2 column(s)"), note);
+    Check("and the analysis now stands on the model's grid, not an assumed one", !after.summary.gridAssumed && after.bays.Count != before.bays.Count, $"bays {before.bays.Count} -> {after.bays.Count}");
+
+    // the designer's own entries stay; the model's grid replaces the layout's
+    var withOwn = JsonNode.Parse(bare)!.AsObject();
+    withOwn["structure"] = new JsonObject { ["source"] = "revit", ["deck_capacity_kn_m2"] = 6.5, ["natural_frequency_hz"] = 7.2, ["grid_lines"] = new JsonArray(Grid("old", L / 2)), ["columns"] = new JsonArray() };
+    var withOwnJson = withOwn.ToJsonString();
+    var mergedOwn = JsonNode.Parse(LiveStructureMerge.Merge(withOwnJson, Pushed(modelStructure), L, W, out _))!["structure"]!;
+    Check("what the designer typed (deck capacity, natural frequency) stays; the grid is the model's", mergedOwn["deck_capacity_kn_m2"]!.GetValue<double>() == 6.5 && mergedOwn["natural_frequency_hz"]!.GetValue<double>() == 7.2
+          && mergedOwn["grid_lines"]!.AsArray().Count == 3 && (string?)mergedOwn["grid_lines"]![0]!["name"] == "1");
+    Check("the analysis reads the kept deck capacity as entered", Run(LiveStructureMerge.Merge(withOwnJson, Pushed(modelStructure), L, W, out _)).assumptionUses.Single().state == "entered");
+
+    // never another roof's grid, never an empty one
+    var otherRoof = LiveStructureMerge.Merge(bare, Pushed(modelStructure), L + 5, W, out var otherNote);
+    Check("a model roof of another size: the layout is left exactly as it was, and the note says why", otherRoof == bare && otherNote.Contains("is not the layout's roof"), otherNote);
+    var emptyModel = LiveStructureMerge.Merge(bare, Pushed(null), L, W, out var emptyNote);
+    Check("a model with nothing under the roof: the layout is left as it was, a regular grid is assumed and said", emptyModel == bare && emptyNote.Contains("regular grid is assumed"), emptyNote);
+    var emptyLists = LiveStructureMerge.Merge(withOwnJson, Pushed(new JsonObject { ["grid_lines"] = new JsonArray(), ["columns"] = new JsonArray() }), L, W, out var emptyListsNote);
+    Check("empty lists count as nothing: the layout's own structure is kept", emptyLists == withOwnJson && emptyListsNote.Contains("structure the layout carries"), emptyListsNote);
+    Check("within the tolerance the roof is the same roof", LiveStructureMerge.Merge(bare, Pushed(modelStructure), L + 0.05, W - 0.05, out _) != bare);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 

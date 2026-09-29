@@ -28,6 +28,9 @@ namespace SportfyRevit
                 return Result.Failed;
             }
 
+            // The grid, columns, beams and walls as they stand in the open model now, not only as the last push carried them (LiveStructure).
+            baseJson = LiveStructure.Apply(commandData.Application.ActiveUIDocument?.Document, baseJson, out _);
+
             var review = false;
             while (true)
             {
