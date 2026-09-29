@@ -37,8 +37,10 @@ namespace SportfyRevit
         }
 
         /// <param name="frame">The unit's local frame in the WORLD, in metres: <see cref="UnitFrame.ToWorld"/> gives the world point (metres) for a local one.</param>
+        /// <param name="roofId">RoofBoundaryServer's id for the roof this unit belongs to (a self-test or other roof-less caller can leave the default), stamped on every
+        /// instance so <see cref="ClearKind"/> only wipes this roof's own units of a kind, never another pushed roof's.</param>
         internal static UnitPlacement Place(Document doc, UnitPlan plan, UnitFrame frame, FamilySymbol barSymbol, FamilySymbol surfaceSymbol,
-                                            WorksetId dynamicWorkset, WorksetId structureWorkset, string unitKey)
+                                            WorksetId dynamicWorkset, WorksetId structureWorkset, string unitKey, string roofId = "0")
         {
             SportifySharedParameters.EnsureBound(doc);
             var placed = new UnitPlacement();
@@ -47,14 +49,14 @@ namespace SportfyRevit
             {
                 var world = new BarPlan { Role = bar.Role, P0 = frame.ToWorld(bar.P0), P1 = frame.ToWorld(bar.P1), SizeU = bar.SizeU, SizeV = bar.SizeV, U = frame.DirToWorld(bar.U), Dynamic = bar.Dynamic };
                 var instance = PlaceAdaptive(doc, barSymbol, world.Corners().Select(Ft).ToList());
-                Tag(instance, bar.Role, unitKey, ++n, bar.Dynamic ? dynamicWorkset : structureWorkset);
+                Tag(instance, bar.Role, unitKey, ++n, bar.Dynamic ? dynamicWorkset : structureWorkset, roofId);
                 placed.Ids.Add(instance.Id); placed.Bars++;
             }
             foreach (var surface in plan.Surfaces)
             {
                 var corners = new[] { surface.A, surface.B, surface.C, surface.D }.Select(frame.ToWorld).Select(Ft).ToList();
                 var instance = PlaceAdaptive(doc, surfaceSymbol, corners);
-                Tag(instance, surface.Role, unitKey, ++n, surface.Dynamic ? dynamicWorkset : structureWorkset);
+                Tag(instance, surface.Role, unitKey, ++n, surface.Dynamic ? dynamicWorkset : structureWorkset, roofId);
                 placed.Ids.Add(instance.Id); placed.Surfaces++;
             }
             doc.Regenerate();
@@ -62,10 +64,13 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// Deletes an earlier placement of this kind (the generic-model instances tagged Sportify_Category = "kinetics" whose unit key starts with the kind's), and only this kind's:
-        /// the fence placed yesterday stays when the louvre is placed today. Includes the single blades an earlier version placed on a pergola. Inside a transaction.
+        /// Deletes an earlier placement of this kind on this roof (the generic-model instances tagged Sportify_Category = "kinetics" whose unit key starts with the kind's
+        /// AND whose Sportify_RoofId matches), and only this kind's on this roof: the fence placed yesterday stays when the louvre is placed today, and the OTHER pushed
+        /// roof's units of the very same kind stay too — a unit built before this roof-id tagging existed has no Sportify_RoofId and is left alone by any roof-scoped
+        /// clear (it never collides, since a fresh clear only ever matches its own new roofId). Includes the single blades an earlier version placed on a pergola. Inside
+        /// a transaction.
         /// </summary>
-        internal static int ClearKind(Document doc, KineticKind kind)
+        internal static int ClearKind(Document doc, KineticKind kind, string roofId = "0")
         {
             var prefixes = kind switch
             {
@@ -77,18 +82,20 @@ namespace SportfyRevit
             };
             var toDelete = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
                 .Where(el => el.LookupParameter("Sportify_Category")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue &&
+                             el.LookupParameter("Sportify_RoofId")?.AsString() == roofId &&
                              prefixes.Any(p => (el.LookupParameter("Sportify_Variant")?.AsString() ?? "").StartsWith(p, StringComparison.OrdinalIgnoreCase)))
                 .Select(el => el.Id).ToList();
             if (toDelete.Count > 0) doc.Delete(toDelete);
             return toDelete.Count;
         }
 
-        static void Tag(FamilyInstance instance, string role, string unitKey, int index, WorksetId workset)
+        static void Tag(FamilyInstance instance, string role, string unitKey, int index, WorksetId workset, string roofId)
         {
             SportifyLayoutBuilder.SetWorkset(instance, workset);
             SportifySharedParameters.SetValues(instance, category: SportifyKineticFamilyBuilder.KineticsCategoryValue, typeId: role, variant: unitKey,
                 qualityLevel: null, norm: "Kinetics (screening, PRELIMINARY until the inputs are entered)", lengthM: null, widthM: null,
                 referenceMaterial: null, referenceProvider: null, qualityKey: unitKey + "_" + role + "_" + index);
+            SportifySharedParameters.SetRoofId(instance, roofId);
         }
     }
 }

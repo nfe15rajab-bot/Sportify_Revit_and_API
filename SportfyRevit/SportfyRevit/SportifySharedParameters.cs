@@ -34,6 +34,9 @@ namespace SportfyRevit
             // (the circulation diagram, say) to show instead of the element's own Revit family/type name, which for a
             // generated placeholder or family is an internal identifier (e.g. "ACTIVITY_PICKLEBALL_COURT"), not prose.
             "Sportify_Label",
+            // which pushed roof (RoofBoundaryServer's roofId) an element belongs to, so a kind-scoped clear (Kinetics'
+            // AdaptiveUnitPlacer.ClearKind) can wipe only that roof's own units and leave another roof's alone.
+            "Sportify_RoofId",
         };
 
         // one attempt per document (a project opened later in the same session gets its own): the parameters are bound in a document, not in the session
@@ -185,6 +188,9 @@ namespace SportfyRevit
             TrySet(element, "Sportify_QualityKey", qualityKey);
             TrySet(element, "Sportify_Label", label);
         }
+
+        /// <summary>Stamps which pushed roof an element belongs to. Best-effort, like <see cref="SetValues"/>.</summary>
+        public static void SetRoofId(Element element, string roofId) => TrySet(element, "Sportify_RoofId", roofId);
 
         private static void TrySet(Element element, string paramName, string? value)
         {

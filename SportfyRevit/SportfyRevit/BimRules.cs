@@ -46,7 +46,8 @@ namespace SportfyRevit
                 case ElementKind.FamilyInstance:
                     var garden = isPlanting
                                  || string.Equals(sportifyCategory, "garden", StringComparison.OrdinalIgnoreCase)
-                                 || string.Equals(sportifyCategory, "vegetation", StringComparison.OrdinalIgnoreCase);
+                                 || string.Equals(sportifyCategory, "vegetation", StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(sportifyCategory, "gardenBlock", StringComparison.OrdinalIgnoreCase);
                     if (garden) return GardensWorkset;
                     return string.Equals(sportifyCategory, "furniture", StringComparison.OrdinalIgnoreCase) ? FurnitureWorkset : SportsWorkset;
                 default:

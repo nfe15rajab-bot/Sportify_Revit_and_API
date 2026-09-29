@@ -629,7 +629,10 @@ namespace SportfyRevit
             // furniture gets its own workset too (BimRules.WorksetFor has the same three-way split, used by "Organize
             // Multi-Worksets" to put a piece back where an import like this one put it — kept in sync with it here).
             bool isGarden = string.Equals(p.Category, "garden", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(p.Category, "vegetation", StringComparison.OrdinalIgnoreCase);
+                            || string.Equals(p.Category, "vegetation", StringComparison.OrdinalIgnoreCase)
+                            // the web app's Garden blocks (Planter S/T, Park Bench and Table): pushed with
+                            // category "gardenBlock" (combineController.js sets category = item.kind), not "garden".
+                            || string.Equals(p.Category, "gardenBlock", StringComparison.OrdinalIgnoreCase);
             bool isFurniture = !isGarden && string.Equals(p.Category, "furniture", StringComparison.OrdinalIgnoreCase);
             var worksetId = worksets[isGarden ? "Gardens" : isFurniture ? "Furniture" : "Sports"];
 

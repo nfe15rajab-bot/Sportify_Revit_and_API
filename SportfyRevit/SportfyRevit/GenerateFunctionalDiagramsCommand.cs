@@ -299,7 +299,11 @@ namespace SportfyRevit
                 ViewDefaults.DisableCrop(view);
             }
 
-            view.DetailLevel = ViewDetailLevel.Fine;
+            // A view template (SportifyTemplateBuilder's German/English ones) can take control of Detail Level; setting
+            // it on a view whose template already controls it throws "The Detail Level of this view cannot be
+            // modified," which used to roll back this whole transaction — the circulation view along with it.
+            var detailLevel = view.get_Parameter(BuiltInParameter.VIEW_DETAIL_LEVEL);
+            if (detailLevel != null && !detailLevel.IsReadOnly) view.DetailLevel = ViewDetailLevel.Fine;
             view.DisplayStyle = DisplayStyle.ShadingWithEdges;
             HideSetbackLine(doc, view);
 

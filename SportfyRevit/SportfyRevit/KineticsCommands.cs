@@ -496,11 +496,12 @@ namespace SportfyRevit
                 var bar = AdaptiveFamilyBuilder.GetOrLoad(doc, true);
                 var surface = AdaptiveFamilyBuilder.GetOrLoad(doc, false);
                 var ws = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.KineticFurniture });
-                foreach (var kind in contexts.Select(c => c.Kind).Distinct()) AdaptiveUnitPlacer.ClearKind(doc, kind);
+                var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
+                foreach (var kind in contexts.Select(c => c.Kind).Distinct()) AdaptiveUnitPlacer.ClearKind(doc, kind, roofId);
                 var all = new List<ElementId>();
                 foreach (var u in allUnits)
                 {
-                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key);
+                    var placed = AdaptiveUnitPlacer.Place(doc, u.Plan, u.Host.Frame, bar, surface, ws[SportifyWorksetSet.KineticFurniture], ws[SportifyWorksetSet.KineticFurniture], u.Host.Key, roofId);
                     u.Dto.PartsPlaced = placed.Bars + placed.Surfaces;
                     u.Dto.Phase = SportifyPhases.PostAnalysis;
                     all.AddRange(placed.Ids);
