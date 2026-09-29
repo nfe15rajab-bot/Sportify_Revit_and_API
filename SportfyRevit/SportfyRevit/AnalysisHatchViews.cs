@@ -42,34 +42,38 @@ namespace SportfyRevit
             var originZFt = SportifyLayoutBuilder.FeetFromMeters(layout.RoofContext?.WorldOriginZM ?? 0);
             var cache = new Dictionary<string, ElementId>();
             var analysisWorksetId = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.Analysis })[SportifyWorksetSet.Analysis];
+            var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
 
-            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "structural_loads", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, roofId, "structural_loads", () =>
             {
                 var inputs = StructureLayoutAdapter.ToInputs(layout);
                 return inputs.Items.Count == 0 ? null : PhysicalAnalysisPdf.StructuralShapes(StructureModel.Analyse(inputs));
             });
-            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "wind_erosion", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, roofId, "wind_erosion", () =>
             {
                 var inputs = WindLayoutAdapter.ToInputs(layout);
                 return inputs.Zones.Count == 0 && inputs.Plants.Count == 0 ? null : PhysicalAnalysisPdf.WindShapes(inputs, WindModel.Analyse(inputs));
             });
-            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, "sun_and_shading", () =>
+            TryBuild(doc, frame, originZFt, cache, analysisWorksetId, roofId, "sun_and_shading", () =>
             {
                 var inputs = SunLayoutAdapter.ToInputs(layout);
                 return inputs.Structure.Items.Count == 0 ? null : PhysicalAnalysisPdf.SunShapes(inputs, SunModel.Analyse(inputs));
             });
         }
 
-        private static void TryBuild(Document doc, RoofFrame frame, double originZFt, Dictionary<string, ElementId> cache, WorksetId analysisWorksetId, string key, Func<List<PlanShape>?> compute)
+        private static void TryBuild(Document doc, RoofFrame frame, double originZFt, Dictionary<string, ElementId> cache, WorksetId analysisWorksetId, string roofId, string key, Func<List<PlanShape>?> compute)
         {
             try
             {
                 var shapes = compute();
                 if (shapes == null || shapes.Count == 0) return;
 
-                var title = ViewTitles.First(v => v.Key == key).Title;
+                // Roof-scoped like the circulation/axonometric views (GenerateFunctionalDiagramsCommand.RoofScopedName):
+                // a fixed title here was the same shared-view bug — building "Sportify - Structural Loads" for a second
+                // roof reused and overwrote the first roof's hatches instead of the two coexisting.
+                var title = GenerateFunctionalDiagramsCommand.RoofScopedName(ViewTitles.First(v => v.Key == key).Title);
                 var view = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc, title, configure: false);
-                var found = SportifyElementScan.Find(doc);
+                var found = SportifyElementScan.Find(doc, roofId);
                 if (!found.IsEmpty) GenerateFunctionalDiagramsCommand.FixViewRangeForRoof(view, found);
 
                 var stale = new FilteredElementCollector(doc, view.Id).OfClass(typeof(FilledRegion)).ToElementIds();
