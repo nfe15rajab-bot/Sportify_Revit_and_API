@@ -10,7 +10,7 @@ This repository holds the Revit add-in, the local API and database, the analyses
 
 **You need** Windows 10/11 (64-bit), **Revit 2025**, about 600 MB of disk space and an internet connection during setup. Google Chrome is recommended. Unity and SOLIDWORKS are optional.
 
-1. Close Revit and run **`Sportify-Setup-0.1.0-beta.2-Revit2025.exe`**.
+1. Close Revit and run **`Sportify-Setup-0.1.0-beta.3-Revit2025.exe`**.
 2. Windows may show a blue *"Windows protected your PC"* screen, because the installer is not signed by a certificate Windows trusts. Click **More info → Run anyway**.
 3. Accept the license and keep the suggested folders. Click **Install**, then **Finish**, leaving *Open the Sportify web app* ticked.
 4. Chrome opens the web app at `http://localhost:5107/`. Later, open it again from the Start menu: **Sportify web app**.
@@ -35,7 +35,7 @@ The full walkthrough is in the user guide, installed as a PDF (Start menu → *S
 |---|---|
 | `SportfyRevit/` | The Revit 2025 add-in (C#, .NET 8): the ribbon tab, Push to Sportify, Import Configuration, the analyses, Kinetics, BIM & documentation, and the local server the web app talks to (port 5679) |
 | `Sportify.Api/` | The local API (ASP.NET Core + SQLite `reference.db`): sport fields, build-ups, materials, plants and prices. When installed, it also serves the web app on port 5107 |
-| `Sportify.Simulation/` | The Unity project for the analysis films, the Unity-free analysis cores they share with the add-in, and **`Tools/`**: the automated check suite (`node Tools/run-checks.js`, 45 checks) |
+| `Sportify.Simulation/` | The Unity project for the analysis films, the Unity-free analysis cores they share with the add-in, and **`Tools/`**: the automated check suite (`node Tools/run-checks.js`, 46 checks) |
 | `Sportify.Mechanical/` | The SOLIDWORKS bridge for Kinetics (assembly + STEP) |
 | `Sportify.Setup/` | The Inno Setup installer, the library (templates, families, worksets), the user guide and the installer test |
 | `BuildDistribution.ps1` | Builds the add-in, publishes the API, signs, and makes the installer (see [RELEASING.md](RELEASING.md)) |
