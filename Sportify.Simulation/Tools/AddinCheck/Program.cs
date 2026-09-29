@@ -1889,6 +1889,33 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("the name is also a file name in the cache: nothing a file name cannot hold", SportifyFamilyNames.Generated("ACTIVITY_A/B:C", 100, 100, null).IndexOfAny(Path.GetInvalidFileNameChars()) < 0);
 }
 
+// ---------------------------------------------------------------------------------------------------------------- the indoor zone's walls and door
+{
+    Console.WriteLine("\n===== the indoor zone's walls and door (IndoorWallPlan) =====");
+    // exactly what algoPlacementCore.js buildIndoorWall gives for a zone [47.5, 0, 67.5, 6.8] at the roof's right edge (0.3 m wall, clamped to the roof),
+    // door on the south side in the middle: N, the south side cut in two round the door, W, E
+    var rects = new List<double[]>
+    {
+        new[] { 47.35, 0, 67.5, 0.15 },                          // N (on the roof's edge: half thickness)
+        new[] { 47.35, 6.65, 57.0, 6.95 }, new[] { 58.0, 6.65, 67.5, 6.95 },   // S, round the door
+        new[] { 47.35, 0.15, 47.65, 6.65 },                      // W
+        new[] { 67.35, 0.15, 67.5, 6.65 },                       // E (on the roof's edge)
+    };
+    var door = new[] { 57.0, 6.65, 58.0, 6.95 };
+    var with = IndoorWallPlan.Make(rects, door, "S", 0.3, withDoor: true);
+    var hostW = with.Walls.SingleOrDefault(w => w.HostsDoor);
+    Check("with a door family: the door's side is one wall again (4 walls), and the door is placed in it", with.Walls.Count == 4 && hostW != null
+          && Math.Abs(hostW.X0 - 47.35) < 1e-9 && Math.Abs(hostW.X1 - 67.5) < 1e-9 && Math.Abs(hostW.Y0 - 6.8) < 1e-9 && Math.Abs(hostW.Y1 - 6.8) < 1e-9,
+          string.Join(" | ", with.Walls.Select(w => $"{w.X0},{w.Y0}->{w.X1},{w.Y1} t{w.ThicknessM}{(w.HostsDoor ? " door" : "")}")));
+    Check("the door is in the middle of its opening, 1 m wide, on the south side", with.Door != null && Math.Abs(with.Door.X - 57.5) < 1e-9 && Math.Abs(with.Door.Y - 6.8) < 1e-9
+          && Math.Abs(with.Door.WidthM - 1.0) < 1e-9 && with.Door.Side == "S");
+    Check("every wall runs along its strip's long side, on its centre line, as thick as the strip (the edge ones half)",
+          with.Walls.Any(w => Math.Abs(w.Y0 - 0.075) < 1e-9 && Math.Abs(w.ThicknessM - 0.15) < 1e-9) && with.Walls.Any(w => Math.Abs(w.X0 - 47.5) < 1e-9 && w.X0 == w.X1 && Math.Abs(w.ThicknessM - 0.3) < 1e-9));
+    var without = IndoorWallPlan.Make(rects, door, "S", 0.3, withDoor: false);
+    Check("without a door family: five walls, the opening left open, no door", without.Walls.Count == 5 && !without.Walls.Any(w => w.HostsDoor) && without.Door == null);
+    Check("no door in the layout: the strips as they are", IndoorWallPlan.Make(rects, null, null, 0.3, true).Walls.Count == 5);
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 

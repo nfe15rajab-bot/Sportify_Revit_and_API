@@ -40,6 +40,12 @@ namespace SportfyRevit
         /// to be placements: a zone has no fixed size and is not an object.
         /// </summary>
         [JsonPropertyName("zones")] public List<ZoneDto>? Zones { get; set; }
+
+        /// <summary>
+        /// The walls of the indoor zone and its door (the Algorithmic placement's buildIndoorWall, carried on the Combine board as combineState.walls):
+        /// full-thickness strips in the plan, the door's opening, and which side it is on. IndoorWallBuilder builds them as Revit walls with a door.
+        /// </summary>
+        [JsonPropertyName("walls")] public List<IndoorWallDto>? IndoorWalls { get; set; }
         [JsonPropertyName("roof_finish")] public RoofFinishDto? RoofFinish { get; set; }
 
         /// <summary>
@@ -1069,6 +1075,24 @@ namespace SportfyRevit
         [JsonPropertyName("category")] public string? Category { get; set; }
         [JsonPropertyName("norm")] public string? Norm { get; set; }
         [JsonPropertyName("dimensions")] public DimensionsDto? Dimensions { get; set; }
+    }
+
+    /// <summary>One wall of the indoor zone: strips [x0, y0, x1, y1] in plan metres (x right, y down), each a full-thickness piece of wall; the door's opening.</summary>
+    internal class IndoorWallDto
+    {
+        [JsonPropertyName("thickness_m")] public double ThicknessM { get; set; }
+        [JsonPropertyName("rects_m")] public List<List<double>>? RectsM { get; set; }
+        [JsonPropertyName("door")] public IndoorDoorDto? Door { get; set; }
+    }
+
+    /// <summary>The door's opening in the wall (plan metres) and the side of the zone it is on: N, S, W or E.</summary>
+    internal class IndoorDoorDto
+    {
+        [JsonPropertyName("x0")] public double X0 { get; set; }
+        [JsonPropertyName("y0")] public double Y0 { get; set; }
+        [JsonPropertyName("x1")] public double X1 { get; set; }
+        [JsonPropertyName("y1")] public double Y1 { get; set; }
+        [JsonPropertyName("side")] public string? Side { get; set; }
     }
 
     /// <summary>A ball-stop fence of the design: edge top | bottom | left | right, the stretch along it (x for top/bottom, y for left/right), its height, metres.</summary>

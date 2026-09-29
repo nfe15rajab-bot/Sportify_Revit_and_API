@@ -33,6 +33,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\LiveStructureMerge.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\PlacementFit.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyFamilyNames.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\IndoorWallPlan.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AnalysisAssumptionsPatcher.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofBoundaryServer.cs" />

@@ -187,6 +187,15 @@ namespace SportfyRevit
             var nodeStyle = GetOrCreateLineStyle(doc, BimRules.CirculationNodeLineStyle);
             var setbackStyle = GetOrCreateLineStyle(doc, BimRules.SetbackLineStyle);
 
+            // The indoor zone's walls and door round the locker and bathroom modules (IndoorWallBuilder): after the pieces, which they enclose.
+            // A wall that fails is said, not allowed to take the whole import down with it.
+            try { IndoorWallBuilder.Build(doc, layout, worksets["Sports"], createdIds, prepared.DoorSymbol, prepared.DoorNote); }
+            catch (Exception ex)
+            {
+                ImportDiagnostics.Note($"the indoor zone's walls could not be built: {ex.Message}");
+                SportifyLog.Warn("walls", "the indoor zone's walls could not be built: " + ex);
+            }
+
             CreateRoofBoundary(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], createdIds);
             CreateSetbackBoundary(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], createdIds, setbackStyle);
             int pathCount = CreateCirculationPaths(doc, layout, originXFt, originYFt, worksets["AnnotationsAndTags"], circulationStyle, nodeStyle, createdIds);

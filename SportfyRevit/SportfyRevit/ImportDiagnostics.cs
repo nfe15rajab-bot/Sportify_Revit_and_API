@@ -129,6 +129,10 @@ namespace SportfyRevit
         /// <summary>A remark that is neither a success nor a failure of one piece.</summary>
         public static void Note(string message) => Lines.Add($"NOTE {message}");
 
+        /// <summary>The indoor zone's walls (IndoorWallBuilder).</summary>
+        public static void IndoorWallsBuilt(int walls, double thicknessM, double heightM, string level, string door)
+            => Lines.Add($"WAL  Indoor zone → {walls} wall(s), {thicknessM * 100:0} cm thick, {heightM:0.#} m high on the roof (level \"{level}\"), {door}");
+
         /// <summary>A family whose geometry was not centred on its insertion point, or lay across its piece, was put on its footprint (PlacementFit).</summary>
         public static void Fitted(string label, bool quarterTurn, double movedM)
             => Lines.Add($"FIT  {label} → " + (quarterTurn ? "turned 90° so its long side runs along the piece's" + (movedM > 0 ? ", and " : "") : "")

@@ -38,6 +38,10 @@ namespace SportfyRevit
 
         public int Count => _byPlacement.Count;
         public int ZoneCount => _byZone.Count;
+
+        /// <summary>The door of the indoor zone's wall (SportifyDoorFamily), or null with the reason in DoorNote: then the opening is left open.</summary>
+        public FamilySymbol? DoorSymbol { get; internal set; }
+        public string DoorNote { get; internal set; } = "";
     }
 
     /// <summary>
@@ -98,6 +102,13 @@ namespace SportfyRevit
             }
 
             PrepareZoneTrays(doc, layout, prepared);
+
+            // The indoor zone's door: loading or making a family needs its own transaction, so it is settled here, before the import's (IndoorWallBuilder).
+            if ((layout.IndoorWalls ?? new List<IndoorWallDto>()).Any(w => w.Door != null))
+            {
+                prepared.DoorSymbol = SportifyDoorFamily.GetOrCreate(doc, out var doorNote);
+                prepared.DoorNote = doorNote;
+            }
 
             SportifyLog.Info("families", $"{placements.Count} placement(s), {byKey.Count} distinct family key(s), " +
                                           $"{prepared.Count} resolved; failures: {placements.Count(p => prepared.For(p).SymbolId == null && !IsFloor(p, assemblyKeys))}");
