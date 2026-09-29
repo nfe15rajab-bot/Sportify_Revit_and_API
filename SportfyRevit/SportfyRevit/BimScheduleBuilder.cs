@@ -151,6 +151,16 @@ namespace SportfyRevit
                 if (template != null) schedule.ViewTemplateId = template.Id;
             }
             catch (Exception ex) { notes.Add($"\"{schedule.Name}\": the Sportify schedule template could not be applied: {ex.Message.Split('\n')[0]}"); }
+
+            // Same "Sportify" Project Browser folder the German/English template's own sheets and schedules get
+            // (SportifyTemplateBuilder.SetBrowserGrouping) — a project without that parameter (another template) is
+            // simply left, same best-effort rule as the phase and template above.
+            try
+            {
+                var grouping = schedule.LookupParameter("Projektbrowser Plangliederung");
+                if (grouping != null && !grouping.IsReadOnly && grouping.AsString() != "Sportify") grouping.Set("Sportify");
+            }
+            catch (Exception) { /* a project without that parameter */ }
         }
 
         /// <summary>What a generated schedule holds, for the message to the user and the log: "name: 5 fields, 7 rows". Call after the transaction that made it.</summary>

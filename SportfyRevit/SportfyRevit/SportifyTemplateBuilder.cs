@@ -26,6 +26,7 @@ namespace SportfyRevit
             var templates = EnsureViewTemplates(doc, set, made, notes);
             EnsureStaticFilters(doc, set, templates, made, notes);
             var schedules = SportifyScheduleFactory.EnsureAll(doc, set, templates, made, notes);
+            foreach (var schedule in schedules.Values) SetBrowserGrouping(schedule);
 
             var found = SportifyElementScan.Find(doc);
             var views = new Dictionary<string, View>();
@@ -254,6 +255,19 @@ namespace SportfyRevit
             catch (Exception) { /* a project without that parameter (another template) */ }
         }
 
+        /// <summary>Files a Sportify-made sheet or schedule under one "Sportify" folder in whichever Project Browser organization is grouping by this parameter (the
+        /// German template's own "Gliederung" one, e.g.) — otherwise every one of them sits loose at the browser's root, mixed in alphabetically with the phase folders
+        /// (VORPLANUNG, ENTWURFSPLANUNG, ...) a person has to scroll past to find them. Same sibling parameter as SetPhase's, same best-effort rule.</summary>
+        internal static void SetBrowserGrouping(Element element)
+        {
+            try
+            {
+                var p = element.LookupParameter("Projektbrowser Plangliederung");
+                if (p != null && !p.IsReadOnly && p.AsString() != "Sportify") p.Set("Sportify");
+            }
+            catch (Exception) { /* a project without that parameter (another template) */ }
+        }
+
         /// <summary>A template with Revit's views hidden still needs one view to open on: an empty roof plan on the lowest level, replaced by the real ones after an import.</summary>
         private static void EnsurePlaceholderView(Document doc, SportifyTemplateSet set, Dictionary<string, View> templates, List<string> made)
         {
@@ -298,6 +312,7 @@ namespace SportfyRevit
                         made.Add($"Sheet {spec.Number} {spec.Name} ({spec.Size})");
                     }
                     SetPhase(set, sheet!, spec.PhaseKey);
+                    SetBrowserGrouping(sheet!);
 
                     var (w, h) = SheetSize(spec.Size);
                     foreach (var key in spec.Views)

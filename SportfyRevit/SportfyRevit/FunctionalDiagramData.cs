@@ -24,10 +24,11 @@ namespace SportfyRevit
 
         static double M(double feet) => UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Meters);
 
-        /// <summary>Everything the diagrams need, in one pass over what the last import built. Best-effort per element: one piece that cannot be read is skipped, not fatal.</summary>
-        public static Data Collect(Document doc)
+        /// <summary>Everything the diagrams need, in one pass over what the last import built. Best-effort per element: one piece that cannot be read is skipped, not fatal.
+        /// `roofId`: only that roof's own placements, so a project with two roofs pushed draws one roof's spine/bubble diagram at a time instead of mixing both into one.</summary>
+        public static Data Collect(Document doc, string? roofId = null)
         {
-            var elements = SportifyElementScan.Find(doc).Elements;
+            var elements = SportifyElementScan.Find(doc, roofId).Elements;
 
             // labels: TextNote.Create put each piece's own label at its exact X, Y (FamilyPlacementBuilder.PlaceComponent — only Z differs, by the label's own thickness offset),
             // so "the text note at this X, Y" is a precise, reliable match — no fuzzy nearest-neighbour search needed.

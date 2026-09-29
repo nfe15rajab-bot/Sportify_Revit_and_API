@@ -98,8 +98,9 @@ namespace SportfyRevit
         /// </summary>
         private static (string? Circulation, string? Axo) TryExportDiagramImages(Document doc)
         {
+            var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
             // what there is to draw is decided by what the import created, not by whether the project has worksets (the views work either way)
-            if (SportifyElementScan.Find(doc).IsEmpty) return (null, null);
+            if (SportifyElementScan.Find(doc, roofId).IsEmpty) return (null, null);
 
             try
             {
@@ -108,8 +109,8 @@ namespace SportfyRevit
                 using (var t = new Transaction(doc, "Sportify report: ensure diagram views"))
                 {
                     t.Start();
-                    circulationView = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc);
-                    axoView = GenerateFunctionalDiagramsCommand.CreateOrReuseAxonometricView(doc);
+                    circulationView = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc, GenerateFunctionalDiagramsCommand.RoofScopedCirculationName());
+                    axoView = GenerateFunctionalDiagramsCommand.CreateOrReuseAxonometricView(doc, GenerateFunctionalDiagramsCommand.RoofScopedAxoName());
                     t.Commit();
                 }
 

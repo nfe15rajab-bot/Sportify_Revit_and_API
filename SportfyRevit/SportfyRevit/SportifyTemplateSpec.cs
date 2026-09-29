@@ -129,15 +129,15 @@ namespace SportfyRevit
                 new ScheduleSpec("areas", areas, "areas"), new ScheduleSpec("costs", costs, "costs"),
             };
 
-            // numbered "S<phase>-<nn>": plans on A1, lists on A3
+            // numbered "S<phase>-<nn>": plans on A0, lists on A3
             var none = Array.Empty<string>();
             var sheets = new[]
             {
-                new SheetSpec("S2-01", sheetNames[0], "A1", "2", new[] { "plan" }, none),
-                new SheetSpec("S2-02", sheetNames[1], "A1", "2", new[] { "kinds" }, none),
-                new SheetSpec("S2-03", sheetNames[2], "A1", "2", new[] { "zones" }, none),
-                new SheetSpec("S2-04", sheetNames[3], "A1", "2", new[] { "circulation" }, none),
-                new SheetSpec("S2-05", sheetNames[4], "A1", "2", new[] { "axo" }, none),
+                new SheetSpec("S2-01", sheetNames[0], "A0", "2", new[] { "plan" }, none),
+                new SheetSpec("S2-02", sheetNames[1], "A0", "2", new[] { "kinds" }, none),
+                new SheetSpec("S2-03", sheetNames[2], "A0", "2", new[] { "zones" }, none),
+                new SheetSpec("S2-04", sheetNames[3], "A0", "2", new[] { "circulation" }, none),
+                new SheetSpec("S2-05", sheetNames[4], "A0", "2", new[] { "axo" }, none),
                 new SheetSpec("S2-10", sheetNames[5], "A3", "2", none, new[] { "sheets", "views" }),
                 new SheetSpec("S2-11", sheetNames[6], "A3", "2", none, new[] { "equipment", "planting" }),
                 new SheetSpec("S2-12", sheetNames[7], "A3", "2", none, new[] { "buildups" }),

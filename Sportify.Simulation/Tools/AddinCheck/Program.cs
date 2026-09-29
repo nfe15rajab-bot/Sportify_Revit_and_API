@@ -1010,7 +1010,7 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     // Functional Diagrams and the report do not need worksets: what there is to draw is decided by what the import created
     var diagrams = allSources.FirstOrDefault(kv => kv.Key.EndsWith("GenerateFunctionalDiagramsCommand.cs")).Value ?? "";
     Check("Functional Diagrams works without worksets: what there is to draw is decided by the import's ledger, not doc.IsWorkshared, and every piece is styled (grey, labelled) and the circulation bold red the same way whether or not the project has worksets — nothing is hidden by view to fake that",
-          diagrams.Contains("SportifyElementScan.Find(doc).IsEmpty") && !diagrams.Contains("HideAllButCombine") && diagrams.Contains("pieceOv.SetProjectionLineColor(gray)"));
+          diagrams.Contains("SportifyElementScan.Find(doc, roofId).IsEmpty") && !diagrams.Contains("HideAllButCombine") && diagrams.Contains("pieceOv.SetProjectionLineColor(gray)"));
     Check("Organize Multi-Worksets asks before turning worksharing on (a choice with a default of leaving the project alone) instead of only refusing",
           bimSource.Contains("Turn worksharing on and organize Sportify on worksets") && bimSource.Contains("ask.DefaultButton = TaskDialogResult.CommandLink2") && bimSource.Contains("doc.EnableWorksharing("));
     Check("worksharing is only offered where Revit allows it (Document.CanEnableWorksharing): by Organize Multi-Worksets and by the import's question, so a template file or read-only document gets an explanation, not an exception",
@@ -1067,10 +1067,10 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         Check($"[{lang}] the views point at view templates that exist, the sheets at views and schedules that exist, every view and schedule is on a sheet",
               set.Views.All(v => names.Contains(v.TemplateName)) && set.Sheets.All(sh => sh.Views.All(k => set.Views.Any(v => v.Key == k)) && sh.Schedules.All(k => set.Schedules.Any(x => x.Key == k)))
               && set.Views.All(v => set.Sheets.Any(sh => sh.Views.Contains(v.Key))) && set.Schedules.All(x => set.Sheets.Any(sh => sh.Schedules.Contains(x.Key))));
-        Check($"[{lang}] sheet numbers are S<phase>-<nn> with a phase of the list, plans on A1 and lists on A3",
-              set.Sheets.All(sh => System.Text.RegularExpressions.Regex.IsMatch(sh.Number, @"^S[1-4]-\d\d$") && sh.Number[1].ToString() == sh.PhaseKey && set.Phases.Any(p => p.Key == sh.PhaseKey) && (sh.Views.Count > 0 ? sh.Size == "A1" : sh.Size == "A3")));
+        Check($"[{lang}] sheet numbers are S<phase>-<nn> with a phase of the list, plans on A0 and lists on A3",
+              set.Sheets.All(sh => System.Text.RegularExpressions.Regex.IsMatch(sh.Number, @"^S[1-4]-\d\d$") && sh.Number[1].ToString() == sh.PhaseKey && set.Phases.Any(p => p.Key == sh.PhaseKey) && (sh.Views.Count > 0 ? sh.Size == "A0" : sh.Size == "A3")));
         var titleBlocks = set.Sheets.Select(set.TitleBlockType).Distinct().ToList();
-        Check($"[{lang}] the title blocks the sheets use are ones Revit's German template has (Plankopf Ausführung / Genehmigung, A1 and A3), for both languages: it is the DIN one", titleBlocks.All(german.TitleBlocks.Contains), string.Join(", ", titleBlocks.Where(t => !german.TitleBlocks.Contains(t))));
+        Check($"[{lang}] the title blocks the sheets use are ones Revit's German template has (Plankopf Ausführung / Genehmigung, A0 and A3), for both languages: it is the DIN one", titleBlocks.All(german.TitleBlocks.Contains), string.Join(", ", titleBlocks.Where(t => !german.TitleBlocks.Contains(t))));
     }
 
     // the phases and their scales are Revit's German template's own

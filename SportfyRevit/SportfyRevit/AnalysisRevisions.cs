@@ -15,8 +15,8 @@ namespace SportfyRevit
     /// </summary>
     internal static class AnalysisRevisions
     {
-        private const string ReportSheetNumber = "SPORT-AN";
-        private const string ReportSheetName = "Sportify - Analysis Report";
+        private const string ReportSheetNumberBase = "SPORT-AN";
+        private const string ReportSheetNameBase = "Sportify - Analysis Report";
 
         private static readonly (string Key, string Title)[] TitleMap =
         {
@@ -38,14 +38,15 @@ namespace SportfyRevit
         {
             try
             {
-                var found = SportifyElementScan.Find(doc);
+                var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
+                var found = SportifyElementScan.Find(doc, roofId);
                 if (found.IsEmpty) return;      // nothing imported yet to point the cloud at
 
-                var view = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc);
+                var view = GenerateFunctionalDiagramsCommand.CreateOrReuseCirculationView(doc, GenerateFunctionalDiagramsCommand.RoofScopedCirculationName());
                 var bounds = BoundsIn(view, found.Elements);
                 if (bounds == null) return;
 
-                EnsureReportSheet(doc, view);
+                EnsureReportSheet(doc, view, roofId);
 
                 var titles = analysisTitles.Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
                 var revision = Revision.Create(doc);
@@ -61,18 +62,41 @@ namespace SportfyRevit
             }
         }
 
-        private static void EnsureReportSheet(Document doc, View view)
+        /// <summary>A0 landscape (1189 x 841 mm), same convention as SportifyTemplateBuilder's own plan sheets. The report is a plan-sized deliverable, not a schedule-sized
+        /// one, and A0 gives the circulation view room to actually be read rather than the small, cramped placement a default title block's own footprint would force.</summary>
+        private const double A0WidthMm = 1189.0, A0HeightMm = 841.0;
+        private const double MmToFt = 1.0 / 304.8;
+
+        private static void EnsureReportSheet(Document doc, View view, string roofId)
         {
-            var sheet = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().FirstOrDefault(s => s.SheetNumber == ReportSheetNumber);
+            var number = ReportSheetNumberBase + "-" + roofId;
+            var sheet = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().FirstOrDefault(s => s.SheetNumber == number);
             if (sheet == null)
             {
-                var titleblock = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).OfCategory(BuiltInCategory.OST_TitleBlocks).FirstOrDefault();
+                var titleblock = A0TitleBlock(doc);
                 sheet = ViewSheet.Create(doc, titleblock?.Id ?? ElementId.InvalidElementId);
-                sheet.SheetNumber = ReportSheetNumber;
-                sheet.Name = ReportSheetName;
+                sheet.SheetNumber = number;
+                sheet.Name = ReportSheetNameBase + " (Roof " + roofId + ")";
             }
+            SportifyTemplateBuilder.SetBrowserGrouping(sheet);
             var alreadyPlaced = new FilteredElementCollector(doc, sheet.Id).OfClass(typeof(Viewport)).Cast<Viewport>().Any(vp => vp.ViewId == view.Id);
-            if (!alreadyPlaced && Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id)) Viewport.Create(doc, sheet.Id, view.Id, new XYZ(1.0, 0.7, 0));
+            if (alreadyPlaced) return;
+            if (!Viewport.CanAddViewToSheet(doc, sheet.Id, view.Id)) return;
+
+            // Roughly centred in the upper-left ~70% of the sheet, clear of the title block strip a Plankopf family
+            // always occupies along the bottom and right edges — a fixed near-corner insertion point (the previous
+            // approach) put the view outside that clear area on some view scales, reading as "floating off the sheet."
+            var viewport = Viewport.Create(doc, sheet.Id, view.Id, new XYZ(1.0, 1.0, 0));
+            try { viewport.SetBoxCenter(new XYZ(A0WidthMm * MmToFt * 0.40, A0HeightMm * MmToFt * 0.56, 0)); }
+            catch (Exception ex) { SportifyLog.Warn("revisions", "the report view could not be centred on its sheet: " + ex.Message); }
+        }
+
+        /// <summary>Any title block type whose own name says A0 (Library or the project's own — Plankopf Ausführung/Genehmigung both have one); the project's first title
+        /// block of any size otherwise, so the sheet is still created rather than failing outright.</summary>
+        private static FamilySymbol? A0TitleBlock(Document doc)
+        {
+            var all = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).OfCategory(BuiltInCategory.OST_TitleBlocks).Cast<FamilySymbol>().ToList();
+            return all.FirstOrDefault(s => s.Name.Contains("A0", StringComparison.OrdinalIgnoreCase)) ?? all.FirstOrDefault();
         }
 
         /// <summary>The combined bounding box of `elements`, as seen in `view` (world XYZ, just culled/scoped the way GenerateFunctionalDiagramsCommand's own label placement already reads it) — null if none of them has one in this view.</summary>

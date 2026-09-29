@@ -28,13 +28,37 @@ namespace SportfyRevit
         private const string CirculationViewName = "Sportify - Circulation Diagram";
         private const string AxonometricViewName = "Sportify - Massing Axonometric";
 
+        /// <summary>A fixed view name is one shared view: with two roofs pushed, generating the diagrams for the second reused and restyled the first's, which read as
+        /// "the other roof's info got overwritten." Every caller of CreateOrReuseCirculationView/CreateOrReuseAxonometricView that is not the German/English template's own
+        /// fixed S2 sheets (a separate, larger scope this does not touch) now scopes its view name by the active roof.</summary>
+        internal static string RoofScopedName(string baseName) => baseName + " — Roof " + (RoofBoundaryServer.ActiveRoofId ?? 0);
+        internal static string RoofScopedCirculationName() => RoofScopedName(CirculationViewName);
+        internal static string RoofScopedAxoName() => RoofScopedName(AxonometricViewName);
+
+        /// <summary>Hides, in `view`, every Sportify element that belongs to a DIFFERENT pushed roof than `roofId` — the other half of the fix: a shared workset (Sports,
+        /// Gardens, ...) holds every roof's pieces together, so scoping the view's NAME is not enough by itself to keep one roof's diagram from also showing the other
+        /// roof's pieces layered in. Best-effort: an element Revit refuses to hide in this particular view is simply left, never a reason to fail the whole view.</summary>
+        internal static void HideOtherRoofs(Document doc, View view, string roofId)
+        {
+            try
+            {
+                var mine = new HashSet<ElementId>(SportifyElementScan.Find(doc, roofId).Elements.Select(e => e.Id));
+                var others = SportifyElementScan.Find(doc).Elements.Where(e => !mine.Contains(e.Id));
+                var hideable = others.Where(e => { try { return e.CanBeHidden(view); } catch (Exception) { return false; } }).Select(e => e.Id).ToList();
+                if (hideable.Count > 0) view.HideElements(hideable);
+            }
+            catch (Exception ex) { SportifyLog.Warn("diagrams", "could not hide another roof's elements in \"" + view.Name + "\": " + ex.Message); }
+        }
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             const string title = "Sportify — Generate Functional Diagrams";
             var doc = commandData.Application.ActiveUIDocument.Document;
 
+            var roofId = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
+
             // What decides whether there is anything to draw is what the import created (its ledger), not whether the project has worksets.
-            if (SportifyElementScan.Find(doc).IsEmpty)
+            if (SportifyElementScan.Find(doc, roofId).IsEmpty)
             {
                 TaskDialog.Show(title,
                     "This project holds nothing from Sportify yet — run \"Import Configuration\" or turn on \"Auto Import\" and push a layout first.");
@@ -49,8 +73,8 @@ namespace SportfyRevit
             {
                 t.Start();
 
-                var circulationView = CreateOrReuseCirculationView(doc);
-                var axoView = CreateOrReuseAxonometricView(doc);
+                var circulationView = CreateOrReuseCirculationView(doc, RoofScopedCirculationName());
+                var axoView = CreateOrReuseAxonometricView(doc, RoofScopedAxoName());
                 var groups = IterationWorksets.Find(doc);
                 how = groups.Count > 0
                     ? $"Iteration {groups[^1].Index} only — {groups.Count} imported; circulation bold red, pieces greyed out and labelled"
@@ -66,7 +90,7 @@ namespace SportfyRevit
             }
 
             // the bubble and spine diagrams: read-only over what the import built, no transaction needed
-            var data = FunctionalDiagramData.Collect(doc);
+            var data = FunctionalDiagramData.Collect(doc, roofId);
             var spineSvg = FunctionalDiagramData.SpineSvg(data);
             var bubbleSvg = FunctionalDiagramData.BubbleSvg(data);
 
@@ -78,12 +102,13 @@ namespace SportfyRevit
                 if (Directory.Exists(temp)) Directory.Delete(temp, true);
                 Directory.CreateDirectory(temp);
                 var (circulationImage, axoImage) = GenerateAnalysisReportCommand.KeepDiagrams(
-                    GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation")),
-                    GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric")));
+                    GenerateAnalysisReportCommand.ExportViewImage(doc, circulationViewId, Path.Combine(temp, "circulation_roof" + roofId)),
+                    GenerateAnalysisReportCommand.ExportViewImage(doc, axoViewId, Path.Combine(temp, "axonometric_roof" + roofId)));
 
+                // roof-suffixed: a project with two roofs pushed keeps both roofs' diagrams on disk, the second never overwriting the first's.
                 var dir = SportifyWorkspace.PathFor("diagrams", DeliverableNaming.FolderFor("diagrams"));
-                File.WriteAllText(Path.Combine(dir, "functional_spine.svg"), spineSvg);
-                File.WriteAllText(Path.Combine(dir, "functional_bubble.svg"), bubbleSvg);
+                File.WriteAllText(Path.Combine(dir, "functional_spine_roof" + roofId + ".svg"), spineSvg);
+                File.WriteAllText(Path.Combine(dir, "functional_bubble_roof" + roofId + ".svg"), bubbleSvg);
                 saved = circulationImage != null || axoImage != null ? $"\n\nAll four saved to {dir}." : $"\n\nThe two diagrams saved to {dir}.";
             }
             catch (Exception ex) { saved = "\n\nThe diagrams could not be saved: " + ex.Message; }
@@ -117,6 +142,7 @@ namespace SportfyRevit
         {
             ApplySportifyVisibility(doc, view);
             StyleCirculationDiagram(doc, view);
+            HideOtherRoofs(doc, view, (RoofBoundaryServer.ActiveRoofId ?? 0).ToString());
         }
 
         /// <summary>
@@ -306,6 +332,7 @@ namespace SportfyRevit
             if (detailLevel != null && !detailLevel.IsReadOnly) view.DetailLevel = ViewDetailLevel.Fine;
             view.DisplayStyle = DisplayStyle.ShadingWithEdges;
             HideSetbackLine(doc, view);
+            HideOtherRoofs(doc, view, (RoofBoundaryServer.ActiveRoofId ?? 0).ToString());
 
             if (doc.IsWorkshared)
             {

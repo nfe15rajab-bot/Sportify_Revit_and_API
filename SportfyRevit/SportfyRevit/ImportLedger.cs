@@ -130,15 +130,18 @@ namespace SportfyRevit
 
         /// <summary>
         /// The elements the last import of this project created and that still exist (read only: nothing is changed). The BIM & Documentation commands (schedules, view filters,
-        /// phasing, worksets) act on exactly these, so they never touch anything of the user's own.
+        /// phasing, worksets) act on exactly these, so they never touch anything of the user's own. `roofId`: only that roof's own import, when several roofs are pushed and a
+        /// caller (the functional diagrams, the analysis report's revision cloud) must not mix one roof's pieces into another's view or bounding box; null (the default) is
+        /// every roof, which is what the BIM & Documentation commands still want — they act on the whole project, not just whichever roof happens to be active.
         /// </summary>
-        public static List<Element> ReadElements(Document doc)
+        public static List<Element> ReadElements(Document doc, string? roofId = null)
         {
             var schema = GetSchema();
             var found = new List<Element>();
             var seen = new HashSet<ElementId>();
             foreach (var storage in Find(doc, schema))
             {
+                if (roofId != null && RoofIdOf(storage, schema) != roofId) continue;
                 IList<string> uniqueIds;
                 try { uniqueIds = storage.GetEntity(schema).Get<IList<string>>("ElementUniqueIds"); }
                 catch (Exception ex) { SportifyLog.Warn("ledger", "a ledger could not be read: " + ex.Message); continue; }

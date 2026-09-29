@@ -14,9 +14,12 @@ namespace SportfyRevit
             public bool IsEmpty => Elements.Count == 0;
         }
 
-        public static Found Find(Document doc)
+        /// <summary>`roofId`: only that roof's own import (see ImportLedger.ReadElements); null (the default) is every roof. The byMark fallback (a project with no ledger at
+        /// all) has no roof of its own to filter by and is returned as-is regardless — it only ever fires for a project imported before roofs were tracked, where the
+        /// multi-roof distinction this parameter exists for does not apply.</summary>
+        public static Found Find(Document doc, string? roofId = null)
         {
-            var ledger = ImportLedger.ReadElements(doc)
+            var ledger = ImportLedger.ReadElements(doc, roofId)
                 .Where(e => e is not ElementType && e is not Autodesk.Revit.DB.ExtensibleStorage.DataStorage)
                 .ToList();
             if (ledger.Count > 0) return new Found(ledger, "the last Sportify import (its ledger)");
