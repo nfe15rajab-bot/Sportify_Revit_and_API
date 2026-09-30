@@ -93,6 +93,7 @@ namespace SportfyRevit
                 if (steps.Contains("info")) ApplyInfo(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_INFO"), lines);
                 if (steps.Contains("worksets")) ShowAllWorksets(doc, lines);
                 if (steps.Contains("phases")) DesignViewsOnNewestPhase(doc, lines);
+                if (steps.Contains("strays")) RemoveStrays(doc, lines);
                 var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
                 if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
                 if (steps.Contains("titleblock"))
@@ -143,6 +144,18 @@ namespace SportfyRevit
             }
             var main = sportify.Where(x => x.DesignOption == null).ToList();
             lines.Add($"main model: {main.Count} Sportify element(s){(main.Count > 0 ? " = " + Summary(main) : "")}");
+            // every recorded import, where its elements stand: a copy built at the wrong height (a layout whose height named no roof) shows its undersides
+            // far from every roof's top (found 2026-09-30: the team's export "(6)" at 0 m, under the building, recorded as roof "0")
+            var roofsHere = RoofIdentity.BuildingRoofs(doc);
+            foreach (var e in ImportLedger.ReadEntries(doc))
+            {
+                var zs = e.Elements.Select(x => x.get_BoundingBox(null)).Where(b => b != null).Select(b => UnitUtils.ConvertFromInternalUnits(b!.Min.Z, UnitTypeId.Meters)).ToList();
+                var on = roofsHere.FirstOrDefault(r => RoofIdentity.MostlyOn(e.Elements, r.get_BoundingBox(null)));
+                lines.Add($"ledger @{e.RoofKey} {e.ImportedAtUtc:MM-dd HH:mm}Z \"{e.Source}\": {e.Elements.Count} element(s), undersides " +
+                          (zs.Count > 0 ? $"{zs.Min():0.##}..{zs.Max():0.##} m" : "-") + ", standing on " + (on == null ? "no roof or floor of the building" : $"\"{on.Name}\" (id {on.Id.Value})"));
+            }
+            foreach (var g in main.Where(x => x.LookupParameter("Sportify_QualityKey")?.AsString() == "ACTIVITY_PING_PONG").GroupBy(x => x.LookupParameter("Sportify_RoofId")?.AsString() ?? ""))
+                lines.Add($"ping pong elements on roof {g.Key}: {g.Count()}");
             foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate &&
                          (v.Name.IndexOf("Lageplan", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name.IndexOf("Achsonometrie", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name == "Schemes_Spotify")))
             {
@@ -319,6 +332,33 @@ namespace SportfyRevit
                     try { p.Set(newest.Id); lines.Add($"phases: \"{v.Name}\" (sheet {sheet.SheetNumber}) {was} -> {newest.Name}"); }
                     catch (Exception ex) { lines.Add($"phases: \"{v.Name}\" could not be set: {ex.Message}"); }
                 }
+            t.Commit();
+        }
+
+        /// <summary>
+        /// Takes away what imports recorded under a key that names no roof ("0") built entirely below SPORTIFY_FIX_STRAYS_BELOW_M (metres): a layout
+        /// whose height named no roof, built under the building (2026-09-30, the team's export "(6)" at 0 m). Run only on purpose, after the report
+        /// ("ledger @0 …") showed them; nothing happens without the height. Never touches a design option or a roof's own imports.
+        /// </summary>
+        static void RemoveStrays(Document doc, List<string> lines)
+        {
+            if (!double.TryParse(Environment.GetEnvironmentVariable("SPORTIFY_FIX_STRAYS_BELOW_M"), System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out var belowM))
+            { lines.Add("strays: SPORTIFY_FIX_STRAYS_BELOW_M is not set, nothing removed"); return; }
+            var belowFt = UnitUtils.ConvertToInternalUnits(belowM, UnitTypeId.Meters);
+            var strays = ImportLedger.ReadEntries(doc).Where(e => RoofMatch.IsUnnamedRoofKey(e.RoofKey) && e.Elements.Count > 0
+                && e.Elements.All(x => x.DesignOption == null && x.get_BoundingBox(null) is BoundingBoxXYZ b && b.Max.Z < belowFt)).ToList();
+            if (strays.Count == 0) { lines.Add($"strays: no import under an unnamed roof stands wholly below {belowM} m"); return; }
+            using var t = new Transaction(doc, "Sportify: remove imports built below the roof");
+            t.Start();
+            foreach (var e in strays)
+            {
+                var ids = e.Elements.Select(x => x.Id).Where(id => doc.GetElement(id) != null).ToList();
+                var removed = 0;
+                try { removed = doc.Delete(ids).Count; doc.Delete(e.Storage.Id); }
+                catch (Exception ex) { lines.Add($"strays: the import of {e.ImportedAtUtc:MM-dd HH:mm}Z could not be removed: {ex.Message}"); continue; }
+                lines.Add($"strays: removed the import of {e.ImportedAtUtc:MM-dd HH:mm}Z \"{e.Source}\" under roof \"{e.RoofKey}\": {ids.Count} element(s) ({removed} with what depended on them)");
+            }
             t.Commit();
         }
 
