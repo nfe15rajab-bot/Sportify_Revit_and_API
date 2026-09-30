@@ -161,6 +161,12 @@ namespace SportfyRevit
                     var groups = IterationWorksets.Find(doc);
                     var first = groups.FirstOrDefault(g => g.Index == 1);
                     if (first != null) IterationWorksets.ShowOnly(doc.ActiveView, groups, first);
+                    // every other view: Iteration 1 by default, the others hidden until a view is switched to them (Show Iteration), so three never
+                    // stand on top of each other anywhere (user, 2026-09-30; before, a fresh import showed all three in every view)
+                    var defaults = WorksetDefaultVisibilitySettings.GetWorksetDefaultVisibilitySettings(doc);
+                    foreach (var g in groups)
+                        foreach (var w in g.Worksets)
+                            if (defaults.IsWorksetVisible(w.Id) != (g.Index == 1)) defaults.SetWorksetVisibility(w.Id, g.Index == 1);
                 }
                 catch (Exception ex)
                 {

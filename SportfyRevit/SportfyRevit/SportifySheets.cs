@@ -119,6 +119,7 @@ namespace SportfyRevit
                     var missingViews = t.Views.Where(k => sheet == null || (SportifyTemplateSpec.IsDiagramKey(k) ? !Shows(sheet).Any(v => OfKind(v, k)) : Shows(sheet).Count == 0)).Select(ToPlace).OfType<View>()
                         .Where(v => !viewports.Any(vp => vp.ViewId == v.Id)).ToList();
                     var missingLists = t.Schedules.Select(ScheduleId).OfType<ElementId>().Where(id => sheet == null || !Lists(sheet).Contains(id)).ToList();
+                    var created = sheet == null;
                     if (sheet == null)
                     {
                         if (missingViews.Count == 0 && (t.Schedules.Count == 0 || missingLists.Count < t.Schedules.Count)) continue;   // a plan sheet waits for its view
@@ -132,7 +133,11 @@ namespace SportfyRevit
                         made.Add($"Sheet {t.Number}: \"{sheet.Name}\" renamed \"{t.Name}\"");
                         sheet.Name = t.Name;
                     }
-                    var resized = EnsureA0(doc, sheet, set, t, notes);
+                    // A0 for a sheet made here (or one without any title block); a sheet that exists keeps the size a person gave it (user, 2026-09-30:
+                    // the team set their axonometry sheets to A1 and the lists to A3 by hand after the first arrangement, and every redraw of the diagrams
+                    // put them back to A0)
+                    var hasTitleBlock = new FilteredElementCollector(doc, sheet.Id).OfCategory(BuiltInCategory.OST_TitleBlocks).WhereElementIsNotElementType().Any();
+                    var resized = (created || !hasTitleBlock) && EnsureA0(doc, sheet, set, t, notes);
                     if (resized) made.Add($"Sheet {t.Number} {t.Name} on A0");
                     var frame = Frame(doc, sheet);
 
@@ -178,12 +183,6 @@ namespace SportfyRevit
                     notes.Add($"Sheet {t.Number} {t.Name} could not be arranged: {ex.Message.Split('\n')[0]}");
                     SportifyLog.Warn("sheets", "sheet " + t.Number + ": " + ex);
                 }
-            }
-            // "must be all A0" (user, 2026-09-29): the Sportify sheets outside the set too (a person's extra sheet, the analysis report), content untouched
-            foreach (var extra in sheets.Where(x => !matched.ContainsValue(x) && (SportifyNumber.IsMatch(x.SheetNumber) || x.SheetNumber.StartsWith("SPORT", StringComparison.Ordinal))))
-            {
-                try { if (EnsureA0(doc, extra, set, set.Sheets[0], notes)) made.Add($"Sheet {extra.SheetNumber} {extra.Name} on A0"); }
-                catch (Exception ex) { notes.Add($"Sheet {extra.SheetNumber} could not be put on A0: {ex.Message.Split('\n')[0]}"); }
             }
             SportifyLog.Info("sheets", $"plan set arranged ({set.Language}): " + string.Join("; ", made.Where(m => m.StartsWith("Sheet")).DefaultIfEmpty("nothing to change")));
         }
