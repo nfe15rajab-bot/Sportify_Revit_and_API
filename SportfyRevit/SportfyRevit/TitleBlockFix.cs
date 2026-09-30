@@ -100,8 +100,7 @@ namespace SportfyRevit
             foreach (var x in hits)
             {
                 try { EditOne(fam, x, e, move, lines); }
-                catch (Exception ex) { lines.Add($"titleblock edit: \"{e.Match}\" on {x.Id.Value} not possible: {ex.Message.Split('
-')[0]}"); }
+                catch (Exception ex) { lines.Add($"titleblock edit: \"{e.Match}\" on {x.Id.Value} not possible: {ex.Message.Split('\n')[0]}"); }
             }
         }
 
