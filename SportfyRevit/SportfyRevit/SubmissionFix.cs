@@ -161,6 +161,15 @@ namespace SportfyRevit
                 if (pinfo.LookupParameter(n) is Parameter gp) lines.Add($"project information \"{n}\": \"{gp.AsString()}\"");
             foreach (var sh in new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().OrderBy(x => x.SheetNumber, StringComparer.Ordinal))
                 lines.Add($"people {sh.SheetNumber} \"{sh.Name}\": designed \"{sh.get_Parameter(BuiltInParameter.SHEET_DESIGNED_BY)?.AsString()}\", drawn \"{sh.get_Parameter(BuiltInParameter.SHEET_DRAWN_BY)?.AsString()}\", checked \"{sh.get_Parameter(BuiltInParameter.SHEET_CHECKED_BY)?.AsString()}\", approved \"{sh.get_Parameter(BuiltInParameter.SHEET_APPROVED_BY)?.AsString()}\"; group \"{sh.LookupParameter("Projektbrowser Plangliederung")?.AsString()}\"");
+            // which iteration each 3D / plan view shows: the "Sportify Iteration N" worksets visible in it (none = only the main model)
+            var groups = IterationWorksets.Find(doc);
+            if (groups.Count > 0)
+                foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate && (v is View3D || v is ViewPlan)))
+                {
+                    var shown = groups.Where(g => g.Worksets.Any(w => { try { return v.IsWorksetVisible(w.Id); } catch (Exception) { return false; } })).Select(g => g.Index).ToList();
+                    if (shown.Count != 1 || v.Name.IndexOf("iteration", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name.IndexOf("interation", StringComparison.OrdinalIgnoreCase) >= 0)
+                        lines.Add($"iterations in view \"{v.Name}\": {(shown.Count == 0 ? "none" : string.Join(" + ", shown))}{(shown.Count > 1 ? "  <- more than one: they stand on top of each other" : "")}");
+                }
             if (doc.IsWorkshared)
                 foreach (var ws in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
                     lines.Add($"workset \"{ws.Name}\": open {ws.IsOpen}, visible by default {ws.IsVisibleByDefault}, elements {new FilteredElementCollector(doc).WherePasses(new ElementWorksetFilter(ws.Id)).WhereElementIsNotElementType().GetElementCount()}");
