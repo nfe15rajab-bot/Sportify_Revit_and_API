@@ -92,6 +92,7 @@ namespace SportfyRevit
                 if (steps.Contains("team")) ApplyTeam(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_TEAM"), lines);
                 if (steps.Contains("info")) ApplyInfo(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_INFO"), lines);
                 if (steps.Contains("worksets")) ShowAllWorksets(doc, lines);
+                if (steps.Contains("phases")) DesignViewsOnNewestPhase(doc, lines);
                 var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
                 if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
                 if (steps.Contains("titleblock"))
@@ -280,6 +281,36 @@ namespace SportfyRevit
             t.Commit();
             lines.Add($"worksets: {madeDefault.Count} made visible by default ({string.Join(", ", madeDefault)}); {settings} hidden setting(s) cleared in {views} view(s)/template(s)"
                       + (refused > 0 ? $"; {refused} could not be changed (a view template controls them there)" : "") + "; the Sportify Iteration worksets kept as each view has them");
+        }
+
+        /// <summary>
+        /// The views on the plan set's design sheets (S2-02 roof new, S2-03 axonometric, S2-04..06 the diagrams, S2-07 a person's extra sheet) show the
+        /// newest phase (Post analysis, else Design and analysis, else the project's last): an import puts its pieces in Design and analysis, so a view
+        /// left in Existing showed none of them (found live 2026-09-30, "S2 Achsonometrie"). S2-01, the roof as it stands, keeps Existing. A view in the
+        /// newest phase still shows everything built in the earlier ones.
+        /// </summary>
+        static void DesignViewsOnNewestPhase(Document doc, List<string> lines)
+        {
+            var phases = doc.Phases.Cast<Phase>().ToList();
+            if (phases.Count < 2) { lines.Add("phases: the project has one phase"); return; }
+            var status = SportifyPhases.Read(doc);
+            var newest = status.PostAnalysis ?? status.DesignAndAnalysis ?? phases[phases.Count - 1];
+            var design = new[] { "S2-02", "S2-03", "S2-04", "S2-05", "S2-06", "S2-07" };
+            var sheets = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().Where(x => design.Contains(x.SheetNumber)).ToList();
+            using var t = new Transaction(doc, "Sportify: design views on the newest phase");
+            t.Start();
+            foreach (var sheet in sheets)
+                foreach (var id in sheet.GetAllPlacedViews())
+                {
+                    if (doc.GetElement(id) is not View v || v.IsTemplate) continue;
+                    var p = v.get_Parameter(BuiltInParameter.VIEW_PHASE);
+                    if (p == null || p.IsReadOnly) { lines.Add($"phases: \"{v.Name}\" has no phase to set"); continue; }
+                    var was = doc.GetElement(p.AsElementId())?.Name ?? "?";
+                    if (p.AsElementId() == newest.Id) continue;
+                    try { p.Set(newest.Id); lines.Add($"phases: \"{v.Name}\" (sheet {sheet.SheetNumber}) {was} -> {newest.Name}"); }
+                    catch (Exception ex) { lines.Add($"phases: \"{v.Name}\" could not be set: {ex.Message}"); }
+                }
+            t.Commit();
         }
 
         sealed record TeamMember(string Name, string? Email);

@@ -220,7 +220,9 @@ namespace SportfyRevit
                     }
                     if (spec.Kind == "circulation") GenerateFunctionalDiagramsCommand.ConfigureCirculationView(doc, (ViewPlan)view);      // after the template: it may set what is visible
                     SetPhase(set, view, spec.PhaseKey);
-                    if (isNew && spec.Kind == "plan") ShowDesignPhase(doc, view);
+                    // the views of the design show the newest phase (an import puts its pieces in Design and analysis; found live 2026-09-30: an axonometry
+                    // left in Existing showed none of them)
+                    if (isNew && spec.Kind is "plan" or "axo" or "kinds" or "zones" or "circulation") ShowDesignPhase(doc, view);
                     result[spec.Key] = view;
                     if (isNew) made.Add("View: " + spec.Name);
                 }
@@ -234,7 +236,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The roof as designed shows the newest Sportify phase (Post analysis, else Design and analysis): what the imports and Kinetics placed.</summary>
-        private static void ShowDesignPhase(Document doc, View view)
+        internal static void ShowDesignPhase(Document doc, View view)
         {
             var phases = SportifyPhases.Read(doc);
             var newest = phases.PostAnalysis ?? phases.DesignAndAnalysis;

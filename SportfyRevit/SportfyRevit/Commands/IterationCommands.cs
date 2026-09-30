@@ -143,6 +143,7 @@ namespace SportfyRevit
 
                 using var transaction = new Transaction(doc, "Sportify: import iterations as Design Options");
                 transaction.Start();
+                var warnings = ImportWarnings.On(transaction);
                 try
                 {
                     IterationLedger.RemovePrevious(doc);
@@ -168,6 +169,7 @@ namespace SportfyRevit
                 }
 
                 var status = transaction.Commit();
+                warnings.Log("iterations", "iterations import");
                 if (status != TransactionStatus.Committed)
                 {
                     message = "Revit rolled the import back when it was committed (" + status + ").";
@@ -252,6 +254,7 @@ namespace SportfyRevit
 
             using var t = new Transaction(doc, $"Sportify: {names[index]} into {optionName}");
             t.Start();
+            var optionWarnings = ImportWarnings.On(t);
             int replaced, built, inOption;
             try
             {
@@ -275,7 +278,9 @@ namespace SportfyRevit
                 try { if (t.GetStatus() == TransactionStatus.Started) t.RollBack(); } catch (Exception) { }
                 return BimCommandErrors.Failed(Title, "the iteration could not be imported into the design option", ex, ref message);
             }
-            if (t.Commit() != TransactionStatus.Committed)
+            var committed = t.Commit();
+            optionWarnings.Log("iterations", "import into a design option");
+            if (committed != TransactionStatus.Committed)
             {
                 message = "Revit rolled the import back when it was committed.";
                 return Result.Failed;

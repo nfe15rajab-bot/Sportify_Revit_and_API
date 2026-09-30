@@ -93,6 +93,7 @@ namespace SportfyRevit
 
                 using var transaction = new Transaction(doc, "Import Sportify layout");
                 transaction.Start();
+                var warnings = ImportWarnings.On(transaction);     // an automatic import has nobody to click OK on a warning (live test 2026-09-30)
                 try
                 {
                     // Everything earlier imports left on this roof goes, whatever id they were recorded under; other roofs, design options and
@@ -115,6 +116,7 @@ namespace SportfyRevit
                 }
 
                 var status = transaction.Commit();
+                warnings.Log("import", "layout import");
                 if (status != TransactionStatus.Committed)
                 {
                     outcome.Summary = null;
