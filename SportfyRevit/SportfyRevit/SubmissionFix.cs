@@ -154,6 +154,9 @@ namespace SportfyRevit
             foreach (var bip in new[] { BuiltInParameter.PROJECT_NAME, BuiltInParameter.PROJECT_NUMBER, BuiltInParameter.CLIENT_NAME, BuiltInParameter.PROJECT_ADDRESS, BuiltInParameter.PROJECT_BUILDING_NAME,
                                         BuiltInParameter.PROJECT_AUTHOR, BuiltInParameter.PROJECT_ORGANIZATION_NAME, BuiltInParameter.PROJECT_ORGANIZATION_DESCRIPTION })
                 lines.Add($"project information {bip}: \"{pinfo.get_Parameter(bip)?.AsString()}\"");
+            foreach (var n in new[] { "Verfasser eMail", "Verfasser Firma 1", "Verfasser Strasse", "Verfasser PLZ Ort", "Verfasser Telefon", "Verfasser URL",
+                                      "Bauherr", "Kundenadresse", "Kundenort", "Kundentelefon", "Kundenzusatz", "Baustellenstraße", "Baustellenort" })
+                if (pinfo.LookupParameter(n) is Parameter gp) lines.Add($"project information \"{n}\": \"{gp.AsString()}\"");
             foreach (var sh in new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().OrderBy(x => x.SheetNumber, StringComparer.Ordinal))
                 lines.Add($"people {sh.SheetNumber} \"{sh.Name}\": designed \"{sh.get_Parameter(BuiltInParameter.SHEET_DESIGNED_BY)?.AsString()}\", drawn \"{sh.get_Parameter(BuiltInParameter.SHEET_DRAWN_BY)?.AsString()}\", checked \"{sh.get_Parameter(BuiltInParameter.SHEET_CHECKED_BY)?.AsString()}\", approved \"{sh.get_Parameter(BuiltInParameter.SHEET_APPROVED_BY)?.AsString()}\"; group \"{sh.LookupParameter("Projektbrowser Plangliederung")?.AsString()}\"");
             if (doc.IsWorkshared)
@@ -265,7 +268,9 @@ namespace SportfyRevit
                 var p = info.get_Parameter(bip);
                 if (p == null || p.IsReadOnly) { lines.Add($"team: Project Information {bip} cannot be set"); return; }
                 var was = p.AsString();
-                if (was != value) { p.Set(value); lines.Add($"team: Project Information {bip}: \"{was}\" -> \"{value}\""); }
+                // a value a person typed is theirs (found 2026-09-30: the team had filled Author and Organization themselves); only an empty field is filled
+                if (!string.IsNullOrWhiteSpace(was)) { lines.Add($"team: Project Information {bip} kept as typed: \"{was}\""); return; }
+                p.Set(value); lines.Add($"team: Project Information {bip}: \"{value}\"");
             }
             Set(BuiltInParameter.PROJECT_AUTHOR, string.Join("; ", team.Teams.Select(x => x.Name + ": " + string.Join(", ", x.Members.Select(m => m.Name)))));
             Set(BuiltInParameter.PROJECT_ORGANIZATION_NAME, "TH OWL - Digital Tools and Methods 2");
@@ -305,7 +310,10 @@ namespace SportfyRevit
                 legend = (View)doc.GetElement(source.Duplicate(ViewDuplicateOption.Duplicate));
                 legend.Name = name;
             }
-            var own = new FilteredElementCollector(doc, legend.Id).WhereElementIsNotElementType().Where(e => e.OwnerViewId == legend.Id).Select(e => e.Id).ToList();
+            // only what is drawn in it (found in the dry run: deleting everything the view "owned" took the view with it)
+            var own = new FilteredElementCollector(doc, legend.Id).WhereElementIsNotElementType()
+                .Where(e => e.Id != legend.Id && e.OwnerViewId == legend.Id && (e is TextNote || e is CurveElement || e is FilledRegion
+                            || e.Category?.Id.Value == (long)BuiltInCategory.OST_LegendComponents)).Select(e => e.Id).ToList();
             if (own.Count > 0) doc.Delete(own);
             var text = new StringBuilder(german ? "PROJEKTTEAM" : "PROJECT TEAM");
             foreach (var tm in team.Teams)

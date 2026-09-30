@@ -100,7 +100,7 @@ namespace SportfyRevit
             }
             var before = final.Keys.ToDictionary(s => s, s => s.SheetNumber);
             foreach (var (sheet, number) in final)
-                if (sheet.SheetNumber != number) sheet.SheetNumber = "~" + sheet.Id.Value;             // every number freed first, so no two ever collide
+                if (sheet.SheetNumber != number) sheet.SheetNumber = "tmp-" + sheet.Id.Value;          // every number freed first, so no two ever collide ("~" is not allowed in a sheet number: found in the dry run)
             foreach (var (sheet, number) in final)
                 if (before[sheet] != number)
                 {
@@ -176,6 +176,12 @@ namespace SportfyRevit
                     notes.Add($"Sheet {t.Number} {t.Name} could not be arranged: {ex.Message.Split('\n')[0]}");
                     SportifyLog.Warn("sheets", "sheet " + t.Number + ": " + ex);
                 }
+            }
+            // "must be all A0" (user, 2026-09-29): the Sportify sheets outside the set too (a person's extra sheet, the analysis report), content untouched
+            foreach (var extra in sheets.Where(x => !matched.ContainsValue(x) && (SportifyNumber.IsMatch(x.SheetNumber) || x.SheetNumber.StartsWith("SPORT", StringComparison.Ordinal))))
+            {
+                try { if (EnsureA0(doc, extra, set, set.Sheets[0], notes)) made.Add($"Sheet {extra.SheetNumber} {extra.Name} on A0"); }
+                catch (Exception ex) { notes.Add($"Sheet {extra.SheetNumber} could not be put on A0: {ex.Message.Split('\n')[0]}"); }
             }
             SportifyLog.Info("sheets", $"plan set arranged ({set.Language}): " + string.Join("; ", made.Where(m => m.StartsWith("Sheet")).DefaultIfEmpty("nothing to change")));
         }
@@ -267,7 +273,10 @@ namespace SportfyRevit
         {
             var symbols = new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol)).OfCategory(BuiltInCategory.OST_TitleBlocks).Cast<FamilySymbol>().ToList();
             var tb = new FilteredElementCollector(doc, sheet.Id).OfCategory(BuiltInCategory.OST_TitleBlocks).WhereElementIsNotElementType().OfType<FamilyInstance>().FirstOrDefault();
-            var want = (tb != null ? symbols.FirstOrDefault(s => s.FamilyName == tb.Symbol.FamilyName && IsA0(s.Name)) : null)
+            // the project's own Sportify title block first (the team's "sportify_Plankopf Ausführung", user 2026-09-30), then the sheet's own family, then the template's
+            var own = "sportify_" + set.TitleBlockFamily(spec.PhaseKey);
+            var want = symbols.FirstOrDefault(s => string.Equals(s.FamilyName, own, StringComparison.OrdinalIgnoreCase) && IsA0(s.Name))
+                       ?? (tb != null ? symbols.FirstOrDefault(s => s.FamilyName == tb.Symbol.FamilyName && IsA0(s.Name)) : null)
                        ?? symbols.FirstOrDefault(s => s.FamilyName + " : " + s.Name == set.TitleBlockType(spec))
                        ?? symbols.FirstOrDefault(s => IsA0(s.Name));
             if (want == null) { notes.Add($"Sheet {spec.Number}: the project has no A0 title block"); return false; }
