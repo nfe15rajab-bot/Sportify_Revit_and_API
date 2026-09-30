@@ -129,8 +129,10 @@ namespace SportfyRevit
                     SportifyLog.Info("iterations", "worksharing enabled with the person's consent (Import Iterations as Design Options)");
                 }
 
-                var detailed = AskOrganization();
-                if (detailed == null) return Result.Cancelled;
+                // one workset per iteration, "Sportify Iteration 1 / 2 / 3", as the first version did (user, 2026-09-30: "iterations should be just like
+                // the old version ... iteration 1, iteration 2, iteration 3"): no question any more. The detailed Sports/Gardens/Combine split per
+                // iteration made nine worksets, and hiding or showing an iteration meant three of them.
+                bool? detailed = false;
 
                 // FamilyPreparation loads/builds each iteration's own families before the transaction: it needs its own small transactions and,
                 // on a manual run, may show a template picker — same ordering LayoutImporter uses for the normal single-layout import.
@@ -288,27 +290,6 @@ namespace SportfyRevit
             return Result.Succeeded;
         }
 
-        /// <summary>True = detailed (Sports/Gardens/Combine per iteration), false = simple (one workset per iteration), null = cancelled.</summary>
-        static bool? AskOrganization()
-        {
-            var ask = new TaskDialog(Title)
-            {
-                MainInstruction = "Organize each iteration's worksets how?",
-                MainContent = "Every iteration gets its own workset(s) either way, switchable together with \"Show Iteration\".",
-                CommonButtons = TaskDialogCommonButtons.Cancel,
-            };
-            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Detailed — Sports, Gardens, Combine per iteration",
-                "The same auto-assignment a normal import uses (courts and equipment on Sports, planting and ground on Gardens, boundaries/paths/entries on Combine), just one set of the three per iteration.");
-            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Simple — one workset per iteration",
-                "Everything for an iteration together on a single workset. Fewer worksets, less detail.");
-            ask.DefaultButton = TaskDialogResult.CommandLink1;      // after the links exist: Revit throws otherwise
-            return ask.Show() switch
-            {
-                TaskDialogResult.CommandLink1 => true,
-                TaskDialogResult.CommandLink2 => false,
-                _ => (bool?)null,
-            };
-        }
     }
 
     /// <summary>Switches which iteration's worksets are visible in the active view — the "Design Option switcher": instant, no rebuild, works as often as wanted.</summary>

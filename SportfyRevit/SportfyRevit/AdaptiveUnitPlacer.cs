@@ -80,8 +80,10 @@ namespace SportfyRevit
                 KineticKind.Sail => new[] { "sail" },
                 _ => new[] { "fence" },
             };
+            var iterations = IterationLedger.ReadUniqueIds(doc);          // an iteration's own pergolas are not the main model's to replace (2026-09-30)
             var toDelete = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
-                .Where(el => el.LookupParameter("Sportify_Category")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue &&
+                .Where(el => el.DesignOption == null && !iterations.Contains(el.UniqueId) &&
+                             el.LookupParameter("Sportify_Category")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue &&
                              el.LookupParameter("Sportify_RoofId")?.AsString() == roofId &&
                              prefixes.Any(p => (el.LookupParameter("Sportify_Variant")?.AsString() ?? "").StartsWith(p, StringComparison.OrdinalIgnoreCase)))
                 .Select(el => el.Id).ToList();

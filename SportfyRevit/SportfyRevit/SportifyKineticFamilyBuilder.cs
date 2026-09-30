@@ -189,8 +189,9 @@ namespace SportfyRevit
         /// <summary>Every Generic Model instance this project already carries with Sportify_Category = "kinetics" — an earlier Kinetics placement.</summary>
         internal static void ClearPrevious(Document doc)
         {
+            var iterations = IterationLedger.ReadUniqueIds(doc);
             var toDelete = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
-                .Where(el => (el.LookupParameter("Sportify_Category")?.AsString()) == KineticsCategoryValue)
+                .Where(el => el.DesignOption == null && !iterations.Contains(el.UniqueId) && (el.LookupParameter("Sportify_Category")?.AsString()) == KineticsCategoryValue)
                 .Select(el => el.Id).ToList();
             if (toDelete.Count > 0) doc.Delete(toDelete);
         }

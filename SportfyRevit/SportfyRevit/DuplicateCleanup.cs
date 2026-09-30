@@ -28,7 +28,7 @@ namespace SportfyRevit
         /// <summary>
         /// Only this roof's own elements are compared, so one pushed roof's placements never delete another's: those recorded with its id
         /// (Sportify_RoofId), and — given the roof — those recorded with an id that names no live building roof ("0", "", one of Sportify's own
-        /// floors that a push once took for the roof) that stand on it. Nothing inside a design option is ever compared.
+        /// floors that a push once took for the roof) that stand on it. Nothing inside a design option, and nothing "Import Iterations" built, is ever compared.
         /// </summary>
         internal static int RemoveForRoof(Document doc, string roofId, Element? roof = null)
         {
@@ -42,9 +42,12 @@ namespace SportfyRevit
                 if (!liveRoofs.TryGetValue(id, out var live)) liveRoofs[id] = live = RoofIdentity.RoofOfKey(doc, id) != null;
                 return !live && RoofIdentity.StandsOn(el, roofBox);
             }
+            // What "Import Iterations" built is the same pieces ON PURPOSE, once per iteration, each on its own workset: never a duplicate (found
+            // 2026-09-30: an auto import deleted 44 of them, the pergola columns and ping pong parts of all but the newest iteration).
+            var iterations = IterationLedger.ReadUniqueIds(doc);
             var filter = new LogicalOrFilter(Categories.Select(c => (ElementFilter)new ElementCategoryFilter(c)).ToList());
             var candidates = new FilteredElementCollector(doc).WhereElementIsNotElementType().WherePasses(filter)
-                .Where(el => el.DesignOption == null && !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString()) && Ours(el))
+                .Where(el => el.DesignOption == null && !iterations.Contains(el.UniqueId) && !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString()) && Ours(el))
                 .ToList();
             if (candidates.Count < 2) return 0;
 

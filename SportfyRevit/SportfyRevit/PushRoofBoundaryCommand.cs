@@ -141,6 +141,11 @@ namespace SportfyRevit
             if (resolveNote != null) SportifyLog.Info("push", resolveNote);
             SportifyLog.Info("push", $"pushing \"{element.Name}\" (id {element.Id.Value}), {RoofPushScopes.Describe(scope)}{(reusedLast ? ", the roof pushed last" : "")}");
 
+            // user, 2026-09-30: pushing a roof's outline and size again must ASK before the Sportify content already on it is deleted. A full push starts
+            // a new design on the roof; a partial one (doors, structure ...) completes the current design and never asks.
+            var clearedNote = "";
+            if (RoofPushScopes.IsEverything(scope) && !ConfirmEarlierContent(doc, element, out clearedNote)) return Result.Cancelled;
+
             var built = Build(doc, element, scope, _selection, out var failure);
             if (built == null)
             {
@@ -178,6 +183,7 @@ namespace SportfyRevit
                 (RoofPushScopes.IsEverything(scope) ? "" : keptEarlier
                     ? "\nWhat earlier pushes of this roof brought is kept."
                     : "\nThis is a different roof from the one pushed before (or the first): only what was pushed now is on it. Push the rest from the same drop-down.") +
+                clearedNote +
                 "\nSwitch to the Sportify Combine tab to see it." +
                 (frame.IsTurned
                     ? $"\n\nThe roof is turned {frame.AngleDeg:0.#}° against the model's axes, so the plan was turned with it: pieces you place are square to the roof, and the import turns them back."
@@ -189,6 +195,58 @@ namespace SportfyRevit
                 built.StructureText + built.FeaturesText + worksetNote);
 
             return Result.Succeeded;
+        }
+
+        /// <summary>
+        /// Before a full push of a roof that already carries Sportify content (earlier imports, their leftovers, what "Import Iterations" put on its worksets),
+        /// the person decides, and nothing is pushed until they have: delete it now and push, keep it and push (the next Sync with Revit replaces the earlier
+        /// imports), or cancel. Design options and other roofs are never touched. False: cancelled (nothing deleted, nothing pushed).
+        /// </summary>
+        internal static bool ConfirmEarlierContent(Document doc, Element roof, out string note)
+        {
+            note = "";
+            var key = roof.Id.Value.ToString();
+            var (entries, _, ids) = ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true);
+            if (ids.Count == 0) return true;
+            if (DesignOption.GetActiveDesignOptionId(doc) != ElementId.InvalidElementId)
+            {
+                TaskDialog.Show("Sportify — Push roof", $"\"{roof.Name}\" already has Sportify content, and a design option is being edited: switch the Design Options bar at the bottom back to Main Model and push again.");
+                return false;
+            }
+            var iterations = ImportLedger.FromIterations(doc, ids);
+            var last = entries.Count > 0 ? entries.Max(e => e.ImportedAtUtc).ToLocalTime() : (DateTime?)null;
+            var ask = new TaskDialog("Sportify — Push roof")
+            {
+                MainInstruction = $"\"{roof.Name}\" already has Sportify content",
+                MainContent = $"{ids.Count} element(s) in the main model on this roof" +
+                              (entries.Count > 0 ? $", from {entries.Count} earlier import(s), the last on {last:dd.MM. 'at' HH:mm}" : "") +
+                              (iterations > 0 ? $"; {iterations} of them from Import Iterations (the Sportify Iteration worksets)" : "") + "." +
+                              "\n\nPushing the roof's outline and size again starts a new design for it. Design options and other roofs are not touched.",
+                CommonButtons = TaskDialogCommonButtons.Cancel,
+                AllowCancellation = true,
+            };
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Delete it and push the roof",
+                $"Removes these {ids.Count} element(s) now, so the next import starts on an empty roof.");
+            ask.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, "Keep it and push the roof",
+                "Nothing is deleted now. The next Sync with Revit replaces the earlier imports on this roof" + (iterations > 0 ? "; the iterations on their worksets stay." : "."));
+            ask.DefaultButton = TaskDialogResult.CommandLink1;
+            var answer = ask.Show();
+            if (answer == TaskDialogResult.CommandLink2)
+            {
+                SportifyLog.Info("push", $"\"{roof.Name}\": {ids.Count} earlier Sportify element(s) kept by choice");
+                return true;
+            }
+            if (answer != TaskDialogResult.CommandLink1) { SportifyLog.Info("push", "cancelled: the earlier Sportify content was not to be deleted"); return false; }
+            int removed;
+            using (var t = new Transaction(doc, "Sportify: clear the roof for a new design"))
+            {
+                t.Start();
+                removed = ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true);
+                t.Commit();
+            }
+            SportifyLog.Info("push", $"\"{roof.Name}\": {removed} earlier Sportify element(s) deleted by choice before the push");
+            note = $"\n{removed} earlier Sportify element(s) on this roof were deleted, as you chose.";
+            return true;
         }
 
         /// <summary>What a push builds for one roof: the payload as JSON (before it is merged with an earlier push of the same roof) and what the dialog and the live self-test say about it.</summary>

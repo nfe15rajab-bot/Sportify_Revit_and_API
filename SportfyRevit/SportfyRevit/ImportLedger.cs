@@ -120,6 +120,24 @@ namespace SportfyRevit
         /// </summary>
         internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false)
         {
+            var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations);
+            int removed = ids.Count > 0 ? Delete(doc, ids.ToList()) : 0;
+            foreach (var entry in entries)
+            {
+                if (entry == keep) continue;
+                try { doc.Delete(entry.Storage.Id); } catch (Exception ex) { SportifyLog.Warn("ledger", "an old ledger could not be deleted: " + ex.Message); }
+            }
+            if (removed > 0)
+                SportifyLog.Info("ledger", $"cleared roof {(string.IsNullOrEmpty(roofKey) ? "unknown" : roofKey)}: {removed} element(s) of {entries.Count - (keep == null ? 0 : 1)} earlier import(s)" +
+                                           (leftovers ? " and untracked Sportify leftovers" : "") + (keep != null ? ", the newest import kept" : ""));
+            return removed;
+        }
+
+        /// <summary>What Sportify put on a roof's main model, found without changing anything, exactly as RemoveOnRoof would remove it: the recorded imports that
+        /// belong to it (all but the newest with `keepNewest`), and with `leftovers` the unlisted Sportify elements standing on it (the iterations' too with
+        /// `withIterations`). The push asks about it before a new design starts on the roof (PushRoofCommandBase); Remove Duplicates and every import remove it.</summary>
+        internal static (List<Entry> Entries, Entry? Keep, HashSet<ElementId> Ids) OnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false)
+        {
             var roofBox = roof?.get_BoundingBox(null);
             var entries = ReadEntries(doc).Where(e => BelongsTo(doc, e, roofKey, roofBox)).OrderByDescending(e => e.ImportedAtUtc).ToList();
             var keep = keepNewest ? entries.FirstOrDefault() : null;
@@ -147,17 +165,14 @@ namespace SportfyRevit
                     ids.Add(el.Id);
                 }
             }
+            return (entries, keep, ids);
+        }
 
-            int removed = ids.Count > 0 ? Delete(doc, ids.ToList()) : 0;
-            foreach (var entry in entries)
-            {
-                if (entry == keep) continue;
-                try { doc.Delete(entry.Storage.Id); } catch (Exception ex) { SportifyLog.Warn("ledger", "an old ledger could not be deleted: " + ex.Message); }
-            }
-            if (removed > 0)
-                SportifyLog.Info("ledger", $"cleared roof {(string.IsNullOrEmpty(roofKey) ? "unknown" : roofKey)}: {removed} element(s) of {entries.Count - (keep == null ? 0 : 1)} earlier import(s)" +
-                                           (leftovers ? " and untracked Sportify leftovers" : "") + (keep != null ? ", the newest import kept" : ""));
-            return removed;
+        /// <summary>How many of `ids` an "Import Iterations" run put there (its own ledger), to say so before they are deleted.</summary>
+        internal static int FromIterations(Document doc, IEnumerable<ElementId> ids)
+        {
+            var iterations = IterationLedger.ReadUniqueIds(doc);
+            return iterations.Count == 0 ? 0 : ids.Count(id => doc.GetElement(id) is Element e && iterations.Contains(e.UniqueId));
         }
 
         /// <summary>The distinct roofs (other than <paramref name="excludeRoofId"/>) that already have a tracked import in this project — what
