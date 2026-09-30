@@ -50,7 +50,11 @@ namespace SportfyRevit
         {
             var info = BasicFileInfo.Extract(source);
             var options = new OpenOptions { Audit = false };
-            if (info.IsWorkshared) options.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets;
+            if (info.IsWorkshared)
+            {
+                options.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets;
+                options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));   // every element loaded, so the report counts them all
+            }
             var doc = uiApp.Application.OpenDocumentFile(ModelPathUtils.ConvertUserVisiblePathToModelPath(source), options);
             lines.Add($"opened {source} (workshared: {info.IsWorkshared}, detached with its worksets)");
             try
@@ -86,7 +90,9 @@ namespace SportfyRevit
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_NOSAVE") == "1") { lines.Add("NOT SAVED (dry run)"); return; }
 
                 var save = new SaveAsOptions { OverwriteExistingFile = true, MaximumBackups = 5 };
-                if (doc.IsWorkshared) save.SetWorksharingOptions(new WorksharingSaveAsOptions { SaveAsCentral = true });
+                // found 2026-09-30: left at the API's default the central asked which worksets to open, and a new local opened with most of them closed (the
+                // building and the pieces looked gone). Everyone opening it now gets every workset.
+                if (doc.IsWorkshared) save.SetWorksharingOptions(new WorksharingSaveAsOptions { SaveAsCentral = true, OpenWorksetsDefault = SimpleWorksetConfiguration.AllWorksets });
                 doc.SaveAs(target, save);
                 lines.Add($"SAVED to {target}" + (doc.IsWorkshared ? " as a central model" : ""));
             }
