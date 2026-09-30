@@ -57,6 +57,7 @@ namespace SportfyRevit
             var edits = JsonSerializer.Deserialize<List<Edit>>(File.ReadAllText(editsPath), new JsonSerializerOptions { PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }) ?? new List<Edit>();
             var family = FamilyOnSheets(doc);
             if (family == null) { lines.Add("titleblock: no sheet has a title block"); return; }
+            var familyName = family.Name;                    // the Family element is replaced when the edited family is loaded back (found in the dry run)
             var fam = doc.EditFamily(family);
             try
             {
@@ -72,12 +73,12 @@ namespace SportfyRevit
                 if (!string.IsNullOrWhiteSpace(copyFolder))
                 {
                     Directory.CreateDirectory(copyFolder!);
-                    var copy = Path.Combine(copyFolder!, family.Name + ".rfa");
+                    var copy = Path.Combine(copyFolder!, familyName + ".rfa");
                     fam.SaveAs(copy, new SaveAsOptions { OverwriteExistingFile = true, MaximumBackups = 1 });
                     lines.Add("titleblock: a copy saved to " + copy);
                 }
                 fam.LoadFamily(doc, new Overwrite());
-                lines.Add($"titleblock: \"{family.Name}\" loaded back into the project over the old one");
+                lines.Add($"titleblock: \"{familyName}\" loaded back into the project over the old one");
             }
             finally { fam.Close(false); }
         }
