@@ -26,8 +26,11 @@ namespace SportfyRevit
         /// <summary>
         /// Draws the four diagrams for the layout (the one the command read, else the newest the web app sent). Best-effort: never throws, and a project or a
         /// layout with nothing to draw is simply left alone. Opens its own transaction, so it must be called outside one (the analysis commands call it).
+        /// Not drawn again when nothing they are drawn from has changed since the last drawing in this Revit session (see Fingerprint): every analysis
+        /// calls this before its first window, so an unchanged redraw was a wait on every click (2026-09-30: Structural (bay by bay)). `force`: drawn
+        /// whatever (Generate Functional Diagrams, where drawing them is what was asked).
         /// </summary>
-        internal static void Refresh(Document? doc, SportifyLayout? layout = null)
+        internal static void Refresh(Document? doc, SportifyLayout? layout = null, bool force = false)
         {
             try
             {
@@ -43,17 +46,31 @@ namespace SportfyRevit
                 var limit = AnalysisReferenceData.GetParam("Fire Safety", "max_travel_distance_m");
                 var minWidth = AnalysisReferenceData.GetParam("Accessibility", "min_circulation_width_m");
 
+                var key = KeyOf(doc);
+                var print = Fingerprint(doc, layout, limit, minWidth);
+                WatchClosing(doc);
+                if (!force && Drawn.TryGetValue(key, out var last) && last.Print == print && last.Views.All(id => doc.GetElement(id) is View))
+                {
+                    SportifyLog.Info("diagrams", "the layout, the imports and the pieces are as they were at the last drawing: the diagrams and the tag view are left as they are");
+                    return;
+                }
+                Drawn.Remove(key);
+
                 using var t = new Transaction(doc, "Sportify: analysis diagrams");
                 t.Start();
+                var views = new List<View?>();
                 var fireView = Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(FireTitle), DiagramPlan.FireSafety(layout, distances, unreachable, limit), null);
                 var template = fireView != null ? EnsureTemplate(doc, fireView) : null;
                 if (fireView != null && template != null) Apply(fireView, template);
-                Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(AccessibilityTitle), DiagramPlan.Accessibility(layout, minWidth), template);
-                Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedCirculationName(), DiagramPlan.Circulation(layout), template);
-                Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(ZoningTitle), DiagramPlan.Zoning(layout), template);
-                Isolated(doc, "the tag view", () => SportifyTagView.Draw(doc, template));
-                Isolated(doc, "the plan set", () => ArrangeSheets(doc));
-                t.Commit();
+                views.Add(fireView);
+                views.Add(Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(AccessibilityTitle), DiagramPlan.Accessibility(layout, minWidth), template));
+                views.Add(Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedCirculationName(), DiagramPlan.Circulation(layout), template));
+                views.Add(Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(ZoningTitle), DiagramPlan.Zoning(layout), template));
+                var whole = Isolated(doc, "the tag view", () => views.Add(SportifyTagView.Draw(doc, template)));
+                whole &= Isolated(doc, "the plan set", () => ArrangeSheets(doc));
+                // a drawing with a part that failed is not remembered: the next analysis tries again
+                if (t.Commit() == TransactionStatus.Committed && whole)
+                    Drawn[key] = (print, views.OfType<View>().Select(v => v.Id).ToArray());
                 SportifyLog.Info("diagrams", "circulation, fire safety, accessibility and zoning diagrams drawn for roof " + (RoofBoundaryServer.ActiveRoofId ?? 0));
             }
             catch (Exception ex)
@@ -72,15 +89,46 @@ namespace SportfyRevit
             foreach (var n in notes) SportifyLog.Warn("sheets", n);
         }
 
-        /// <summary>A part that must never cost the diagrams: in a sub-transaction, rolled back and logged when it fails.</summary>
-        static void Isolated(Document doc, string what, Action action)
+        /// <summary>
+        /// What the diagrams and the tag view are drawn from, in one string: the layout, the active roof, the two reference values, every recorded import
+        /// (roof, time, how many pieces), the iterations' copies and how many Generic Models the project holds (a piece added, deleted or re-imported in Revit
+        /// changes it, so the tag view catches up). Hashed, so the remembered value stays small.
+        /// </summary>
+        static string Fingerprint(Document doc, SportifyLayout layout, double limit, double minWidth)
+        {
+            var sb = new System.Text.StringBuilder(JsonSerializer.Serialize(layout));
+            sb.Append("|roof ").Append(RoofBoundaryServer.ActiveRoofId ?? 0).Append("|limit ").Append(limit).Append("|width ").Append(minWidth);
+            foreach (var e in ImportLedger.ReadEntries(doc).OrderBy(e => e.RoofKey, StringComparer.Ordinal).ThenBy(e => e.ImportedAtUtc))
+                sb.Append("|import ").Append(e.RoofKey).Append('@').Append(e.ImportedAtUtc.Ticks).Append('#').Append(e.Elements.Count);
+            sb.Append("|iterations ").Append(IterationLedger.ReadUniqueIds(doc).Count);
+            sb.Append("|generic models ").Append(new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType().GetElementCount());
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sb.ToString())));
+        }
+
+        /// <summary>The last drawing in this Revit session, per project: its fingerprint and the views it drew (a view deleted, or the drawing undone, draws again).</summary>
+        static readonly Dictionary<string, (string Print, ElementId[] Views)> Drawn = new();
+        static bool _watchingClosing;
+
+        static string KeyOf(Document doc) => string.IsNullOrEmpty(doc.PathName) ? "unsaved:" + doc.Title : doc.PathName;
+
+        /// <summary>A project closed (perhaps without saving the last drawing) is drawn again the next time it is opened and analysed.</summary>
+        static void WatchClosing(Document doc)
+        {
+            if (_watchingClosing) return;
+            doc.Application.DocumentClosing += (_, e) => { try { Drawn.Remove(KeyOf(e.Document)); } catch (Exception) { /* nothing remembered */ } };
+            _watchingClosing = true;
+        }
+
+        /// <summary>A part that must never cost the diagrams: in a sub-transaction, rolled back and logged when it fails. False when it failed.</summary>
+        static bool Isolated(Document doc, string what, Action action)
         {
             using var sub = new SubTransaction(doc);
-            try { sub.Start(); action(); sub.Commit(); }
+            try { sub.Start(); action(); sub.Commit(); return true; }
             catch (Exception ex)
             {
                 if (sub.HasStarted() && !sub.HasEnded()) sub.RollBack();
                 SportifyLog.Warn("diagrams", what + " could not be drawn: " + ex.Message);
+                return false;
             }
         }
 

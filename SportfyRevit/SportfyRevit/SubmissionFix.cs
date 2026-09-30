@@ -277,45 +277,8 @@ namespace SportfyRevit
             t.Commit();
         }
 
-        /// <summary>
-        /// Every workset visible (user, 2026-09-30: "make sure all the worksets are visible"): visible by default, and no view or view template hiding one. The
-        /// "Sportify Iteration …" worksets are left as they are: each view shows the iteration chosen for it (Show Iteration), so three never stand on top of each other.
-        /// </summary>
-        static void ShowAllWorksets(Document doc, List<string> lines)
-        {
-            if (!doc.IsWorkshared) { lines.Add("worksets: the project is not workshared"); return; }
-            using var t = new Transaction(doc, "Sportify: every workset visible");
-            t.Start();
-            var worksets = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).ToList();
-            bool IsIteration(Workset w) => w.Name.StartsWith(IterationWorksets.NamePrefix, StringComparison.Ordinal);
-            var defaults = WorksetDefaultVisibilitySettings.GetWorksetDefaultVisibilitySettings(doc);
-            var madeDefault = new List<string>();
-            foreach (var w in worksets.Where(w => !IsIteration(w) && !defaults.IsWorksetVisible(w.Id)))
-            {
-                defaults.SetWorksetVisibility(w.Id, true);
-                madeDefault.Add(w.Name);
-            }
-            int views = 0, settings = 0, refused = 0;
-            foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>())
-            {
-                if (v is ViewSheet || v is ViewSchedule || v.ViewType == ViewType.Legend || v.ViewType == ViewType.DrawingSheet) continue;
-                bool changed = false;
-                foreach (var w in worksets.Where(w => !IsIteration(w)))
-                {
-                    try
-                    {
-                        if (v.GetWorksetVisibility(w.Id) != WorksetVisibility.Hidden) continue;
-                        v.SetWorksetVisibility(w.Id, WorksetVisibility.UseGlobalSetting);
-                        settings++; changed = true;
-                    }
-                    catch (Exception) { refused++; }
-                }
-                if (changed) { views++; lines.Add($"worksets: \"{v.Name}\"{(v.IsTemplate ? " (view template)" : "")} showed hidden worksets again"); }
-            }
-            t.Commit();
-            lines.Add($"worksets: {madeDefault.Count} made visible by default ({string.Join(", ", madeDefault)}); {settings} hidden setting(s) cleared in {views} view(s)/template(s)"
-                      + (refused > 0 ? $"; {refused} could not be changed (a view template controls them there)" : "") + "; the Sportify Iteration worksets kept as each view has them");
-        }
+        /// <summary>Every workset visible, each iteration view on its iteration (WorksetRepair, the same as the ribbon's Show All Worksets).</summary>
+        static void ShowAllWorksets(Document doc, List<string> lines) => WorksetRepair.ShowAll(doc, lines);
 
         /// <summary>
         /// The views on the plan set's design sheets (S2-02 roof new, S2-03 axonometric, S2-04..06 the diagrams, S2-07 a person's extra sheet) show the

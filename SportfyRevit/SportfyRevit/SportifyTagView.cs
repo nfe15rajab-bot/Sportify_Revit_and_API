@@ -51,15 +51,17 @@ namespace SportfyRevit
 
             var workset = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.AnnotationsAndTags })[SportifyWorksetSet.AnnotationsAndTags];
             int added = 0, failed = 0;
+            // Every box read BEFORE the first tag is placed: a box asked of a view that has just changed makes Revit regenerate the view first, so
+            // reading one per tag, between the tags, cost one regeneration each (~0.85 s): after an import, when every piece is new, that was still
+            // minutes (2026-09-30). Read first, then placed: one regeneration for them all.
             var todo = new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
-                .Where(el => !tagged.Contains(el.Id) && Taggable(el)).ToList();
-            foreach (var el in todo)
+                .Where(el => !tagged.Contains(el.Id) && Taggable(el))
+                .Select(el => (Element: el, Box: el.get_BoundingBox(view))).Where(x => x.Box != null).ToList();
+            foreach (var (el, bb) in todo)
             {
-                var bb = el.get_BoundingBox(view);
-                if (bb == null) continue;
                 try
                 {
-                    var tag = IndependentTag.Create(doc, symbol.Id, view.Id, new Reference(el), false, TagOrientation.Horizontal, (bb.Min + bb.Max) / 2);
+                    var tag = IndependentTag.Create(doc, symbol.Id, view.Id, new Reference(el), false, TagOrientation.Horizontal, (bb!.Min + bb.Max) / 2);
                     SportifyLayoutBuilder.SetWorkset(tag, workset);
                     added++;
                 }

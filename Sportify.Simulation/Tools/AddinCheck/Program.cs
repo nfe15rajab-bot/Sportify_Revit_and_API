@@ -892,11 +892,11 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
     Check("BIM & Documentation: Generate Schedules with the requested tooltip", schedulesButton != null && schedulesButton.Text.Replace("\n", " ") == "Generate Schedules"
           && schedulesButton.Tooltip == "Creates automated Equipment Takeoff and Green Roof Build-up schedules.");
     Check("...Apply View Filters", filtersButton != null && filtersButton.Text.Replace("\n", " ") == "Apply View Filters" && filtersButton.Tooltip.Contains("Zone Types"));
-    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, IFC Worksets by Class, Import Iterations as Design Options, Show Iteration",
+    Check("...and a Phasing & Worksets drop-down: Set Up Phases & Worksets, Batch Assign Phasing, Organize Multi-Worksets, IFC Worksets by Class, Import Iterations as Design Options, Show Iteration, Show All Worksets",
           phasing != null && phasing.Items.Select(i => (i.Text, i.CommandClass)).SequenceEqual(new[]
           {
               ("Set Up Phases & Worksets", "SetUpSportifyPhasesCommand"), ("Batch Assign Phasing", "AssignPhasingCommand"), ("Organize Multi-Worksets", "AssignWorksetsCommand"), ("IFC Worksets by Class", "AssignIfcWorksetsCommand"),
-              ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"),
+              ("Import Iterations as Design Options", "ImportIterationsAsOptionsCommand"), ("Show Iteration", "SwitchIterationCommand"), ("Show All Worksets", "ShowAllWorksetsCommand"),
           }));
 
     // nothing that was on the ribbon before is gone, and the CSV schedule command keeps its name
@@ -2083,6 +2083,17 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("the tag view (redrawn after EVERY analysis) only adds the missing tags, never the Kinetics parts or the iterations' copies (2026-09-30: ~2,500 tags one regeneration each hung Revit on Structural)",
           tagView.Contains("!tagged.Contains(el.Id) && Taggable(el)") && tagView.Contains("!= SportifyKineticFamilyBuilder.KineticsCategoryValue") && tagView.Contains("!iterations.Contains(el.UniqueId)")
           && !tagView.Contains("doc.Regenerate()"));
+    Check("...and reads every piece's box before it places the first tag (a box read between tags regenerated the view once per tag: minutes after an import)",
+          tagView.Contains(".Select(el => (Element: el, Box: el.get_BoundingBox(view)))") && tagView.Contains("foreach (var (el, bb) in todo)"));
+    var diagramViews = Read("SportifyDiagramViews.cs");
+    Check("the diagrams and the tag view are not drawn again when nothing they are drawn from changed (every analysis calls this before its first window); Generate Functional Diagrams always draws",
+          diagramViews.Contains("if (!force && Drawn.TryGetValue(key, out var last) && last.Print == print && last.Views.All(id => doc.GetElement(id) is View))")
+          && diagramViews.Contains("ImportLedger.ReadEntries(doc)") && diagramViews.Contains("OfCategory(BuiltInCategory.OST_GenericModel)")
+          && Read("GenerateFunctionalDiagramsCommand.cs").Contains("SportifyDiagramViews.Refresh(doc, force: true);"));
+    var worksetRepair = Read("WorksetRepair.cs");
+    Check("Show All Worksets and the submission tidy-up's worksets step are one routine: every workset visible by default and in every view, each iteration view on its own iteration, closed worksets named",
+          Read("SubmissionFix.cs").Contains("=> WorksetRepair.ShowAll(doc, lines);") && worksetRepair.Contains("IterationWorksets.ShowOnly(v, groups, mine)")
+          && worksetRepair.Contains("defaults.SetWorksetVisibility(w.Id, true)") && worksetRepair.Contains("!w.IsOpen"));
     Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
           push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
           && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")

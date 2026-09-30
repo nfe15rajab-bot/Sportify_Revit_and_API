@@ -84,6 +84,8 @@ namespace SportfyRevit
             // three layers with a small "I": the worksets of an IFC, by class
             ["workset_ifc"] = new("bim", "M12 3l9 4.5l-9 4.5l-9 -4.5z M3 12l9 4.5l9 -4.5 M3 16.5l9 4.5l9 -4.5 M12 6v3", "M12 3l9 4.5l-9 4.5l-9 -4.5z"),
             ["iteration_switch"] = new("bim", "M4 14h9v6h-9z M7.5 9h9v6h-9z M11 4h9v6h-9z", "M11 4h9v6h-9z"),
+            // two layers with an eye: every workset shown again
+            ["workset_show"] = new("bim", "M12 3l9 5l-9 5l-9 -5z M3 12l6 3.3 M11 18.5c1.8 -2.3 3.7 -3.5 5.5 -3.5s3.7 1.2 5.5 3.5c-1.8 2.3 -3.7 3.5 -5.5 3.5s-3.7 -1.2 -5.5 -3.5z M16.5 17.3a1.2 1.2 0 1 1 0 2.4a1.2 1.2 0 1 1 0 -2.4", "M12 3l9 5l-9 5l-9 -5z"),
 
             ["templates"] = new("bim", "M4 4h16v16h-16z M4 9h16 M9 9v11", "M4 4h16v5h-16z"),
             ["template_apply"] = new("bim", "M4 4h16v16h-16z M4 9h16 M8 15l2.5 2.5l5 -5", "M4 4h16v5h-16z"),
