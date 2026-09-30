@@ -2005,6 +2005,7 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("zoning without it: the service modules indoor, gardens / plants / furniture garden, courts and activities sport",
           DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Locker & Dressing Room Module" }) == "indoor"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bathroom & Shower Module" }) == "indoor"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Ping Pong Station" }) == "indoor" && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bouldering Wall" }) == "indoor"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "gardenBlock", Label = "Planter S" }) == "garden"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "furniture" }) == "garden"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "field", Label = "Padel" }) == "outdoor" && DiagramPlan.ZoneOf(new PlacementDto()) == "outdoor");
