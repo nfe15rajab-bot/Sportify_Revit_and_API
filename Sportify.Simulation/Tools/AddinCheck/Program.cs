@@ -2033,6 +2033,32 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
           string.Join(", ", drawn));
 }
 
+// ---------------------------------------------------------------------------------------------------------------- 2026-09-30: roofs and iterations keep what they should
+{
+    Console.WriteLine("\n===== the push asks before a roof's content goes; iterations are never taken for duplicates =====");
+    string? src = null;
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null && src == null; dir = dir.Parent)
+    {
+        var candidate = Path.Combine(dir.FullName, "SportfyRevit", "SportfyRevit");
+        if (File.Exists(Path.Combine(candidate, "SportfyRevitApp.cs"))) src = candidate;
+    }
+    string Read(string file) => src == null ? "" : File.ReadAllText(Path.Combine(src, file));
+    var push = Read("PushRoofBoundaryCommand.cs");
+    Check("a full push of a roof with Sportify content asks first (delete and push / keep and push / cancel), and cancelling pushes nothing",
+          push.Contains("RoofPushScopes.IsEverything(scope) && !ConfirmEarlierContent(doc, element, out clearedNote)) return Result.Cancelled")
+          && push.Contains("Delete it and push the roof") && push.Contains("Keep it and push the roof") && push.Contains("TaskDialogCommonButtons.Cancel"));
+    Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
+          push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
+          && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
+          && Read("ImportLedger.cs").Contains("var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations);"));
+    Check("the duplicate clean-up and the pergola re-placement never touch what Import Iterations built (found: an auto import deleted 44 iteration pieces)",
+          Read("DuplicateCleanup.cs").Contains("!iterations.Contains(el.UniqueId)") && Read("AdaptiveUnitPlacer.cs").Contains("!iterations.Contains(el.UniqueId)")
+          && Read("SportifyKineticFamilyBuilder.cs").Contains("!iterations.Contains(el.UniqueId)"));
+    var it = Read(Path.Combine("Commands", "IterationCommands.cs"));
+    Check("Import Iterations puts each iteration on one workset (\"Sportify Iteration 1 / 2 / 3\"), without asking",
+          it.Contains("bool? detailed = false;") && !it.Contains("AskOrganization()"));
+}
+
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
 return fails;
 
