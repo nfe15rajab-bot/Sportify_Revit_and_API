@@ -154,6 +154,20 @@
          built installer's payload from a stale $(OutDir)web\ two builds earlier. Removing the whole folder first
          makes this copy a real mirror of the source, at the cost of SkipUnchangedFiles no longer skipping anything
          on an unchanged file (a full recopy each build; this folder is small plain text/assets, not worth optimising). -->
+    <!-- The clone is brought up to the pushed master first, so a build never bundles an older web app than the one pushed (found 2026-09-30: an
+         automatic build ran seconds before the clone was pulled and bundled the previous default session - "still bundles the older version").
+         Offline, or with changes of its own in the clone, the pull fails harmlessly (a warning) and the build still says what it bundled. -->
+    <Exec Command="git -C &quot;$(SportifyWebAppDir).&quot; pull --ff-only --quiet" ContinueOnError="true" StandardOutputImportance="low" Condition="Exists('$(SportifyWebAppDir).git')" />
+    <Exec Command="git -C &quot;$(SportifyWebAppDir).&quot; rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low" Condition="Exists('$(SportifyWebAppDir).git')">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SportifyWebCommit" />
+    </Exec>
+    <!-- the web app being worked on (..\Sportify) ahead of what gets bundled means commits not pushed yet: said, not silently shipped without -->
+    <Exec Command="git -C &quot;$(MSBuildProjectDirectory)\..\..\..\Sportify&quot; rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="low" Condition="Exists('$(MSBuildProjectDirectory)\..\..\..\Sportify\.git')">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SportifyWebWorkingCommit" />
+    </Exec>
+    <Message Importance="high" Text="Sportify: bundling the web app at $(SportifyWebCommit) from $(SportifyWebAppDir)" />
+    <Warning Condition="'$(SportifyWebWorkingCommit)' != '' and '$(SportifyWebCommit)' != '' and '$(SportifyWebWorkingCommit)' != '$(SportifyWebCommit)'"
+             Text="Sportify: the web app being worked on is at $(SportifyWebWorkingCommit), the bundled clone at $(SportifyWebCommit): push the web repo, then build again, or Revit gets the older web app" />
     <RemoveDir Directories="$(OutDir)web" Condition="Exists('$(OutDir)web')" />
     <ItemGroup>
       <SportifyWebFiles Include="$(SportifyWebAppDir)*.html;$(SportifyWebAppDir)*.css;$(SportifyWebAppDir)*.js" />
