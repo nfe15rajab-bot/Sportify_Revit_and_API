@@ -50,13 +50,17 @@ namespace SportfyRevit
         {
             var info = BasicFileInfo.Extract(source);
             var options = new OpenOptions { Audit = false };
-            if (info.IsWorkshared)
+            // SPORTIFY_FIX_SYNC=1: `source` is a person's LOCAL copy; it is opened as it is (not detached) and the changes go to the central by a
+            // Synchronize with Central, so the central keeps its identity and every local made from it stays valid. Otherwise: detached, saved as below.
+            var sync = Environment.GetEnvironmentVariable("SPORTIFY_FIX_SYNC") == "1" && info.IsWorkshared && info.IsLocal;
+            if (sync) options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));
+            else if (info.IsWorkshared)
             {
                 options.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets;
                 options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));   // every element loaded, so the report counts them all
             }
             var doc = uiApp.Application.OpenDocumentFile(ModelPathUtils.ConvertUserVisiblePathToModelPath(source), options);
-            lines.Add($"opened {source} (workshared: {info.IsWorkshared}, detached with its worksets)");
+            lines.Add($"opened {source} (workshared: {info.IsWorkshared}, " + (sync ? "a local, to be synchronized with its central)" : "detached with its worksets)"));
             try
             {
                 // SPORTIFY_FIX_STEPS: which steps run ("clear,rename,views,start"; all when unset). The first run renamed options that turned out
@@ -85,9 +89,18 @@ namespace SportfyRevit
                     t.Commit();
                 }
                 if (steps.Contains("sheets")) ArrangeSheets(doc, lines);
+                if (steps.Contains("team")) ApplyTeam(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_TEAM"), lines);
                 Diagnose(doc, lines, "AFTER");
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT") is string export && export.Length > 0) ExportSheets(doc, export, lines);
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_NOSAVE") == "1") { lines.Add("NOT SAVED (dry run)"); return; }
+                if (sync)
+                {
+                    var swc = new SynchronizeWithCentralOptions { Comment = "Sportify: the plan set in the team's order, the project team", SaveLocalBefore = false, SaveLocalAfter = true };
+                    swc.SetRelinquishOptions(new RelinquishOptions(true));
+                    doc.SynchronizeWithCentral(new TransactWithCentralOptions(), swc);
+                    lines.Add("SYNCHRONIZED with " + ModelPathUtils.ConvertModelPathToUserVisiblePath(doc.GetWorksharingCentralModelPath()) + ", the local saved");
+                    return;
+                }
 
                 var save = new SaveAsOptions { OverwriteExistingFile = true, MaximumBackups = 5 };
                 // found 2026-09-30: left at the API's default the central asked which worksets to open, and a new local opened with most of them closed (the
@@ -132,6 +145,15 @@ namespace SportfyRevit
                 lines.Add($"view \"{v.Name}\": phase {phase}, phase filter {filter}, shows {shown} Sportify element(s)");
             }
             lines.Add("phases: " + string.Join(", ", doc.Phases.Cast<Phase>().Select(p => p.Name)));
+            var pinfo = doc.ProjectInformation;
+            foreach (var bip in new[] { BuiltInParameter.PROJECT_NAME, BuiltInParameter.PROJECT_NUMBER, BuiltInParameter.CLIENT_NAME, BuiltInParameter.PROJECT_ADDRESS, BuiltInParameter.PROJECT_BUILDING_NAME,
+                                        BuiltInParameter.PROJECT_AUTHOR, BuiltInParameter.PROJECT_ORGANIZATION_NAME, BuiltInParameter.PROJECT_ORGANIZATION_DESCRIPTION })
+                lines.Add($"project information {bip}: \"{pinfo.get_Parameter(bip)?.AsString()}\"");
+            foreach (var sh in new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().OrderBy(x => x.SheetNumber, StringComparer.Ordinal))
+                lines.Add($"people {sh.SheetNumber} \"{sh.Name}\": designed \"{sh.get_Parameter(BuiltInParameter.SHEET_DESIGNED_BY)?.AsString()}\", drawn \"{sh.get_Parameter(BuiltInParameter.SHEET_DRAWN_BY)?.AsString()}\", checked \"{sh.get_Parameter(BuiltInParameter.SHEET_CHECKED_BY)?.AsString()}\", approved \"{sh.get_Parameter(BuiltInParameter.SHEET_APPROVED_BY)?.AsString()}\"; group \"{sh.LookupParameter("Projektbrowser Plangliederung")?.AsString()}\"");
+            if (doc.IsWorkshared)
+                foreach (var ws in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
+                    lines.Add($"workset \"{ws.Name}\": open {ws.IsOpen}, visible by default {ws.IsVisibleByDefault}, elements {new FilteredElementCollector(doc).WherePasses(new ElementWorksetFilter(ws.Id)).WhereElementIsNotElementType().GetElementCount()}");
             lines.Add("view templates: " + string.Join(", ", new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate && (v.Name.StartsWith("S") || v.Name == "Diagrams")).Select(v => v.Name).OrderBy(n => n)));
             lines.Add("Sportify views: " + string.Join(", ", new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate && v.Name.StartsWith("Sportify - ")).Select(v => v.Name).OrderBy(n => n)));
             var vps = new FilteredElementCollector(doc).OfClass(typeof(Viewport)).Cast<Viewport>().ToList();
@@ -174,6 +196,88 @@ namespace SportfyRevit
             lines.Add($"plan set arranged ({language}):");
             lines.AddRange(made.Select(m => "  " + m));
             lines.AddRange(notes.Select(n => "  NOTE " + n));
+        }
+
+        sealed record TeamMember(string Name, string? Email);
+        sealed record Team(string Name, List<TeamMember> Members);
+        sealed record TeamFile(List<Team> Teams);
+
+        /// <summary>
+        /// The project team in the model (user, 2026-09-30), from SPORTIFY_FIX_TEAM (a local JSON: {"teams":[{"name","members":[{"name","email"}]}]}; kept out
+        /// of the public repository): Project Information's Author (every team and its names) and Organization (TH OWL); a legend "S Projektteam" / "S Project
+        /// Team" with every name and e-mail, placed at the top right of every Sportify sheet (a legend is the one view that can be on many sheets); "Designed By"
+        /// on the Sportify sheets: the computational team, which designed the plan set. Drawn / Checked / Approved By are left as they are (reported).
+        /// Nothing here pretends anyone worked in the file: no username, workset owner or history is touched.
+        /// </summary>
+        static void ApplyTeam(Document doc, string? path, List<string> lines)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) { lines.Add("team: no SPORTIFY_FIX_TEAM file"); return; }
+            var team = System.Text.Json.JsonSerializer.Deserialize<TeamFile>(File.ReadAllText(path), new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (team?.Teams == null || team.Teams.Count == 0) { lines.Add("team: the file lists no team"); return; }
+            var names = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).Select(v => v.Name).ToList();
+            var german = (SportifyTemplateSpec.Detect(names) ?? TemplateLanguage.De) == TemplateLanguage.De;
+
+            using var t = new Transaction(doc, "Sportify: project team");
+            t.Start();
+            var info = doc.ProjectInformation;
+            void Set(BuiltInParameter bip, string value)
+            {
+                var p = info.get_Parameter(bip);
+                if (p == null || p.IsReadOnly) { lines.Add($"team: Project Information {bip} cannot be set"); return; }
+                var was = p.AsString();
+                if (was != value) { p.Set(value); lines.Add($"team: Project Information {bip}: \"{was}\" -> \"{value}\""); }
+            }
+            Set(BuiltInParameter.PROJECT_AUTHOR, string.Join("; ", team.Teams.Select(x => x.Name + ": " + string.Join(", ", x.Members.Select(m => m.Name)))));
+            Set(BuiltInParameter.PROJECT_ORGANIZATION_NAME, "TH OWL - Digital Tools and Methods 2");
+            Set(BuiltInParameter.PROJECT_ORGANIZATION_DESCRIPTION, string.Join(" and ", team.Teams.Select(x => x.Name)) + ", with GOLDBECK");
+
+            var legend = TeamLegend(doc, team, german, lines);
+            var sheets = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>()
+                .Where(x => System.Text.RegularExpressions.Regex.IsMatch(x.SheetNumber, @"^S[1-4]-\d\d$") || x.SheetNumber.StartsWith("SPORT")).ToList();
+            var designer = team.Teams[0].Name;
+            foreach (var sheet in sheets)
+            {
+                var d = sheet.get_Parameter(BuiltInParameter.SHEET_DESIGNED_BY);
+                if (d != null && !d.IsReadOnly && d.AsString() != designer) d.Set(designer);
+                if (legend == null) continue;
+                var onIt = new FilteredElementCollector(doc, sheet.Id).OfClass(typeof(Viewport)).Cast<Viewport>().Any(vp => vp.ViewId == legend.Id);
+                if (onIt || !Viewport.CanAddViewToSheet(doc, sheet.Id, legend.Id)) continue;
+                var frame = SportifySheets.Frame(doc, sheet);
+                var placed = Viewport.Create(doc, sheet.Id, legend.Id, new XYZ(frame.Max.X - 110 / 304.8, frame.Max.Y - 60 / 304.8, 0));
+                doc.Regenerate();
+                var box = placed.GetBoxOutline();                                   // its top right corner 15 mm inside the frame's
+                placed.SetBoxCenter(placed.GetBoxCenter() + new XYZ(frame.Max.X - 15 / 304.8 - box.MaximumPoint.X, frame.Max.Y - 15 / 304.8 - box.MaximumPoint.Y, 0));
+            }
+            t.Commit();
+            lines.Add($"team: \"{legend?.Name}\" on {sheets.Count} Sportify sheet(s); Designed By = \"{designer}\" on them");
+        }
+
+        /// <summary>The team legend: the project's own of that name (its text replaced), else a copy of any legend emptied (Revit's API cannot make a legend from nothing).</summary>
+        static View? TeamLegend(Document doc, TeamFile team, bool german, List<string> lines)
+        {
+            var name = german ? "S Projektteam" : "S Project Team";
+            var legends = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.ViewType == ViewType.Legend && !v.IsTemplate).ToList();
+            var legend = legends.FirstOrDefault(v => v.Name == name);
+            if (legend == null)
+            {
+                var source = legends.FirstOrDefault();
+                if (source == null) { lines.Add("team: the project has no legend to copy, so no team legend"); return null; }
+                legend = (View)doc.GetElement(source.Duplicate(ViewDuplicateOption.Duplicate));
+                legend.Name = name;
+            }
+            var own = new FilteredElementCollector(doc, legend.Id).WhereElementIsNotElementType().Where(e => e.OwnerViewId == legend.Id).Select(e => e.Id).ToList();
+            if (own.Count > 0) doc.Delete(own);
+            var text = new StringBuilder(german ? "PROJEKTTEAM" : "PROJECT TEAM");
+            foreach (var tm in team.Teams)
+            {
+                text.Append("\r\r").Append(tm.Name.ToUpperInvariant());
+                foreach (var m in tm.Members) text.Append("\r").Append(m.Name).Append(string.IsNullOrWhiteSpace(m.Email) ? "" : "   " + m.Email);
+            }
+            var typeId = new FilteredElementCollector(doc).OfClass(typeof(TextNoteType)).FirstElementId();
+            TextNote.Create(doc, legend.Id, XYZ.Zero, text.ToString(), typeId);
+            SportifyTemplateBuilder.SetBrowserGrouping(legend);
+            lines.Add($"team: legend \"{name}\" with {team.Teams.Sum(x => x.Members.Count)} name(s)");
+            return legend;
         }
 
         /// <summary>Every Sportify sheet as a PNG in `folder`, to look at without opening Revit.</summary>
