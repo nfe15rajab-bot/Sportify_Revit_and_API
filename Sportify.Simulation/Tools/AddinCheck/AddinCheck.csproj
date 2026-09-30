@@ -35,6 +35,7 @@
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\SportifyFamilyNames.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\IndoorWallPlan.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofMatch.cs" />
+    <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DuplicateRule.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\AutoImportDecision.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\DiagramPlan.cs" />
     <Compile Include="..\..\..\SportfyRevit\SportfyRevit\RoofFeaturesGeometry.cs" />

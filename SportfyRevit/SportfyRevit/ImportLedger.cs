@@ -103,12 +103,16 @@ namespace SportfyRevit
         /// from a session with no push, "" from before roofs were tracked, the id of one of Sportify's own floors that a push once took for the roof)
         /// with most of its elements standing on it. A design option's own import ("option:…") never belongs to a roof here.
         /// </summary>
-        internal static bool BelongsTo(Document doc, Entry entry, string roofKey, BoundingBoxXYZ? roofBox)
+        internal static bool BelongsTo(Document doc, Entry entry, string roofKey, BoundingBoxXYZ? roofBox, double? strayAtZFt = null)
         {
             if (entry.RoofKey == roofKey) return true;
             if (entry.RoofKey.StartsWith(RoofMatch.OptionKeyPrefix, StringComparison.Ordinal) || roofBox == null) return false;
             if (RoofIdentity.RoofOfKey(doc, entry.RoofKey) != null) return false;       // another live roof's own import: switching roofs keeps it
-            return RoofIdentity.MostlyOn(entry.Elements, roofBox);
+            if (RoofIdentity.MostlyOn(entry.Elements, roofBox)) return true;
+            // an earlier sync of a layout whose height named no roof, built at that height in this roof's plan (LayoutImporter, RoofIdentity.FromLayout)
+            if (strayAtZFt is not double z) return false;
+            var atStated = new BoundingBoxXYZ { Min = roofBox.Min, Max = new XYZ(roofBox.Max.X, roofBox.Max.Y, z) };
+            return RoofIdentity.MostlyOn(entry.Elements, atStated);
         }
 
         /// <summary>
@@ -118,9 +122,9 @@ namespace SportfyRevit
         /// landed). Never touches another live roof's import, a design option's contents, or what an iterations import recorded (it has its own
         /// "clear iterations" choice). Returns how many elements were removed.
         /// </summary>
-        internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false)
+        internal static int RemoveOnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false, double? strayAtZFt = null)
         {
-            var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations);
+            var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations, strayAtZFt);
             int removed = ids.Count > 0 ? Delete(doc, ids.ToList()) : 0;
             foreach (var entry in entries)
             {
@@ -136,10 +140,10 @@ namespace SportfyRevit
         /// <summary>What Sportify put on a roof's main model, found without changing anything, exactly as RemoveOnRoof would remove it: the recorded imports that
         /// belong to it (all but the newest with `keepNewest`), and with `leftovers` the unlisted Sportify elements standing on it (the iterations' too with
         /// `withIterations`). The push asks about it before a new design starts on the roof (PushRoofCommandBase); Remove Duplicates and every import remove it.</summary>
-        internal static (List<Entry> Entries, Entry? Keep, HashSet<ElementId> Ids) OnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false)
+        internal static (List<Entry> Entries, Entry? Keep, HashSet<ElementId> Ids) OnRoof(Document doc, string roofKey, Element? roof, bool leftovers, bool keepNewest = false, bool withIterations = false, double? strayAtZFt = null)
         {
             var roofBox = roof?.get_BoundingBox(null);
-            var entries = ReadEntries(doc).Where(e => BelongsTo(doc, e, roofKey, roofBox)).OrderByDescending(e => e.ImportedAtUtc).ToList();
+            var entries = ReadEntries(doc).Where(e => BelongsTo(doc, e, roofKey, roofBox, strayAtZFt)).OrderByDescending(e => e.ImportedAtUtc).ToList();
             var keep = keepNewest ? entries.FirstOrDefault() : null;
             var keepIds = new HashSet<ElementId>(keep?.Elements.Select(e => e.Id) ?? Enumerable.Empty<ElementId>());
 

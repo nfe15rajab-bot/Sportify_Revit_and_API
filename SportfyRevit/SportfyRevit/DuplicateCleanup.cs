@@ -8,10 +8,7 @@ namespace SportfyRevit
     /// Finds Sportify-placed elements that stand for the same placement twice — most often a roof's leftovers from
     /// before an import tracked it (ImportLedger predates RoofId, and a project opened between add-in versions can
     /// carry elements no ledger entry ever covered), sitting right under a freshly reimported copy — and deletes all
-    /// but the newest. Two elements are the same placement when they carry the same non-empty Sportify_QualityKey (a
-    /// placement's own id from the web app, stable across reimports) on the same roof; one with no QualityKey (an
-    /// older export, before that parameter existed) is instead compared by category, variant and a rounded location.
-    /// Inside a transaction.
+    /// but one: what counts as the same placement, and which copy stays, is DuplicateRule's. Inside a transaction.
     /// </summary>
     internal static class DuplicateCleanup
     {
@@ -30,7 +27,7 @@ namespace SportfyRevit
         /// (Sportify_RoofId), and — given the roof — those recorded with an id that names no live building roof ("0", "", one of Sportify's own
         /// floors that a push once took for the roof) that stand on it. Nothing inside a design option, and nothing "Import Iterations" built, is ever compared.
         /// </summary>
-        internal static int RemoveForRoof(Document doc, string roofId, Element? roof = null)
+        internal static int RemoveForRoof(Document doc, string roofId, Element? roof = null, IEnumerable<ElementId>? justBuilt = null)
         {
             var roofBox = roof?.get_BoundingBox(null);
             var liveRoofs = new Dictionary<string, bool>();
@@ -51,42 +48,28 @@ namespace SportfyRevit
                 .ToList();
             if (candidates.Count < 2) return 0;
 
-            var groups = new Dictionary<string, List<Element>>();
+            var built = new HashSet<long>((justBuilt ?? Enumerable.Empty<ElementId>()).Select(id => id.Value));
+            var pieces = new List<DuplicateRule.Piece>();
             foreach (var el in candidates)
             {
-                var key = GroupKey(el);
-                if (key == null) continue;
-                if (!groups.TryGetValue(key, out var list)) groups[key] = list = new List<Element>();
-                list.Add(el);
+                var key = GroupKey(doc, el);
+                if (key != null) pieces.Add(new DuplicateRule.Piece(el.Id.Value, key, built.Contains(el.Id.Value)));
             }
-
-            var toDelete = new List<ElementId>();
-            foreach (var group in groups.Values)
-            {
-                if (group.Count < 2) continue;
-                var keep = group.OrderByDescending(el => el.Id.Value).First();
-                toDelete.AddRange(group.Where(el => el.Id != keep.Id).Select(el => el.Id));
-            }
+            var toDelete = DuplicateRule.ToDelete(pieces).Select(id => new ElementId(id)).ToList();
             if (toDelete.Count == 0) return 0;
 
             doc.Delete(toDelete);
             return toDelete.Count;
         }
 
-        private static string? GroupKey(Element el)
+        private static string? GroupKey(Document doc, Element el)
         {
-            var qualityKey = el.LookupParameter("Sportify_QualityKey")?.AsString();
-            if (!string.IsNullOrEmpty(qualityKey)) return "qk:" + qualityKey;
-
             var bb = el.get_BoundingBox(null);
             if (bb == null) return null;
             var center = (bb.Min + bb.Max) * 0.5;
-            var category = el.LookupParameter("Sportify_Category")?.AsString() ?? "";
-            var variant = el.LookupParameter("Sportify_Variant")?.AsString() ?? "";
-            var rx = System.Math.Round(center.X / LocationToleranceFt);
-            var ry = System.Math.Round(center.Y / LocationToleranceFt);
-            var rz = System.Math.Round(center.Z / LocationToleranceFt);
-            return "loc:" + category + "|" + variant + "|" + rx + "|" + ry + "|" + rz;
+            return DuplicateRule.Key(el.LookupParameter("Sportify_QualityKey")?.AsString(), el.LookupParameter("Sportify_Category")?.AsString(),
+                el.LookupParameter("Sportify_Variant")?.AsString(), el.Category?.Id.Value.ToString() ?? "", doc.GetElement(el.GetTypeId())?.Name ?? "",
+                center.X, center.Y, center.Z, LocationToleranceFt);
         }
     }
 }

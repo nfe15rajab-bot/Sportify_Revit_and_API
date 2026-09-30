@@ -57,8 +57,18 @@ namespace SportfyRevit
         /// The building roof a layout was laid on, from the layout alone (its world origin and size): for an import with no roof pushed in this Revit
         /// session, which used to be recorded as roof "0" and then never replaced. Null when none matches.
         /// </summary>
-        internal static Element? FromLayout(Document doc, SportifyLayout layout)
+        internal static Element? FromLayout(Document doc, SportifyLayout layout) => FromLayout(doc, layout, out _);
+
+        /// <summary>
+        /// The building roof a layout was made for: the one its origin stands on, else — `byOutline` true — the one whose box in plan is the layout's
+        /// outline (RoofMatch.PickByOutline: between storeys that repeat it, the layout's height above the ground). The second is for a layout whose height names no roof: an
+        /// older export can carry the roof at height 0 (found 2026-09-30, the team's "sportify_combined_revit (6)"), and was then built on the ground
+        /// under the building, recorded as roof "0", while the next sync of the same layout went onto the real roof beside it. The caller builds a
+        /// `byOutline` layout at the roof's own height.
+        /// </summary>
+        internal static Element? FromLayout(Document doc, SportifyLayout layout, out bool byOutline)
         {
+            byOutline = false;
             var rc = layout.RoofContext;
             if (rc == null || rc.LengthM <= 0 || rc.WidthM <= 0) return null;
             var frame = new RoofFrame(rc.WorldOriginXM, rc.WorldOriginYM, rc.RotationDeg * Math.PI / 180.0, rc.LengthM, rc.WidthM);
@@ -73,7 +83,17 @@ namespace SportfyRevit
                 var gap = Math.Abs(rb.Max.Z - z);
                 if (gap < bestGap) { best = roof; bestGap = gap; }
             }
-            return best;
+            if (best != null) return best;
+
+            var corners = new[] { frame.ToModel(0, 0), frame.ToModel(rc.LengthM, 0), frame.ToModel(0, rc.WidthM), frame.ToModel(rc.LengthM, rc.WidthM) };
+            double minX = SportifyLayoutBuilder.FeetFromMeters(corners.Min(c => c.X)), maxX = SportifyLayoutBuilder.FeetFromMeters(corners.Max(c => c.X));
+            double minY = SportifyLayoutBuilder.FeetFromMeters(corners.Min(c => c.Y)), maxY = SportifyLayoutBuilder.FeetFromMeters(corners.Max(c => c.Y));
+            var roofs = BuildingRoofs(doc);
+            var boxes = roofs.Select(r => r.get_BoundingBox(null)).Select(b => (b.Min.X, b.Min.Y, b.Max.X, b.Max.Y, b.Max.Z)).ToList();
+            var pick = RoofMatch.PickByOutline(minX, minY, maxX, maxY, SportifyLayoutBuilder.FeetFromMeters(rc.HeightAboveGroundM), boxes);
+            if (pick < 0) return null;
+            byOutline = true;
+            return roofs[pick];
         }
 
         /// <summary>The roof element a ledger key names, when it is a live building roof (not a Sportify floor, not deleted); else null.</summary>

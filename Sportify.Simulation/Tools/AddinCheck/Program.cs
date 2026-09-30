@@ -1937,6 +1937,27 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("Sportify's gravel floor lies on the slab under it (a click on it pushes the slab), not on the one under that",
           RoofMatch.LiesOn(0.2 * ft, 0.2 * ft, L - 0.2 * ft, W - 0.2 * ft, e10, 0, 0, L, W, e10) && !RoofMatch.LiesOn(0.2 * ft, 0.2 * ft, L - 0.2 * ft, W - 0.2 * ft, e10, 0, 0, L, W, e9));
     Check("a floor that only touches the roof at a corner does not lie on it", !RoofMatch.LiesOn(60 * ft, 14 * ft, 90 * ft, 30 * ft, e10, 0, 0, L, W, e10));
+    // a layout whose height names no roof (the team's export "(6)", 2026-09-30: its roof at 0 m, built on the ground under the building)
+    var slabs = new List<(double MinX, double MinY, double MaxX, double MaxY, double TopZ)> { (0, 0, L, W, 0.0), (0, 0, L, W, e9), (0, 0, L, W, e10), (0, 0, 20 * ft, 10 * ft, e10 + 3 * ft) };
+    Check("a layout at 0 m with E9's outline and its height above ground (12.51 m) goes on E9, not E10 above it nor the ground slab",
+          RoofMatch.PickByOutline(0, 0, L, W, 12.51 * ft, slabs) == 1, RoofMatch.PickByOutline(0, 0, L, W, 12.51 * ft, slabs).ToString());
+    Check("... with E10's height it goes on E10", RoofMatch.PickByOutline(0, 0, L, W, 13.86 * ft, slabs) == 2);
+    Check("... without a height, between stacked slabs nothing is guessed", RoofMatch.PickByOutline(0, 0, L, W, 0, slabs) == -1);
+    Check("... an outline no slab has names none; a slab of its own outline is taken without a height",
+          RoofMatch.PickByOutline(0, 0, 50 * ft, W, 12.51 * ft, slabs) == -1 && RoofMatch.PickByOutline(0.1 * ft, 0, 20 * ft, 10.2 * ft, 0, slabs) == 3);
+
+    // duplicates: the same placement twice, never two pieces of the same kind (2026-09-30: one of the two ping pong tables was deleted on every import)
+    string K(double x) => DuplicateRule.Key("ACTIVITY_PING_PONG", "activity", "", "-2000151", "Table tennis", x, 5, e9, 0.15);
+    var twoTables = new[] { new DuplicateRule.Piece(10, K(44.6 * ft), true), new DuplicateRule.Piece(11, K(49.2 * ft), true) };
+    Check("an import's two ping pong tables both stay", DuplicateRule.ToDelete(twoTables).Count == 0);
+    var underCopy = new[] { new DuplicateRule.Piece(10, K(44.6 * ft), true), new DuplicateRule.Piece(3, K(44.6 * ft + 0.01), false), new DuplicateRule.Piece(11, K(49.2 * ft), true) };
+    Check("an earlier copy right under one of them goes, the import's own pieces stay", string.Join(",", DuplicateRule.ToDelete(underCopy)) == "3");
+    var sameSpotOwn = new[] { new DuplicateRule.Piece(10, K(44.6 * ft), true), new DuplicateRule.Piece(12, K(44.6 * ft), true) };
+    Check("two parts an import built on one spot both stay", DuplicateRule.ToDelete(sameSpotOwn).Count == 0);
+    var leftovers = new[] { new DuplicateRule.Piece(3, K(44.6 * ft), false), new DuplicateRule.Piece(7, K(44.6 * ft), false), new DuplicateRule.Piece(8, K(49.2 * ft), false) };
+    Check("Remove Duplicates (nothing just built): of two copies on one spot the newest stays, a piece elsewhere is not a copy", string.Join(",", DuplicateRule.ToDelete(leftovers)) == "3");
+    Check("a floor and a table of one piece on one spot are not copies of each other",
+          DuplicateRule.Key("ACTIVITY_PING_PONG", "activity", "", "-2000032", "Floor", 1, 2, 3, 0.15) != DuplicateRule.Key("ACTIVITY_PING_PONG", "activity", "", "-2000151", "Floor", 1, 2, 3, 0.15));
     Check("ledger keys that name no roof: \"\", \"0\", text; a roof's id and a design option's key do",
           RoofMatch.IsUnnamedRoofKey("") && RoofMatch.IsUnnamedRoofKey("0") && RoofMatch.IsUnnamedRoofKey(null) && RoofMatch.IsUnnamedRoofKey("roof")
           && !RoofMatch.IsUnnamedRoofKey("2519827") && !RoofMatch.IsUnnamedRoofKey(RoofMatch.OptionKey(123)));
@@ -2050,7 +2071,7 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
           push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
           && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
-          && Read("ImportLedger.cs").Contains("var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations);"));
+          && Read("ImportLedger.cs").Contains("var (entries, keep, ids) = OnRoof(doc, roofKey, roof, leftovers, keepNewest, withIterations, strayAtZFt);"));
     Check("the duplicate clean-up and the pergola re-placement never touch what Import Iterations built (found: an auto import deleted 44 iteration pieces)",
           Read("DuplicateCleanup.cs").Contains("!iterations.Contains(el.UniqueId)") && Read("AdaptiveUnitPlacer.cs").Contains("!iterations.Contains(el.UniqueId)")
           && Read("SportifyKineticFamilyBuilder.cs").Contains("!iterations.Contains(el.UniqueId)"));

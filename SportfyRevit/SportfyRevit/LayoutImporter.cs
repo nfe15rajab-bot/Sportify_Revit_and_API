@@ -82,11 +82,23 @@ namespace SportfyRevit
                 // The roof, as one of the building's own: the pushed one when it is still a live building roof, else the one the layout's own
                 // origin stands on (an import with no roof pushed this session used to be recorded as roof "0", a push that took one of Sportify's
                 // own floors for the roof as that floor's id — and neither was ever replaced by the next import of the same roof).
-                var roof = RoofIdentity.RoofOfKey(doc, roofId) ?? RoofIdentity.FromLayout(doc, layout);
+                var byOutline = false;
+                var roof = RoofIdentity.RoofOfKey(doc, roofId) ?? RoofIdentity.FromLayout(doc, layout, out byOutline);
                 if (roof != null && roof.Id.Value.ToString() != roofId)
                 {
                     SportifyLog.Info("import", $"roof \"{roofId}\" is not a building roof: the layout stands on {roof.Name} (id {roof.Id.Value}), recorded under that");
                     roofId = roof.Id.Value.ToString();
+                }
+                // Its height named no roof, its outline did (RoofIdentity.FromLayout): built on that roof, at its height, and whatever an earlier sync of
+                // it built at the stated height (recorded under a key that names no roof) goes with this roof's earlier imports.
+                double? strayZFt = null;
+                if (byOutline && roof != null && layout.RoofContext != null)
+                {
+                    PushRoofCommandBase.FindTopFace(roof, out var topFt);
+                    var topM = Math.Round(UnitUtils.ConvertFromInternalUnits(topFt ?? roof.get_BoundingBox(null).Max.Z, UnitTypeId.Meters), 3);
+                    strayZFt = SportifyLayoutBuilder.FeetFromMeters(layout.RoofContext.WorldOriginZM);
+                    SportifyLog.Warn("import", $"the layout puts its roof at {layout.RoofContext.WorldOriginZM:0.###} m, where no roof is; its outline is {roof.Name} (id {roof.Id.Value}): built on it, at {topM:0.###} m");
+                    layout.RoofContext.WorldOriginZM = topM;
                 }
 
                 var prepared = FamilyPreparation.Prepare(doc, layout, allowTemplateDialog: interactive);
@@ -98,14 +110,14 @@ namespace SportfyRevit
                 {
                     // Everything earlier imports left on this roof goes, whatever id they were recorded under; other roofs, design options and
                     // the iterations import keep theirs (ImportLedger.RemoveOnRoof).
-                    outcome.Replaced = ImportLedger.RemoveOnRoof(doc, roofId, roof, leftovers: true);
+                    outcome.Replaced = ImportLedger.RemoveOnRoof(doc, roofId, roof, leftovers: true, strayAtZFt: strayZFt);
                     if (clearOtherRoofs != null) foreach (var other in clearOtherRoofs) outcome.RemovedOtherRoofs += ImportLedger.RemovePrevious(doc, other);
                     if (clearIterations) outcome.ReplacedIterations = IterationLedger.RemovePrevious(doc);
                     outcome.Summary = SportifyLayoutBuilder.BuildGeometry(doc, layout, prepared, useWorksets: choice != WorksharingChoice.NoWorksets);
                     foreach (var id in outcome.Summary.CreatedIds.Distinct())
                         if (doc.GetElement(id) is Element made) SportifySharedParameters.SetRoofId(made, roofId);
                     ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName, roofId);
-                    outcome.RemovedDuplicates = DuplicateCleanup.RemoveForRoof(doc, roofId, roof);
+                    outcome.RemovedDuplicates = DuplicateCleanup.RemoveForRoof(doc, roofId, roof, justBuilt: outcome.Summary.CreatedIds);
                 }
                 catch (Exception ex)
                 {

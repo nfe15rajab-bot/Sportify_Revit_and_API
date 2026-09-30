@@ -28,6 +28,28 @@ namespace SportfyRevit
                 && elementCenterY >= roofMinY - EdgeToleranceFt && elementCenterY <= roofMaxY + EdgeToleranceFt;
         }
 
+        /// <summary>Whether a layout's roof (its outline's box in plan, model feet) is this building roof's (its box): each side within the edge
+        /// tolerance. What names the roof when the layout's height names none (an older export with the roof at height 0).</summary>
+        internal static bool SamePlanBox(double aMinX, double aMinY, double aMaxX, double aMaxY, double bMinX, double bMinY, double bMaxX, double bMaxY) =>
+            Math.Abs(aMinX - bMinX) <= EdgeToleranceFt && Math.Abs(aMinY - bMinY) <= EdgeToleranceFt
+            && Math.Abs(aMaxX - bMaxX) <= EdgeToleranceFt && Math.Abs(aMaxY - bMaxY) <= EdgeToleranceFt;
+
+        /// <summary>
+        /// The roof (index into `roofs`: their boxes in plan and tops, model feet) a layout whose height names none was made for, by its outline's box
+        /// (SamePlanBox); -1 for none. Storeys can repeat an outline (the Goldbeck model's E9 and E10 share theirs, 1.375 m apart), so between several
+        /// the layout's height above the ground decides (its top nearest it: the push measures it from the level nearest the project's zero), and
+        /// without that height nothing is guessed.
+        /// </summary>
+        internal static int PickByOutline(double minX, double minY, double maxX, double maxY, double heightAboveGroundFt,
+                                          IReadOnlyList<(double MinX, double MinY, double MaxX, double MaxY, double TopZ)> roofs)
+        {
+            var same = Enumerable.Range(0, roofs.Count)
+                .Where(i => SamePlanBox(minX, minY, maxX, maxY, roofs[i].MinX, roofs[i].MinY, roofs[i].MaxX, roofs[i].MaxY)).ToList();
+            if (same.Count <= 1) return same.Count == 1 ? same[0] : -1;
+            if (heightAboveGroundFt <= 0) return -1;
+            return same.OrderBy(i => Math.Abs(roofs[i].TopZ - heightAboveGroundFt)).First();
+        }
+
         /// <summary>Whether a Sportify floor (its box) lies on a candidate building roof (its box): the roof's top within the tolerance under the
         /// floor's underside, and the two overlapping over at least half of the floor's own plan area.</summary>
         internal static bool LiesOn(double floorMinX, double floorMinY, double floorMaxX, double floorMaxY, double floorMinZ,

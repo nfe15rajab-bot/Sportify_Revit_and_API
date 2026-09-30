@@ -491,7 +491,7 @@ namespace SportfyRevit
         /// that's the height an imported layout has to sit at — it was already
         /// being computed here to pick the face and then discarded.
         /// </summary>
-        private static PlanarFace? FindTopFace(Element element, out double? topFaceZFt)
+        internal static PlanarFace? FindTopFace(Element element, out double? topFaceZFt)
         {
             topFaceZFt = null;
             var options = new Options { ComputeReferences = false, DetailLevel = ViewDetailLevel.Fine };
