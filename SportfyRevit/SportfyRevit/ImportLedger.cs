@@ -110,9 +110,12 @@ namespace SportfyRevit
             if (RoofIdentity.RoofOfKey(doc, entry.RoofKey) != null) return false;       // another live roof's own import: switching roofs keeps it
             if (RoofIdentity.MostlyOn(entry.Elements, roofBox)) return true;
             // an earlier sync of a layout whose height named no roof, built at that height in this roof's plan (LayoutImporter, RoofIdentity.FromLayout)
-            if (strayAtZFt is not double z) return false;
-            var atStated = new BoundingBoxXYZ { Min = roofBox.Min, Max = new XYZ(roofBox.Max.X, roofBox.Max.Y, z) };
-            return RoofIdentity.MostlyOn(entry.Elements, atStated);
+            if (strayAtZFt is double z && RoofIdentity.MostlyOn(entry.Elements, new BoundingBoxXYZ { Min = roofBox.Min, Max = new XYZ(roofBox.Max.X, roofBox.Max.Y, z) }))
+                return true;
+            // ... or one from before imports matched by outline, whatever height it named: in this roof's plan, standing on nothing of the building (an
+            // import made for a roof stands on it; found 2026-09-30, the team's export "(6)" at 0 m built under the building as roof "0")
+            return RoofIdentity.MostlyInPlan(entry.Elements, roofBox)
+                && !RoofIdentity.BuildingRoofs(doc).Any(r => r.get_BoundingBox(null) is BoundingBoxXYZ b && RoofIdentity.MostlyOn(entry.Elements, b));
         }
 
         /// <summary>

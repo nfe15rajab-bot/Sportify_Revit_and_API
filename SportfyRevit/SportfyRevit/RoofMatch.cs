@@ -24,9 +24,12 @@ namespace SportfyRevit
                                       double roofMinX, double roofMinY, double roofMaxX, double roofMaxY, double roofTopZ)
         {
             if (Math.Abs(elementMinZ - roofTopZ) > StandToleranceFt) return false;
-            return elementCenterX >= roofMinX - EdgeToleranceFt && elementCenterX <= roofMaxX + EdgeToleranceFt
-                && elementCenterY >= roofMinY - EdgeToleranceFt && elementCenterY <= roofMaxY + EdgeToleranceFt;
+            return InPlan(elementCenterX, elementCenterY, roofMinX, roofMinY, roofMaxX, roofMaxY);
         }
+
+        /// <summary>Whether a point (an element's middle) lies in a roof's outline box in plan, at any height.</summary>
+        internal static bool InPlan(double x, double y, double roofMinX, double roofMinY, double roofMaxX, double roofMaxY) =>
+            x >= roofMinX - EdgeToleranceFt && x <= roofMaxX + EdgeToleranceFt && y >= roofMinY - EdgeToleranceFt && y <= roofMaxY + EdgeToleranceFt;
 
         /// <summary>Whether a layout's roof (its outline's box in plan, model feet) is this building roof's (its box): each side within the edge
         /// tolerance. What names the roof when the layout's height names none (an older export with the roof at height 0).</summary>

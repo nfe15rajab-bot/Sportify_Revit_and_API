@@ -17,6 +17,17 @@ namespace SportfyRevit
             ["ACTIVITY_BALANCE_LOGS"] = ("Sportify_BalanceLogs", "Balance Logs"),
             ["ACTIVITY_MINIGOLF_LANE"] = ("Sportify_MiniGolfLane", "Mini Golf Lane"),
             ["ACTIVITY_MODULAR_TOWER_SLIDE"] = ("Sportify_ModularTowerSlide", "Modular Tower Slide"),
+            // The design team's families the web app sends configured (activityFamilies.js, climbingTower.js: "familyInstance"), for a piece that
+            // arrives without that link: a file saved by an older build, or one sent straight to Revit (found 2026-09-30: the team's export "(6)" had its
+            // trampoline without it and Revit generated a box, which then stayed as "a family already in the project"). Placed with the family's own
+            // defaults; the names are SportifyPlanterFamilyBuilder.FamilyFor's.
+            ["ACTIVITY_TRAMPOLINE"] = ("Sportify_TrampolineSandPit", "Trampoline-SandPit"),
+            ["ACTIVITY_URBAN_BOCCE"] = ("Sportify_BocceCourt", "Bocce Court"),
+            ["ACTIVITY_SPRINT_LANE"] = ("Sportify_SprintLane", "Sprint Lane"),
+            ["ACTIVITY_CLIMBING_TOWER"] = ("Sportify_ClimbingTower", "Climbing Tower"),
+            ["ACTIVITY_LOCKER_MODULE"] = ("Sportify_LockerBank", "Locker Bank"),
+            ["ACTIVITY_DRESSING_CABIN"] = ("Sportify_DressingCabin", "Dressing_Cabin"),
+            ["ACTIVITY_YOGA_DECK"] = ("Sportify_YogaDeck", "Yoga Deck"),
         };
     }
 }

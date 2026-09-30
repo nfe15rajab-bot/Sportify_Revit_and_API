@@ -114,6 +114,14 @@ namespace SportfyRevit
             return RoofMatch.StandsOn(bb.Min.Z, c.X, c.Y, roofBox.Min.X, roofBox.Min.Y, roofBox.Max.X, roofBox.Max.Y, roofBox.Max.Z);
         }
 
+        /// <summary>Whether most of a group of elements (an earlier import) lie in the roof's outline box in plan, at any height.</summary>
+        internal static bool MostlyInPlan(IReadOnlyCollection<Element> elements, BoundingBoxXYZ roofBox)
+        {
+            var boxes = elements.Select(e => e.get_BoundingBox(null)).Where(b => b != null).ToList();
+            if (boxes.Count == 0) return false;
+            return boxes.Count(b => { var c = (b!.Min + b.Max) * 0.5; return RoofMatch.InPlan(c.X, c.Y, roofBox.Min.X, roofBox.Min.Y, roofBox.Max.X, roofBox.Max.Y); }) * 2 > boxes.Count;
+        }
+
         /// <summary>Whether most of a group of elements (an earlier import) stand on the roof.</summary>
         internal static bool MostlyOn(IReadOnlyCollection<Element> elements, BoundingBoxXYZ roofBox)
         {

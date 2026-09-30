@@ -2068,6 +2068,14 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("a full push of a roof with Sportify content asks first (delete and push / keep and push / cancel), and cancelling pushes nothing",
           push.Contains("RoofPushScopes.IsEverything(scope) && !ConfirmEarlierContent(doc, element, out clearedNote)) return Result.Cancelled")
           && push.Contains("Delete it and push the roof") && push.Contains("Keep it and push the roof") && push.Contains("TaskDialogCommonButtons.Cancel"));
+    var rules = Read("FamilyMatchRules.cs");
+    var libraryDir = src == null ? null : Path.Combine(src, "..", "Library", "Families");     // SportfyRevit/Library/Families, beside the project folder
+    var libraryKeys = new[] { ("ACTIVITY_TRAMPOLINE", "Sportify_TrampolineSandPit"), ("ACTIVITY_URBAN_BOCCE", "Sportify_BocceCourt"), ("ACTIVITY_SPRINT_LANE", "Sportify_SprintLane"),
+        ("ACTIVITY_CLIMBING_TOWER", "Sportify_ClimbingTower"), ("ACTIVITY_LOCKER_MODULE", "Sportify_LockerBank"), ("ACTIVITY_DRESSING_CABIN", "Sportify_DressingCabin"), ("ACTIVITY_YOGA_DECK", "Sportify_YogaDeck"),
+        ("ACTIVITY_MINIGOLF_LANE", "Sportify_MiniGolfLane"), ("ACTIVITY_MODULAR_TOWER_SLIDE", "Sportify_ModularTowerSlide"), ("ACTIVITY_BALANCE_LOGS", "Sportify_BalanceLogs") };
+    Check("every activity family in the library is found by its quality_key when a piece arrives without its family link, and its .rfa ships (2026-09-30: the trampoline came as a box)",
+          libraryKeys.All(k => rules.Contains($"[\"{k.Item1}\"] = (\"{k.Item2}\"") && (libraryDir == null || File.Exists(Path.Combine(libraryDir, k.Item2 + ".rfa")))),
+          string.Join(",", libraryKeys.Where(k => !rules.Contains($"[\"{k.Item1}\"] = (\"{k.Item2}\"") || (libraryDir != null && !File.Exists(Path.Combine(libraryDir, k.Item2 + ".rfa")))).Select(k => k.Item1)));
     Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
           push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
           && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
