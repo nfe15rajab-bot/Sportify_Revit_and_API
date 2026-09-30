@@ -168,6 +168,10 @@ namespace SportfyRevit
                              })))
                 {
                     if (el.DesignOption != null || keepIds.Contains(el.Id) || listed.Contains(el.UniqueId)) continue;
+                    // a Kinetics unit is the Kinetics import's (it replaces its own, AdaptiveUnitPlacer.ClearKind): not a layout's leftover. Of a pergola
+                    // only the posts stand on the slab, so every sync deleted the columns and left the blades hanging (found 2026-09-30). A full clear
+                    // ("Delete it and push the roof", withIterations) still takes them.
+                    if (!withIterations && el.LookupParameter("Sportify_Category")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue) continue;
                     if (!RoofIdentity.IsSportifys(doc, el) || !RoofIdentity.StandsOn(el, roofBox)) continue;
                     ids.Add(el.Id);
                 }

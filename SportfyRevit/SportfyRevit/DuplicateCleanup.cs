@@ -44,7 +44,8 @@ namespace SportfyRevit
             var iterations = IterationLedger.ReadUniqueIds(doc);
             var filter = new LogicalOrFilter(Categories.Select(c => (ElementFilter)new ElementCategoryFilter(c)).ToList());
             var candidates = new FilteredElementCollector(doc).WhereElementIsNotElementType().WherePasses(filter)
-                .Where(el => el.DesignOption == null && !iterations.Contains(el.UniqueId) && !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString()) && Ours(el))
+                .Where(el => el.DesignOption == null && !iterations.Contains(el.UniqueId) && !string.IsNullOrEmpty(el.LookupParameter("Sportify_Category")?.AsString())
+                             && el.LookupParameter("Sportify_Category")?.AsString() != SportifyKineticFamilyBuilder.KineticsCategoryValue && Ours(el))     // Kinetics replaces its own units
                 .ToList();
             if (candidates.Count < 2) return 0;
 

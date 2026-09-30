@@ -156,6 +156,18 @@ namespace SportfyRevit
             }
             foreach (var g in main.Where(x => x.LookupParameter("Sportify_QualityKey")?.AsString() == "ACTIVITY_PING_PONG").GroupBy(x => x.LookupParameter("Sportify_RoofId")?.AsString() ?? ""))
                 lines.Add($"ping pong elements on roof {g.Key}: {g.Count()}");
+            // the kinetic units (Kinetics > Import Analysis Adaptation): each unit's parts by role, so a unit missing its posts shows (2026-09-30: pergola columns gone)
+            var iterationIds = IterationLedger.ReadUniqueIds(doc);
+            foreach (var g in sportify.Where(x => x.LookupParameter("Sportify_Category")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue)
+                         .GroupBy(x => (Unit: x.LookupParameter("Sportify_Variant")?.AsString() ?? "?", Roof: x.LookupParameter("Sportify_RoofId")?.AsString() ?? "",
+                                        Where: x.DesignOption != null ? "option " + x.DesignOption.Name : iterationIds.Contains(x.UniqueId) ? "iteration" : "main"))
+                         .OrderBy(g => g.Key.Where).ThenBy(g => g.Key.Unit))
+            {
+                var zs = g.Select(x => x.get_BoundingBox(null)).Where(b => b != null).Select(b => UnitUtils.ConvertFromInternalUnits(b!.Min.Z, UnitTypeId.Meters)).ToList();
+                var ws = g.Select(x => doc.GetWorksetTable().GetWorkset(x.WorksetId)?.Name).Distinct();
+                lines.Add($"kinetic unit \"{g.Key.Unit}\" ({g.Key.Where}, roof {g.Key.Roof}): " + string.Join(", ", g.GroupBy(x => x.LookupParameter("Sportify_TypeId")?.AsString() ?? "?").OrderBy(r => r.Key).Select(r => $"{r.Count()} {r.Key}")) +
+                          $"; undersides {(zs.Count > 0 ? $"{zs.Min():0.##}..{zs.Max():0.##} m" : "-")}; worksets {string.Join("/", ws)}");
+            }
             foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate &&
                          (v.Name.IndexOf("Lageplan", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name.IndexOf("Achsonometrie", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name == "Schemes_Spotify")))
             {

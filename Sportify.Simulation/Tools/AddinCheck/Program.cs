@@ -2076,6 +2076,9 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("every activity family in the library is found by its quality_key when a piece arrives without its family link, and its .rfa ships (2026-09-30: the trampoline came as a box)",
           libraryKeys.All(k => rules.Contains($"[\"{k.Item1}\"] = (\"{k.Item2}\"") && (libraryDir == null || File.Exists(Path.Combine(libraryDir, k.Item2 + ".rfa")))),
           string.Join(",", libraryKeys.Where(k => !rules.Contains($"[\"{k.Item1}\"] = (\"{k.Item2}\"") || (libraryDir != null && !File.Exists(Path.Combine(libraryDir, k.Item2 + ".rfa")))).Select(k => k.Item1)));
+    Check("a layout import and the duplicate clean-up leave the Kinetics units alone (2026-09-30: every sync deleted the pergola posts, the only parts standing on the slab); a full clear still takes them",
+          Read("ImportLedger.cs").Contains("if (!withIterations && el.LookupParameter(\"Sportify_Category\")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue) continue;")
+          && Read("DuplicateCleanup.cs").Contains("!= SportifyKineticFamilyBuilder.KineticsCategoryValue && Ours(el)"));
     Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
           push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
           && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
