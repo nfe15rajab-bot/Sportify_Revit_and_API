@@ -292,6 +292,8 @@ namespace SportfyRevit
         [JsonPropertyName("parameters")] public ParametersDto? Parameters { get; set; }
         /// <summary>The colour the web app's Algorithmic placement plan gives this piece ("#rrggbb"), for Revit's diagrams (SportifyDiagramViews); null when it has none.</summary>
         [JsonPropertyName("diagram_color")] public string? DiagramColor { get; set; }
+        /// <summary>The piece's zone in the Algorithmic placement (algoPlacementCore.js zoneOf): "indoor", "outdoor" or "garden"; null from an older export (DiagramPlan.ZoneOf then goes by name and kind).</summary>
+        [JsonPropertyName("diagram_zone")] public string? Zone { get; set; }
 
         /// <summary>
         /// buildAnalysisForItem() (combineController.js) — the same per-item

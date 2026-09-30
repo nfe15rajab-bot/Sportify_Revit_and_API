@@ -4,7 +4,7 @@ using Autodesk.Revit.DB;
 namespace SportfyRevit
 {
     /// <summary>
-    /// The circulation, fire safety and accessibility diagrams as Revit views, in the visual style of the web app's Algorithmic placement plan, a little less
+    /// The circulation, fire safety, accessibility and zoning diagrams as Revit views, in the visual style of the web app's Algorithmic placement plan, a little less
     /// saturated (user, 2026-09-29): built inside Revit, under a Sportify view template for analysis diagrams (made when the project has none), and
     /// generated again every time an analysis command runs, so they always show the layout as it is now. What they show is DiagramPlan (Revit-free); this
     /// puts it in the views with the same filled regions the analysis hatch views use (AnalysisHatchViews).
@@ -12,6 +12,8 @@ namespace SportfyRevit
     ///   "Sportify - Circulation Diagram - Roof N"    (the Generate Functional Diagrams view, now drawn in this style)
     ///   "Sportify - Fire Safety Diagram - Roof N"
     ///   "Sportify - Accessibility Diagram - Roof N"
+    ///   "Sportify - Zoning Diagram - Roof N"         (user, 2026-09-29: "add also a zoning diagram", in the same template as the circulation one)
+    /// and with them "Sportify - Tags - Roof N" (SportifyTagView), then, in a project on the Sportify template, the plan set's sheets (SportifySheets).
     /// </summary>
     internal static class SportifyDiagramViews
     {
@@ -19,9 +21,10 @@ namespace SportfyRevit
         const string OldTemplateName = "Sportify - Analysis Diagrams";           // what it was first made as: renamed, not made twice
         internal const string FireTitle = "Sportify - Fire Safety Diagram";
         internal const string AccessibilityTitle = "Sportify - Accessibility Diagram";
+        internal const string ZoningTitle = "Sportify - Zoning Diagram";
 
         /// <summary>
-        /// Draws the three diagrams for the layout (the one the command read, else the newest the web app sent). Best-effort: never throws, and a project or a
+        /// Draws the four diagrams for the layout (the one the command read, else the newest the web app sent). Best-effort: never throws, and a project or a
         /// layout with nothing to draw is simply left alone. Opens its own transaction, so it must be called outside one (the analysis commands call it).
         /// </summary>
         internal static void Refresh(Document? doc, SportifyLayout? layout = null)
@@ -47,12 +50,37 @@ namespace SportfyRevit
                 if (fireView != null && template != null) Apply(fireView, template);
                 Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(AccessibilityTitle), DiagramPlan.Accessibility(layout, minWidth), template);
                 Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedCirculationName(), DiagramPlan.Circulation(layout), template);
+                Draw(doc, layout, GenerateFunctionalDiagramsCommand.RoofScopedName(ZoningTitle), DiagramPlan.Zoning(layout), template);
+                Isolated(doc, "the tag view", () => SportifyTagView.Draw(doc, template));
+                Isolated(doc, "the plan set", () => ArrangeSheets(doc));
                 t.Commit();
-                SportifyLog.Info("diagrams", "circulation, fire safety and accessibility diagrams drawn for roof " + (RoofBoundaryServer.ActiveRoofId ?? 0));
+                SportifyLog.Info("diagrams", "circulation, fire safety, accessibility and zoning diagrams drawn for roof " + (RoofBoundaryServer.ActiveRoofId ?? 0));
             }
             catch (Exception ex)
             {
                 SportifyLog.Warn("diagrams", "the analysis diagrams could not be drawn: " + ex.Message);
+            }
+        }
+
+        /// <summary>A project on the Sportify template gets each diagram on its sheet of the plan set as soon as it is drawn (SportifySheets). Others are left alone.</summary>
+        internal static void ArrangeSheets(Document doc)
+        {
+            var names = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).Select(v => v.Name).ToList();
+            if (SportifyTemplateSpec.Detect(names) is not TemplateLanguage language) return;
+            var made = new List<string>(); var notes = new List<string>();
+            SportifySheets.Arrange(doc, SportifyTemplateSpec.For(language), null, null, made, notes);
+            foreach (var n in notes) SportifyLog.Warn("sheets", n);
+        }
+
+        /// <summary>A part that must never cost the diagrams: in a sub-transaction, rolled back and logged when it fails.</summary>
+        static void Isolated(Document doc, string what, Action action)
+        {
+            using var sub = new SubTransaction(doc);
+            try { sub.Start(); action(); sub.Commit(); }
+            catch (Exception ex)
+            {
+                if (sub.HasStarted() && !sub.HasEnded()) sub.RollBack();
+                SportifyLog.Warn("diagrams", what + " could not be drawn: " + ex.Message);
             }
         }
 

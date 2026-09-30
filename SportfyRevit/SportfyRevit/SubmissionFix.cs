@@ -80,7 +80,10 @@ namespace SportfyRevit
                     }
                     t.Commit();
                 }
+                if (steps.Contains("sheets")) ArrangeSheets(doc, lines);
                 Diagnose(doc, lines, "AFTER");
+                if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT") is string export && export.Length > 0) ExportSheets(doc, export, lines);
+                if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_NOSAVE") == "1") { lines.Add("NOT SAVED (dry run)"); return; }
 
                 var save = new SaveAsOptions { OverwriteExistingFile = true, MaximumBackups = 5 };
                 if (doc.IsWorkshared) save.SetWorksharingOptions(new WorksharingSaveAsOptions { SaveAsCentral = true });
@@ -122,6 +125,70 @@ namespace SportfyRevit
                 var shown = new FilteredElementCollector(doc, v.Id).WhereElementIsNotElementType().Count(x => RoofIdentity.IsSportifys(doc, x));
                 lines.Add($"view \"{v.Name}\": phase {phase}, phase filter {filter}, shows {shown} Sportify element(s)");
             }
+            lines.Add("phases: " + string.Join(", ", doc.Phases.Cast<Phase>().Select(p => p.Name)));
+            lines.Add("view templates: " + string.Join(", ", new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate && (v.Name.StartsWith("S") || v.Name == "Diagrams")).Select(v => v.Name).OrderBy(n => n)));
+            lines.Add("Sportify views: " + string.Join(", ", new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate && v.Name.StartsWith("Sportify - ")).Select(v => v.Name).OrderBy(n => n)));
+            var vps = new FilteredElementCollector(doc).OfClass(typeof(Viewport)).Cast<Viewport>().ToList();
+            var lists = new FilteredElementCollector(doc).OfClass(typeof(ScheduleSheetInstance)).Cast<ScheduleSheetInstance>().Where(x => !x.IsTitleblockRevisionSchedule).ToList();
+            foreach (var sh in new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>()
+                         .Where(x => System.Text.RegularExpressions.Regex.IsMatch(x.SheetNumber, @"^S[1-4]-") || x.SheetNumber.StartsWith("SPORT") || x.LookupParameter("Projektbrowser Plangliederung")?.AsString() == "Sportify")
+                         .OrderBy(x => x.SheetNumber, StringComparer.Ordinal))
+            {
+                var tb = new FilteredElementCollector(doc, sh.Id).OfCategory(BuiltInCategory.OST_TitleBlocks).WhereElementIsNotElementType().OfType<FamilyInstance>().FirstOrDefault();
+                var bb = tb?.get_BoundingBox(sh);
+                var size = bb == null ? "" : $" {(bb.Max.X - bb.Min.X) * 304.8:0} x {(bb.Max.Y - bb.Min.Y) * 304.8:0} mm";
+                lines.Add($"sheet {sh.SheetNumber} \"{sh.Name}\": {(tb == null ? "no title block" : tb.Symbol.FamilyName + " : " + tb.Symbol.Name)}{size}; views: "
+                          + string.Join(" + ", vps.Where(v => v.SheetId == sh.Id).Select(v => "\"" + doc.GetElement(v.ViewId)?.Name + "\""))
+                          + "; lists: " + string.Join(" + ", lists.Where(x => x.OwnerViewId == sh.Id).Select(x => "\"" + doc.GetElement(x.ScheduleId)?.Name + "\"")));
+            }
+        }
+
+        /// <summary>The plan set arranged the way Apply Sportify Template and every drawing of the diagrams now do (SportifySheets). With SPORTIFY_FIX_LAYOUT (a layout the
+        /// web app exported) the diagrams and the tag view are drawn from it first, as an analysis would; without it, the tag view is drawn and the sheets arranged.</summary>
+        static void ArrangeSheets(Document doc, List<string> lines)
+        {
+            var layoutPath = Environment.GetEnvironmentVariable("SPORTIFY_FIX_LAYOUT");
+            if (!string.IsNullOrWhiteSpace(layoutPath) && File.Exists(layoutPath))
+            {
+                var layout = System.Text.Json.JsonSerializer.Deserialize<SportifyLayout>(File.ReadAllText(layoutPath));
+                SportifyDiagramViews.Refresh(doc, layout);
+                lines.Add($"diagrams, tag view and sheets drawn from {layoutPath} ({layout?.Placements?.Count ?? 0} piece(s))");
+                return;
+            }
+            using var t = new Transaction(doc, "Sportify: plan set");
+            t.Start();
+            var template = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().FirstOrDefault(v => v.IsTemplate && v.Name == SportifyDiagramViews.TemplateName);
+            var tags = SportifyTagView.Draw(doc, template);
+            lines.Add(tags == null ? "no tag view (no Tag_Sportify)" : $"tag view \"{tags.Name}\" drawn");
+            var names = new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => v.IsTemplate).Select(v => v.Name).ToList();
+            var language = SportifyTemplateSpec.Detect(names) ?? TemplateLanguage.De;
+            var made = new List<string>(); var notes = new List<string>();
+            SportifySheets.Arrange(doc, SportifyTemplateSpec.For(language), null, null, made, notes);
+            t.Commit();
+            lines.Add($"plan set arranged ({language}):");
+            lines.AddRange(made.Select(m => "  " + m));
+            lines.AddRange(notes.Select(n => "  NOTE " + n));
+        }
+
+        /// <summary>Every Sportify sheet as a PNG in `folder`, to look at without opening Revit.</summary>
+        static void ExportSheets(Document doc, string folder, List<string> lines)
+        {
+            try
+            {
+                Directory.CreateDirectory(folder);
+                var ids = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>()
+                    .Where(x => System.Text.RegularExpressions.Regex.IsMatch(x.SheetNumber, @"^S[1-4]-") || x.SheetNumber.StartsWith("SPORT")).Select(x => x.Id).ToList();
+                ids.AddRange(new FilteredElementCollector(doc).OfClass(typeof(ViewPlan)).Cast<ViewPlan>().Where(v => !v.IsTemplate && (v.Name.StartsWith(SportifyTagView.Title) || v.Name.StartsWith("Sportify - Zoning"))).Select(v => v.Id));
+                var opts = new ImageExportOptions
+                {
+                    ExportRange = ExportRange.SetOfViews, FilePath = Path.Combine(folder, "sheet"), HLRandWFViewsFileType = ImageFileType.PNG, ShadowViewsFileType = ImageFileType.PNG,
+                    ImageResolution = ImageResolution.DPI_150, ZoomType = ZoomFitType.FitToPage, PixelSize = 2400,
+                };
+                opts.SetViewsAndSheets(ids);
+                doc.ExportImage(opts);
+                lines.Add($"exported {ids.Count} sheet(s)/view(s) to {folder}");
+            }
+            catch (Exception ex) { lines.Add("export failed: " + ex.Message); }
         }
 
         /// <summary>The main model's Sportify content on each roof whose iterations are in design options: it showed through every option.</summary>

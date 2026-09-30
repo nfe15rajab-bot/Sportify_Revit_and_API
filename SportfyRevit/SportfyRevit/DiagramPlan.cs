@@ -131,6 +131,98 @@ namespace SportfyRevit
             return new Diagram(shapes, caption);
         }
 
+        // ---------------------------------------------------------------------------------------------------------- zoning (user, 2026-09-29: "add also a zoning diagram")
+
+        /// <summary>The zones of the Algorithmic placement (algoPlacementCore.js zoneOf): indoor (walls round it), outdoor sport, garden. Their colours, softened when drawn.</summary>
+        internal const string IndoorColor = "#6f5bd0", SportZoneColor = "#3d6fff", GardenZoneColor = "#2f9e5b", WallColor = "#3a3f4b";
+
+        static readonly string[] IndoorWords = { "locker", "bathroom", "shower", "rest / hydration", "rest area", "hydration" };
+
+        /// <summary>A piece's zone: the one the web app exported with it, else by its name (the service modules are indoor) and its kind (gardens, plants,
+        /// furniture and kinetic shading are garden; courts and activities outdoor sport).</summary>
+        internal static string ZoneOf(PlacementDto p)
+        {
+            var z = (p.Zone ?? "").Trim().ToLowerInvariant();
+            if (z is "indoor" or "outdoor" or "garden") return z;
+            var label = (p.Label ?? "").ToLowerInvariant();
+            if (IndoorWords.Any(w => label.Contains(w))) return "indoor";
+            return (p.Category ?? "").ToLowerInvariant() switch { "garden" or "gardenblock" or "vegetation" or "furniture" or "kinetics" => "garden", _ => "outdoor" };
+        }
+
+        static (string Name, string Color) ZoneStyle(string zone) => zone switch
+        {
+            "indoor" => ("Indoor", IndoorColor),
+            "garden" => ("Garden", GardenZoneColor),
+            _ => ("Sport", SportZoneColor),
+        };
+
+        /// <summary>A colour mixed toward white: the pale ground of a zone under its pieces.</summary>
+        internal static string Tint(string hex, double toWhite)
+        {
+            var (r, g, b) = Rgb(hex);
+            return Hex(r + (255 - r) * toWhite, g + (255 - g) * toWhite, b + (255 - b) * toWhite);
+        }
+
+        /// <summary>How close two pieces of one zone must be (their gap, metres) to be one cluster of it: the widest primary path, 2.5 m, and a little.</summary>
+        internal const double ZoneClusterGapM = 2.6;
+
+        /// <summary>
+        /// Zoning: every piece in its zone's colour, each cluster of a zone on a pale ground of that colour (its pieces' box, 0.6 m round) labelled with the zone,
+        /// how many pieces and their area; the indoor zone's walls dark; the paths, the garden band and the entrances as on the other diagrams.
+        /// </summary>
+        internal static Diagram Zoning(SportifyLayout layout)
+        {
+            var shapes = new List<PlanShape>();
+            shapes.AddRange(Garden(layout));
+            shapes.AddRange(PathBands(layout).Select(b => Band(b, Soften(PathGrey, 0.1))));
+            double L = layout.RoofContext?.LengthM ?? 0, W = layout.RoofContext?.WidthM ?? 0;
+            var pieces = (layout.Placements ?? new List<PlacementDto>()).Where(p => p.BoundingBox is { WidthM: > 0, HeightM: > 0 }).ToList();
+            var areaBy = new Dictionary<string, double>();
+            foreach (var zone in new[] { "outdoor", "garden", "indoor" })
+            {
+                var members = pieces.Where(p => ZoneOf(p) == zone).ToList();
+                var (name, color) = ZoneStyle(zone);
+                areaBy[zone] = members.Sum(p => p.BoundingBox!.WidthM * p.BoundingBox.HeightM);
+                foreach (var group in Clusters(members, ZoneClusterGapM))
+                {
+                    double x0 = group.Min(p => p.BoundingBox!.TopLeftXM) - 0.6, y0 = group.Min(p => p.BoundingBox!.TopLeftYM) - 0.6;
+                    double x1 = group.Max(p => p.BoundingBox!.TopLeftXM + p.BoundingBox.WidthM) + 0.6, y1 = group.Max(p => p.BoundingBox!.TopLeftYM + p.BoundingBox.HeightM) + 0.6;
+                    if (L > 0 && W > 0) { x0 = Math.Max(0, x0); y0 = Math.Max(0, y0); x1 = Math.Min(L, x1); y1 = Math.Min(W, y1); }
+                    var area = group.Sum(p => p.BoundingBox!.WidthM * p.BoundingBox.HeightM);
+                    shapes.Add(new PlanShape
+                    {
+                        Kind = "rect", X = x0, Y = y0, W = x1 - x0, H = y1 - y0, Fill = Tint(Soften(color, 0.2), 0.72),
+                        Label = string.Format(Inv, "{0} - {1} piece(s), {2:0} m2", name, group.Count, area), LabelColor = "#222633",
+                    });
+                }
+            }
+            foreach (var w in layout.IndoorWalls ?? new List<IndoorWallDto>())
+                foreach (var r in w.RectsM ?? new List<List<double>>())
+                    if (r is { Count: >= 4 } && r[2] - r[0] > 1e-6 && r[3] - r[1] > 1e-6)
+                        shapes.Add(new PlanShape { Kind = "rect", X = r[0], Y = r[1], W = r[2] - r[0], H = r[3] - r[1], Fill = WallColor });
+            shapes.AddRange(Pieces(layout, p => Soften(ZoneStyle(ZoneOf(p)).Color, 0.3), _ => ""));
+            shapes.AddRange(Entrances(layout));
+            var paths = PathBands(layout).Sum(b => b.LengthM * b.WidthM);
+            return new Diagram(shapes, string.Format(Inv, "Zoning - indoor {0:0} m2, sport {1:0} m2, garden {2:0} m2 of pieces; about {3:0} m2 of paths",
+                areaBy.GetValueOrDefault("indoor"), areaBy.GetValueOrDefault("outdoor"), areaBy.GetValueOrDefault("garden"), paths));
+        }
+
+        /// <summary>The pieces of one zone in clusters: two pieces are in one when the gap between their boxes is at most `gapM` (and a cluster is everything so linked).</summary>
+        internal static List<List<PlacementDto>> Clusters(List<PlacementDto> pieces, double gapM)
+        {
+            var parent = Enumerable.Range(0, pieces.Count).ToArray();
+            int Find(int i) { while (parent[i] != i) i = parent[i] = parent[parent[i]]; return i; }
+            for (int i = 0; i < pieces.Count; i++)
+                for (int j = i + 1; j < pieces.Count; j++)
+                {
+                    var a = pieces[i].BoundingBox!; var b = pieces[j].BoundingBox!;
+                    double gx = Math.Max(0, Math.Max(a.TopLeftXM, b.TopLeftXM) - Math.Min(a.TopLeftXM + a.WidthM, b.TopLeftXM + b.WidthM));
+                    double gy = Math.Max(0, Math.Max(a.TopLeftYM, b.TopLeftYM) - Math.Min(a.TopLeftYM + a.HeightM, b.TopLeftYM + b.HeightM));
+                    if (Math.Sqrt(gx * gx + gy * gy) <= gapM) parent[Find(i)] = Find(j);
+                }
+            return Enumerable.Range(0, pieces.Count).GroupBy(Find).Select(g => g.Select(i => pieces[i]).ToList()).ToList();
+        }
+
         // ---------------------------------------------------------------------------------------------------------- the parts
 
         /// <summary>A stretch of walkway: a rectangle along a path, its width and length (plan metres), its middle.</summary>

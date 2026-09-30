@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sportify BIM Chart</title>
+<!-- The Sportify BIM chart: how the Sportify add-in organises a Revit model (phases, design options, worksets, graphics and line weights, view templates,
+     sheets, tags, parameters). Every value here is the add-in's own (the source file is named in each section). Printed to A3 landscape PDF with Chromium. -->
+<style>
+  @page { size: 420mm 297mm; margin: 0; }
+  :root {
+    --ink: #1d2230; --muted: #5b6274; --rule: #1d2230; --hair: #c9cdd6; --paper: #ffffff; --band: #f3f4f7; --accent: #c41e3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+  body { font: 9pt/1.38 "Segoe UI", Arial, sans-serif; }
+  .page { width: 420mm; height: 297mm; padding: 10mm 10mm 0 10mm; position: relative; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  .frame { position: absolute; inset: 7mm; border: 0.5mm solid var(--rule); pointer-events: none; }
+  .content { position: absolute; left: 12mm; right: 12mm; top: 12mm; bottom: 34mm; display: grid; gap: 7mm; }
+  h1 { font: 600 30pt/1 Oswald, "Segoe UI", sans-serif; letter-spacing: 0.02em; margin: 0; text-transform: uppercase; }
+  h2 { font: 600 12.5pt/1.1 Oswald, "Segoe UI", sans-serif; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 2.2mm; padding-bottom: 1.2mm; border-bottom: 0.35mm solid var(--rule); display: flex; gap: 3mm; align-items: baseline; }
+  h2 .no { color: var(--accent); }
+  h2 .src { margin-left: auto; font: 400 7pt/1 "Segoe UI", sans-serif; letter-spacing: 0; text-transform: none; color: var(--muted); }
+  p { margin: 0 0 1.6mm; }
+  .lead { font-size: 10pt; color: var(--muted); max-width: 250mm; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font: 600 7.2pt/1.2 "Segoe UI", sans-serif; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 0.3mm solid var(--rule); padding: 1.2mm 1.6mm; }
+  td { border-bottom: 0.15mm solid var(--hair); padding: 1.15mm 1.6mm; vertical-align: top; }
+  tr.group td { background: var(--band); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 7pt; color: var(--muted); }
+  code, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: 7.8pt; }
+  .sw { display: inline-block; width: 9mm; height: 4mm; border: 0.15mm solid #0006; vertical-align: -0.8mm; margin-right: 1.5mm; }
+  .pen { display: inline-block; width: 16mm; vertical-align: middle; background: currentColor; }
+  .muted { color: var(--muted); }
+  .note { border-left: 0.8mm solid var(--accent); padding: 1.2mm 2.5mm; background: #fbf3f4; margin-top: 2mm; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .cols3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 8mm; }
+  .tag { display: inline-block; border: 0.2mm solid var(--ink); padding: 0 1.4mm; font-size: 7pt; border-radius: 0.8mm; margin-right: 1mm; }
+  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin-top: 3mm; }
+  .flow div { border: 0.3mm solid var(--rule); border-right: none; padding: 2.5mm 3mm; min-height: 25mm; position: relative; }
+  .flow div:last-child { border-right: 0.3mm solid var(--rule); }
+  .flow b { display: block; font: 600 10pt/1.2 Oswald, sans-serif; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 1mm; }
+  .flow .n { position: absolute; top: 2mm; right: 3mm; color: var(--accent); font: 600 14pt/1 Oswald, sans-serif; }
+  .sheets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5mm; }
+  .sheets div { border: 0.4mm solid var(--rule); aspect-ratio: 1189 / 841; position: relative; padding: 2.5mm 3mm; font: 600 9pt/1.2 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+  .sheets div b { display: block; color: var(--accent); font-size: 15pt; margin-bottom: 1mm; }
+  .sheets div span { display: block; font: 400 7.4pt/1.2 "Segoe UI", sans-serif; text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: .8mm; }
+  .sheets div i { position: absolute; right: 1.5mm; bottom: 1.5mm; width: 17%; height: 36%; border: 0.3mm solid var(--rule); background: var(--band); }
+  /* title block */
+  .tb { position: absolute; left: 7mm; right: 7mm; bottom: 7mm; height: 20mm; border-top: 0.5mm solid var(--rule); display: grid; grid-template-columns: 1.6fr 1.3fr 1fr 0.8fr 0.8fr 0.6fr; }
+  .tb div { border-right: 0.3mm solid var(--rule); padding: 2mm 3mm; }
+  .tb div:last-child { border-right: none; }
+  .tb small { display: block; font-size: 6.4pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.8mm; }
+  .tb strong { font: 600 11pt/1.1 Oswald, sans-serif; letter-spacing: 0.02em; }
+  .tb .big { font-size: 17pt; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ================================================================================================== 1: overview, phases, design options -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="content" style="grid-template-rows: auto auto 1fr;">
+    <div>
+      <h1>Sportify BIM Chart</h1>
+      <p class="lead">How the Sportify add-in organises a Revit model: which phase, design option and workset each element goes to, how it is drawn (colours, line weights, view templates), and on which A0 sheet it ends up. Like a plot-style table (CTB), it is the one reference for the drawing standard. Every value is the add-in's own; the source file is named in each section.</p>
+      <div class="flow">
+        <div><span class="n">1</span><b>Phase</b>What exists, what is designed, what the analyses add afterwards.</div>
+        <div><span class="n">2</span><b>Design option</b>The garden iterations side by side: planter, quiet, social.</div>
+        <div><span class="n">3</span><b>Workset</b>What a person wants to isolate or hide: sports, gardens, furniture, annotation, analysis.</div>
+        <div><span class="n">4</span><b>Graphics</b>Filters, overrides and the "Diagrams" template: colour, line weight, halftone.</div>
+        <div><span class="n">5</span><b>Sheets &amp; tags</b>Six A0 plan sheets in a fixed order, then the lists; every piece tagged with Tag_Sportify.</div>
+      </div>
+    </div>
+
+    <div class="cols2">
+      <div>
+        <h2><span class="no">01</span> Phases <span class="src">SportifyPhases.cs, SportifyLayoutBuilder.cs</span></h2>
+        <table>
+          <tr><th style="width:25%">Phase</th><th>What is in it</th><th style="width:30%">Shown on</th></tr>
+          <tr><td><b>Existing</b><br><span class="muted">the project's first phase, whatever its name</span></td><td>The building and the roof as they stand (Goldbeck / IFC model).</td><td>S2-01 Roof existing (the roof new plan, duplicated, in this phase; Sportify pieces hidden)</td></tr>
+          <tr><td><b>Design and analysis</b></td><td>Everything an import from the web app brings: courts, activities, garden build-ups, planting, furniture, walls of the indoor zone, paths and entries.</td><td>S2-02 Roof new, S2-03 axonometric, the diagrams</td></tr>
+          <tr><td><b>Post analysis</b></td><td>What the analyses ask for afterwards: the dynamic furniture Kinetics places from their results.</td><td>S2-02 Roof new (it shows the newest phase)</td></tr>
+        </table>
+        <p class="note">Revit's API can neither create nor rename a phase. <b>Set Up Phases &amp; Worksets</b> finds the phases a project has, says which one stands for which, and opens Manage&nbsp;&gt;&nbsp;Phasing for the renaming.</p>
+      </div>
+      <div>
+        <h2><span class="no">02</span> Design options <span class="src">IterationCommands.cs, RoofMatch.cs, ImportLedger.cs</span></h2>
+        <table>
+          <tr><th style="width:28%">Option set "Garden iterations"</th><th>Holds</th><th style="width:30%">Filled by</th></tr>
+          <tr><td><b>Option 1 planter</b> <span class="tag">primary</span></td><td>The planted iteration (High Roof Garden, planted).</td><td rowspan="3">Import Iterations, with that option being edited (Design Options bar at the bottom of Revit). The iteration whose name matches the option's is chosen for you.</td></tr>
+          <tr><td><b>Option 2 quiet</b></td><td>The quiet iteration.</td></tr>
+          <tr><td><b>Option 3 social</b></td><td>The social iteration.</td></tr>
+        </table>
+        <table style="margin-top:2mm">
+          <tr><th style="width:28%">Rule</th><th>What Sportify does</th></tr>
+          <tr><td>Making options</td><td>A person makes the set and its three options once (Manage &gt; Design Options): Revit's API cannot create, name or activate an option.</td></tr>
+          <tr><td>Import into an option</td><td>Every piece lands in the option being edited. Fewer than half landing there: the import is undone. An option that already holds another iteration: asked before it is replaced.</td></tr>
+          <tr><td>Main model</td><td>Holds the current design (the last Sync with Revit). Syncs, Remove Duplicates and Clear this roof never touch an option's content; a sync is refused while an option is being edited.</td></tr>
+          <tr><td>Ledger</td><td>Each import is recorded in the project (Extensible Storage), keyed by its roof or by <code>option:&lt;id&gt;</code>, so a re-import replaces exactly its own pieces.</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <h2><span class="no">03</span> Worksets <span class="src">SportifyWorksetSet.cs, BimRules.WorksetFor, PushWorksets.cs</span></h2>
+      <div class="cols2">
+        <table>
+          <tr><th style="width:36%">Sportify's content</th><th>What goes there (set by the import itself)</th></tr>
+          <tr><td><b>Sportify Sports</b></td><td>Courts and activities (Sportify_Category field, activity; indoor pieces too).</td></tr>
+          <tr><td><b>Sportify Gardens</b></td><td>Build-up floors (green roof, paving, sports surfaces), planting, garden blocks and planters.</td></tr>
+          <tr><td><b>Sportify Furniture</b></td><td>Benches, tables, picnic sets (Sportify_Category furniture).</td></tr>
+          <tr><td><b>Sportify Annotations and Tags</b></td><td>Roof outline, setback line, circulation paths, entry markers, text, the Tag_Sportify tags.</td></tr>
+          <tr><td><b>Sportify Analysis</b></td><td>The filled regions and labels of the analysis hatches and the four diagrams.</td></tr>
+          <tr><td><b>Sportify Kinetic Furniture</b></td><td>What Kinetics places, with its own frames and bars (Post analysis).</td></tr>
+          <tr><td><b>Sportify Existing Roof Base</b></td><td>Existing Goldbeck / IFC content Sportify did not make, classified apart.</td></tr>
+        </table>
+        <table>
+          <tr><th style="width:36%">The existing building (Worksets command)</th><th>Sorted so the roof can be pushed "By workset"</th></tr>
+          <tr><td><b>Sportify Roof</b></td><td>Roofs.</td></tr>
+          <tr><td><b>Sportify Slab</b></td><td>Floors: the roof slab and its levels.</td></tr>
+          <tr><td><b>Sportify Structure</b></td><td>Grids, structural columns, beams, foundations, bearing walls.</td></tr>
+          <tr><td><b>Sportify Entries</b></td><td>Stairs, ramps, lifts, doors onto the roof.</td></tr>
+          <tr><td><b>Sportify Openings</b></td><td>Shafts and roof windows.</td></tr>
+          <tr><td><b>Sportify Edge</b></td><td>Railings and parapets.</td></tr>
+          <tr><td><b>Sportify Drains / Equipment</b></td><td>Roof drains; mechanical and electrical equipment on the roof.</td></tr>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:2mm">A project that is not workshared keeps everything on its one workset; the worksets are made when missing, never renamed. "Organize Multi-Worksets" puts an element back where the import put it.</p>
+    </div>
+  </div>
+  <div class="tb">
+    <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK</span></div>
+    <div><small>Drawing</small><strong>BIM chart: phases, options, worksets</strong></div>
+    <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
+    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Scale</small><strong>n.t.s.</strong></div>
+    <div><small>Sheet</small><strong class="big">BC-01</strong></div>
+  </div>
+</section>
+
+<!-- ================================================================================================== 2: graphics and line weights (the CTB) -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="content" style="grid-template-rows: auto auto 1fr;">
+    <div>
+      <h2><span class="no">04</span> Graphics and line weights <span class="src">GenerateFunctionalDiagramsCommand.cs, ViewFilterManager.cs, BimRules.cs, SportifyDiagramViews.cs</span></h2>
+      <p>What Sportify changes in a view, as a plot-style table. The <b>pen</b> is Revit's line weight number: its width in millimetres at each scale is the project's own table (Manage&nbsp;&gt;&nbsp;Additional Settings&nbsp;&gt;&nbsp;Line Weights). Where no pen is given, Sportify leaves the line weight to the category's Object Style: the pieces draw with the template's weights for Generic Models, Planting and Floors.</p>
+    </div>
+    <div class="cols2">
+      <div>
+        <table>
+          <tr><th style="width:34%">Element / line style</th><th style="width:25%">Colour (RGB)</th><th style="width:11%">Pen</th><th>Pattern and where</th></tr>
+          <tr class="group"><td colspan="4">Model lines the import draws (Lines subcategories)</td></tr>
+          <tr><td>Sportify Circulation</td><td><span class="sw" style="background:#c41e3a"></span>196, 30, 58</td><td><b>8</b></td><td>Solid; circulation plan override</td></tr>
+          <tr><td>Sportify Entry</td><td><span class="sw" style="background:#c41e3a"></span>196, 30, 58</td><td><b>14</b></td><td>Solid ring at each entrance</td></tr>
+          <tr><td>Sportify Circulation Node</td><td><span class="sw" style="background:#c41e3a"></span>196, 30, 58</td><td><b>10</b></td><td>Dot at each path's ends</td></tr>
+          <tr><td>Sportify Setback</td><td class="muted">not shown</td><td>—</td><td>Hidden in Sportify's views (a design-rule reference)</td></tr>
+          <tr><td>Pieces in the circulation plan</td><td><span class="sw" style="background:#8c8c8c"></span>140, 140, 140</td><td><b>2</b></td><td>Outline; floors solid grey fill</td></tr>
+          <tr class="group"><td colspan="4">Pieces by kind: filters "S Nutzung - …" / "S Use - …" (Sportify_Category)</td></tr>
+          <tr><td>field (courts)</td><td><span class="sw" style="background:#3478be"></span>52, 120, 190</td><td class="muted">style</td><td rowspan="5">Projection and cut lines in the colour; surface and cut pattern solid fill in the colour. On S2-Entwurf-Nutzungen and the "- Sportify Piece Kinds" views.</td></tr>
+          <tr><td>activity</td><td><span class="sw" style="background:#e88c28"></span>232, 140, 40</td><td class="muted">style</td></tr>
+          <tr><td>garden</td><td><span class="sw" style="background:#60aa54"></span>96, 170, 84</td><td class="muted">style</td></tr>
+          <tr><td>vegetation</td><td><span class="sw" style="background:#1e6e3e"></span>30, 110, 62</td><td class="muted">style</td></tr>
+          <tr><td>furniture</td><td><span class="sw" style="background:#8c7864"></span>140, 120, 100</td><td class="muted">style</td></tr>
+          <tr class="group"><td colspan="4">Build-ups: filter "S Zone - Sportify Bauweisen" and one per build-up ("Sportify Zone - …")</td></tr>
+          <tr><td>Build-up 1 … 8, in name order</td><td>
+            <span class="sw" style="background:#6eaa5a;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#c8aa50;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#5a96aa;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#aa6e5a;width:4.2mm;margin-right:.5mm"></span><br>
+            <span class="sw" style="background:#8282be;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#b48caa;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#787864;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#5aaa8c;width:4.2mm;margin-right:.5mm"></span></td><td class="muted">style</td><td>Solid fill, lines in the colour; the palette repeats after eight. The static filter (every Sportify build-up) is the first colour.</td></tr>
+        </table>
+      </div>
+      <div>
+        <table>
+          <tr><th style="width:34%">Diagram element</th><th style="width:25%">Colour</th><th style="width:11%">Pen</th><th>Pattern and where</th></tr>
+          <tr class="group"><td colspan="4">The view template "Diagrams" (circulation, fire safety, accessibility, zoning, tags)</td></tr>
+          <tr><td>Model categories</td><td class="muted">halftone</td><td class="muted">style</td><td>Detail level coarse; the model reads grey so the diagram reads</td></tr>
+          <tr><td>Detail items (the diagram)</td><td class="muted">full colour</td><td class="muted">region</td><td>Filled regions, solid fill, on workset Sportify Analysis</td></tr>
+          <tr><td>View range</td><td class="muted">—</td><td>—</td><td>Left to each view, fitted to its roof</td></tr>
+          <tr class="group"><td colspan="4">Diagram colours: the web app's plan, 35 % less saturated</td></tr>
+          <tr><td>Pieces (by kind, if the plan gave none)</td><td><span class="sw" style="background:#3d6fff;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#9c4fe0;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#0ea355;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#8b6b4a;width:4.2mm;margin-right:.5mm"></span><br><span class="sw" style="background:#2f7a43;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#8a94a6;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#d08a2e;width:4.2mm;margin-right:.5mm"></span></td><td class="muted">region</td><td>field, activity, garden, garden block, vegetation, furniture, kinetics</td></tr>
+          <tr><td>Paths / garden zones / entrances</td><td><span class="sw" style="background:#bebebe;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#96c878;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#c81e1e;width:4.2mm;margin-right:.5mm"></span></td><td class="muted">region</td><td>Grey bands, green zones, red circles</td></tr>
+          <tr><td>Zoning: indoor / sport / garden</td><td><span class="sw" style="background:#6f5bd0;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#3d6fff;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#2f9e5b;width:4.2mm;margin-right:.5mm"></span></td><td class="muted">region</td><td>Pieces in the zone's colour on a pale ground per cluster, with pieces and m²</td></tr>
+          <tr><td>Zoning: indoor walls</td><td><span class="sw" style="background:#3a3f4b"></span>58, 63, 75</td><td class="muted">region</td><td>Solid, dark</td></tr>
+          <tr><td>Fire safety: walking distance (limit 35 m)</td><td><span class="sw" style="background:linear-gradient(90deg,#3f9d63,#6fae53,#9dbf3f,#d0b93a,#e0a030,#e07a30,#d9534f,#b83030);width:20mm"></span></td><td class="muted">region</td><td>Green (margin) to red (at or past the limit)</td></tr>
+          <tr><td>Analysis status</td><td><span class="sw" style="background:#3f9d63;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#e0a030;width:4.2mm;margin-right:.5mm"></span><span class="sw" style="background:#d9534f;width:4.2mm;margin-right:.5mm"></span></td><td class="muted">region</td><td>OK / close to the limit (over 80 %) / over it</td></tr>
+        </table>
+        <p class="note">Sportify never edits the project's Object Styles or its Line Weights table: a pen number above means that table's width, so the drawings follow the office template (the German BIM template for a Sportify project).</p>
+      </div>
+    </div>
+    <div class="cols2" style="align-self:start">
+      <div>
+        <h2><span class="no">04a</span> Which setting wins <span class="src">Revit's own order, weakest first</span></h2>
+        <table>
+          <tr><th style="width:6%">#</th><th style="width:30%">Level</th><th>What Sportify puts there</th></tr>
+          <tr><td>1</td><td>Object Styles (project)</td><td>Nothing: the template's line weights, colours and patterns per category</td></tr>
+          <tr><td>2</td><td>View template / view V/G</td><td>"Diagrams": model categories halftone, detail items in colour; the S2 templates' scale, detail and display</td></tr>
+          <tr><td>3</td><td>Category override in a view</td><td>The circulation plan: Sportify Circulation / Entry / Node lines red at pens 8 / 14 / 10</td></tr>
+          <tr><td>4</td><td>Filter override</td><td>The kind and build-up filters: lines and solid fill in the kind's or build-up's colour</td></tr>
+          <tr><td>5</td><td>Element override</td><td>The pieces in the circulation plan: grey outline at pen 2, floors solid grey</td></tr>
+        </table>
+      </div>
+      <div>
+        <h2><span class="no">04b</span> Pen samples <span class="src">relative widths, not to scale</span></h2>
+        <table>
+          <tr><th style="width:16%">Pen</th><th style="width:44%">Sample</th><th>Used for</th></tr>
+          <tr><td><b>2</b></td><td><span class="pen" style="height:.25mm;width:60mm;color:#8c8c8c"></span></td><td>Pieces in the circulation plan</td></tr>
+          <tr><td><b>8</b></td><td><span class="pen" style="height:.9mm;width:60mm;color:#c41e3a"></span></td><td>Circulation paths</td></tr>
+          <tr><td><b>10</b></td><td><span class="pen" style="height:1.25mm;width:60mm;color:#c41e3a"></span></td><td>Path end dots</td></tr>
+          <tr><td><b>14</b></td><td><span class="pen" style="height:1.9mm;width:60mm;color:#c41e3a"></span></td><td>Entrance rings</td></tr>
+          <tr><td class="muted">style</td><td><span class="pen" style="height:.5mm;width:60mm;color:#1d2230"></span></td><td>Everything else: the category's Object Style</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="tb">
+    <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK</span></div>
+    <div><small>Drawing</small><strong>BIM chart: graphics and line weights</strong></div>
+    <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
+    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Scale</small><strong>n.t.s.</strong></div>
+    <div><small>Sheet</small><strong class="big">BC-02</strong></div>
+  </div>
+</section>
+
+<!-- ================================================================================================== 3: view templates, views, sheets -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="content" style="grid-template-rows: auto 1fr;">
+    <div class="cols2">
+      <div>
+        <h2><span class="no">05</span> View templates <span class="src">SportifyTemplateSpec.cs, SportifyDiagramViews.cs</span></h2>
+        <table>
+          <tr><th style="width:40%">German</th><th style="width:33%">English</th><th>Scale · detail · display</th></tr>
+          <tr class="group"><td colspan="3">Roof plan, one per HOAI Leistungsphase</td></tr>
+          <tr><td>S1-Vorplanung-Dachaufsicht</td><td>S1-Preliminary-Roof Plan</td><td>1:200 · coarse · hidden line</td></tr>
+          <tr><td>S2-Entwurf-Dachaufsicht</td><td>S2-Design-Roof Plan</td><td>1:100 · medium · hidden line</td></tr>
+          <tr><td>S3-Genehmigung-Dachaufsicht</td><td>S3-Permit-Roof Plan</td><td>1:100 · medium · hidden line</td></tr>
+          <tr><td>S4-Ausführung-Dachaufsicht</td><td>S4-Execution-Roof Plan</td><td>1:50 · fine · hidden line</td></tr>
+          <tr class="group"><td colspan="3">What Sportify's commands make</td></tr>
+          <tr><td>S2-Entwurf-Nutzungen</td><td>S2-Design-Uses</td><td>1:100 · medium · the five kind filters</td></tr>
+          <tr><td>S2-Entwurf-Zonenaufbauten</td><td>S2-Design-Zone Build-ups</td><td>1:100 · medium · the build-up filter</td></tr>
+          <tr><td>S2-Entwurf-Erschließung</td><td>S2-Design-Circulation</td><td>1:100 · medium · hidden line</td></tr>
+          <tr><td>S2-Entwurf-Achsonometrie</td><td>S2-Design-Axonometric</td><td>1:200 · fine · shaded with edges</td></tr>
+          <tr><td>S2-Entwurf-Schnitt / S4-Ausführung-Schnitt</td><td>S2-Design-Section / S4-Execution-Section</td><td>1:100 medium / 1:50 fine</td></tr>
+          <tr><td>S-Liste-Standard</td><td>S-Schedule-Standard</td><td>every Sportify schedule</td></tr>
+          <tr><td><b>Diagrams</b></td><td><b>Diagrams</b></td><td>model halftone · coarse · the diagram in colour</td></tr>
+        </table>
+        <h2 style="margin-top:5mm"><span class="no">06</span> Views Sportify draws <span class="src">made again after every analysis</span></h2>
+        <table>
+          <tr><th style="width:52%">View</th><th>Shows</th></tr>
+          <tr><td>Sportify - Zoning Diagram — Roof N</td><td>Indoor, sport and garden zones, their pieces and m²</td></tr>
+          <tr><td>Sportify - Circulation Diagram — Roof N</td><td>Paths, entrances, the pieces in their plan colours</td></tr>
+          <tr><td>Sportify - Accessibility Diagram — Roof N</td><td>Each path's clear width against 1.5 m</td></tr>
+          <tr><td>Sportify - Fire Safety Diagram — Roof N</td><td>Walking distance from every piece to an entrance</td></tr>
+          <tr><td>Sportify - Tags — Roof N</td><td>Every Sportify piece tagged with Tag_Sportify</td></tr>
+          <tr><td>S2 Dachaufsicht Bestand / S2 Roof Plan Existing</td><td>The roof new plan in the Existing phase, Sportify hidden (a person's own "… Existing" plan is used when there is one)</td></tr>
+          <tr><td>… - Sportify Piece Kinds / Zone Types</td><td>Copies of a view with the kind or build-up filters (BIM filters command)</td></tr>
+        </table>
+      </div>
+      <div>
+        <h2><span class="no">07</span> Sheets: the plan set, all A0 <span class="src">SportifyTemplateSpec.cs, SportifySheets.cs</span></h2>
+        <table>
+          <tr><th style="width:10%">No.</th><th style="width:29%">German</th><th style="width:27%">English</th><th>On it</th></tr>
+          <tr><td><b>S2-01</b></td><td>Dachaufsicht Bestand</td><td>Roof Plan Existing</td><td>The roof as it stands</td></tr>
+          <tr><td><b>S2-02</b></td><td>Dachaufsicht Neu</td><td>Roof Plan New</td><td>The roof as designed (newest phase)</td></tr>
+          <tr><td><b>S2-03</b></td><td>Achsonometrie</td><td>Axonometric</td><td>S2 Achsonometrie / S2 Axonometric</td></tr>
+          <tr><td><b>S2-04</b></td><td>Diagramm 1 - Zonierung</td><td>Diagram 1 - Zoning</td><td>Zoning diagram</td></tr>
+          <tr><td><b>S2-05</b></td><td>Diagramm 2 - Erschließung</td><td>Diagram 2 - Circulation</td><td>Circulation diagram</td></tr>
+          <tr><td><b>S2-06</b></td><td>Diagramm 3 - Barrierefreiheit</td><td>Diagram 3 - Accessibility</td><td>Accessibility diagram</td></tr>
+          <tr class="group"><td colspan="4">Lists</td></tr>
+          <tr><td>S2-10</td><td>Plan- und Ansichtsliste</td><td>Sheet and View List</td><td>S00_PLANLISTE, S00_ANSICHTSLISTE</td></tr>
+          <tr><td>S2-11</td><td>Ausstattung und Bepflanzung</td><td>Equipment and Planting</td><td>AVA sports equipment, planting</td></tr>
+          <tr><td>S2-12</td><td>Dachaufbauten</td><td>Roof Build-ups</td><td>AVA roof build-ups</td></tr>
+          <tr><td>S2-13</td><td>Flächen (DIN 277) und Kostengruppen (DIN 276)</td><td>Areas (DIN 277) and Cost Groups (DIN 276)</td><td>Areas, cost groups</td></tr>
+          <tr class="group"><td colspan="4">Also</td></tr>
+          <tr><td>S2-07 …</td><td colspan="2">A Sportify sheet a person added (moved out of S2-01 … S2-06, kept as it is)</td><td>its own content</td></tr>
+          <tr><td>SPORT-AN</td><td colspan="2">Sportify - Analysis Report (Generate Analysis Report, with a revision)</td><td>the circulation view</td></tr>
+        </table>
+        <table style="margin-top:3mm">
+          <tr><th style="width:28%">Rule</th><th>What Sportify does</th></tr>
+          <tr><td>Size</td><td>Every sheet on the German Plankopf (Ausführung; Genehmigung for phase 3) in its A0 type, 1189 × 841 mm. A sheet on another size is switched to A0; its lists stay at the top left, its views are centred left of the title block.</td></tr>
+          <tr><td>Order</td><td>Numbered in the order above. A sheet is recognised by what it shows first, then by its name (this template's or the earlier one's), then, when empty, by its number: a person's own content is kept.</td></tr>
+          <tr><td>When</td><td>Apply Sportify Template (German or English) and every drawing of the diagrams (any analysis, Generate Functional Diagrams): a diagram goes on its sheet as soon as it exists; the active roof's diagram replaces an older one on its sheet.</td></tr>
+          <tr><td>Browser</td><td>Filed under "Sportify" (Projektbrowser Plangliederung) and phase 2-Entwurf (Projektbrowser Leistungsphase).</td></tr>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2><span class="no">07a</span> The plan set at a glance <span class="src">six A0 sheets, landscape, Plankopf bottom right</span></h2>
+      <div class="sheets">
+        <div><i></i><b>S2-01</b>Dachaufsicht Bestand<span>Roof Plan Existing</span></div>
+        <div><i></i><b>S2-02</b>Dachaufsicht Neu<span>Roof Plan New</span></div>
+        <div><i></i><b>S2-03</b>Achsonometrie<span>Axonometric</span></div>
+        <div><i></i><b>S2-04</b>Diagramm 1 - Zonierung<span>Diagram 1 - Zoning</span></div>
+        <div><i></i><b>S2-05</b>Diagramm 2 - Erschließung<span>Diagram 2 - Circulation</span></div>
+        <div><i></i><b>S2-06</b>Diagramm 3 - Barrierefreiheit<span>Diagram 3 - Accessibility</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="tb">
+    <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK</span></div>
+    <div><small>Drawing</small><strong>BIM chart: templates, views, sheets</strong></div>
+    <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
+    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Scale</small><strong>n.t.s.</strong></div>
+    <div><small>Sheet</small><strong class="big">BC-03</strong></div>
+  </div>
+</section>
+
+<!-- ================================================================================================== 4: tags, parameters, naming -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="content" style="grid-template-rows: 1fr;">
+    <div class="cols2">
+      <div>
+        <h2><span class="no">08</span> Tags: Tag_Sportify <span class="src">SportifyTagView.cs, Library\Families\Tag_Sportify.rfa</span></h2>
+        <table>
+          <tr><th style="width:30%">Item</th><th>Value</th></tr>
+          <tr><td>Family</td><td><b>Tag_Sportify</b> (the design team's own), category <b>Generic Model Tags</b>, Revit 2025</td></tr>
+          <tr><td>Types</td><td>Abmessungen · Position · Position, Abmessungen · Abmessungen, Höhenkoten (Projekt) · Abmessungen, Höhenkoten (Seehöhe DEU - NN) · Abmessungen, Höhenkoten (Seehöhe AUT - üA)</td></tr>
+          <tr><td>Where</td><td>The view <b>Sportify - Tags — Roof N</b>, under the "Diagrams" template: the model halftone, the tags crisp</td></tr>
+          <tr><td>What is tagged</td><td>Every Sportify piece visible in the view that is a Generic Model (courts, rigs, the library's pieces), one tag in its middle, no leader. Nested parts are not tagged, their piece is.</td></tr>
+          <tr><td>Not tagged</td><td>Planting and the build-up floors: a Generic Model tag cannot tag them.</td></tr>
+          <tr><td>Type used</td><td>The type the project already uses for a Tag_Sportify tag (a person's choice is kept), else the family's first. Changing the type of one tag and "Select All Instances in View" changes them all.</td></tr>
+          <tr><td>When</td><td>Drawn again with the diagrams: the old Sportify tags of the view go, every piece is tagged again, so a new import is tagged without placing a tag.</td></tr>
+          <tr><td>Loading</td><td>From the add-in's Library\Families when the project has no Tag_Sportify; a project's own version is never overwritten.</td></tr>
+          <tr><td>Workset</td><td>Sportify Annotations and Tags</td></tr>
+        </table>
+        <h2 style="margin-top:5mm"><span class="no">09</span> Naming <span class="src">BimRules.cs, SportifyTemplateSpec.cs</span></h2>
+        <table>
+          <tr><th style="width:30%">What</th><th>Pattern</th><th style="width:32%">Example</th></tr>
+          <tr><td>Families and types Sportify makes</td><td><code>Sportify - &lt;what&gt;</code></td><td>Sportify - Indoor Zone Wall (20 cm)</td></tr>
+          <tr><td>Template items</td><td><code>S</code> + phase + name; never a scale or a colon in a name</td><td>S2-Entwurf-Dachaufsicht</td></tr>
+          <tr><td>Filters</td><td><code>S Nutzung - &lt;kind&gt;</code> / <code>S Use - &lt;kind&gt;</code></td><td>S Nutzung - field</td></tr>
+          <tr><td>Views drawn per roof</td><td><code>Sportify - &lt;what&gt; — Roof &lt;id&gt;</code></td><td>Sportify - Zoning Diagram — Roof 2519827</td></tr>
+          <tr><td>Worksets</td><td><code>Sportify &lt;what&gt;</code></td><td>Sportify Gardens</td></tr>
+          <tr><td>Design options</td><td><code>Option &lt;n&gt; &lt;iteration&gt;</code></td><td>Option 2 quiet</td></tr>
+        </table>
+      </div>
+      <div>
+        <h2><span class="no">10</span> Shared parameters <span class="src">SportifySharedParameters.cs, NormParameters.cs</span></h2>
+        <table>
+          <tr><th style="width:32%">Parameter</th><th>Holds</th></tr>
+          <tr class="group"><td colspan="2">What a piece is</td></tr>
+          <tr><td><code>Sportify_Category</code></td><td>field · activity · garden · gardenBlock · vegetation · furniture · kinetics: the kind every filter, workset and diagram goes by</td></tr>
+          <tr><td><code>Sportify_Label</code>, <code>Sportify_TypeId</code>, <code>Sportify_Sport</code>, <code>Sportify_Variant</code></td><td>The piece's name, catalogue id, sport and variant from the web app</td></tr>
+          <tr><td><code>Sportify_LengthM</code>, <code>Sportify_WidthM</code>, <code>Sportify_CourtSizeM</code>, <code>Sportify_ClearHeightMinM</code></td><td>Its size, court size and the clear height it needs</td></tr>
+          <tr><td><code>Sportify_Surface</code>, <code>Sportify_QualityKey</code></td><td>Surface and quality level</td></tr>
+          <tr class="group"><td colspan="2">Where it came from</td></tr>
+          <tr><td><code>Sportify_RoofId</code></td><td>The roof it stands on: Remove Duplicates, Clear this roof and Switch roof go by it</td></tr>
+          <tr><td><code>Sportify_Source</code></td><td>Where the web app took the piece from (its catalogue or rule source)</td></tr>
+          <tr class="group"><td colspan="2">Loads and quantities</td></tr>
+          <tr><td><code>Sportify_WeightKg</code>, <code>Sportify_WeightKgM2</code>, <code>Sportify_WeightBasis</code></td><td>Dead load of the piece or build-up, and what the figure rests on</td></tr>
+          <tr><td><code>Sportify_ReferenceMaterial</code>, <code>Sportify_ReferenceProvider</code></td><td>The product it was priced and weighed from</td></tr>
+          <tr class="group"><td colspan="2">Norm classes (Apply Sportify Template)</td></tr>
+          <tr><td><code>Sportify_DIN277</code></td><td>DIN 277 area class: NUF 7 (sport, green space), VF (paths, entries), Bereich c, for the areas schedule</td></tr>
+          <tr><td><code>Sportify_KG</code></td><td>DIN 276 cost group for the cost groups schedule</td></tr>
+        </table>
+        <p class="note">The chart describes the add-in as it is on 2026-09-30. Three things are a person's to do once per project, because Revit's API cannot: make the phases' names right (Manage &gt; Phasing), make the design option set and its options (Manage &gt; Design Options), and pick which option is primary.</p>
+      </div>
+    </div>
+  </div>
+  <div class="tb">
+    <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK</span></div>
+    <div><small>Drawing</small><strong>BIM chart: tags, naming, parameters</strong></div>
+    <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
+    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Scale</small><strong>n.t.s.</strong></div>
+    <div><small>Sheet</small><strong class="big">BC-04</strong></div>
+  </div>
+</section>
+
+</body>
+</html>

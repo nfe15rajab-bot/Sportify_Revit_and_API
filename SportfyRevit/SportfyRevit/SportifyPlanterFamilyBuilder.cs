@@ -224,7 +224,7 @@ namespace SportfyRevit
         /// normal install; the repository layout is tried too, so a developer
         /// running from a build output finds it without an install.
         /// </summary>
-        private static string? LibraryPath(string fileBase)
+        internal static string? LibraryPath(string fileBase)
         {
             var dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             if (dir == null) return null;

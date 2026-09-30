@@ -43,7 +43,7 @@ namespace SportfyRevit
 
             if (!withContent) EnsurePlaceholderView(doc, set, templates, made);
             else if (views.ContainsKey("plan")) RemovePlaceholderView(doc, set);
-            EnsureSheets(doc, set, views, schedules, made, notes);
+            SportifySheets.Arrange(doc, set, views, schedules, made, notes);        // the plan set in the user's order, all on A0 (and a project made with the earlier template re-ordered)
             SportifyLog.Info("templates", "Sportify template (" + language + ") applied: " + made.Count + " item(s) made or updated, " + notes.Count + " note(s)");
             return new TemplateResult(made, notes);
         }
@@ -203,6 +203,7 @@ namespace SportfyRevit
             var level = RoofLevel(found) ?? new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>().OrderBy(l => l.Elevation).First().Id;
             foreach (var spec in set.Views)
             {
+                if (spec.Kind == "existing") continue;                                  // made by SportifySheets from the plan on the roof new sheet, so the two match
                 try
                 {
                     var isNew = !new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Any(v => !v.IsTemplate && v.Name == spec.Name);
@@ -219,6 +220,7 @@ namespace SportfyRevit
                     }
                     if (spec.Kind == "circulation") GenerateFunctionalDiagramsCommand.ConfigureCirculationView(doc, (ViewPlan)view);      // after the template: it may set what is visible
                     SetPhase(set, view, spec.PhaseKey);
+                    if (isNew && spec.Kind == "plan") ShowDesignPhase(doc, view);
                     result[spec.Key] = view;
                     if (isNew) made.Add("View: " + spec.Name);
                 }
@@ -229,6 +231,15 @@ namespace SportfyRevit
                 }
             }
             return result;
+        }
+
+        /// <summary>The roof as designed shows the newest Sportify phase (Post analysis, else Design and analysis): what the imports and Kinetics placed.</summary>
+        private static void ShowDesignPhase(Document doc, View view)
+        {
+            var phases = SportifyPhases.Read(doc);
+            var newest = phases.PostAnalysis ?? phases.DesignAndAnalysis;
+            var p = view.get_Parameter(BuiltInParameter.VIEW_PHASE);
+            try { if (newest != null && p != null && !p.IsReadOnly) p.Set(newest.Id); } catch (Exception) { /* left in the phase it was made in */ }
         }
 
         private static ViewPlan PlanView(Document doc, string name, ElementId levelId)
@@ -243,7 +254,7 @@ namespace SportfyRevit
         }
 
         /// <summary>The German template's browser is organised by a project parameter "Projektbrowser Leistungsphase": filled, its views and sheets group by phase there.</summary>
-        private static void SetPhase(SportifyTemplateSet set, Element element, string phaseKey)
+        internal static void SetPhase(SportifyTemplateSet set, Element element, string phaseKey)
         {
             var phase = set.Phases.FirstOrDefault(p => p.Key == phaseKey);
             if (phase == null) return;
@@ -287,54 +298,6 @@ namespace SportfyRevit
 
         // ---------------------------------------------------------------- sheets
 
-        private static (double W, double H) SheetSize(string size) => size == "A1" ? (841.0, 594.0) : size == "A0" ? (1189.0, 841.0) : (420.0, 297.0);
-
-        private static void EnsureSheets(Document doc, SportifyTemplateSet set, Dictionary<string, View> views, Dictionary<string, ViewSchedule> schedules, List<string> made, List<string> notes)
-        {
-            const double mmToFeet = 1.0 / 304.8;
-            var symbols = TitleBlockSymbols(doc);
-            var sheets = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().GroupBy(s => s.SheetNumber).ToDictionary(g => g.Key, g => g.First());
-            foreach (var spec in set.Sheets)
-            {
-                try
-                {
-                    if (spec.Views.Any(k => !views.ContainsKey(k))) continue;                 // a plan sheet waits for its view (an import)
-                    if (spec.Schedules.Any(k => !schedules.ContainsKey(k))) continue;
-                    var isNew = !sheets.TryGetValue(spec.Number, out var sheet);
-                    if (isNew)
-                    {
-                        symbols.TryGetValue(set.TitleBlockType(spec), out var symbol);
-                        if (symbol != null && !symbol.IsActive) symbol.Activate();
-                        sheet = ViewSheet.Create(doc, symbol?.Id ?? ElementId.InvalidElementId);
-                        sheet.SheetNumber = spec.Number;
-                        sheet.Name = spec.Name;
-                        sheets[spec.Number] = sheet;
-                        made.Add($"Sheet {spec.Number} {spec.Name} ({spec.Size})");
-                    }
-                    SetPhase(set, sheet!, spec.PhaseKey);
-                    SetBrowserGrouping(sheet!);
-
-                    var (w, h) = SheetSize(spec.Size);
-                    foreach (var key in spec.Views)
-                    {
-                        var view = views[key];
-                        if (Viewport.CanAddViewToSheet(doc, sheet!.Id, view.Id)) Viewport.Create(doc, sheet.Id, view.Id, new XYZ(w * 0.5 * mmToFeet, h * 0.5 * mmToFeet, 0));
-                    }
-                    int i = 0;
-                    foreach (var key in spec.Schedules)
-                    {
-                        var schedule = schedules[key];
-                        var already = new FilteredElementCollector(doc).OfClass(typeof(ScheduleSheetInstance)).Cast<ScheduleSheetInstance>().Any(x => x.OwnerViewId == sheet!.Id && x.ScheduleId == schedule.Id);
-                        if (!already) ScheduleSheetInstance.Create(doc, sheet!.Id, schedule.Id, new XYZ(20 * mmToFeet, (h - 30 - i * 110) * mmToFeet, 0));
-                        i++;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    notes.Add($"Sheet {spec.Number} could not be made: {ex.Message.Split('\n')[0]}");
-                    SportifyLog.Warn("templates", "sheet " + spec.Number + ": " + ex);
-                }
-            }
-        }
+        // (the sheets: SportifySheets)
     }
 }

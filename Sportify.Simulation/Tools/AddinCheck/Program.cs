@@ -1064,11 +1064,16 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
         var filterNames = new[] { "field", "activity", "garden", "vegetation", "furniture" }.Select(set.KindFilterName).Append(set.ZoneFilterName).ToList();
         Check($"[{lang}] the six filters (five kinds of piece, the zones) start with S, are unique, have no forbidden character and are none of Revit's built-in ones",
               filterNames.Count == 6 && filterNames.Distinct().Count() == 6 && filterNames.All(n => n.StartsWith("S") && n.IndexOfAny(new[] { '{', '}', '[', ']', '|', ';', '<', '>', '?', '`', '~', (char)92, ':' }) < 0) && !filterNames.Any(n => BuiltInSet.All.Any(b => b.Filters.Contains(n))));
-        Check($"[{lang}] the views point at view templates that exist, the sheets at views and schedules that exist, every view and schedule is on a sheet",
-              set.Views.All(v => names.Contains(v.TemplateName)) && set.Sheets.All(sh => sh.Views.All(k => set.Views.Any(v => v.Key == k)) && sh.Schedules.All(k => set.Schedules.Any(x => x.Key == k)))
-              && set.Views.All(v => set.Sheets.Any(sh => sh.Views.Contains(v.Key))) && set.Schedules.All(x => set.Sheets.Any(sh => sh.Schedules.Contains(x.Key))));
-        Check($"[{lang}] sheet numbers are S<phase>-<nn> with a phase of the list, plans on A0 and lists on A3",
-              set.Sheets.All(sh => System.Text.RegularExpressions.Regex.IsMatch(sh.Number, @"^S[1-4]-\d\d$") && sh.Number[1].ToString() == sh.PhaseKey && set.Phases.Any(p => p.Key == sh.PhaseKey) && (sh.Views.Count > 0 ? sh.Size == "A0" : sh.Size == "A3")));
+        Check($"[{lang}] the views point at view templates that exist, the sheets at views (or Sportify's diagrams) and schedules that exist, every view but the working ones and every schedule is on a sheet",
+              set.Views.All(v => names.Contains(v.TemplateName)) && set.Sheets.All(sh => sh.Views.All(k => set.Views.Any(v => v.Key == k) || SportifyTemplateSpec.DiagramTitle(k) != null) && sh.Schedules.All(k => set.Schedules.Any(x => x.Key == k)))
+              && set.Views.All(v => set.Sheets.Any(sh => sh.Views.Contains(v.Key)) != set.WorkingViewKeys.Contains(v.Key)) && set.Schedules.All(x => set.Sheets.Any(sh => sh.Schedules.Contains(x.Key))));
+        Check($"[{lang}] sheet numbers are S<phase>-<nn> with a phase of the list, every sheet on A0 (user, 2026-09-29)",
+              set.Sheets.All(sh => System.Text.RegularExpressions.Regex.IsMatch(sh.Number, @"^S[1-4]-\d\d$") && sh.Number[1].ToString() == sh.PhaseKey && set.Phases.Any(p => p.Key == sh.PhaseKey) && sh.Size == "A0"));
+        Check($"[{lang}] the plan set in the user's order: roof existing, roof new, axonometric, diagram 1 zoning, 2 circulation, 3 accessibility; then the lists",
+              set.Sheets.Take(6).Select(sh => string.Join(",", sh.Views)).SequenceEqual(new[] { "existing", "plan", "axo", "diagram:zoning", "diagram:circulation", "diagram:accessibility" })
+              && set.Sheets.Take(6).Select(sh => sh.Number).SequenceEqual(new[] { "S2-01", "S2-02", "S2-03", "S2-04", "S2-05", "S2-06" }) && set.Sheets.Skip(6).All(sh => sh.Views.Count == 0 && sh.Schedules.Count > 0)
+              && set.Views.Single(v => v.Key == "existing").Kind == "existing" && set.Views.Single(v => v.Key == "plan").Kind == "plan",
+              string.Join(" | ", set.Sheets.Select(sh => sh.Number + " " + sh.Name)));
         var titleBlocks = set.Sheets.Select(set.TitleBlockType).Distinct().ToList();
         Check($"[{lang}] the title blocks the sheets use are ones Revit's German template has (Plankopf Ausführung / Genehmigung, A0 and A3), for both languages: it is the DIN one", titleBlocks.All(german.TitleBlocks.Contains), string.Join(", ", titleBlocks.Where(t => !german.TitleBlocks.Contains(t))));
     }
@@ -1993,6 +1998,38 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("the widths are the rectangles' short sides", bands.Select(b => b.WidthM).OrderBy(w => w).SequenceEqual(new[] { 0.3, 1.0, 1.2, 2.5 }));
     // without the algorithm's paths: the circulation lines at the design rule's width
     Check("a layout the algorithm did not plan: the circulation lines at the design rule's width", DiagramPlan.PathBands(lay).All(b => Math.Abs(b.WidthM - (lay.DesignRules?.CirculationWidthM ?? 1.2)) < 1e-9));
+
+    // zoning (user, 2026-09-29): the web app's zone when it sent one, else by name and kind; each zone's clusters on a pale ground with its area
+    Check("zoning: the zone the web app exported (diagram_zone) wins", DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Yoga", Zone = "garden" }) == "garden"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "field", Zone = "INDOOR" }) == "indoor");
+    Check("zoning without it: the service modules indoor, gardens / plants / furniture garden, courts and activities sport",
+          DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Locker & Dressing Room Module" }) == "indoor"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bathroom & Shower Module" }) == "indoor"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "gardenBlock", Label = "Planter S" }) == "garden"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "furniture" }) == "garden"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "field", Label = "Padel" }) == "outdoor" && DiagramPlan.ZoneOf(new PlacementDto()) == "outdoor");
+    var zl = JsonSerializer.Deserialize<SportifyLayout>("""
+        { "roof_context": { "length_m": 40, "width_m": 20 },
+          "placements": [
+            { "id": "a", "category": "field", "label": "Padel", "diagram_zone": "outdoor", "bounding_box": { "top_left_x_m": 1, "top_left_y_m": 1, "width_m": 10, "height_m": 19 } },
+            { "id": "b", "category": "field", "label": "Padel", "diagram_zone": "outdoor", "bounding_box": { "top_left_x_m": 12, "top_left_y_m": 1, "width_m": 10, "height_m": 19 } },
+            { "id": "c", "category": "gardenBlock", "label": "Planter S", "diagram_zone": "garden", "bounding_box": { "top_left_x_m": 30, "top_left_y_m": 1, "width_m": 2, "height_m": 2 } },
+            { "id": "d", "category": "activity", "label": "Ping Pong", "diagram_zone": "indoor", "bounding_box": { "top_left_x_m": 30, "top_left_y_m": 12, "width_m": 5, "height_m": 3 } } ],
+          "walls": [ { "thickness_m": 0.2, "rects_m": [ [ 29, 11, 36, 11.2 ], [ 29, 11, 29.2, 16 ] ] } ] }
+        """)!;
+    var zd = DiagramPlan.Zoning(zl);
+    var grounds = zd.Shapes.Where(s => s.Label.Contains("piece(s)")).ToList();
+    Check("zoning: two padel courts 1 m apart are one sport cluster; the planter and the indoor piece each their own ground",
+          grounds.Count == 3 && grounds.Any(g => g.Label == "Sport - 2 piece(s), 380 m2") && grounds.Any(g => g.Label.StartsWith("Garden - 1")) && grounds.Any(g => g.Label.StartsWith("Indoor - 1")),
+          string.Join(" | ", grounds.Select(g => g.Label)));
+    var sg = grounds.FirstOrDefault(g => g.Label.StartsWith("Sport"));
+    Check("zoning: a zone's ground is its pieces' box and 0.6 m round, kept on the roof", sg != null && Math.Abs(sg.X - 0.4) < 1e-9 && Math.Abs(sg.W - 22.2) < 1e-9 && Math.Abs(sg.Y + sg.H - 20) < 1e-9,
+          sg == null ? "none" : $"x {sg.X} w {sg.W} y {sg.Y} h {sg.H}");
+    Check("zoning: the indoor zone's walls drawn dark, and the caption gives each zone's area", zd.Shapes.Count(s => s.Fill == DiagramPlan.WallColor) == 2
+          && zd.Caption.Contains("indoor 15 m2") && zd.Caption.Contains("sport 380 m2") && zd.Caption.Contains("garden 4 m2"), zd.Caption);
+    var drawn = zd.Shapes.Where(s => s.Kind == "rect" && s.Label == "" && s.Fill != DiagramPlan.WallColor).Select(s => Rgb(s.Fill)).ToList();
+    Check("zoning: each piece in its zone's colour (sport blue, garden green, indoor violet)", drawn.Count(c => c.B > c.G && c.B > c.R) == 3 && drawn.Count(c => c.G > c.R && c.G > c.B) == 1,
+          string.Join(", ", drawn));
 }
 
 Console.WriteLine(fails == 0 ? "\nALL ADD-IN CHECKS PASSED" : $"\n{fails} CHECK(S) FAILED");
