@@ -114,7 +114,9 @@ namespace SportfyRevit
                 try
                 {
                     matched.TryGetValue(t, out var sheet);
-                    var missingViews = t.Views.Where(k => sheet == null || !Shows(sheet).Any(v => OfKind(v, k))).Select(ToPlace).OfType<View>()
+                    // a view goes only onto a sheet that shows no view at all (a diagram: none of its kind): a sheet a person set up keeps what is on it
+                    // (found in the dry run: "S2 Dachaufsicht Entwurf" put beside the team's LAGEPLAN NEU, and both pushed off the sheet)
+                    var missingViews = t.Views.Where(k => sheet == null || (SportifyTemplateSpec.IsDiagramKey(k) ? !Shows(sheet).Any(v => OfKind(v, k)) : Shows(sheet).Count == 0)).Select(ToPlace).OfType<View>()
                         .Where(v => !viewports.Any(vp => vp.ViewId == v.Id)).ToList();
                     var missingLists = t.Schedules.Select(ScheduleId).OfType<ElementId>().Where(id => sheet == null || !Lists(sheet).Contains(id)).ToList();
                     if (sheet == null)
@@ -254,8 +256,10 @@ namespace SportfyRevit
                 if (existingPhase != null && phase != null && !phase.IsReadOnly && phase.AsElementId() != existingPhase.Id) phase.Set(existingPhase.Id);
                 SportifyTemplateBuilder.SetBrowserGrouping(view);
                 doc.Regenerate();
+                // Sportify's pieces, and its lines (paths, entrances, setback: a "Sportify ..." line style), which carry no parameter of their own
                 var sportify = new FilteredElementCollector(doc, view.Id).WhereElementIsNotElementType()
-                    .Where(e => RoofIdentity.IsSportifys(doc, e) && e.CanBeHidden(view)).Select(e => e.Id).ToList();
+                    .Where(e => (RoofIdentity.IsSportifys(doc, e) || (e is CurveElement ce && (ce.LineStyle?.Name ?? "").StartsWith("Sportify", StringComparison.Ordinal)))
+                                && e.CanBeHidden(view)).Select(e => e.Id).ToList();
                 if (sportify.Count > 0) view.HideElements(sportify);
             }
             catch (Exception ex)

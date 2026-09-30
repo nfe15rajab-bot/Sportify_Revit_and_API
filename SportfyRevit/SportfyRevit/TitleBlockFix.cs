@@ -99,6 +99,15 @@ namespace SportfyRevit
             if (hits.Count == 0) { lines.Add($"titleblock edit: nothing shows \"{e.Match}\""); return; }
             foreach (var x in hits)
             {
+                try { EditOne(fam, x, e, move, lines); }
+                catch (Exception ex) { lines.Add($"titleblock edit: \"{e.Match}\" on {x.Id.Value} not possible: {ex.Message.Split('
+')[0]}"); }
+            }
+        }
+
+        static void EditOne(Document fam, TextElement x, Edit e, XYZ? move, List<string> lines)
+        {
+            {
                 var was = Describe(fam, x);
                 if (e.SizeMm is double size && fam.GetElement(x.GetTypeId()) is ElementType type)
                 {
