@@ -63,8 +63,11 @@ namespace SportfyRevit
                 // a view named for an iteration shows that one. Not through a view template: one template is often on the views of all three
                 // iterations, and would be set to each in turn; a view whose template controls its worksets is named instead.
                 if (v.IsTemplate || IterationOfViewName(v.Name) is not int n || groups.FirstOrDefault(g => g.Index == n) is not IterationWorksets.IterationGroup mine) continue;
+                // GetTemplateParameterIds is everything a template CAN control; what it leaves to the view is GetNonControlledTemplateParameterIds (found
+                // 2026-09-30 on the team's model: every iteration view was reported as template-controlled while each showed its own iteration)
+                var worksetsParam = new ElementId(BuiltInParameter.VIS_GRAPHICS_WORKSETS);
                 if (v.ViewTemplateId != ElementId.InvalidElementId && doc.GetElement(v.ViewTemplateId) is View template
-                    && template.GetTemplateParameterIds().Contains(new ElementId(BuiltInParameter.VIS_GRAPHICS_WORKSETS)))
+                    && template.GetTemplateParameterIds().Contains(worksetsParam) && !template.GetNonControlledTemplateParameterIds().Contains(worksetsParam))
                 {
                     lines.Add($"worksets: \"{v.Name}\" is named for Iteration {n}, but its template \"{template.Name}\" decides its worksets: left as the template has them");
                     continue;
