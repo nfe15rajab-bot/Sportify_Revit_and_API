@@ -336,7 +336,7 @@ namespace SportfyRevit
         }
 
         /// <summary>
-        /// Takes away what imports recorded under a key that names no roof ("0") built entirely below SPORTIFY_FIX_STRAYS_BELOW_M (metres): a layout
+        /// Takes away what imports recorded under a key that names no roof ("0") stood below SPORTIFY_FIX_STRAYS_BELOW_M (metres, every underside): a layout
         /// whose height named no roof, built under the building (2026-09-30, the team's export "(6)" at 0 m). Run only on purpose, after the report
         /// ("ledger @0 …") showed them; nothing happens without the height. Never touches a design option or a roof's own imports.
         /// </summary>
@@ -346,9 +346,10 @@ namespace SportfyRevit
                                  System.Globalization.CultureInfo.InvariantCulture, out var belowM))
             { lines.Add("strays: SPORTIFY_FIX_STRAYS_BELOW_M is not set, nothing removed"); return; }
             var belowFt = UnitUtils.ConvertToInternalUnits(belowM, UnitTypeId.Meters);
-            var strays = ImportLedger.ReadEntries(doc).Where(e => RoofMatch.IsUnnamedRoofKey(e.RoofKey) && e.Elements.Count > 0
-                && e.Elements.All(x => x.DesignOption == null && x.get_BoundingBox(null) is BoundingBoxXYZ b && b.Max.Z < belowFt)).ToList();
-            if (strays.Count == 0) { lines.Add($"strays: no import under an unnamed roof stands wholly below {belowM} m"); return; }
+            // by the undersides, as the report shows them (a sketch or a line recorded with a piece has no box of its own)
+            var strays = ImportLedger.ReadEntries(doc).Where(e => RoofMatch.IsUnnamedRoofKey(e.RoofKey) && e.Elements.All(x => x.DesignOption == null)
+                && e.Elements.Select(x => x.get_BoundingBox(null)).Where(b => b != null).ToList() is var boxes && boxes.Count > 0 && boxes.All(b => b!.Min.Z < belowFt)).ToList();
+            if (strays.Count == 0) { lines.Add($"strays: no import under an unnamed roof stands below {belowM} m"); return; }
             using var t = new Transaction(doc, "Sportify: remove imports built below the roof");
             t.Start();
             foreach (var e in strays)
