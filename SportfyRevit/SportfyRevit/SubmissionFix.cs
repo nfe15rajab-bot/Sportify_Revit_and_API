@@ -90,6 +90,11 @@ namespace SportfyRevit
                 }
                 if (steps.Contains("sheets")) ArrangeSheets(doc, lines);
                 if (steps.Contains("team")) ApplyTeam(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_TEAM"), lines);
+                if (steps.Contains("info")) ApplyInfo(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_INFO"), lines);
+                var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
+                if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
+                if (steps.Contains("titleblock"))
+                    TitleBlockFix.Apply(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_TB_EDITS"), Environment.GetEnvironmentVariable("SPORTIFY_FIX_TB_COPY"), exportTo, lines);
                 Diagnose(doc, lines, "AFTER");
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT") is string export && export.Length > 0) ExportSheets(doc, export, lines);
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_NOSAVE") == "1") { lines.Add("NOT SAVED (dry run)"); return; }
@@ -196,6 +201,41 @@ namespace SportfyRevit
             lines.Add($"plan set arranged ({language}):");
             lines.AddRange(made.Select(m => "  " + m));
             lines.AddRange(notes.Select(n => "  NOTE " + n));
+        }
+
+        /// <summary>
+        /// Project Information by parameter name (SPORTIFY_FIX_INFO, a JSON object: {"Verfasser Strasse": "Emilienstraße 45", "Kundentelefon": ""}), a text parameter
+        /// each; and every sheet's issue date written the German way: a date the template left as "09/27/26" (US) becomes "27.09.2026", the same day.
+        /// </summary>
+        static void ApplyInfo(Document doc, string? path, List<string> lines)
+        {
+            using var t = new Transaction(doc, "Sportify: project information");
+            t.Start();
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                var values = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? new Dictionary<string, string>();
+                foreach (var (name, value) in values)
+                {
+                    var p = doc.ProjectInformation.LookupParameter(name);
+                    if (p == null || p.IsReadOnly || p.StorageType != StorageType.String) { lines.Add($"info: \"{name}\" is not a text parameter of Project Information"); continue; }
+                    var was = p.AsString();
+                    if (was != value) { p.Set(value); lines.Add($"info: \"{name}\": \"{was}\" -> \"{value}\""); }
+                }
+            }
+            int dates = 0;
+            foreach (var sheet in new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>())
+            {
+                var p = sheet.get_Parameter(BuiltInParameter.SHEET_ISSUE_DATE);
+                var m = p == null || p.IsReadOnly ? null : System.Text.RegularExpressions.Regex.Match(p.AsString() ?? "", @"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$");
+                if (m == null || !m.Success) continue;
+                int month = int.Parse(m.Groups[1].Value), day = int.Parse(m.Groups[2].Value), year = int.Parse(m.Groups[3].Value);
+                if (year < 100) year += 2000;
+                if (month < 1 || month > 12 || day < 1 || day > 31) continue;
+                p!.Set($"{day:00}.{month:00}.{year}");
+                dates++;
+            }
+            if (dates > 0) lines.Add($"info: {dates} sheet issue date(s) written as dd.mm.yyyy");
+            t.Commit();
         }
 
         sealed record TeamMember(string Name, string? Email);
