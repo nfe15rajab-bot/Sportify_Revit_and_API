@@ -2079,6 +2079,10 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     Check("a layout import and the duplicate clean-up leave the Kinetics units alone (2026-09-30: every sync deleted the pergola posts, the only parts standing on the slab); a full clear still takes them",
           Read("ImportLedger.cs").Contains("if (!withIterations && el.LookupParameter(\"Sportify_Category\")?.AsString() == SportifyKineticFamilyBuilder.KineticsCategoryValue) continue;")
           && Read("DuplicateCleanup.cs").Contains("!= SportifyKineticFamilyBuilder.KineticsCategoryValue && Ours(el)"));
+    var tagView = Read("SportifyTagView.cs");
+    Check("the tag view (redrawn after EVERY analysis) only adds the missing tags, never the Kinetics parts or the iterations' copies (2026-09-30: ~2,500 tags one regeneration each hung Revit on Structural)",
+          tagView.Contains("!tagged.Contains(el.Id) && Taggable(el)") && tagView.Contains("!= SportifyKineticFamilyBuilder.KineticsCategoryValue") && tagView.Contains("!iterations.Contains(el.UniqueId)")
+          && !tagView.Contains("doc.Regenerate()"));
     Check("what the push asks about is exactly what it deletes (ImportLedger.OnRoof, the same routine RemoveOnRoof uses)",
           push.Contains("ImportLedger.OnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")
           && push.Contains("ImportLedger.RemoveOnRoof(doc, key, roof, leftovers: true, keepNewest: false, withIterations: true)")

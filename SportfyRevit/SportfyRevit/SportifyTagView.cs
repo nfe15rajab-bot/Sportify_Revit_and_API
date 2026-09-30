@@ -28,28 +28,44 @@ namespace SportfyRevit
             if (!found.IsEmpty) GenerateFunctionalDiagramsCommand.FixViewRangeForRoof(view, found);
             if (template != null) { try { if (view.ViewTemplateId != template.Id) view.ViewTemplateId = template.Id; } catch (Exception) { /* left without */ } }
 
-            var stale = new FilteredElementCollector(doc, view.Id).OfClass(typeof(IndependentTag)).Cast<IndependentTag>()
-                .Where(t => doc.GetElement(t.GetTypeId()) is FamilySymbol s && s.FamilyName == FamilyName).Select(t => t.Id).ToList();
-            if (stale.Count > 0) doc.Delete(stale);
-            doc.Regenerate();
+            // Only what is missing is tagged, and only the design's own pieces: a Kinetics unit is hundreds of blades, rails and rods, and Import Iterations
+            // builds every piece once per iteration. Found 2026-09-30: the view was cleared and every Sportify generic model tagged again after EVERY
+            // analysis (they all redraw the diagrams), one regeneration of the view per tag, ~0.85 s each over ~2,500 elements: Revit hung on "Structural
+            // (bay by bay)". A tag on something no longer tagged here (a Kinetics part, an iteration's copy) goes; a deleted piece takes its tag with it.
+            var iterations = IterationLedger.ReadUniqueIds(doc);
+            bool Taggable(Element el) =>
+                el is not FamilyInstance { SuperComponent: not null }                                   // a nested part: its piece is tagged
+                && el.DesignOption == null && !iterations.Contains(el.UniqueId)
+                && RoofIdentity.IsSportifys(doc, el)
+                && el.LookupParameter("Sportify_Category")?.AsString() != SportifyKineticFamilyBuilder.KineticsCategoryValue;
+            var tagged = new HashSet<ElementId>();
+            var drop = new List<ElementId>();
+            foreach (var t in new FilteredElementCollector(doc, view.Id).OfClass(typeof(IndependentTag)).Cast<IndependentTag>())
+            {
+                if (doc.GetElement(t.GetTypeId()) is not FamilySymbol s || s.FamilyName != FamilyName) continue;
+                var hosts = t.GetTaggedLocalElementIds();
+                if (hosts.Any(id => doc.GetElement(id) is Element e && Taggable(e))) tagged.UnionWith(hosts);
+                else drop.Add(t.Id);
+            }
+            if (drop.Count > 0) doc.Delete(drop);
 
             var workset = SportifyWorksetSet.Ensure(doc, new[] { SportifyWorksetSet.AnnotationsAndTags })[SportifyWorksetSet.AnnotationsAndTags];
-            int tagged = 0, failed = 0;
-            foreach (var el in new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType())
+            int added = 0, failed = 0;
+            var todo = new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_GenericModel).WhereElementIsNotElementType()
+                .Where(el => !tagged.Contains(el.Id) && Taggable(el)).ToList();
+            foreach (var el in todo)
             {
-                if (el is FamilyInstance { SuperComponent: not null }) continue;           // a nested part: its piece is tagged
-                if (!RoofIdentity.IsSportifys(doc, el)) continue;
                 var bb = el.get_BoundingBox(view);
                 if (bb == null) continue;
                 try
                 {
                     var tag = IndependentTag.Create(doc, symbol.Id, view.Id, new Reference(el), false, TagOrientation.Horizontal, (bb.Min + bb.Max) / 2);
                     SportifyLayoutBuilder.SetWorkset(tag, workset);
-                    tagged++;
+                    added++;
                 }
                 catch (Exception) { failed++; }
             }
-            SportifyLog.Info("tags", $"\"{view.Name}\": {tagged} piece(s) tagged with {FamilyName} : {symbol.Name}" + (failed > 0 ? $", {failed} could not be" : ""));
+            SportifyLog.Info("tags", $"\"{view.Name}\": {tagged.Count} piece(s) already tagged, {added} tagged now with {FamilyName} : {symbol.Name}, {drop.Count} old tag(s) removed" + (failed > 0 ? $", {failed} could not be" : ""));
             return view;
         }
 
