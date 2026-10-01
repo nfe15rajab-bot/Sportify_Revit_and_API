@@ -67,6 +67,8 @@ namespace SportfyRevit
             foreach (var mc in elements.OfType<ModelCurve>())
             {
                 if (mc.GeometryCurve is not Arc arc) continue;
+                // a full circle is an UNBOUND arc: it has no end points to ask for ("The input curve is not bound", found 2026-10-01: the command failed), its centre is its own
+                if (!arc.IsBound) { entries.Add(new Entry(M(arc.Center.X), M(arc.Center.Y))); continue; }
                 if (!arc.GetEndPoint(0).IsAlmostEqualTo(arc.GetEndPoint(1))) continue;
                 var c = (arc.GetEndPoint(0) + arc.Evaluate(0.5, true)) / 2;    // the arc's own centre: on a full circle, any two points average toward it — cheap and exact enough
                 entries.Add(new Entry(M(c.X), M(c.Y)));
