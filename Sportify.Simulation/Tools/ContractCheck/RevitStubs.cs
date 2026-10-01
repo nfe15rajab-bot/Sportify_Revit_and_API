@@ -29,4 +29,14 @@ namespace SportfyRevit
     internal static class LiveStructure { internal static string Apply(Autodesk.Revit.DB.Document? doc, string layoutJson, out string note) { note = ""; return layoutJson; } }
     // SportifyDiagramViews draws Revit views: nothing to draw here.
     internal static class SportifyDiagramViews { internal static void Refresh(Autodesk.Revit.DB.Document? doc, SportifyLayout? layout = null) { } }
+    // ProjectLayout (ImportedLayoutStore.cs) also reads the layout kept in the project (Revit's extensible storage): here only the web app's is there.
+    internal static class ProjectLayout
+    {
+        internal const string NoLayoutMessage = "No layout of this project to analyse yet.";
+        internal static bool TryGet(Autodesk.Revit.DB.Document? doc, out string? json, out string source)
+        {
+            source = "the web app";
+            return RoofBoundaryServer.TryGetLatestCombinedLayout(out json, out _) && json != null;
+        }
+    }
 }

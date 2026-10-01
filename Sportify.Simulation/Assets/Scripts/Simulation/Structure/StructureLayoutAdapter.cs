@@ -51,6 +51,7 @@ namespace Sportify.Simulation.Structure
                         activities++;
                         inputs.Items.Add(StructureModel.ActivityItem(InputQuantiser.Or(p.id, "activity_" + activities), InputQuantiser.Or(p.label, "Activity " + activities),
                             InputQuantiser.Q(bb.top_left_x_m), InputQuantiser.Q(bb.top_left_y_m), InputQuantiser.Q(bb.width_m), InputQuantiser.Q(bb.height_m)));
+                        inputs.Items[inputs.Items.Count - 1].ActivityCategory = (p.parameters != null && p.parameters.activity != null ? p.parameters.activity.category : null) ?? "";
                     }
                     else if (string.Equals(p.category, "furniture", StringComparison.OrdinalIgnoreCase))
                     {

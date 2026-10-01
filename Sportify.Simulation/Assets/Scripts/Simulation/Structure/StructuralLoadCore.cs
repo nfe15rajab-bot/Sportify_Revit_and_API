@@ -112,6 +112,7 @@ namespace Sportify.Simulation.Structure
         public double Persons;               // expected people on it
         public double Players, Seats;        // a court's players and seated spectators (Persons is their sum)
         public string Basis = "";            // where the numbers come from, for the report
+        public string ActivityCategory = ""; // an activity's catalogue category (court, service, playground ...): not a load, it tells the sun analysis a padel court is a field and a locker room a building
 
         /// <summary>The item's real outline (x, y in layout metres) when it is not its box: a bed whose corners were moved. Null = the rectangle X, Y, Width, Height (which is then the outline's bounding box).</summary>
         public List<double[]> Polygon;

@@ -124,11 +124,16 @@ function fraction(x, y, sun, doy, pieces) {
 const items = I.items;
 const inRect = (x, y, rx, ry, rw, rh) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
 const inPolygon = (x, y, poly) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; };
-const courts = items.filter(i => i.kind === "Court");
+// a field: a sports field, or an activity the catalogue files as a court; a service module (locker room, bathroom) is a building (SunShadeCore.IsField / IsServiceModule)
+const isField = i => i.kind === "Court" || (i.category || "").toLowerCase() === "court";
+const isService = i => (i.category || "").toLowerCase() === "service";
+const courts = items.filter(isField);
+const blocked = items.filter(i => isField(i) || isService(i));
 const zones = [];
 for (const it of items) {
   if (it.kind === "Tree" || it.kind === "Furniture") continue;         // a tree or a piece of furniture is an object on the roof, not a zone of it
-  const kind = it.kind === "Court" ? "court" : it.kind === "Activity" ? "people" : "garden";
+  if (isService(it)) continue;                                          // a building with its own roof: nothing to shade
+  const kind = isField(it) ? "court" : it.kind === "Activity" ? "people" : "garden";
   const z = { id: it.id, label: it.name || it.label, kind, cells: [], x: it.x, y: it.y, w: it.w, h: it.h };
   for (let c = 0; c < N; c++) if (active[c] && (it.poly ? inPolygon(cx(c), cy(c), it.poly) : inRect(cx(c), cy(c), it.x, it.y, it.w, it.h))) z.cells.push(c);
   zones.push(z);
@@ -226,7 +231,7 @@ function fits(t, w, d, x, y, placed) {
     if (c[0] < 0.3 || c[0] > I.roofLength - 0.3 || c[1] < 0.3 || c[1] > I.roofWidth - 0.3) return false;
     if (I.outline && I.outline.length >= 3 && !winding(I.outline, c[0], c[1])) return false;
   }
-  for (const k of courts) if (overlap(box, [k.x, k.y, k.x + k.w, k.y + k.h])) return false;
+  for (const k of blocked) if (overlap(box, [k.x, k.y, k.x + k.w, k.y + k.h])) return false;   // never over a field or a service module
   for (const p of placed) if (overlap(box, [p.x, p.y, p.x + p.widthM, p.y + p.depthM])) return false;
   for (const dr of I.drains) if (dr[0] >= x - 0.3 && dr[0] <= x1 + 0.3 && dr[1] >= y - 0.3 && dr[1] <= y1 + 0.3) return false;
   for (const e of I.entries) if (e[0] >= x - 2 && e[0] <= x1 + 2 && e[1] >= y - 2 && e[1] <= y1 + 2) return false;

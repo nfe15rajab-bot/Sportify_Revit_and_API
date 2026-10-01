@@ -57,6 +57,7 @@ namespace SportfyRevit
                     activities++;
                     inputs.Items.Add(StructureModel.ActivityItem(InputQuantiser.Or(p.Id, "activity_" + activities), InputQuantiser.Or(p.Label, "Activity " + activities),
                         InputQuantiser.Q(bb.TopLeftXM), InputQuantiser.Q(bb.TopLeftYM), InputQuantiser.Q(bb.WidthM), InputQuantiser.Q(bb.HeightM)));
+                    inputs.Items[inputs.Items.Count - 1].ActivityCategory = p.Parameters?.Activity?.Category ?? "";
                 }
                 else if (string.Equals(p.Category, "furniture", StringComparison.OrdinalIgnoreCase))
                 {

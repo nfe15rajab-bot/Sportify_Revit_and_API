@@ -531,6 +531,14 @@ namespace Sportify.Simulation.Sun
             return x >= rx && x <= rx + rw && y >= ry && y <= ry + rh;
         }
 
+        /// <summary>A playing field: a sports field, or an activity the catalogue files as a court (padel, pickleball, badminton, 3x3 basketball, teqball,
+        /// bocce, table tennis). No shading equipment stands over one (user, 2026-10-01: "it shouldnt recommend pergolas on fields"): the ball needs the
+        /// height, and a court is shaded from beside it, not from above.</summary>
+        internal static bool IsField(LoadItem it) => it.Kind == LoadKind.Court || string.Equals(it.ActivityCategory, "court", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>A service module (locker room, bathroom, dressing cabin, locker bank): a building of its own, never a shade target or under a canopy.</summary>
+        internal static bool IsServiceModule(LoadItem it) => string.Equals(it.ActivityCategory, "service", StringComparison.OrdinalIgnoreCase);
+
         static List<Zone> BuildZones(SunInputs inputs, SunGrid grid)
         {
             var zones = new List<Zone>();
@@ -539,7 +547,9 @@ namespace Sportify.Simulation.Sun
             foreach (var it in inputs.Structure.Items)
             {
                 if (it.IsObject) continue;
-                var kind = it.Kind == LoadKind.Court ? "court" : it.Kind == LoadKind.Activity ? "people" : "garden";
+                // a service module (locker room, bathroom) is a building with its own roof: nothing to shade (user, 2026-10-01: canopies stood on them)
+                if (IsServiceModule(it)) continue;
+                var kind = IsField(it) ? "court" : it.Kind == LoadKind.Activity ? "people" : "garden";
                 var z = new Zone { Id = it.Id, Label = string.IsNullOrEmpty(it.Name) ? it.Label : it.Name, Kind = kind, X = it.X, Y = it.Y, W = it.Width, H = it.Height };
                 for (var j = 0; j < grid.Ny; j++)
                     for (var i = 0; i < grid.Nx; i++)
@@ -848,7 +858,7 @@ namespace Sportify.Simulation.Sun
 
             var st = inputs.Structure;
             foreach (var it in st.Items)
-                if (it.Kind == LoadKind.Court && Overlap(x, y, x1, y1, it.X, it.Y, it.X + it.Width, it.Y + it.Height)) return false;
+                if ((IsField(it) || IsServiceModule(it)) && Overlap(x, y, x1, y1, it.X, it.Y, it.X + it.Width, it.Y + it.Height)) return false;
             foreach (var p in placed)
                 if (Overlap(x, y, x1, y1, p.x, p.y, p.x + p.widthM, p.y + p.depthM)) return false;
             foreach (var dr in inputs.Drains)

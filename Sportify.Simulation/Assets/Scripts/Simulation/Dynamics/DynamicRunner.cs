@@ -868,8 +868,14 @@ namespace Sportify.Simulation.Dynamics
             // left: the spectrum, the worst bay's response against the deck's frequency, every column its colour of the spectrum
             var spec = r.spectrum.First(s => s.activity == r.sweepActivity);
             var cols = new List<GameObject>();
-            const float sMin = 2f, sMax = 12f;
-            left.Text("resonance spectrum: " + r.worstBay + " against the deck's frequency (root scale)", 0.5f, 0.95f, Ink, 19f);
+            // VISUAL ONLY (user, 2026-10-01: "make the spectrum and bouncing effect more visible ... the structure has very small bays", "just visually"):
+            // the numbers are as computed; only how far the axis reaches, the chart's zoom and the drawn swing adapt to a deck far from the crowd's rhythm.
+            const float sMin = 2f, dataMax = 12f;
+            var deckHz = (float)fn[worstIndex];
+            var logAxis = deckHz > dataMax;                                    // the deck beyond the computed spectrum: a log axis that reaches it
+            var sMax = logAxis ? deckHz * 1.18f : dataMax;
+            Func<float, float> AxisX = hz => 0.05f + Mathf.Clamp01(logAxis ? Mathf.Log(hz / sMin) / Mathf.Log(sMax / sMin) : (hz - sMin) / (sMax - sMin)) * 0.935f;
+            left.Text("resonance spectrum: " + r.worstBay + " against the deck's frequency (root scale" + (logAxis ? ", frequency on a log scale" : "") + ")", 0.5f, 0.95f, Ink, 19f);
             var specMax = Mathf.Max(spec.accelerationG.Max(), limit * 1.5f);
             Func<float, float> Root = g => Mathf.Sqrt(Mathf.Clamp01(g / specMax));
             for (var i = 0; i < spec.accelerationG.Length; i++)
@@ -877,22 +883,25 @@ namespace Sportify.Simulation.Dynamics
                 var q = left.Bar(FrequencyColour(sMin + i * 0.1f));
                 cols.Add(q);
             }
+            // past the computed spectrum, up to the deck: no response worth drawing, a thin floor in the colour of those frequencies
+            var tail = new List<GameObject>();
+            if (logAxis) for (var i = 0; i < 40; i++) tail.Add(left.Bar(FrequencyColour(12f, 0.55f)));
             var limitBar = left.Bar(new Color(1f, 1f, 1f, 0.85f));
             var limitY = Root(limit) * 0.72f + 0.08f;
             left.SetQuad(limitBar, 0.05f, limitY - 0.004f, 0.985f, limitY + 0.004f);
             left.Text("limit " + Num(limit, "0.00") + " g", 0.9f, limitY + 0.06f, Color.white, 15f);
             var fnMark = left.Bar(new Color(1f, 1f, 1f, 0.9f));
-            var fnX = 0.05f + Mathf.Clamp01(((float)fn[worstIndex] - sMin) / (sMax - sMin)) * 0.935f;
+            var fnX = AxisX(deckHz);
             left.SetQuad(fnMark, fnX - 0.003f, 0.06f, fnX + 0.003f, 0.9f);
             // the deck's own frequency under its mark, kept inside the chart (a deck beyond the scale says so), and no scale number under it
-            var deckText = "this deck " + Num((float)fn[worstIndex], "0.0") + " Hz" + (fn[worstIndex] > sMax ? " (off the scale)" : "");
+            var deckText = "this deck " + Num(deckHz, "0.0") + " Hz" + (logAxis ? ", far above the crowd's rhythm" : "");
             var deckHalf = deckText.Length * 0.55f * 16f * 0.5f / 750f;
-            var deckX = Mathf.Clamp(fnX, 0.02f + deckHalf, 0.98f - deckHalf);
-            left.Text(deckText, deckX, 0.02f, Color.white, 16f);
-            for (var f = 2; f <= 12; f += 2)
+            var deckX = logAxis ? Mathf.Clamp(fnX - deckHalf - 0.012f, 0.02f + deckHalf, 0.98f - deckHalf) : Mathf.Clamp(fnX, 0.02f + deckHalf, 0.98f - deckHalf);
+            left.Text(deckText, deckX, logAxis ? 0.80f : 0.02f, Color.white, 16f);
+            foreach (var f in logAxis ? new[] { 2, 4, 8, 16, 32, 64, 128 }.Where(v => v <= sMax) : new[] { 2, 4, 6, 8, 10, 12 })
             {
-                var tx = 0.05f + (f - sMin) / (sMax - sMin) * 0.935f;
-                if (Mathf.Abs(tx - deckX) > deckHalf + 0.03f) left.Text(f + "", tx, 0.955f - 0.9f, Muted, 14f);
+                var tx = AxisX(f);
+                if (logAxis || Mathf.Abs(tx - deckX) > deckHalf + 0.03f) left.Text(f + " Hz", tx, 0.955f - 0.9f, Muted, 14f);
             }
 
             // right: the response as the crowd's rhythm sweeps its range
@@ -900,9 +909,20 @@ namespace Sportify.Simulation.Dynamics
             var curve = right.Line(new Color(1f, 0.85f, 0.3f), 3f);
             var curveCursor = right.Bar(new Color(1f, 1f, 1f, 0.85f));
             var limitBar2 = right.Bar(new Color(1f, 1f, 1f, 0.85f));
-            var gMax = Mathf.Max(2f * limit, r.sweepG.Max() * 1.1f);
-            right.SetQuad(limitBar2, 0.05f, limit / gMax * 0.82f + 0.08f - 0.004f, 0.985f, limit / gMax * 0.82f + 0.08f + 0.004f);
-            right.Text("limit", 0.95f, limit / gMax * 0.82f + 0.13f, Color.white, 15f);
+            var sweepPeak = r.sweepG.Length > 0 ? r.sweepG.Max() : 0f;
+            var zoomed = sweepPeak > 0f && sweepPeak < 0.25f * limit;           // a response far under the limit would lie flat on the floor
+            var gMax = zoomed ? sweepPeak * 1.35f : Mathf.Max(2f * limit, sweepPeak * 1.1f);
+            if (zoomed)
+            {
+                right.SetQuad(limitBar2, 0f, 0f, 0f, 0f);
+                right.Text("limit " + Num(limit, "0.00") + " g: " + Num(limit / gMax, "0") + "x above this zoomed scale", 0.70f, 0.80f, Color.white, 15f);
+                right.Text("top of the scale " + Num(gMax, "0.000") + " g", 0.20f, 0.80f, Muted, 14f);
+            }
+            else
+            {
+                right.SetQuad(limitBar2, 0.05f, limit / gMax * 0.82f + 0.08f - 0.004f, 0.985f, limit / gMax * 0.82f + 0.08f + 0.004f);
+                right.Text("limit", 0.95f, limit / gMax * 0.82f + 0.13f, Color.white, 15f);
+            }
             // the unit on the scale's own numbers: a separate "rhythm (Hz)" stood over the middle number and the curve
             for (var f = 0; f <= 4; f++) right.Text(Num(act.fpLowHz + f / 4f * (act.fpHighHz - act.fpLowHz), "0.0") + " Hz", 0.05f + f / 4f * 0.935f, 0.04f, Muted, 14f);
             var sweepPts = new List<Vector2>();
@@ -912,6 +932,7 @@ namespace Sportify.Simulation.Dynamics
 
             // where things stand, drawn above the swinging deck: white = the courts and play areas where the jumping crowd is, green = gardens (walkers only)
             var markers = new List<GameObject>();
+            var names = new List<GameObject>();                                  // hidden in the close-up, where they would cover the bay
             var nameSpace = new ScreenSpace(_cam, _cfg.Width, _cfg.Height);
             foreach (var it in _inputs.Structure.Items.OrderByDescending(i => i.Width * i.Height))
             {
@@ -929,10 +950,22 @@ namespace Sportify.Simulation.Dynamics
                 string name;
                 float nameSize;
                 if (PieceNames.Fit(it, 0.85f, true, nameSpace, at, out name, out nameSize, PieceNames.Short(it.Name, 26), PieceNames.Short(PieceNames.Compact(it), 14)))
-                    markers.Add(_hud.WorldLabel(name, at, nameSize, host ? Color.white : new Color(0.7f, 0.95f, 0.7f)).gameObject);
+                {
+                    var label = _hud.WorldLabel(name, at, nameSize, host ? Color.white : new Color(0.7f, 0.95f, 0.7f)).gameObject;
+                    markers.Add(label);
+                    names.Add(label);
+                }
             }
             var amp = new float[nb];
             var colour = new Color[nb];
+            // the worst bay at its peak swings at least half the drawn range; the colours stay against the comfort limit
+            var peakRatio = limit > 0 ? sweepPeak / limit : 0f;
+            var swingBoost = peakRatio > 0f && peakRatio * 0.22f < 0.5f ? Mathf.Min(1000f, 1.0f / (peakRatio * 0.22f)) : 1f;
+            var ampCap = swingBoost > 1.05f ? 1.3f : 0.95f;
+            // when it barely moves, the camera comes to the bay that swings most at the worst rhythm, and goes back after
+            var camHome = _cam.transform.position;
+            var homeLook = LayoutSpace.ToWorld(_payload.roof_context.length_m * 0.5f, _payload.roof_context.width_m * 0.5f, 2.5f);
+            var camNear = BayPoint(_run.Static.bays[worstIndex], 2.5f) + (camHome - homeLook) * 0.5f;
             var swingClock = 0f;
             var bestIndex = 0;
             for (var i = 1; i < r.sweepG.Length; i++) if (r.sweepG[i] > r.sweepG[bestIndex]) bestIndex = i;
@@ -940,7 +973,9 @@ namespace Sportify.Simulation.Dynamics
 
             _hud.SetLegend(new List<string>
             {
-                "The deck swings slowed down and exaggerated; colour = acceleration against the comfort limit (" + Num(limit, "0.00") + " g)",
+                (swingBoost > 1.05f
+                    ? "Swing drawn " + Num(swingBoost, "0") + "x larger: it barely moves (" + Num(sweepPeak, "0.000") + " g); colour = acceleration vs the " + Num(limit, "0.00") + " g limit"
+                    : "The deck swings slowed down and exaggerated; colour = acceleration against the comfort limit (" + Num(limit, "0.00") + " g)"),
                 Tint("blue", LoadColors.Ramp(0.05f)) + " calm   " + Tint("green", LoadColors.Ramp(0.5f)) + " noticeable   " + Tint("yellow", LoadColors.Ramp(0.8f)) + " near the limit   " + Tint("red", LoadColors.Ramp(1f)) + " over it",
                 Tint("White = the courts (the jumping crowd); green = gardens (walkers only)", Muted),
             });
@@ -962,19 +997,31 @@ namespace Sportify.Simulation.Dynamics
                     var g = force[b] > 0 ? (float)DynamicModel.AccelerationG(act.alpha, force[b], mass[b], fn[b], fp, DynamicModel.Damping) : 0f;
                     var ratio = g / limit;
                     worstRatio = Mathf.Max(worstRatio, ratio);
-                    amp[b] = Mathf.Clamp(ratio * 0.22f, 0f, 0.95f);
+                    amp[b] = Mathf.Clamp(ratio * 0.22f * swingBoost, 0f, ampCap);
                     colour[b] = force[b] > 0 ? LoadColors.Ramp(Mathf.Clamp(ratio, 0.02f, 1.6f)) : new Color(0.30f, 0.38f, 0.52f);
                 }
                 _deck.Update(amp, colour, Mathf.Sin(swingClock * Mathf.PI * 2f));
+                if (swingBoost > 1.05f && !sweeping)
+                {
+                    var into = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((f - sweepFrames) / (_cfg.Fps * 1.5f)));
+                    _cam.transform.position = Vector3.Lerp(camHome, camNear, into);
+                    if (into > 0.2f) foreach (var n in names) if (n.activeSelf) n.SetActive(false);
+                }
 
                 // spectrum columns rise at the start
                 var grow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(f / (float)(_cfg.Fps * 2)));
                 for (var i = 0; i < cols.Count; i++)
                 {
-                    var x0 = 0.05f + i / (float)(cols.Count) * 0.935f;
-                    var x1 = 0.05f + (i + 1) / (float)(cols.Count) * 0.935f;
+                    var x0 = AxisX(sMin + i * 0.1f);
+                    var x1 = AxisX(sMin + (i + 1) * 0.1f);
                     var h = Root(spec.accelerationG[i]) * 0.72f * grow;
                     left.SetQuad(cols[i], x0, 0.08f, x1, 0.08f + Mathf.Max(0.004f, h));
+                }
+                for (var i = 0; i < tail.Count; i++)
+                {
+                    var f0 = dataMax + (sMax - dataMax) * i / tail.Count;
+                    var f1 = dataMax + (sMax - dataMax) * (i + 1) / tail.Count;
+                    left.SetQuad(tail[i], AxisX(f0), 0.08f, AxisX(f1), 0.08f + 0.006f * grow);
                 }
                 var upto = sweeping ? Mathf.Max(2, Mathf.CeilToInt(t * sweepPts.Count)) : sweepPts.Count;
                 right.SetLine(curve, sweepPts.Take(upto).ToList());
@@ -982,7 +1029,7 @@ namespace Sportify.Simulation.Dynamics
                 right.SetQuad(curveCursor, cx - 0.003f, 0.06f, cx + 0.003f, 0.86f);   // stops under the chart's title
 
                 _hud.SetBanner(Banner("3  RESONANCE", sweeping ? "THE CROWD'S RHYTHM SWEEPS " + Num(act.fpLowHz, "0.0") + " TO " + Num(act.fpHighHz, "0.0") + " HZ" : "AT THE WORST RHYTHM"));
-                _hud.SetCountsText("RHYTHM " + Tint(Num(fp, "0.0") + " HZ", Color.white) + "   WORST " + Tint(Num(worstRatio * limit, "0.00") + " G", worstRatio > 1f ? Red : Good) + " / " + Num(limit, "0.00"));
+                _hud.SetCountsText("RHYTHM " + Tint(Num(fp, "0.0") + " HZ", Color.white) + "   WORST " + Tint(Num(worstRatio * limit, worstRatio * limit < 0.01f ? "0.000" : "0.00") + " G", worstRatio > 1f ? Red : Good) + " / " + Num(limit, "0.00"));
                 _hud.SetFeed(new List<string>
                 {
                     "Harmonic " + r.worstHarmonic + " of the rhythm meets the deck around " + Num((float)fn[worstIndex], "0.0") + " Hz: " + r.worstBay + " swings the most",
@@ -998,13 +1045,13 @@ namespace Sportify.Simulation.Dynamics
                     {
                         if (force[b] <= 0) continue;
                         var g = (float)DynamicModel.AccelerationG(act.alpha, force[b], mass[b], fn[b], fp, DynamicModel.Damping);
-                        if (g / limit >= 0.3f) swings.Add(new KeyValuePair<int, float>(b, g));
+                        swings.Add(new KeyValuePair<int, float>(b, g));
                     }
-                    foreach (var sw in swings.OrderByDescending(x => x.Value))
+                    foreach (var sw in swings.OrderByDescending(x => x.Value).Select((x, rank) => (x, rank)).Where(v => v.x.Value / limit >= 0.3f || v.rank < 3).Select(v => v.x))
                     {
                         var bay = _run.Static.bays[sw.Key];
                         var size = BayLabelSize(bay, "0.00 g", 1.1f);
-                        if (space.Claim(BayPoint(bay, 2.2f), "0.00 g", size)) labels.Add(_hud.WorldLabel(Num(sw.Value, "0.00") + " g", BayPoint(bay, 2.2f), size, Color.white).gameObject);
+                        if (space.Claim(BayPoint(bay, 2.2f), "0.00 g", size)) labels.Add(_hud.WorldLabel(Num(sw.Value, sw.Value < 0.01f ? "0.000" : "0.00") + " g", BayPoint(bay, 2.2f), size, Color.white).gameObject);
                     }
                 }
 
@@ -1017,6 +1064,7 @@ namespace Sportify.Simulation.Dynamics
 
             foreach (var l in labels) UnityEngine.Object.Destroy(l);
             foreach (var m in markers) UnityEngine.Object.Destroy(m);
+            _cam.transform.position = camHome;
             left.Destroy();
             right.Destroy();
             _deck.SetActive(false);
