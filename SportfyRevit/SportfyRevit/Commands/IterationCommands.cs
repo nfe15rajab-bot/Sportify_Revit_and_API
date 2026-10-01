@@ -57,16 +57,49 @@ namespace SportfyRevit
         /// </summary>
         public static readonly string[] MainCopyWorksets = { "Sportify Gardens", "Sportify Annotations and Tags" };
 
-        /// <summary>Hides the main model's copy (MainCopyWorksets) in a view that shows one iteration. Call inside a transaction; false when nothing had to change.</summary>
+        /// <summary>The height (feet) of the roof the iterations stand on: the middle of the tops of the floors on the iteration worksets; null when they have none.</summary>
+        public static double? IterationRoofTopFt(Document doc)
+        {
+            var iterationIds = new HashSet<int>(new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Where(w => w.Name.StartsWith(NamePrefix, StringComparison.Ordinal)).Select(w => w.Id.IntegerValue));
+            if (iterationIds.Count == 0) return null;
+            var tops = new List<double>();
+            foreach (var f in new FilteredElementCollector(doc).OfClass(typeof(Floor)).WhereElementIsNotElementType())
+                if (iterationIds.Contains(f.WorksetId.IntegerValue) && f.get_BoundingBox(null) is { } bb) tops.Add(bb.Max.Z);
+            if (tops.Count == 0) return null;
+            tops.Sort();
+            return tops[tops.Count / 2];
+        }
+
+        /// <summary>
+        /// In a view that shows one iteration: the main model's copy of THAT roof's garden is hidden, element by element (it is the same design as one of the iterations, so it would be
+        /// drawn on top of the others), and nothing else of Sportify Gardens: the garden of the other roofs (the default layout's green zones and planters) stays visible, as does
+        /// the rest of the model. Sportify Annotations and Tags (the circulation and setback lines) stays hidden. Call inside a transaction; false when nothing had to change.
+        /// </summary>
         public static bool HideMainCopy(View view)
         {
+            var doc = view.Document;
             var changed = false;
-            foreach (var w in new FilteredWorksetCollector(view.Document).OfKind(WorksetKind.UserWorkset).Where(w => MainCopyWorksets.Contains(w.Name)))
+            var worksets = new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Where(w => MainCopyWorksets.Contains(w.Name)).ToList();
+            foreach (var w in worksets.Where(w => w.Name != "Sportify Gardens"))
             {
                 if (view.GetWorksetVisibility(w.Id) == WorksetVisibility.Hidden) continue;
                 view.SetWorksetVisibility(w.Id, WorksetVisibility.Hidden);
                 changed = true;
             }
+            var gardens = worksets.FirstOrDefault(w => w.Name == "Sportify Gardens");
+            if (gardens == null) return changed;
+            if (view.GetWorksetVisibility(gardens.Id) != WorksetVisibility.Visible) { view.SetWorksetVisibility(gardens.Id, WorksetVisibility.Visible); changed = true; }
+            var top = IterationRoofTopFt(doc);
+            if (top == null) return changed;
+            var hide = new List<ElementId>();
+            foreach (var e in new FilteredElementCollector(doc).WherePasses(new ElementWorksetFilter(gardens.Id)).WhereElementIsNotElementType())
+            {
+                if (e.Category == null || e.Category.CategoryType != CategoryType.Model || e.get_BoundingBox(null) is not { } bb) continue;
+                if (bb.Min.Z < top.Value - 1.6) continue;                // more than half a metre under the iterations' roof: another roof's (the default layout's), stays
+                if (e.IsHidden(view) || !e.CanBeHidden(view)) continue;
+                hide.Add(e.Id);
+            }
+            if (hide.Count > 0) { view.HideElements(hide); changed = true; }
             return changed;
         }
 

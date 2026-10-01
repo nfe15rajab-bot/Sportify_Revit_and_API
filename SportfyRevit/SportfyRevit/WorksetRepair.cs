@@ -43,6 +43,7 @@ namespace SportfyRevit
             {
                 if (IterationOfViewName(v.Name) is null) continue;
                 var shown = new Dictionary<string, int>();
+                var gardenFamilies = new Dictionary<string, int>();
                 try
                 {
                     foreach (var e in new FilteredElementCollector(doc, v.Id).WhereElementIsNotElementType())
@@ -50,12 +51,18 @@ namespace SportfyRevit
                         if (!doc.IsWorkshared || !names.TryGetValue(e.WorksetId.IntegerValue, out var wn) || !wn.StartsWith("Sportify", StringComparison.Ordinal)) continue;
                         if (e.Category == null || e.Category.CategoryType != CategoryType.Model) continue;
                         shown[wn] = shown.GetValueOrDefault(wn) + 1;
+                        if (wn == "Sportify Gardens")
+                        {
+                            var fam = (e as FamilyInstance)?.Symbol?.FamilyName ?? e.GetType().Name;
+                            gardenFamilies[fam] = gardenFamilies.GetValueOrDefault(fam) + 1;
+                        }
                     }
                 }
                 catch (Exception ex) { lines.Add($"{label} view \"{v.Name}\": could not be read ({ex.Message})"); continue; }
                 var states = string.Join(", ", names.Where(kv => kv.Value is "Sportify Gardens" or "Sportify Annotations and Tags" || kv.Value.StartsWith(IterationWorksets.NamePrefix, StringComparison.Ordinal))
                     .OrderBy(kv => kv.Value).Select(kv => kv.Value.Replace("Sportify ", "") + "=" + v.GetWorksetVisibility(new WorksetId(kv.Key))));
                 lines.Add($"{label} {v.ViewType} \"{v.Name}\" shows: {string.Join("; ", shown.OrderBy(kv => kv.Key).Select(kv => kv.Value + " on " + kv.Key.Replace("Sportify ", "")))}   [{states}]");
+                if (gardenFamilies.Count > 0) lines.Add($"{label} gardens in \"{v.Name}\": {string.Join(", ", gardenFamilies.OrderBy(kv => kv.Key).Select(kv => kv.Value + " x " + kv.Key))}");
             }
         }
 
