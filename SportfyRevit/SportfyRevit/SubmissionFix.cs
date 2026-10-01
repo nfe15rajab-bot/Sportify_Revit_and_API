@@ -190,6 +190,46 @@ namespace SportfyRevit
                 lines.Add($"view \"{v.Name}\": phase {phase}, phase filter {filter}, shows {shown} Sportify element(s)");
             }
             lines.Add("phases: " + string.Join(", ", doc.Phases.Cast<Phase>().Select(p => p.Name)));
+            // every 3D view: what of the newest import it shows, and what hides the rest (user, 2026-10-01: "in 3d this is empty" while the plan shows the pieces)
+            var newest = ImportLedger.ReadEntries(doc).Where(e => !e.RoofKey.StartsWith("option:", StringComparison.Ordinal)).OrderByDescending(e => e.ImportedAtUtc).FirstOrDefault();
+            if (newest != null)
+            {
+                var pieces = newest.Elements.Where(e => e is FamilyInstance && e.IsValidObject).ToList();
+                // each piece's family and whether it has any 3D solid (a family of plan lines only shows in plan and vanishes in 3D)
+                static double Volume(GeometryElement? g)
+                {
+                    double v = 0;
+                    if (g == null) return 0;
+                    foreach (var o in g)
+                    {
+                        if (o is Solid so) v += Math.Abs(so.Volume);
+                        else if (o is GeometryInstance gi) v += Volume(gi.GetInstanceGeometry());
+                    }
+                    return v;
+                }
+                foreach (var grp in pieces.Cast<FamilyInstance>().GroupBy(fi => fi.Symbol?.FamilyName ?? "?"))
+                {
+                    var vol = grp.Sum(fi => { try { return Volume(fi.get_Geometry(new Options { DetailLevel = ViewDetailLevel.Fine })); } catch (Exception) { return 0; } });
+                    var label = grp.First().LookupParameter("Sportify_Label")?.AsString() ?? "";
+                    lines.Add($"piece family \"{grp.Key}\" ({grp.Count()}x{(label.Length > 0 ? ", " + label : "")}): 3D solids {UnitUtils.ConvertFromInternalUnits(vol, UnitTypeId.CubicMeters):0.###} m3" + (vol <= 1e-9 ? "  <- NO 3D GEOMETRY" : ""));
+                }
+                foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View3D)).Cast<View3D>().Where(v => !v.IsTemplate))
+                {
+                    var visible = new HashSet<ElementId>(new FilteredElementCollector(doc, v.Id).WhereElementIsNotElementType().ToElementIds());
+                    var hidden = pieces.Where(e => !visible.Contains(e.Id)).ToList();
+                    var phase = doc.GetElement(v.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsElementId() ?? ElementId.InvalidElementId)?.Name;
+                    var filter = doc.GetElement(v.get_Parameter(BuiltInParameter.VIEW_PHASE_FILTER)?.AsElementId() ?? ElementId.InvalidElementId)?.Name;
+                    var why = new List<string>();
+                    foreach (var g in hidden.GroupBy(e => e.WorksetId))
+                    {
+                        var ws = doc.GetWorksetTable().GetWorkset(g.Key);
+                        try { if (doc.IsWorkshared && !v.IsWorksetVisible(g.Key)) why.Add($"{g.Count()} on workset \"{ws?.Name}\" hidden in the view"); } catch (Exception) { }
+                    }
+                    if (hidden.Count > 0 && v.IsSectionBoxActive) why.Add("a section box is on");
+                    if (hidden.Count > 0 && v.ViewTemplateId != ElementId.InvalidElementId) why.Add("template \"" + doc.GetElement(v.ViewTemplateId)?.Name + "\"");
+                    lines.Add($"3D view \"{v.Name}\": phase {phase}, filter {filter}; shows {pieces.Count - hidden.Count} of the newest import's {pieces.Count} pieces" + (why.Count > 0 ? " (" + string.Join("; ", why) + ")" : ""));
+                }
+            }
             var pinfo = doc.ProjectInformation;
             foreach (var bip in new[] { BuiltInParameter.PROJECT_NAME, BuiltInParameter.PROJECT_NUMBER, BuiltInParameter.CLIENT_NAME, BuiltInParameter.PROJECT_ADDRESS, BuiltInParameter.PROJECT_BUILDING_NAME,
                                         BuiltInParameter.PROJECT_AUTHOR, BuiltInParameter.PROJECT_ORGANIZATION_NAME, BuiltInParameter.PROJECT_ORGANIZATION_DESCRIPTION })
