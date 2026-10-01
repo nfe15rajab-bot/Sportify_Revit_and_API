@@ -87,7 +87,7 @@ namespace SportfyRevit
                 (centerXFt, centerYFt) = SportifyLayoutBuilder.PlanToWorldFt(bb.TopLeftXM + bb.WidthM / 2.0, bb.TopLeftYM + bb.HeightM / 2.0);
             var center = new XYZ(centerXFt, centerYFt, SportifyLayoutBuilder.CurrentOriginZFt);
 
-            var instance = doc.Create.NewFamilyInstance(center, symbol, StructuralType.NonStructural);
+            var instance = NewInstance(doc, center, symbol);
             SportifyLayoutBuilder.SetWorkset(instance, worksetId);
             createdIds.Add(instance.Id);
 
@@ -180,7 +180,25 @@ namespace SportfyRevit
         /// gives the point it was requested at rather than where it ended up —
         /// and the correction would compute a delta of zero.
         /// </summary>
-        private static void MoveToElevation(Document doc, Element instance, double targetZFt)
+        /// <summary>
+        /// A level-based family is placed ON a level: the one the point stands on. Without one Revit takes the active view's level, and from a 3D view or a sheet there is none, so
+        /// the piece belonged to no storey (found by the BIM audit of the Goldbeck model: all 77 pieces of the imports done from the axonometry). Anything else is placed as before.
+        /// </summary>
+        internal static FamilyInstance NewInstance(Document doc, XYZ point, FamilySymbol symbol)
+        {
+            try
+            {
+                if (symbol.Family?.FamilyPlacementType == FamilyPlacementType.OneLevelBased)
+                {
+                    var level = BimFinish.LevelBelow(new FilteredElementCollector(doc).OfClass(typeof(Level)).Cast<Level>(), point.Z);
+                    if (level != null) return doc.Create.NewFamilyInstance(point, symbol, level, StructuralType.NonStructural);
+                }
+            }
+            catch (Exception ex) { SportifyLog.Warn("import", "a piece could not be placed on its level (" + ex.Message + "): placed as before"); }
+            return doc.Create.NewFamilyInstance(point, symbol, StructuralType.NonStructural);
+        }
+
+        internal static void MoveToElevation(Document doc, Element instance, double targetZFt)
         {
             try
             {

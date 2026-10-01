@@ -442,13 +442,16 @@ void Check(string name, bool ok, string extra = "") { Console.WriteLine($"{(ok ?
 
     Console.WriteLine("\n===== the shapes of furniture families =====");
     bool Inside(ShapePart q, double l, double w, double h) => q.X0 >= -l / 2 - 1e-9 && q.X1 <= l / 2 + 1e-9 && q.Y0 >= -w / 2 - 1e-9 && q.Y1 <= w / 2 + 1e-9 && q.Z0 >= -1e-9 && q.Z1 <= h + 1e-9 && q.X1 > q.X0 && q.Y1 > q.Y0 && q.Z1 > q.Z0;
-    foreach (var (cat, l, w, h) in new[] { ("bench", 1.8, 0.7, 0.8), ("table", 1.6, 0.8, 0.75), ("bin", 0.4, 0.4, 0.9), ("bollard", 0.15, 0.15, 1.0), ("light", 0.3, 0.3, 3.5), ("planter", 1.0, 0.5, 0.6), ("bench", 0.4, 0.3, 0.5) })
+    foreach (var (cat, l, w, h) in new[] { ("bench", 1.8, 0.7, 0.8), ("table", 1.6, 0.8, 0.75), ("bin", 0.4, 0.4, 0.9), ("bollard", 0.15, 0.15, 1.0), ("light", 0.3, 0.3, 3.5), ("planter", 1.0, 0.5, 0.6), ("bench", 0.4, 0.3, 0.5), ("picnic", 2.0, 2.0, 0.8), ("picnic", 1.2, 1.0, 0.8) })
     {
         var parts = FurnitureShape.Parts(cat, l, w, h);
         Check($"{cat} {l} x {w} x {h}: {parts.Count} solid(s), every one inside the product's box and with a size", parts.Count >= 1 && parts.All(q => Inside(q, l, w, h)));
         Check($"{cat}: it reaches the product's height and touches the ground", Math.Abs(parts.Max(q => q.Z1) - h) < 1e-9 && parts.Min(q => q.Z0) < 1e-9);
     }
     Check("a bench has a seat, a backrest and two end frames; a table a top and four legs; a light a base, a pole and a head", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Count == 4 && FurnitureShape.Parts("table", 1.6, 0.8, 0.75).Count == 5 && FurnitureShape.Parts("light", 0.3, 0.3, 3.5).Select(q => q.Name).SequenceEqual(new[] { "base", "pole", "head" }));
+    Check("a picnic set (the Garden tab's Park Bench and Table) is two benches and a table: bench - table - bench across the piece's width, the table top at full height",
+        FurnitureShape.Parts("picnic", 2, 2, 0.8) is var pic && pic.Count(q => q.Name.StartsWith("bench 1")) == 3 && pic.Count(q => q.Name.StartsWith("bench 2")) == 3 && pic.Count(q => q.Name.StartsWith("leg")) == 4
+        && pic.Single(q => q.Name == "table top").Z1 == 0.8 && pic.Single(q => q.Name == "bench 1 seat").Y1 <= pic.Single(q => q.Name == "table top").Y0 && pic.Single(q => q.Name == "bench 2 seat").Y0 >= pic.Single(q => q.Name == "table top").Y1);
     Check("a bin, a bollard and a light are round; a bench is not", FurnitureShape.Parts("bin", 0.4, 0.4, 0.9).All(q => q.IsCylinder) && FurnitureShape.Parts("bollard", 0.15, 0.15, 1).All(q => q.IsCylinder) && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).All(q => !q.IsCylinder));
     Check("a bench's seat is at seat height (0.44 m of 0.8) and its back rises above it", FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "seat").Z1 is > 0.4 and < 0.5 && FurnitureShape.Parts("bench", 1.8, 0.7, 0.8).Single(q => q.Name == "backrest").Z1 == 0.8);
     Check("a category the catalogue grows that has no shape yet is a box of the product's size, not a failure", FurnitureShape.Parts("sculpture", 2, 1, 1.5).Single() is { Name: "body" } b && b.Volume == 3.0);
@@ -2023,10 +2026,10 @@ Console.WriteLine("\n===== functional diagrams: the bubble (relationship) diagra
     // zoning (user, 2026-09-29): the web app's zone when it sent one, else by name and kind; each zone's clusters on a pale ground with its area
     Check("zoning: the zone the web app exported (diagram_zone) wins", DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Yoga", Zone = "garden" }) == "garden"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "field", Zone = "INDOOR" }) == "indoor");
-    Check("zoning without it: the service modules indoor, gardens / plants / furniture garden, courts and activities sport",
+    Check("zoning without it: the service modules indoor, gardens / plants / furniture garden, courts and activities sport (Ping Pong and Bouldering are indoor only when the web app says so, 2026-10-01)",
           DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Locker & Dressing Room Module" }) == "indoor"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bathroom & Shower Module" }) == "indoor"
-          && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Ping Pong Station" }) == "indoor" && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bouldering Wall" }) == "indoor"
+          && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Ping Pong Station" }) == "outdoor" && DiagramPlan.ZoneOf(new PlacementDto { Category = "activity", Label = "Bouldering Wall" }) == "outdoor"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "gardenBlock", Label = "Planter S" }) == "garden"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "furniture" }) == "garden"
           && DiagramPlan.ZoneOf(new PlacementDto { Category = "field", Label = "Padel" }) == "outdoor" && DiagramPlan.ZoneOf(new PlacementDto()) == "outdoor");

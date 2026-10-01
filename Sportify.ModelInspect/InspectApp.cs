@@ -95,6 +95,7 @@ namespace Sportify.ModelInspect
             try
             {
                 Inspect(doc, outDir, report, failures);
+                BimAudit.Run(doc, outDir, report, failures);
                 Pictures(doc, outDir, report, failures);
             }
             finally

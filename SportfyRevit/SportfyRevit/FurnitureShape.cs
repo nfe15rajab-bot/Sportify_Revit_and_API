@@ -9,7 +9,7 @@ namespace SportfyRevit
 
     /// <summary>
     /// What a catalogue piece of furniture is made of, drawn from its category and its published size: a bench is a seat, a backrest and two end frames, a table a top on four legs,
-    /// a bin a cylinder with a lid ring, a bollard a cylinder, a light a base, a pole and a head. Massing that is right about the dimensions anyone designs against (the footprint on
+    /// a bin a cylinder with a lid ring, a bollard a cylinder, a light a base, a pole and a head, a picnic set two benches and a table. Massing that is right about the dimensions anyone designs against (the footprint on
     /// the roof, the seat height, the overall height), not a product model; a firm's own family of the product, when the project has one, wins over this. No Revit in this file:
     /// SportifyFurnitureFamilyBuilder turns the parts into extrusions, and Tools/AddinCheck checks that every part stays inside the piece's box.
     /// </summary>
@@ -41,6 +41,26 @@ namespace SportfyRevit
                     {
                         double cx = sx * (x - inset - leg / 2), cy = sy * (y - inset - leg / 2);
                         parts.Add(new("box", name, cx - leg / 2, cy - leg / 2, 0, cx + leg / 2, cy + leg / 2, h - top));
+                    }
+                    break;
+                }
+                case "picnic":
+                {
+                    // the Park Bench and Table of the Garden tab: a table between two benches across the piece's width (the web draws it that way), bench - table - bench
+                    double bd = Math.Min(0.4, w * 0.2), td = Math.Min(0.8, w * 0.4);
+                    double seatTop = Math.Min(0.45, h * 0.6), seatThick = Math.Min(0.06, seatTop * 0.4), frame = Math.Min(0.06, l * 0.1);
+                    double tableTop = Math.Min(0.04, h * 0.2), leg = Math.Min(0.06, td * 0.2), inset = Math.Min(0.05, l * 0.05);
+                    foreach (var (name, y0) in new[] { ("bench 1", -y), ("bench 2", y - bd) })
+                    {
+                        parts.Add(new("box", name + " seat", -x, y0, seatTop - seatThick, x, y0 + bd, seatTop));
+                        parts.Add(new("box", name + " left frame", -x, y0, 0, -x + frame, y0 + bd, seatTop - seatThick));
+                        parts.Add(new("box", name + " right frame", x - frame, y0, 0, x, y0 + bd, seatTop - seatThick));
+                    }
+                    parts.Add(new("box", "table top", -x, -td / 2, h - tableTop, x, td / 2, h));
+                    foreach (var (sx, sy, name) in new[] { (-1, -1, "leg 1"), (1, -1, "leg 2"), (1, 1, "leg 3"), (-1, 1, "leg 4") })
+                    {
+                        double cx = sx * (x - inset - leg / 2), cy = sy * (td / 2 - leg / 2);
+                        parts.Add(new("box", name, cx - leg / 2, cy - leg / 2, 0, cx + leg / 2, cy + leg / 2, h - tableTop));
                     }
                     break;
                 }

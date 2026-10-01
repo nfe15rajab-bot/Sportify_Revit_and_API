@@ -358,6 +358,15 @@ namespace SportfyRevit
             if (p.Parameters?.DesignFamily is { } block)
             {
                 var s = SportifyPlanterFamilyBuilder.GetOrLoadSymbol(doc, block);
+                // The Garden tab's Park Bench and Table has no family in the design team's library: it was a DirectShape box (not a BIM element). It is built
+                // as a family of its own now (a table between two benches, FurnitureShape "picnic"), at the size of the piece on the board.
+                if (s == null && string.Equals(block.Type, "park_bench_table", StringComparison.OrdinalIgnoreCase) && p.BoundingBox is { WidthM: > 0, HeightM: > 0 } box)
+                {
+                    var (ownX, ownY) = PlacementFit.OwnSize(box.WidthM, box.HeightM, p.Transform?.RotationDeg ?? 0);
+                    var picnic = new FurnitureDto { Key = "park_bench_table", Label = block.Label ?? "Park Bench and Table", Category = "picnic", LengthM = ownX, WidthM = ownY, HeightM = 0.8, Seats = 4 };
+                    s = SportifyFurnitureFamilyBuilder.GetOrCreateSymbol(doc, picnic, out _);
+                    if (s != null) return Found(s, ImportDiagnostics.HowFurniture);
+                }
                 if (s == null)
                     return FamilyResolution.None($"the family for \"{block.Label ?? block.Type}\" is not loaded and is not in the add-in's library");
 

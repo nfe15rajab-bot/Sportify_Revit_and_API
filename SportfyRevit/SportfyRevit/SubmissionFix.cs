@@ -98,6 +98,7 @@ namespace SportfyRevit
                 if (steps.Contains("strays")) RemoveStrays(doc, lines);
                 if (steps.Contains("posts")) KineticPostRepair.Run(doc, lines);
                 if (steps.Contains("memory")) KeepMemory(doc, lines);
+                if (steps.Contains("bim")) BimFix.Run(doc, lines);
                 var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
                 if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
                 if (steps.Contains("titleblock"))

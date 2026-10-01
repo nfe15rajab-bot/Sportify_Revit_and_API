@@ -8,7 +8,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$File,
     [string]$Out = "",
-    [int]$TimeoutMinutes = 25
+    [int]$TimeoutMinutes = 25,
+    [string]$Layout = ""
 )
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $Out) { $Out = Join-Path $here ("inspection-" + (Get-Date -Format "yyyyMMdd-HHmmss")) }
@@ -39,6 +40,7 @@ try {
 "@ | Set-Content -Path $manifest -Encoding UTF8
     $env:SPORTIFY_INSPECT_FILE = (Resolve-Path $File).Path
     $env:SPORTIFY_INSPECT_OUT = (Resolve-Path $Out).Path
+    if ($Layout) { $env:SPORTIFY_INSPECT_LAYOUT = (Resolve-Path $Layout).Path }
     $p = Start-Process -FilePath $revit -PassThru
     "started Revit pid $($p.Id); report goes to $Out"
     $report = Join-Path $Out "inspection.json"
@@ -53,6 +55,7 @@ try {
         # give it a moment to write the text and the pictures, then show the text
         Start-Sleep -Seconds 2
         Get-Content (Join-Path $Out "inspection.txt") -Raw
+        if (Test-Path (Join-Path $Out "bim-audit.txt")) { Get-Content (Join-Path $Out "bim-audit.txt") -Raw }
     } else {
         "No report after $TimeoutMinutes minutes. Windows Revit has open:"
         Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
@@ -68,5 +71,6 @@ finally {
     if (Test-Path $manifest) { Remove-Item $manifest -Force }
     Remove-Item Env:SPORTIFY_INSPECT_FILE -ErrorAction SilentlyContinue
     Remove-Item Env:SPORTIFY_INSPECT_OUT -ErrorAction SilentlyContinue
+    Remove-Item Env:SPORTIFY_INSPECT_LAYOUT -ErrorAction SilentlyContinue
 }
 "done; the manifest is removed. Everything is in $Out"

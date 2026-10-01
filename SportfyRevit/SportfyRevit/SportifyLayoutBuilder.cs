@@ -212,6 +212,15 @@ namespace SportfyRevit
             }
             catch (Exception ex) { SportifyLog.Warn("import", "the imported elements could not be put in the Design and analysis phase: " + ex.Message); }
 
+            // A BIM element has a host level and its norm classes (BimFinish): a family placed without a level belonged to no storey, and the DIN 276 / DIN 277 classes were only
+            // written when the template was applied, so everything imported after it was unclassed.
+            try
+            {
+                var finished = BimFinish.Apply(doc, createdIds);
+                SportifyLog.Info("import", $"BIM finish: {finished.Levelled} piece(s) given their host level, {finished.Classed} classed by DIN 276 / DIN 277 ({finished.Floors} floor(s), {finished.Pieces} piece(s))");
+            }
+            catch (Exception ex) { SportifyLog.Warn("import", "the imported elements could not be given their level and norm classes: " + ex.Message); }
+
             return new ImportSummary(pieceCount, pathCount, entryCount, createdIds);
         }
 
