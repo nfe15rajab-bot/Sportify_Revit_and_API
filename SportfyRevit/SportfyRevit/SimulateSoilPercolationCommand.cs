@@ -44,7 +44,7 @@ namespace SportfyRevit
                 usingBundledSample = layoutJson != null;
                 if (layoutJson == null)
                 {
-                    message = "No layout to analyse yet. Import or push a layout from the Sportify web app first (Combine tab).";
+                    message = ProjectLayout.NoLayoutMessage;
                     return Result.Failed;
                 }
             }

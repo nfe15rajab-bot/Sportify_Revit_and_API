@@ -68,6 +68,7 @@ namespace SportfyRevit
                 entity.Set("PayloadJson", json);
                 storage.SetEntity(entity);
                 t.Commit();
+                ProjectMemoryFiles.Write(doc, "push", roofId.ToString(System.Globalization.CultureInfo.InvariantCulture), json);
                 SportifyLog.Info("push", $"the push of roof {roofId} is kept in the project: it is known again whenever the project is opened");
             }
             catch (Exception ex) { SportifyLog.Warn("push", "the push could not be kept in the project (it is known until Revit closes): " + ex.Message); }
@@ -103,6 +104,9 @@ namespace SportfyRevit
             try
             {
                 var pushes = PushedRoofStore.Read(doc);
+                if (pushes.Count == 0)
+                    pushes = ProjectMemoryFiles.Read(doc, "push").Where(f => long.TryParse(f.RoofKey, out _))
+                        .Select(f => new PushedRoofStore.Stored(long.Parse(f.RoofKey), f.WrittenUtc, f.Json)).ToList();
                 if (pushes.Count == 0) return;
                 foreach (var p in pushes) RoofBoundaryServer.RestorePayload(p.RoofId, p.Json, p.PushedAtUtc, makeActiveIfNone: true);
                 SportifyLog.Info("push", $"\"{doc.Title}\": {pushes.Count} roof push(es) kept in the project given back (newest: roof {pushes[0].RoofId}, {pushes[0].PushedAtUtc.ToLocalTime():dd.MM.yyyy HH:mm})");

@@ -60,6 +60,7 @@ namespace SportfyRevit
             entity.Set("ImportedAtUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
             entity.Set("LayoutJson", json);
             storage.SetEntity(entity);
+            ProjectMemoryFiles.Write(doc, "layout", roofKey, json);       // and on this computer, for a new local made from the central (ProjectMemoryFiles)
         }
 
         /// <summary>The layout last imported for this roof; for a roof that names none ("0", ""), or one never imported, the newest of any roof. Null when there is none.</summary>
@@ -94,6 +95,18 @@ namespace SportfyRevit
                         json = stored.Json;
                         source = $"the layout last imported into this project (roof {stored.RoofKey}, {stored.ImportedAtUtc.ToLocalTime():dd.MM.yyyy HH:mm})";
                         SportifyLog.Info("layout", "nothing from the web app in this Revit session: the analysis reads " + source);
+                        return true;
+                    }
+                    // a new local made from the central carries nothing the old local had not synchronized: what this computer kept for the central
+                    var files = ProjectMemoryFiles.Read(doc, "layout");
+                    var active = (RoofBoundaryServer.ActiveRoofId ?? 0).ToString();
+                    var mine = files.FirstOrDefault(f => f.RoofKey == active);
+                    var pick = mine.Json != null ? mine : files.FirstOrDefault();
+                    if (pick.Json != null)
+                    {
+                        json = pick.Json;
+                        source = $"the layout last imported for this project on this computer (roof {pick.RoofKey}, {pick.WrittenUtc.ToLocalTime():dd.MM.yyyy HH:mm})";
+                        SportifyLog.Info("layout", "nothing from the web app in this Revit session and none in the project: the analysis reads " + source);
                         return true;
                     }
                 }
