@@ -7,18 +7,24 @@
     The installer to test. Default: the newest dist\Sportify-Setup-*.exe.
 .PARAMETER RunApi
     Also start the installed API (port 5107 must be free) and check that it serves the web app and the catalogue, and that the launcher script works.
+.PARAMETER Force
+    Run although Sportify is installed on this computer. The silent test install shares the installer's AppId, so it replaces, and its uninstall then REMOVES, the real installation's
+    Windows uninstall entry (Settings > Apps); the real files, the add-in manifest and the Start menu are not touched. Without -Force the test refuses on such a computer.
 
 .NOTES
     Uses the installer's own test switches: /ADDINSDIR /SETTINGSDIR /DELIVERABLES /NOSTARTAPI /NOPREREQS /DISABLELEGACY. Exit code 0 = everything held, 1 = something did not.
 #>
 [CmdletBinding()]
-param([string]$Setup, [switch]$RunApi, [switch]$KeepFiles)
+param([string]$Setup, [switch]$RunApi, [switch]$KeepFiles, [switch]$Force)
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Setup) { $Setup = Get-ChildItem (Join-Path $repo "dist") -Filter "Sportify-Setup-*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }
 if (-not $Setup -or -not (Test-Path $Setup)) { Write-Host "SKIP: no installer built (dist\Sportify-Setup-*.exe)."; exit 2 }
 $version = (Get-Content (Join-Path $repo "VERSION") -Raw).Trim()
+# The test install uses the real installer, hence its AppId: it overwrites the real installation's HKCU uninstall entry and its uninstall deletes it (found 2026-10-01 on a computer with a real install).
+$uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{6D1C5A3E-4B0F-4C57-9E5B-51F7A0C0D1A7}_is1"
+if ((Test-Path $uninstallKey) -and -not $Force) { Write-Host "SKIP: Sportify is installed on this computer; this test would remove its Settings > Apps entry (run with -Force to accept that)."; exit 2 }
 
 $failures = New-Object System.Collections.Generic.List[string]
 function Expect($ok, $what) { if ($ok) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what" -ForegroundColor Red; $failures.Add($what) } }
