@@ -65,7 +65,7 @@
       <p class="lead">How the Sportify add-in organises a Revit model: which phase, design option and workset each element goes to, how it is drawn (colours, line weights, view templates), and on which A0 sheet it ends up. Like a plot-style table (CTB), it is the one reference for the drawing standard. Every value is the add-in's own; the source file is named in each section.</p>
       <div class="flow">
         <div><span class="n">1</span><b>Phase</b>What exists, what is designed, what the analyses add afterwards.</div>
-        <div><span class="n">2</span><b>Design option</b>The garden iterations side by side: planter, quiet, social.</div>
+        <div><span class="n">2</span><b>Iterations</b>The three garden iterations side by side: one workset and one view each; design options once a person fills them.</div>
         <div><span class="n">3</span><b>Workset</b>What a person wants to isolate or hide: sports, gardens, furniture, annotation, analysis.</div>
         <div><span class="n">4</span><b>Graphics</b>Filters, overrides and the "Diagrams" template: colour, line weight, halftone.</div>
         <div><span class="n">5</span><b>Sheets &amp; tags</b>Six A0 plan sheets in a fixed order, then the lists; every piece tagged with Tag_Sportify.</div>
@@ -84,19 +84,18 @@
         <p class="note">Revit's API can neither create nor rename a phase. <b>Set Up Phases &amp; Worksets</b> finds the phases a project has, says which one stands for which, and opens Manage&nbsp;&gt;&nbsp;Phasing for the renaming.</p>
       </div>
       <div>
-        <h2><span class="no">02</span> Design options <span class="src">IterationCommands.cs, RoofMatch.cs, ImportLedger.cs</span></h2>
+        <h2><span class="no">02</span> Iterations and design options <span class="src">IterationCommands.cs, WorksetRepair.cs, SportifyDiagramViews.cs</span></h2>
         <table>
-          <tr><th style="width:28%">Option set "Garden iterations"</th><th>Holds</th><th style="width:30%">Filled by</th></tr>
-          <tr><td><b>Option 1 planter</b> <span class="tag">primary</span></td><td>The planted iteration (High Roof Garden, planted).</td><td rowspan="3">Import Iterations, with that option being edited (Design Options bar at the bottom of Revit). The iteration whose name matches the option's is chosen for you.</td></tr>
-          <tr><td><b>Option 2 quiet</b></td><td>The quiet iteration.</td></tr>
-          <tr><td><b>Option 3 social</b></td><td>The social iteration.</td></tr>
+          <tr><th style="width:26%">Iteration</th><th>Held on</th><th style="width:34%">Shown by</th></tr>
+          <tr><td><b>Iteration 1</b></td><td>Workset <b>Sportify Iteration 1</b>: its pieces, build-up floors and lines</td><td>View S2 Achsonometrie interation 1</td></tr>
+          <tr><td><b>Iteration 2</b></td><td>Workset <b>Sportify Iteration 2</b></td><td>View S2 Achsonometrie interation 2</td></tr>
+          <tr><td><b>Iteration 3</b></td><td>Workset <b>Sportify Iteration 3</b></td><td>View S2 Achsonometrie interation 3</td></tr>
         </table>
         <table style="margin-top:2mm">
-          <tr><th style="width:28%">Rule</th><th>What Sportify does</th></tr>
-          <tr><td>Making options</td><td>A person makes the set and its three options once (Manage &gt; Design Options): Revit's API cannot create, name or activate an option.</td></tr>
-          <tr><td>Import into an option</td><td>Every piece lands in the option being edited. Fewer than half landing there: the import is undone. An option that already holds another iteration: asked before it is replaced.</td></tr>
-          <tr><td>Main model</td><td>Holds the current design (the last Sync with Revit). Syncs, Remove Duplicates and Clear this roof never touch an option's content; a sync is refused while an option is being edited.</td></tr>
-          <tr><td>Ledger</td><td>Each import is recorded in the project (Extensible Storage), keyed by its roof or by <code>option:&lt;id&gt;</code>, so a re-import replaces exactly its own pieces.</td></tr>
+          <tr><th style="width:26%">Rule</th><th>What Sportify does</th></tr>
+          <tr><td>One iteration per view</td><td>Its own iteration, the default layout's garden and the rest of the model. The other iterations and the main model's copy of the iterated roof's garden (the last synced design, one of the iterations) are hidden.</td></tr>
+          <tr><td>Design options</td><td>Revit's API cannot create, name, activate or fill an option; Import Iterations as Design Options fills the one being edited. The submitted model keeps the iterations on worksets.</td></tr>
+          <tr><td>Main model, ledger</td><td>The main model holds the current design (the last Sync). Each import is recorded in the project, keyed by its roof or <code>option:&lt;id&gt;</code>, so a re-import replaces exactly its own pieces; Remove Duplicates never takes an iteration's piece for a duplicate.</td></tr>
         </table>
       </div>
     </div>
@@ -107,13 +106,13 @@
         <table>
           <tr><th style="width:36%">Sportify's content</th><th>What goes there (set by the import itself)</th></tr>
           <tr><td><b>Sportify Sports</b></td><td>Courts and activities (Sportify_Category field, activity; indoor pieces too).</td></tr>
-          <tr><td><b>Sportify Gardens</b></td><td>Build-up floors (green roof, paving, sports surfaces), planting, garden blocks and planters.</td></tr>
+          <tr><td><b>Sportify Gardens</b></td><td>Build-up floors (green roof, paving, sports surfaces), planting, garden blocks and planters. Visible by default.</td></tr>
           <tr><td><b>Sportify Furniture</b></td><td>Benches, tables, picnic sets (Sportify_Category furniture).</td></tr>
-          <tr><td><b>Sportify Annotations and Tags</b></td><td>Roof outline, setback line, circulation paths, entry markers, text, the Tag_Sportify tags.</td></tr>
+          <tr><td><b>Sportify Annotations and Tags</b></td><td>Roof outline, setback line, circulation paths, entry markers, text, the Tag_Sportify tags. Hidden by default: the lines are for the diagrams.</td></tr>
           <tr><td><b>Sportify Analysis</b></td><td>The filled regions and labels of the analysis hatches and the four diagrams.</td></tr>
           <tr><td><b>Sportify Kinetic Furniture</b></td><td>What Kinetics places, with its own frames and bars (Post analysis).</td></tr>
           <tr><td><b>Sportify Existing Roof Base</b></td><td>Existing Goldbeck / IFC content Sportify did not make, classified apart.</td></tr>
-          <tr><td><b>Sportify Iteration 1 / 2 / 3</b></td><td>Import Iterations: one workset per saved iteration. Iteration 1 shows by default; Show Iteration switches a view to another.</td></tr>
+          <tr><td><b>Sportify Iteration 1 / 2 / 3</b></td><td>Import Iterations: one workset per saved iteration; each iteration view shows its own (02).</td></tr>
         </table>
         <table>
           <tr><th style="width:36%">The existing building (Worksets command)</th><th>Sorted so the roof can be pushed "By workset"</th></tr>
@@ -133,7 +132,7 @@
     <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK · Computational and Facade teams</span></div>
     <div><small>Drawing</small><strong>BIM chart: phases, options, worksets</strong></div>
     <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
-    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Date</small><strong>2026-10-01</strong></div>
     <div><small>Scale</small><strong>n.t.s.</strong></div>
     <div><small>Sheet</small><strong class="big">BC-01</strong></div>
   </div>
@@ -216,7 +215,7 @@
     <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK · Computational and Facade teams</span></div>
     <div><small>Drawing</small><strong>BIM chart: graphics and line weights</strong></div>
     <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
-    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Date</small><strong>2026-10-01</strong></div>
     <div><small>Scale</small><strong>n.t.s.</strong></div>
     <div><small>Sheet</small><strong class="big">BC-02</strong></div>
   </div>
@@ -301,7 +300,7 @@
     <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK · Computational and Facade teams</span></div>
     <div><small>Drawing</small><strong>BIM chart: templates, views, sheets</strong></div>
     <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
-    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Date</small><strong>2026-10-01</strong></div>
     <div><small>Scale</small><strong>n.t.s.</strong></div>
     <div><small>Sheet</small><strong class="big">BC-03</strong></div>
   </div>
@@ -334,7 +333,7 @@
           <tr><td>Filters</td><td><code>S Nutzung - &lt;kind&gt;</code> / <code>S Use - &lt;kind&gt;</code></td><td>S Nutzung - field</td></tr>
           <tr><td>Views drawn per roof</td><td><code>Sportify - &lt;what&gt; — Roof &lt;id&gt;</code></td><td>Sportify - Zoning Diagram — Roof 2519827</td></tr>
           <tr><td>Worksets</td><td><code>Sportify &lt;what&gt;</code></td><td>Sportify Gardens</td></tr>
-          <tr><td>Design options</td><td><code>Option &lt;n&gt; &lt;iteration&gt;</code></td><td>Option 2 quiet</td></tr>
+          <tr><td>Iterations</td><td><code>Sportify Iteration &lt;n&gt;</code>; the view <code>S2 Achsonometrie interation &lt;n&gt;</code></td><td>Sportify Iteration 2</td></tr>
         </table>
         <!-- the e-mail addresses are filled in when printing, from a local team.json (the repository is public) -->
         <h2 style="margin-top:5mm"><span class="no">11</span> Project team <span class="src">in the model: Project Information, sheets, the legend S Projektteam</span></h2>
@@ -370,11 +369,11 @@
           <tr class="group"><td colspan="2">Loads and quantities</td></tr>
           <tr><td><code>Sportify_WeightKg</code>, <code>Sportify_WeightKgM2</code>, <code>Sportify_WeightBasis</code></td><td>Dead load of the piece or build-up, and what the figure rests on</td></tr>
           <tr><td><code>Sportify_ReferenceMaterial</code>, <code>Sportify_ReferenceProvider</code></td><td>The product it was priced and weighed from</td></tr>
-          <tr class="group"><td colspan="2">Norm classes (Apply Sportify Template)</td></tr>
+          <tr class="group"><td colspan="2">Norm classes (every import; Apply Sportify Template for the rest)</td></tr>
           <tr><td><code>Sportify_DIN277</code></td><td>DIN 277 area class: NUF 7 (sport, green space), VF (paths, entries), Bereich c, for the areas schedule</td></tr>
           <tr><td><code>Sportify_KG</code></td><td>DIN 276 cost group for the cost groups schedule</td></tr>
         </table>
-        <p class="note">The chart describes the add-in as it is on 2026-09-30. Three things are a person's to do once per project, because Revit's API cannot: make the phases' names right (Manage &gt; Phasing), make the design option set and its options (Manage &gt; Design Options), and pick which option is primary.</p>
+        <p class="note">The chart describes the add-in as it is on 2026-10-01. Three things are a person's to do once per project, because Revit's API cannot: make the phases' names right (Manage &gt; Phasing), make the design option set and its options (Manage &gt; Design Options), and pick which option is primary.</p>
       </div>
     </div>
   </div>
@@ -382,9 +381,63 @@
     <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK · Computational and Facade teams</span></div>
     <div><small>Drawing</small><strong>BIM chart: tags, naming, parameters</strong></div>
     <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
-    <div><small>Date</small><strong>2026-09-30</strong></div>
+    <div><small>Date</small><strong>2026-10-01</strong></div>
     <div><small>Scale</small><strong>n.t.s.</strong></div>
     <div><small>Sheet</small><strong class="big">BC-04</strong></div>
+  </div>
+</section>
+
+<!-- ================================================================================================== 5: model checks (the BIM audit of the submitted model) -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="content" style="grid-template-rows: auto 1fr;">
+    <div>
+      <h1>Model checks</h1>
+      <p class="lead">What makes the Goldbeck model a BIM model and not a drawing, and where the submitted model stands. The checks are run by the Sportify model inspector (Sportify.ModelInspect, BimAudit.cs) on a copy of the project: it only reads. Audit of 2026-10-01 on the final model's content: <b>27 checks passed, 4 warnings, 3 open</b>.</p>
+    </div>
+    <div class="cols2" style="grid-template-columns: 1.55fr 1fr;">
+      <div>
+        <h2><span class="no">12</span> Criteria and result <span class="src">BimAudit.cs, BimFinish.cs, BimFix.cs</span></h2>
+        <table>
+          <tr><th style="width:19%">Criterion</th><th>What is checked</th><th style="width:40%">Result</th></tr>
+          <tr><td><b>Native elements</b></td><td>No CAD import; no DirectShape and no in-place family among Sportify's pieces; every piece has a solid</td><td><span class="tag">PASS</span> 0 imports, 0 DirectShapes (the Park Bench and Table is a family now), 0 in-place</td></tr>
+          <tr><td><b>Data</b></td><td>Sportify_Category on every piece; DIN 276 cost group and DIN 277 area class; names that say what the piece is</td><td><span class="tag">PASS</span> 215 of 215 elements classed (written at every import now)</td></tr>
+          <tr><td><b>IFC class</b></td><td>An explicit "Export to IFC As"</td><td><span class="tag">INFO</span> not set: Revit maps Generic Models and Floors by category</td></tr>
+          <tr><td><b>Levels, phases, worksets</b></td><td>Unique levels; a phase on every element; Sportify pieces on Sportify worksets</td><td><span class="tag">PASS</span> 15 levels, phases Existing and New, every piece on its workset</td></tr>
+          <tr><td><b>Host level</b></td><td>Every Sportify instance on a level</td><td><span class="tag" style="border-color:var(--accent);color:var(--accent)">OPEN</span> 77 of 178 instances were placed from a 3D view and have none; the API cannot set it. New imports are placed on their level; a re-import fixes the rest</td></tr>
+          <tr><td><b>Location</b></td><td>The project's real site (sun and wind analyses depend on it)</td><td><span class="tag">PASS</span> Bielefeld, 52.0302 N, 8.5325 E, UTC+1 (it was Revit's default, Boston)</td></tr>
+          <tr><td><b>Layout in the model</b></td><td>Every piece and planter of the last imported layout stands at its place, inside the roof outline and on the roof</td><td><span class="tag">PASS</span> 11 of 11 pieces, 2 of 2 planters (Planter S and T with pedestal), 6 green zones</td></tr>
+          <tr><td><b>Duplicates, warnings</b></td><td>No identical instances in one place</td><td><span class="tag" style="border-color:var(--accent);color:var(--accent)">OPEN</span> 144 warnings: the three iterations stand on the main model's copy, by design. Design options would avoid it; the API cannot fill them</td></tr>
+          <tr><td><b>Materials</b></td><td>A material on the geometry</td><td><span class="tag">WARN</span> 108 of 178 instances (the kinetic bars) show none</td></tr>
+          <tr><td><b>Documentation</b></td><td>Sheets, schedules, view names</td><td><span class="tag">PASS</span> 21 sheets, 40 schedules, none empty. <span class="tag">WARN</span> 4 empty template sheets, 2 default {3D} names</td></tr>
+        </table>
+      </div>
+      <div>
+        <h2><span class="no">13</span> The iteration views <span class="src">WorksetRepair.cs, measured in the saved file</span></h2>
+        <table>
+          <tr><th style="width:36%">View</th><th>Draws</th></tr>
+          <tr><td>S2 Achsonometrie interation 1</td><td>Iteration 1 (46 elements) and the default layout's garden</td></tr>
+          <tr><td>S2 Achsonometrie interation 2</td><td>Iteration 2 (44 elements) and the default layout's garden</td></tr>
+          <tr><td>S2 Achsonometrie interation 3</td><td>Iteration 3 (44 elements) and the default layout's garden</td></tr>
+        </table>
+        <p class="muted" style="margin-top:2mm">The default layout's garden: 7 floors, 6 green-roof trays, Planter S and Planter T with pedestal. What a view draws is read from Revit's own element list of that view (worksets, phase filter and hidden elements counted), not from its settings.</p>
+        <h2 style="margin-top:5mm"><span class="no">14</span> Running the checks again <span class="src">Sportify.ModelInspect, SubmissionFix</span></h2>
+        <table>
+          <tr><th style="width:36%">What</th><th>How</th></tr>
+          <tr><td>The audit</td><td><code>Sportify.ModelInspect\Run-Inspect.ps1 -File project.rvt -Out folder -Layout layout.json</code> (Revit closed): bim-audit.txt, bim-pieces.csv, bim-warnings.csv</td></tr>
+          <tr><td>The fixes</td><td>SubmissionFix steps <code>bim</code> (location, classes, benches), <code>worksets</code>, <code>iterviews</code>; <code>wsvis</code> reports what each iteration view draws</td></tr>
+        </table>
+        <p class="note">The fixes are run on a copy of the project. A person's own file is changed only with their go, and the central model by their own Synchronize with Central.</p>
+      </div>
+    </div>
+  </div>
+  <div class="tb">
+    <div><small>Project</small><strong>Sportify: sports and gardens on the roof</strong><br><span class="muted">TH OWL, Digital Tools and Methods 2, with GOLDBECK · Computational and Facade teams</span></div>
+    <div><small>Drawing</small><strong>BIM chart: model checks</strong></div>
+    <div><small>Standard</small><strong>Sportify add-in, Revit 2025</strong></div>
+    <div><small>Date</small><strong>2026-10-01</strong></div>
+    <div><small>Scale</small><strong>n.t.s.</strong></div>
+    <div><small>Sheet</small><strong class="big">BC-05</strong></div>
   </div>
 </section>
 
