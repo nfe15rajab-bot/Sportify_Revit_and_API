@@ -206,6 +206,17 @@ namespace SportfyRevit
             try { view.SetCategoryHidden(setbackCategory.Id, true); } catch (Exception) { /* a template-locked view — not fatal */ }
         }
 
+        /// <summary>A category override the view can take; skipped (and logged) where it cannot: a view whose template controls its graphics refuses it
+        /// ("Category cannot be overridden", found 2026-10-01 on the circulation view under the "Diagrams" template), which stopped the whole command.</summary>
+        static void TryOverride(View view, ElementId categoryId, OverrideGraphicSettings ov)
+        {
+            try
+            {
+                if (view.IsCategoryOverridable(categoryId)) view.SetCategoryOverrides(categoryId, ov);
+            }
+            catch (Exception ex) { SportifyLog.Info("diagrams", $"\"{view.Name}\": a category's look is left to its view template ({ex.Message})"); }
+        }
+
         private static void StyleCirculationDiagram(Document doc, View view)
         {
             var found = SportifyElementScan.Find(doc);
@@ -229,21 +240,21 @@ namespace SportfyRevit
                 var ov = new OverrideGraphicSettings();
                 ov.SetProjectionLineColor(red);
                 ov.SetProjectionLineWeight(8);
-                view.SetCategoryOverrides(circCategory.Id, ov);
+                TryOverride(view, circCategory.Id, ov);
             }
             if (entryCategory != null)
             {
                 var ov = new OverrideGraphicSettings();
                 ov.SetProjectionLineColor(red);
                 ov.SetProjectionLineWeight(14);
-                view.SetCategoryOverrides(entryCategory.Id, ov);
+                TryOverride(view, entryCategory.Id, ov);
             }
             if (nodeCategory != null)
             {
                 var ov = new OverrideGraphicSettings();
                 ov.SetProjectionLineColor(red);
                 ov.SetProjectionLineWeight(10);
-                view.SetCategoryOverrides(nodeCategory.Id, ov);
+                TryOverride(view, nodeCategory.Id, ov);
             }
 
             // This view is Sportify's own — every text note in it is one this method put there, so a clean slate each
