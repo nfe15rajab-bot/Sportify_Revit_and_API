@@ -42,6 +42,15 @@ namespace SportfyRevit
                 }
                 if (layout?.Placements == null || layout.Placements.Count == 0) return;
 
+                // the working lines only in the diagrams, before anything else (also when the diagrams themselves are left as they are below)
+                using (var lt = new Transaction(doc, "Sportify: working lines only in the diagrams"))
+                {
+                    lt.Start();
+                    var hidden = SportifyLines.HideOutsideDiagrams(doc);
+                    if (hidden > 0) { lt.Commit(); SportifyLog.Info("diagrams", $"Sportify's working lines hidden outside the diagrams ({hidden} view setting(s))"); }
+                    else lt.RollBack();
+                }
+
                 var (distances, unreachable) = CirculationEngine.ComputeTravelDistances(layout);
                 var limit = AnalysisReferenceData.GetParam("Fire Safety", "max_travel_distance_m");
                 var minWidth = AnalysisReferenceData.GetParam("Accessibility", "min_circulation_width_m");
