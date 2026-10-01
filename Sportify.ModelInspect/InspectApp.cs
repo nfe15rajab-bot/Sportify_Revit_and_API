@@ -97,6 +97,7 @@ namespace Sportify.ModelInspect
                 Inspect(doc, outDir, report, failures);
                 BimAudit.Run(doc, outDir, report, failures);
                 Pictures(doc, outDir, report, failures);
+                NamedPictures(doc, outDir, report, failures);
             }
             finally
             {
@@ -392,6 +393,38 @@ namespace Sportify.ModelInspect
                 report["pictures"] = new[] { Export(doc, iso, Path.Combine(outDir, "view-3d")), Export(doc, top, Path.Combine(outDir, "view-top")) };
             }
             catch (Exception ex) { failures.Add("the pictures could not be made: " + ex.Message); }
+        }
+
+        /// <summary>SPORTIFY_INSPECT_EXPORT="S2-03|S2 Achsonometrie interation 1|...": each named sheet (by number) or view (by name) as a PNG in outDir\shots, for a presentation or a report.</summary>
+        static void NamedPictures(Document doc, string outDir, Dictionary<string, object?> report, List<string> failures)
+        {
+            var list = Environment.GetEnvironmentVariable("SPORTIFY_INSPECT_EXPORT");
+            if (string.IsNullOrWhiteSpace(list)) return;
+            var dir = Path.Combine(outDir, "shots");
+            Directory.CreateDirectory(dir);
+            var made = new List<string>();
+            foreach (var raw in list.Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var key = raw.Trim();
+                try
+                {
+                    View? v = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().FirstOrDefault(s => s.SheetNumber == key)
+                              ?? new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().FirstOrDefault(x => !x.IsTemplate && x is not ViewSheet && x.Name == key);
+                    if (v == null) { failures.Add("export: no sheet or view called " + key); continue; }
+                    var safe = new string(key.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+                    var options = new ImageExportOptions
+                    {
+                        FilePath = Path.Combine(dir, safe), ExportRange = ExportRange.SetOfViews, HLRandWFViewsFileType = ImageFileType.PNG, ShadowViewsFileType = ImageFileType.PNG,
+                        ImageResolution = ImageResolution.DPI_150, ZoomType = ZoomFitType.FitToPage, PixelSize = 2400, FitDirection = FitDirectionType.Horizontal,
+                    };
+                    options.SetViewsAndSheets(new List<ElementId> { v.Id });
+                    doc.ExportImage(options);
+                    var file = Directory.GetFiles(dir, safe + "*.png").OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
+                    if (file != null) made.Add(Path.GetFileName(file));
+                }
+                catch (Exception ex) { failures.Add("export " + key + ": " + ex.Message); }
+            }
+            report["named_pictures"] = made;
         }
 
         static string? Export(Document doc, View3D view, string path)
