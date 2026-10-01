@@ -23,6 +23,9 @@ Copy-Item $exe $stage
 (Get-FileHash (Join-Path $stage (Split-Path $exe -Leaf)) -Algorithm SHA256).Hash.ToLower() + "  " + (Split-Path $exe -Leaf) | Set-Content (Join-Path $stage ((Split-Path $exe -Leaf) + ".sha256")) -Encoding ascii
 Copy-Item (Join-Path $here "LICENSE_AGREEMENT.txt") $stage
 Copy-Item (Join-Path $here "THIRD_PARTY_NOTICES.txt") $stage
+# the user guide for the professor (with the BIM chart appended), made from the guide source at release time: packed when it is there
+$guide = Join-Path $OutputDir "Sportify-Guide-for-the-Professor.pdf"
+if (Test-Path $guide) { Copy-Item $guide $stage }
 Copy-Item (Join-Path $here "package\Remove-Developer-Sportify.ps1") $stage
 (Get-Content (Join-Path $here "package\README-FIRST.txt") -Raw -Encoding UTF8).Replace("{{VERSION}}", $version) | Set-Content (Join-Path $stage "README-FIRST.txt") -Encoding UTF8
 

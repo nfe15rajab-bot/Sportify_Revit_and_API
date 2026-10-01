@@ -11,6 +11,8 @@ IN THIS ZIP
   Sportify-Setup-{{VERSION}}-Revit2025.exe.sha256   checksum of the installer (optional)
   LICENSE_AGREEMENT.txt                       what setup asks you to accept
   THIRD_PARTY_NOTICES.txt                     the libraries and data by others that Sportify uses
+  Sportify-Guide-for-the-Professor.pdf        the full user guide (from opening the app to the finished
+                                              model, tips, the problems we met) with the BIM chart
   README-FIRST.txt                            this file
   Remove-Developer-Sportify.ps1               only for the team's own development computers (end of file)
 
@@ -33,7 +35,8 @@ YOU NEED
 
 2. SEE IT WORKING (about 2 minutes, Revit not needed)
   In the web app: Next > "I've used Sportify before" > "Load Goldbeck IFC Roof - Prebuilt Session".
-    * "Low Roof, Sports"  - eight courts packed by the algorithmic placement on a real GOLDBECK roof
+    * "Low Roof, Sports"  - the team's layout on a real GOLDBECK roof: padel, ping pong, trampoline, tower
+                            slide, mini-golf, planters, locker and bathroom modules
     * "High Roof, Garden" - a garden preset, with three saved iterations (planted, social, quiet)
   Then look at Combine (the layout on the real roof outline), Results and Compare.
 
