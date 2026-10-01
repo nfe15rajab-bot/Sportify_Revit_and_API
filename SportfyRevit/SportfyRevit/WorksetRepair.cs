@@ -26,6 +26,69 @@ namespace SportfyRevit
             return m.Success && int.TryParse(m.Groups[1].Value, out var n) ? n : null;
         }
 
+        /// <summary>
+        /// What each iteration view really shows: the Sportify elements Revit draws in it (the view's own element collector: it knows the worksets, the phase filter and what is
+        /// hidden), by workset, and how each Sportify workset stands in the view. For comparing two versions of a model ("make sure it matches the previous version in terms of
+        /// iterations") and for the report of the step "iterviews". Read only.
+        /// </summary>
+        internal static void DiagnoseIterationViews(Document doc, List<string> lines, string label)
+        {
+            if (!doc.IsWorkshared) return;
+            var names = new Dictionary<int, string>();
+            foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset)) names[w.Id.IntegerValue] = w.Name;
+            var defaults = WorksetDefaultVisibilitySettings.GetWorksetDefaultVisibilitySettings(doc);
+            foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Where(w => w.Name.StartsWith("Sportify", StringComparison.Ordinal)))
+                lines.Add($"{label} workset \"{w.Name}\": visible by default {defaults.IsWorksetVisible(w.Id)}");
+            foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate && v is not ViewSheet && v is not ViewSchedule).OrderBy(v => v.Name))
+            {
+                if (IterationOfViewName(v.Name) is null) continue;
+                var shown = new Dictionary<string, int>();
+                try
+                {
+                    foreach (var e in new FilteredElementCollector(doc, v.Id).WhereElementIsNotElementType())
+                    {
+                        if (!doc.IsWorkshared || !names.TryGetValue(e.WorksetId.IntegerValue, out var wn) || !wn.StartsWith("Sportify", StringComparison.Ordinal)) continue;
+                        if (e.Category == null || e.Category.CategoryType != CategoryType.Model) continue;
+                        shown[wn] = shown.GetValueOrDefault(wn) + 1;
+                    }
+                }
+                catch (Exception ex) { lines.Add($"{label} view \"{v.Name}\": could not be read ({ex.Message})"); continue; }
+                var states = string.Join(", ", names.Where(kv => kv.Value is "Sportify Gardens" or "Sportify Annotations and Tags" || kv.Value.StartsWith(IterationWorksets.NamePrefix, StringComparison.Ordinal))
+                    .OrderBy(kv => kv.Value).Select(kv => kv.Value.Replace("Sportify ", "") + "=" + v.GetWorksetVisibility(new WorksetId(kv.Key))));
+                lines.Add($"{label} {v.ViewType} \"{v.Name}\" shows: {string.Join("; ", shown.OrderBy(kv => kv.Key).Select(kv => kv.Value + " on " + kv.Key.Replace("Sportify ", "")))}   [{states}]");
+            }
+        }
+
+        /// <summary>
+        /// The submission step "iterviews": every view named for an iteration shows that iteration and not the main model's own copy (Sportify Gardens, Sportify Annotations and Tags),
+        /// and the Annotations workset is hidden by default again, as it was before "Show All Worksets" made it visible for every view. Opens its own transaction.
+        /// </summary>
+        internal static void IterationViews(Document doc, List<string> lines)
+        {
+            if (!doc.IsWorkshared) { lines.Add("iteration views: the project is not workshared"); return; }
+            using var t = new Transaction(doc, "Sportify: iteration views show their iteration");
+            t.Start();
+            var defaults = WorksetDefaultVisibilitySettings.GetWorksetDefaultVisibilitySettings(doc);
+            foreach (var w in new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Where(w => w.Name == "Sportify Annotations and Tags"))
+                if (defaults.IsWorksetVisible(w.Id)) { defaults.SetWorksetVisibility(w.Id, false); lines.Add("iteration views: \"" + w.Name + "\" hidden by default again"); }
+            int fixedViews = 0, refused = 0;
+            var groups = IterationWorksets.Find(doc);
+            foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate && v is not ViewSheet && v is not ViewSchedule))
+            {
+                if (IterationOfViewName(v.Name) is not int n) continue;
+                try
+                {
+                    // each view shows ITS iteration (the others hidden) and not the main model's own copy: the views of Iteration 1, 2 and 3 are three different pictures
+                    if (groups.FirstOrDefault(g => g.Index == n) is IterationWorksets.IterationGroup mine) IterationWorksets.ShowOnly(v, groups, mine);
+                    else IterationWorksets.HideMainCopy(v);
+                    fixedViews++;
+                }
+                catch (Exception ex) { refused++; lines.Add($"iteration views: \"{v.Name}\" could not be set: {ex.Message}"); }
+            }
+            t.Commit();
+            lines.Add($"iteration views: {fixedViews} view(s) set to show their own iteration and not the main model's copy" + (refused > 0 ? $"; {refused} refused" : ""));
+        }
+
         /// <summary>Opens its own transaction. `lines`: what it did, one line each, for the report or the dialog.</summary>
         internal static void ShowAll(Document doc, List<string> lines)
         {
@@ -70,6 +133,7 @@ namespace SportfyRevit
                     && template.GetTemplateParameterIds().Contains(worksetsParam) && !template.GetNonControlledTemplateParameterIds().Contains(worksetsParam))
                 {
                     lines.Add($"worksets: \"{v.Name}\" is named for Iteration {n}, but its template \"{template.Name}\" decides its worksets: left as the template has them");
+                    try { if (IterationWorksets.HideMainCopy(v)) lines.Add($"worksets: \"{v.Name}\": the main model's own copy hidden"); } catch (Exception) { refused++; }
                     continue;
                 }
                 try

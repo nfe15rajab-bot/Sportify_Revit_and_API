@@ -51,12 +51,32 @@ namespace SportfyRevit
             return byIndex.OrderBy(kv => kv.Key).Select(kv => new IterationGroup(kv.Key, kv.Value)).ToList();
         }
 
-        /// <summary>Shows exactly one iteration's worksets in `view` and hides the rest; `keep = null` shows all of them. Call inside a transaction.</summary>
+        /// <summary>
+        /// The main model's own copy of the design the iterations are variants of lives on these two worksets. Shown next to an iteration it makes the iterations look alike (the
+        /// last synced design is one of them, drawn twice): found 2026-10-01, when "Show All Worksets" made Sportify Gardens visible by default and Iteration 2 looked like Iteration 3.
+        /// </summary>
+        public static readonly string[] MainCopyWorksets = { "Sportify Gardens", "Sportify Annotations and Tags" };
+
+        /// <summary>Hides the main model's copy (MainCopyWorksets) in a view that shows one iteration. Call inside a transaction; false when nothing had to change.</summary>
+        public static bool HideMainCopy(View view)
+        {
+            var changed = false;
+            foreach (var w in new FilteredWorksetCollector(view.Document).OfKind(WorksetKind.UserWorkset).Where(w => MainCopyWorksets.Contains(w.Name)))
+            {
+                if (view.GetWorksetVisibility(w.Id) == WorksetVisibility.Hidden) continue;
+                view.SetWorksetVisibility(w.Id, WorksetVisibility.Hidden);
+                changed = true;
+            }
+            return changed;
+        }
+
+        /// <summary>Shows exactly one iteration's worksets in `view` and hides the rest (and the main model's own copy); `keep = null` shows all of them. Call inside a transaction.</summary>
         public static void ShowOnly(View view, List<IterationGroup> groups, IterationGroup? keep)
         {
             foreach (var g in groups)
                 foreach (var w in g.Worksets)
                     view.SetWorksetVisibility(w.Id, keep == null || g.Index == keep.Index ? WorksetVisibility.Visible : WorksetVisibility.Hidden);
+            if (keep != null) HideMainCopy(view);
         }
     }
 

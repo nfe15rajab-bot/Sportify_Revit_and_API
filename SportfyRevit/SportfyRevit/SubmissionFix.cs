@@ -93,7 +93,10 @@ namespace SportfyRevit
                 if (steps.Contains("sheets")) ArrangeSheets(doc, lines);
                 if (steps.Contains("team")) ApplyTeam(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_TEAM"), lines);
                 if (steps.Contains("info")) ApplyInfo(doc, Environment.GetEnvironmentVariable("SPORTIFY_FIX_INFO"), lines);
+                if (steps.Contains("wsvis-before")) WorksetRepair.DiagnoseIterationViews(doc, lines, "ITERATIONS BEFORE");
                 if (steps.Contains("worksets")) ShowAllWorksets(doc, lines);
+                if (steps.Contains("iterviews")) WorksetRepair.IterationViews(doc, lines);
+                if (steps.Contains("wsvis") || steps.Contains("iterviews")) WorksetRepair.DiagnoseIterationViews(doc, lines, "ITERATIONS AFTER");
                 if (steps.Contains("phases")) DesignViewsOnNewestPhase(doc, lines);
                 if (steps.Contains("strays")) RemoveStrays(doc, lines);
                 if (steps.Contains("posts")) KineticPostRepair.Run(doc, lines);
