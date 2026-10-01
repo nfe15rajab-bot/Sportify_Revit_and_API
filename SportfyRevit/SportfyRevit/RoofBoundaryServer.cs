@@ -175,6 +175,18 @@ namespace SportfyRevit
             lock (PayloadLock) { _payloadsByRoof[roofId] = json; _pushedAtByRoof[roofId] = DateTime.UtcNow; _activeRoofId = roofId; }
         }
 
+        /// <summary>A push kept in the project (PushedRoofStore), given back when it opens: never over a push made in this Revit session; the active roof only when none is.</summary>
+        public static void RestorePayload(long roofId, string json, DateTime pushedAtUtc, bool makeActiveIfNone)
+        {
+            lock (PayloadLock)
+            {
+                if (_payloadsByRoof.ContainsKey(roofId)) return;
+                _payloadsByRoof[roofId] = json;
+                _pushedAtByRoof[roofId] = pushedAtUtc;
+                if (makeActiveIfNone && _activeRoofId == null) _activeRoofId = roofId;
+            }
+        }
+
         /// <summary>Back-compat for callers with no real roof identity (the ContractCheck tool, LiveRoofSession's test hook): a single roof under id 0, same as before this existed.</summary>
         public static void SetPayload(string json) => SetPayload(0, json);
 

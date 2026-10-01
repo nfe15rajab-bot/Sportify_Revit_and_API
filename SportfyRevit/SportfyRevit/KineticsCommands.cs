@@ -66,7 +66,7 @@ namespace SportfyRevit
         /// </summary>
         static SportifyLayout? AdoptLayoutFrame()
         {
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
+            ProjectLayout.TryGet(null, out var baseJson, out _);     // the web app's, else this project's last import
             if (baseJson == null) return null;
             try
             {
@@ -85,7 +85,7 @@ namespace SportfyRevit
         static bool RunSunAnalysis(string equipment, out string problem)
         {
             problem = "";
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
+            ProjectLayout.TryGet(null, out var baseJson, out _);     // the web app's, else this project's last import
             if (baseJson == null)
             {
                 problem = "There is no layout to analyse yet. Push or import one from the Sportify web app (Combine tab) first.";

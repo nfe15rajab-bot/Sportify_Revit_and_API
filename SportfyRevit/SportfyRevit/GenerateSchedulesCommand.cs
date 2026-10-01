@@ -23,7 +23,7 @@ namespace SportfyRevit
         {
             const string title = "Sportify — Generate Schedules";
 
-            var layout = AnalysisLayoutSource.GetLayout("Generate Schedules");
+            var layout = AnalysisLayoutSource.GetLayout("Generate Schedules", commandData.Application.ActiveUIDocument?.Document);
             if (layout == null) return Result.Cancelled;
 
             var items = layout.Placements ?? new List<PlacementDto>();

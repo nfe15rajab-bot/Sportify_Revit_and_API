@@ -41,7 +41,23 @@ namespace SportfyRevit
         /// several roofs pushed and imported independently never has importing one delete what an earlier import of another built.
         /// `clearOtherRoofs`: other roofs' own previous imports to also remove, when the person switching to this one asked to (ImportSportifyLayoutCommand); null or empty
         /// for the ordinary case — those roofs' content is left exactly as it was, which is what makes several roofs "switchable" rather than one replacing another.</summary>
-        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations, string roofId, IReadOnlyList<string>? clearOtherRoofs = null)
+        /// <summary>The layout as the web app sent it, with the roof height the import built at (RoofIdentity.FromLayout may have corrected a height that named no roof).</summary>
+        static string KeptJson(SportifyLayout layout, string? rawJson)
+        {
+            if (string.IsNullOrEmpty(rawJson)) return System.Text.Json.JsonSerializer.Serialize(layout);
+            try
+            {
+                if (System.Text.Json.Nodes.JsonNode.Parse(rawJson) is System.Text.Json.Nodes.JsonObject root && root["roof_context"] is System.Text.Json.Nodes.JsonObject rc && layout.RoofContext != null)
+                {
+                    rc["world_origin_z_m"] = layout.RoofContext.WorldOriginZM;
+                    return root.ToJsonString();
+                }
+            }
+            catch (Exception) { /* kept as sent */ }
+            return rawJson;
+        }
+
+        public static ImportOutcome Run(Document doc, SportifyLayout layout, ImportSource source, bool clearIterations, string roofId, IReadOnlyList<string>? clearOtherRoofs = null, string? rawJson = null)
         {
             var outcome = new ImportOutcome();
             var sourceName = source.ToString().ToLowerInvariant();
@@ -117,6 +133,9 @@ namespace SportfyRevit
                     foreach (var id in outcome.Summary.CreatedIds.Distinct())
                         if (doc.GetElement(id) is Element made) SportifySharedParameters.SetRoofId(made, roofId);
                     ImportLedger.Write(doc, outcome.Summary.CreatedIds, sourceName, roofId);
+                    // the layout itself, in the project, for the analyses when the web app has sent nothing this Revit session (ImportedLayoutStore)
+                    try { ImportedLayoutStore.Write(doc, roofId, KeptJson(layout, rawJson)); }
+                    catch (Exception ex) { SportifyLog.Warn("import", "the layout could not be kept in the project for the analyses: " + ex.Message); }
                     outcome.RemovedDuplicates = DuplicateCleanup.RemoveForRoof(doc, roofId, roof, justBuilt: outcome.Summary.CreatedIds);
                 }
                 catch (Exception ex)

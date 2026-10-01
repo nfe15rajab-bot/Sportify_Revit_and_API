@@ -14,12 +14,14 @@ namespace SportfyRevit
     /// </summary>
     internal static class AnalysisLayoutSource
     {
-        public static SportifyLayout? GetLayout(string analysisTitle)
+        public static SportifyLayout? GetLayout(string analysisTitle, Document? doc = null)
         {
             string dialogTitle = "Sportify — " + analysisTitle;
             string? json;
 
-            if (RoofBoundaryServer.TryGetLatestCombinedLayout(out var liveJson, out _) && liveJson != null)
+            // the web app's, else what was last imported into this project (ProjectLayout); a file only when the project has none: the newest export in the
+            // Layouts folder is not necessarily this roof's (2026-10-01: the High Roof garden's was offered for the Low Roof)
+            if (ProjectLayout.TryGet(doc, out var liveJson, out _) && liveJson != null)
             {
                 json = liveJson;
             }

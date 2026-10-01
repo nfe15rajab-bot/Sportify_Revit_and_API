@@ -70,7 +70,7 @@ namespace SportfyRevit
             var otherRoofs = ImportLedger.OtherRoofIds(doc, roofId);
             var clearOtherRoofs = otherRoofs.Count > 0 && AskClearOtherRoofs(doc, otherRoofs) ? otherRoofs : null;
             var clearIterations = IterationLedger.HasAny(doc) && AskClearIterations(doc);
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations, roofId, clearOtherRoofs);
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Manual, clearIterations, roofId, clearOtherRoofs, rawJson: text);
             if (outcome.Cancelled) return Result.Cancelled;
             if (!outcome.Succeeded || outcome.Summary == null)
             {

@@ -24,7 +24,7 @@ namespace SportfyRevit
             var doc = commandData.Application.ActiveUIDocument.Document;
 
             SportifyLayout? layout;
-            if (RoofBoundaryServer.TryGetLatestCombinedLayout(out var liveJson, out _) && liveJson != null)
+            if (ProjectLayout.TryGet(doc, out var liveJson, out _) && liveJson != null)
             {
                 layout = TryParse(liveJson, ref message);
                 if (layout == null) return Result.Failed;

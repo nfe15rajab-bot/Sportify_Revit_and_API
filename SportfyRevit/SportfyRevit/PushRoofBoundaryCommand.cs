@@ -160,6 +160,7 @@ namespace SportfyRevit
             // merge B's entries onto A's data). Pushing also makes this roof the active one: see RoofBoundaryServer.SetPayload.
             var merged = RoofPushMerge.Merge(RoofBoundaryServer.PayloadFor(element.Id.Value), built.Json, scope, out var keptEarlier);
             RoofBoundaryServer.SetPayload(element.Id.Value, merged);
+            PushedRoofStore.Write(doc, element.Id.Value, merged);       // kept in the project: known again whenever it is opened
             _lastRoofId = element.Id.Value;
             _lastDocumentTitle = doc.Title;
 

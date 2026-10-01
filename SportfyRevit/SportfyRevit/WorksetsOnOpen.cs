@@ -41,15 +41,18 @@ namespace SportfyRevit
 
         static void OnOpening(object? sender, DocumentOpeningEventArgs e)
         {
+            var path = e.PathName;
+            string Why(string reason) { SportifyLog.Info("worksets", $"opening \"{Path.GetFileName(path ?? "")}\": left to Revit ({reason})"); return reason; }
             try
             {
-                if (_ours || _openInstead != null || !e.Cancellable || Unattended) return;
-                var path = e.PathName;
-                if (string.IsNullOrEmpty(path) || !path.EndsWith(".rvt", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) return;
+                if (_ours || _openInstead != null) return;
+                if (!e.Cancellable) { Why("this open cannot be cancelled"); return; }
+                if (Unattended) { Why("an unattended run"); return; }
+                if (string.IsNullOrEmpty(path) || !path.EndsWith(".rvt", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) { Why("not a project file on disk"); return; }
                 var info = BasicFileInfo.Extract(path);
-                if (!info.IsWorkshared || !info.IsLocal || info.IsCentral) return;
+                if (!info.IsWorkshared || !info.IsLocal || info.IsCentral) { Why($"workshared {info.IsWorkshared}, local {info.IsLocal}, central {info.IsCentral}"); return; }
                 var worksets = WorksharingUtils.GetUserWorksetInfo(ModelPathUtils.ConvertUserVisiblePathToModelPath(path));
-                if (!worksets.Any(w => w.Name.StartsWith("Sportify", StringComparison.Ordinal))) return;
+                if (!worksets.Any(w => w.Name.StartsWith("Sportify", StringComparison.Ordinal))) { Why("no Sportify worksets"); return; }
                 e.Cancel();
                 _openInstead = path;
                 SportifyLog.Info("worksets", $"\"{Path.GetFileName(path)}\" is opened with all of its {worksets.Count} worksets instead of asking which ones");

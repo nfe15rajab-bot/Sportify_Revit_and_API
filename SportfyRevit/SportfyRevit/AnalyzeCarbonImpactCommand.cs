@@ -19,7 +19,7 @@ namespace SportfyRevit
         {
             const string title = "Sportify — Carbon Impact Analysis";
 
-            var layout = AnalysisLayoutSource.GetLayout("Carbon Impact Analysis");
+            var layout = AnalysisLayoutSource.GetLayout("Carbon Impact Analysis", commandData.Application.ActiveUIDocument?.Document);
             if (layout == null) return Result.Cancelled;
             // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
             SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document, layout);

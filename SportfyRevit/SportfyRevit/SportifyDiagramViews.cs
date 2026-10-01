@@ -37,7 +37,7 @@ namespace SportfyRevit
                 if (doc == null || doc.IsFamilyDocument || doc.IsReadOnly) return;
                 if (layout == null)
                 {
-                    if (!RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out _) || json == null) return;
+                    if (!ProjectLayout.TryGet(doc, out var json, out _) || json == null) return;
                     layout = JsonSerializer.Deserialize<SportifyLayout>(json);
                 }
                 if (layout?.Placements == null || layout.Placements.Count == 0) return;

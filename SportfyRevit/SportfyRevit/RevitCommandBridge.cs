@@ -73,7 +73,7 @@ namespace SportfyRevit
             catch (Exception ex) { SportifyLog.Error("import-now", "the pushed layout could not be read", ex); return; }
             if (layout?.Placements == null) return;
 
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, AutoImportSync.ClearIterationsToo, roofId.ToString());
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, AutoImportSync.ClearIterationsToo, roofId.ToString(), rawJson: json);
             // in the model now: Auto Import (if it is on) does not import the same layout a second time
             if (outcome.Succeeded) AutoImportSync.MarkImported(roofId, layoutId, version);
             if (outcome.Cancelled || outcome.Succeeded) return;

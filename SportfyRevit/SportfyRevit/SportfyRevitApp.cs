@@ -62,6 +62,9 @@ namespace SportfyRevit
             // A Sportify project always ends up with every workset open: one opened with some closed is opened again with all of them (WorksetsOnOpen).
             WorksetsOnOpen.Register(application);
 
+            // A project remembers its pushed roofs: given back to the add-in when it opens (PushedRoofStore, ProjectSession).
+            ProjectSession.Register(application);
+
             // An unattended run (a test, a script) has nobody to click the ribbon: SPORTIFY_AUTO_IMPORT=1 turns Auto Import on at startup, as the button does.
             if (Environment.GetEnvironmentVariable("SPORTIFY_AUTO_IMPORT") == "1")
             {

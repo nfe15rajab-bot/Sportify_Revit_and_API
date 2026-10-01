@@ -29,8 +29,8 @@ namespace SportfyRevit
             const string title = "Sportify — Generate Analysis Report";
             var doc = commandData.Application.ActiveUIDocument.Document;
 
-            var layout = AnalysisLayoutSource.GetLayout("Generate Analysis Report");
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            var layout = AnalysisLayoutSource.GetLayout("Generate Analysis Report", commandData.Application.ActiveUIDocument?.Document);
+            ProjectLayout.TryGet(doc, out var layoutJson, out _);
 
             AnalysisResultPayload? results = null;
             if (RoofBoundaryServer.TryGetLatestAnalysisResults(out var resultsJson) && resultsJson != null)

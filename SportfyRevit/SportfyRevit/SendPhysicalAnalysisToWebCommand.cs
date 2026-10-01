@@ -21,7 +21,7 @@ namespace SportfyRevit
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var baseJson, out _);
+            ProjectLayout.TryGet(commandData.Application.ActiveUIDocument?.Document, out var baseJson, out _);
             // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
             SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             if (baseJson == null)

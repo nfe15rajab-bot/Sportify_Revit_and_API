@@ -25,7 +25,7 @@ namespace SportfyRevit
             var list = new List<SiteRect>();
             try
             {
-                RoofBoundaryServer.TryGetLatestCombinedLayout(out var json, out _);
+                ProjectLayout.TryGet(null, out var json, out _);
                 if (json == null) return list;
                 var layout = JsonSerializer.Deserialize<SportifyLayout>(json);
                 if (layout == null) return list;

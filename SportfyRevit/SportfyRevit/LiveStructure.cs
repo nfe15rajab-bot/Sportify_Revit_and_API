@@ -22,6 +22,12 @@ namespace SportfyRevit
             {
                 var roofId = RoofBoundaryServer.ActiveRoofId;
                 if (doc == null || roofId == null || roofId.Value == 0) return layoutJson;
+                // a closed workset's grids, columns and beams are not loaded: read now, the structure would be part of it (2026-10-01: 32 of 33 closed)
+                if (doc.IsWorkshared && new FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).Any(w => !w.IsOpen))
+                {
+                    note = "Structure: some worksets of the open model are closed, so the structure the layout carries is used (open them all to read it from the model).";
+                    return layoutJson;
+                }
 
                 var element = doc.GetElement(new ElementId(roofId.Value));
                 if (element == null)

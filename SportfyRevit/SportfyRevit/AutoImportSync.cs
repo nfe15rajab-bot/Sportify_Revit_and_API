@@ -104,7 +104,7 @@ namespace SportfyRevit
             // Whatever the outcome, this push is dealt with: a failing one must not be retried every two seconds.
             MarkImported(roofId, layoutId, version);
             SportifyLog.Info("auto-import", $"importing layout {layoutId} (version {version}{(version != lastApplied ? ", an export" : ", the board's draft")})");
-            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo, roofId.ToString());
+            var outcome = LayoutImporter.Run(doc, layout, ImportSource.Auto, ClearIterationsToo, roofId.ToString(), rawJson: json);
             if (outcome.Cancelled) return;
 
             if (!outcome.Succeeded)

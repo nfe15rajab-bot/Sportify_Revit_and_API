@@ -35,7 +35,7 @@ namespace SportfyRevit
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            RoofBoundaryServer.TryGetLatestCombinedLayout(out var layoutJson, out _);
+            ProjectLayout.TryGet(commandData.Application.ActiveUIDocument?.Document, out var layoutJson, out _);     // the web app's, else this project's last import: never the demo
             // The analysis diagrams (circulation, fire safety, accessibility) are drawn again on every analysis, so they always show the layout as it is (SportifyDiagramViews).
             SportifyDiagramViews.Refresh(commandData.Application.ActiveUIDocument?.Document);
             var usingBundledSample = false;
@@ -46,7 +46,7 @@ namespace SportfyRevit
             {
                 // Nothing imported into this Revit session yet: fall back to the Unity project's own sample,
                 // so the command always shows what it does rather than ending in a dead end.
-                if (haveUnity) layoutJson = UnityHeadlessRunner.ReadBundledSample(unity!, BundledSampleFile);
+                // no fallback to Unity's demo layout (sample_layout_roofgarden.json): in a project it analysed a roof that is not this one under this session's name (2026-10-01)
                 usingBundledSample = layoutJson != null;
                 if (layoutJson == null)
                 {
