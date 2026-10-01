@@ -63,6 +63,9 @@ WHERE THINGS ARE
 IF SOMETHING DOES NOT WORK
   * The web app shows no catalogue: start it from the Start menu (Sportify web app); it starts the
     local API first. Wait a few seconds and reload.
+  * The page shows "HTTP ERROR 404" at localhost:5107: another Sportify server (for example a
+    developer copy) already uses that port. Start menu > Sportify > Sportify web app now asks
+    whether to close it; otherwise end Sportify.Api in Task Manager and open the app again.
   * The docked pane in Revit is empty: WebView2 is missing - run setup again with internet, or use
     the web app in Chrome.
   * "The name already exists" when Revit starts: an older Sportify add-in is installed; run setup
