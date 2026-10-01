@@ -1,3 +1,4 @@
+using System.IO;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.UI;
@@ -6,7 +7,12 @@ using Autodesk.Revit.UI.Events;
 namespace SportfyRevit
 {
     /// <summary>
-    /// A Sportify project always ends up with every workset open (user, 2026-10-01: "all the worksets should be open by default"). Which worksets open is
+    /// A Sportify project always ends up with every workset open (user, 2026-10-01: "all the worksets should be open by default"). FIRST, BEFORE IT OPENS:
+    /// a Sportify local the person opens (Open, a recent file, a double-click) is caught in DocumentOpening, that open is cancelled, and the same file is
+    /// opened at once with every workset (OpenOptions, OpenAllWorksets), so Revit never asks which worksets to open. Not for a central (Revit makes a new
+    /// local from it), a cloud model, a file that is not workshared or has no Sportify worksets, or an unattended run (any SPORTIFY_ variable set: the
+    /// test and tidy-up harnesses open their files as they need). THEN, AS A FALLBACK, after it opened:
+    /// Which worksets open is
     /// decided by the file as it is opened: a local whose default is "Specify" asks every time, and the dialog's OK on its preselection kept most of them
     /// closed (the team's model showed the bare slabs: no building, no pieces). The Revit API cannot open a workset in an open project (only OpenOptions
     /// can, at opening), so when a workshared project with Sportify worksets opens with any of its worksets closed, it is closed and opened again at once
@@ -21,10 +27,34 @@ namespace SportfyRevit
         static int _step;
         static DateTime _since;
 
+        static string? _openInstead;   // a Sportify local whose own open was cancelled, opened again with every workset at the next idle moment
+        static bool _ours;              // the open in progress is that one: not caught again
+
         internal static void Register(UIControlledApplication app)
         {
+            app.ControlledApplication.DocumentOpening += OnOpening;
             app.ControlledApplication.DocumentOpened += OnOpened;
             app.Idling += OnIdling;
+        }
+
+        static bool Unattended => Environment.GetEnvironmentVariables().Keys.Cast<object>().Any(k => k.ToString()!.StartsWith("SPORTIFY_", StringComparison.OrdinalIgnoreCase));
+
+        static void OnOpening(object? sender, DocumentOpeningEventArgs e)
+        {
+            try
+            {
+                if (_ours || _openInstead != null || !e.Cancellable || Unattended) return;
+                var path = e.PathName;
+                if (string.IsNullOrEmpty(path) || !path.EndsWith(".rvt", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) return;
+                var info = BasicFileInfo.Extract(path);
+                if (!info.IsWorkshared || !info.IsLocal || info.IsCentral) return;
+                var worksets = WorksharingUtils.GetUserWorksetInfo(ModelPathUtils.ConvertUserVisiblePathToModelPath(path));
+                if (!worksets.Any(w => w.Name.StartsWith("Sportify", StringComparison.Ordinal))) return;
+                e.Cancel();
+                _openInstead = path;
+                SportifyLog.Info("worksets", $"\"{Path.GetFileName(path)}\" is opened with all of its {worksets.Count} worksets instead of asking which ones");
+            }
+            catch (Exception ex) { SportifyLog.Warn("worksets", "the project's worksets could not be read before it opened (it opens as Revit opens it): " + ex.Message); }
         }
 
         static void OnOpened(object? sender, DocumentOpenedEventArgs e)
@@ -48,6 +78,27 @@ namespace SportfyRevit
 
         static void OnIdling(object? sender, IdlingEventArgs e)
         {
+            if (_openInstead != null && sender is UIApplication app)
+            {
+                var path = _openInstead;
+                _openInstead = null;
+                Done.Add(path);
+                try
+                {
+                    var options = new OpenOptions();
+                    options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));
+                    _ours = true;
+                    app.OpenAndActivateDocument(ModelPathUtils.ConvertUserVisiblePathToModelPath(path), options, false);
+                    SportifyLog.Info("worksets", "opened with every workset: " + path);
+                }
+                catch (Exception ex)
+                {
+                    SportifyLog.Warn("worksets", "the project could not be opened with every workset: " + ex.Message);
+                    try { TaskDialog.Show("Sportify — Worksets", "Sportify could not open this project with every workset (" + ex.Message + "). Open it again from File > Open and choose Worksets: All."); } catch (Exception) { }
+                }
+                finally { _ours = false; }
+                return;
+            }
             if (_path == null || sender is not UIApplication uiApp) return;
             e.SetRaiseWithoutDelay();
             try
