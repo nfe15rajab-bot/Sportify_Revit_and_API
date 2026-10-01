@@ -97,6 +97,7 @@ namespace SportfyRevit
                 if (steps.Contains("phases")) DesignViewsOnNewestPhase(doc, lines);
                 if (steps.Contains("strays")) RemoveStrays(doc, lines);
                 if (steps.Contains("posts")) KineticPostRepair.Run(doc, lines);
+                if (steps.Contains("memory")) KeepMemory(doc, lines);
                 var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
                 if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
                 if (steps.Contains("titleblock"))
@@ -348,6 +349,31 @@ namespace SportfyRevit
                 lines.Add($"strays: removed the import of {e.ImportedAtUtc:MM-dd HH:mm}Z \"{e.Source}\" under roof \"{e.RoofKey}\": {ids.Count} element(s) ({removed} with what depended on them)");
             }
             t.Commit();
+        }
+
+        /// <summary>
+        /// Writes into the project what this computer remembers of it and the project itself does not hold yet, so it reaches the central with the next
+        /// synchronization and everyone who opens it (user, 2026-10-01: the professor should not have to push again): every push kept on this computer
+        /// (ProjectMemoryFiles), and the layout of SPORTIFY_FIX_LAYOUT_SEED for roof SPORTIFY_FIX_LAYOUT_ROOF when the project has none for that roof.
+        /// </summary>
+        static void KeepMemory(Document doc, List<string> lines)
+        {
+            var inProject = PushedRoofStore.Read(doc);
+            foreach (var f in ProjectMemoryFiles.Read(doc, "push"))
+            {
+                if (!long.TryParse(f.RoofKey, out var id) || inProject.Any(p => p.RoofId == id)) continue;
+                PushedRoofStore.Write(doc, id, f.Json);
+                lines.Add($"memory: the push of roof {id} ({f.WrittenUtc.ToLocalTime():dd.MM.yyyy HH:mm}) written into the project");
+            }
+            var seed = Environment.GetEnvironmentVariable("SPORTIFY_FIX_LAYOUT_SEED");
+            var roof = Environment.GetEnvironmentVariable("SPORTIFY_FIX_LAYOUT_ROOF") ?? "";
+            if (string.IsNullOrEmpty(seed) || !File.Exists(seed)) return;
+            if (ImportedLayoutStore.Read(doc, roof) is ImportedLayoutStore.Stored have && have.RoofKey == roof) { lines.Add($"memory: the project already holds a layout for roof {roof}"); return; }
+            using var t = new Transaction(doc, "Sportify: remember the layout");
+            t.Start();
+            ImportedLayoutStore.Write(doc, roof, File.ReadAllText(seed));
+            t.Commit();
+            lines.Add($"memory: the layout {Path.GetFileName(seed)} written into the project for roof {roof}");
         }
 
         sealed record TeamMember(string Name, string? Email);
