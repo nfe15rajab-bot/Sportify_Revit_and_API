@@ -53,14 +53,16 @@ namespace SportfyRevit
             // SPORTIFY_FIX_SYNC=1: `source` is a person's LOCAL copy; it is opened as it is (not detached) and the changes go to the central by a
             // Synchronize with Central, so the central keeps its identity and every local made from it stays valid. Otherwise: detached, saved as below.
             var sync = Environment.GetEnvironmentVariable("SPORTIFY_FIX_SYNC") == "1" && info.IsWorkshared && info.IsLocal;
-            if (sync) options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));
+            // SPORTIFY_FIX_SAVELOCAL=1: the same local opened as it is, its changes saved in the local only (Save, no Synchronize with Central)
+            var saveLocal = !sync && Environment.GetEnvironmentVariable("SPORTIFY_FIX_SAVELOCAL") == "1" && info.IsWorkshared && info.IsLocal;
+            if (sync || saveLocal) options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));
             else if (info.IsWorkshared)
             {
                 options.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets;
                 options.SetOpenWorksetsConfiguration(new WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets));   // every element loaded, so the report counts them all
             }
             var doc = uiApp.Application.OpenDocumentFile(ModelPathUtils.ConvertUserVisiblePathToModelPath(source), options);
-            lines.Add($"opened {source} (workshared: {info.IsWorkshared}, " + (sync ? "a local, to be synchronized with its central)" : "detached with its worksets)"));
+            lines.Add($"opened {source} (workshared: {info.IsWorkshared}, " + (sync ? "a local, to be synchronized with its central)" : saveLocal ? "a local, to be saved as a local only)" : "detached with its worksets)"));
             try
             {
                 // SPORTIFY_FIX_STEPS: which steps run ("clear,rename,views,start"; all when unset). The first run renamed options that turned out
@@ -94,6 +96,7 @@ namespace SportfyRevit
                 if (steps.Contains("worksets")) ShowAllWorksets(doc, lines);
                 if (steps.Contains("phases")) DesignViewsOnNewestPhase(doc, lines);
                 if (steps.Contains("strays")) RemoveStrays(doc, lines);
+                if (steps.Contains("posts")) KineticPostRepair.Run(doc, lines);
                 var exportTo = Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT");
                 if (steps.Contains("titleblock-inspect")) TitleBlockFix.Inspect(doc, exportTo, lines);
                 if (steps.Contains("titleblock"))
@@ -101,6 +104,12 @@ namespace SportfyRevit
                 Diagnose(doc, lines, "AFTER");
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_EXPORT") is string export && export.Length > 0) ExportSheets(doc, export, lines);
                 if (Environment.GetEnvironmentVariable("SPORTIFY_FIX_NOSAVE") == "1") { lines.Add("NOT SAVED (dry run)"); return; }
+                if (saveLocal)
+                {
+                    doc.Save(new SaveOptions { Compact = false });
+                    lines.Add("SAVED the local only (not synchronized with " + ModelPathUtils.ConvertModelPathToUserVisiblePath(doc.GetWorksharingCentralModelPath()) + ")");
+                    return;
+                }
                 if (sync)
                 {
                     var swc = new SynchronizeWithCentralOptions { Comment = "Sportify: the plan set in the team's order, the project team", SaveLocalBefore = false, SaveLocalAfter = true };
@@ -165,8 +174,11 @@ namespace SportfyRevit
             {
                 var zs = g.Select(x => x.get_BoundingBox(null)).Where(b => b != null).Select(b => UnitUtils.ConvertFromInternalUnits(b!.Min.Z, UnitTypeId.Meters)).ToList();
                 var ws = g.Select(x => doc.GetWorksetTable().GetWorkset(x.WorksetId)?.Name).Distinct();
+                var boxes = g.Select(x => x.get_BoundingBox(null)).Where(b => b != null).ToList();
+                double M(double ft) => UnitUtils.ConvertFromInternalUnits(ft, UnitTypeId.Meters);
+                var plan = boxes.Count > 0 ? $"; plan x {M(boxes.Min(b => b!.Min.X)):0.#}..{M(boxes.Max(b => b!.Max.X)):0.#}, y {M(boxes.Min(b => b!.Min.Y)):0.#}..{M(boxes.Max(b => b!.Max.Y)):0.#} m (model)" : "";
                 lines.Add($"kinetic unit \"{g.Key.Unit}\" ({g.Key.Where}, roof {g.Key.Roof}): " + string.Join(", ", g.GroupBy(x => x.LookupParameter("Sportify_TypeId")?.AsString() ?? "?").OrderBy(r => r.Key).Select(r => $"{r.Count()} {r.Key}")) +
-                          $"; undersides {(zs.Count > 0 ? $"{zs.Min():0.##}..{zs.Max():0.##} m" : "-")}; worksets {string.Join("/", ws)}");
+                          $"; undersides {(zs.Count > 0 ? $"{zs.Min():0.##}..{zs.Max():0.##} m" : "-")}{plan}; worksets {string.Join("/", ws)}");
             }
             foreach (var v in new FilteredElementCollector(doc).OfClass(typeof(View)).Cast<View>().Where(v => !v.IsTemplate &&
                          (v.Name.IndexOf("Lageplan", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name.IndexOf("Achsonometrie", StringComparison.OrdinalIgnoreCase) >= 0 || v.Name == "Schemes_Spotify")))

@@ -91,6 +91,9 @@ namespace SportfyRevit
             return toDelete.Count;
         }
 
+        /// <summary>Tags one part as a placement does (KineticPostRepair puts back posts with it).</summary>
+        internal static void TagPart(FamilyInstance instance, string role, string unitKey, int index, WorksetId workset, string roofId) => Tag(instance, role, unitKey, index, workset, roofId);
+
         static void Tag(FamilyInstance instance, string role, string unitKey, int index, WorksetId workset, string roofId)
         {
             SportifyLayoutBuilder.SetWorkset(instance, workset);

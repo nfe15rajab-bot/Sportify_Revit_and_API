@@ -224,6 +224,19 @@ namespace SportfyRevit
         /// normal install; the repository layout is tried too, so a developer
         /// running from a build output finds it without an install.
         /// </summary>
+        /// <summary>The add-in's own family library folder (Library\Families beside the assembly, or the repository's), null when there is none.</summary>
+        internal static string? LibraryFolder()
+        {
+            var dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (dir == null) return null;
+            foreach (var c in new[] { Path.Combine(dir, "Library", "Families"), Path.Combine(dir, "..", "Library", "Families"), Path.Combine(dir, "..", "..", "..", "..", "Library", "Families") })
+            {
+                var full = Path.GetFullPath(c);
+                if (Directory.Exists(full)) return full;
+            }
+            return null;
+        }
+
         internal static string? LibraryPath(string fileBase)
         {
             var dir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);

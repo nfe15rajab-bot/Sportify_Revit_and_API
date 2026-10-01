@@ -50,9 +50,11 @@ namespace SportfyRevit
                 Title = "Select the Revit families to bring into Sportify",
                 Filter = "Revit family files (*.rfa)|*.rfa",
                 Multiselect = true,
-                InitialDirectory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
+                // our family library first (user, 2026-10-01: "the load family command should take you to the family library of ours"), and pinned in the
+                // dialog's left pane, since Windows may reopen the folder last used instead
+                InitialDirectory = SportifyPlanterFamilyBuilder.LibraryFolder() ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads")
             };
+            if (SportifyPlanterFamilyBuilder.LibraryFolder() is string library) dialog.CustomPlaces.Add(library);
 
             var owner = new RevitOwnerWindow(commandData.Application.MainWindowHandle);
             if (dialog.ShowDialog(owner) != System.Windows.Forms.DialogResult.OK)
