@@ -11,7 +11,7 @@ IN THIS ZIP
   Sportify-Setup-{{VERSION}}-Revit2025.exe.sha256   checksum of the installer (optional)
   LICENSE_AGREEMENT.txt                       what setup asks you to accept
   THIRD_PARTY_NOTICES.txt                     the libraries and data by others that Sportify uses
-  Sportify-Guide-for-the-Professor.pdf        the full user guide (from opening the app to the finished
+  User Guide.pdf                              the full user guide (from opening the app to the finished
                                               model, tips, the problems we met) with the BIM chart
   README-FIRST.txt                            this file
   Remove-Developer-Sportify.ps1               only for the team's own development computers (end of file)
