@@ -137,7 +137,9 @@ namespace SportfyRevit
         internal const string IndoorColor = "#6f5bd0", SportZoneColor = "#3d6fff", GardenZoneColor = "#2f9e5b", WallColor = "#3a3f4b";
 
         // algoPlacementCore.js INDOOR_NAMES: Ping Pong, Bouldering Wall, Badminton and the three service modules
-        static readonly string[] IndoorWords = { "ping pong", "bouldering", "badminton", "locker", "bathroom", "shower", "rest / hydration", "rest area", "hydration" };
+        // only the service modules: the engine's other "indoor" pieces count as indoor only inside the indoor zone's walls, which the web app decides and sends
+        // as the piece's zone (algoPlacementUI.js diagramZoneOf, 2026-10-01); an older export with no zone gets them as outdoor sport
+        static readonly string[] IndoorWords = { "locker", "bathroom", "shower", "dressing" };
 
         /// <summary>A piece's zone: the one the web app exported with it, else by its name (the algorithm's indoor pieces) and its kind (gardens, plants,
         /// furniture and kinetic shading are garden; courts and activities outdoor sport).</summary>
